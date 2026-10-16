@@ -6,6 +6,10 @@ import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.meshcomod_contact import (
+    MESHCOMOD_COMMAND_CONTACT_DETAIL,
+    is_meshcomod_command_contact,
+)
 from app.models import (
     CONTACT_TYPE_CLIENT,
     CONTACT_TYPE_REPEATER,
@@ -910,6 +914,8 @@ async def send_repeater_command(public_key: str, request: CommandRequest) -> Com
 
     contact = await _resolve_contact_or_404(public_key)
     require_server_capable_contact(contact, allowed_types=CLI_CAPABLE_CONTACT_TYPES)
+    if is_meshcomod_command_contact(contact.public_key):
+        raise HTTPException(status_code=409, detail=MESHCOMOD_COMMAND_CONTACT_DETAIL)
     if contact.type == CONTACT_TYPE_CLIENT and not radio_cli_supported():
         raise HTTPException(
             status_code=409,

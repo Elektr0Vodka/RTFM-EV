@@ -11,12 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-16 (buddy add-on tours for MeshCore 1.18 and meshcomod, feat/buddy-feature-tours)
+## Update 2026-10-16 (buddy add-on tours, meshcomod command contact, feat/buddy-feature-tours)
 
-Frontend only. No migration, no new dependency or environment variable. The
-meshcomod stops follow the firmware source of `Elektr0Vodka/meshcomod` `main`
-938352fa (the built-in Meshcomod command contact, the 1.18 command line extras,
-the receive filter).
+No migration, no new dependency or environment variable. Both parts follow the
+firmware source of `Elektr0Vodka/meshcomod` `main` 938352fa (the built-in
+Meshcomod command contact, the 1.18 command line extras, the receive filter).
+Not tested against a real radio: the Meshcomod contact is checked with tests and
+a radio-less backend only.
+
+### meshcomod command contact
+- **Recognised.** meshcomod lists a built-in "Meshcomod" contact (key prefix
+  `MESHCM`) whose chat runs commands on the radio itself. Its chat now says so,
+  has buttons that put `help`, `status`, `wifi status` or `ota check` in the
+  message box, and asks before `reboot`, `bootloader`/`dfu`, `ota update`,
+  `ota start`, `ota url`, `wifi off`, `wifi clear`, `tcp off` and `ble off`.
+  The "profile details haven't arrived" banner is gone for it.
+- **No stray copy on the radio.** A DM to it no longer loads the contact onto
+  the radio first (that stored a real copy of the fake contact), sets no flood
+  scope, and is never retried or followed by a path reset; the radio confirms
+  it itself. Contact sync never loads, removes or counts it, and never writes
+  permission flags to it.
+- **Stays local.** Its chat is not sent to MQTT, Home Assistant, webhooks, SQS,
+  Apprise or Web Push and raises no notification, sound or buddy line (replies
+  still count as unread). Trace, path discovery, telemetry, permission switches,
+  route suggestions, sharing and the remote console are hidden for it, and the
+  API refuses the mesh actions with 409.
 
 ### Desktop buddy
 - **Two add-on tours.** Next to the guided walkthrough, the buddy has a

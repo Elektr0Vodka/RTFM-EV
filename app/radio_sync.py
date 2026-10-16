@@ -22,6 +22,7 @@ from meshcore import EventType, MeshCore
 from app.channel_constants import PUBLIC_CHANNEL_KEY, PUBLIC_CHANNEL_NAME
 from app.config import settings
 from app.event_handlers import cleanup_expired_acks, on_contact_message
+from app.meshcomod_contact import is_meshcomod_command_contact
 from app.models import (
     _VALID_CONTACT_TYPES,
     Contact,
@@ -297,7 +298,10 @@ async def should_run_full_periodic_sync(mc: MeshCore) -> bool:
         logger.warning("Periodic sync occupancy check failed: %s", result)
         return False
 
-    current_contacts = len(result.payload or {})
+    # meshcomod's command contact is listed by the radio but takes no slot.
+    current_contacts = sum(
+        1 for key in (result.payload or {}) if not is_meshcomod_command_contact(key)
+    )
     if current_contacts >= full_sync_trigger:
         logger.info(
             "Running full radio sync: %d/%d contacts on radio (trigger=%d, refill_target=%d)",
@@ -1134,7 +1138,8 @@ async def _reapply_app_contact_permissions(mc: MeshCore, radio_contacts: dict[st
 
     for contact in app_contacts:
         radio_contact = radio_contacts.get(contact.public_key.lower())
-        if radio_contact is None:
+        # Writing flags to meshcomod's command contact would store a copy of it.
+        if radio_contact is None or is_meshcomod_command_contact(contact.public_key):
             continue
         radio_flags = int(radio_contact.get("flags") or 0)
         wanted = radio_flags
@@ -1247,7 +1252,13 @@ async def _reconcile_radio_contacts_in_background(
     full pass converges the radio toward the desired working set without relying
     on a stale contact snapshot.
     """
-    radio_contacts = dict(initial_radio_contacts)
+    # meshcomod's command contact is added by the firmware to every contact list
+    # and is not stored on the radio: never remove or count it.
+    radio_contacts = {
+        key: value
+        for key, value in initial_radio_contacts.items()
+        if not is_meshcomod_command_contact(key)
+    }
     removed = 0
     loaded = 0
     failed = 0
@@ -1676,7 +1687,8 @@ async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
 
     for contact, reason in first_tier:
         key = contact.public_key.lower()
-        if key in selected_keys:
+        # meshcomod's command contact lives in the firmware, not in the contact table.
+        if key in selected_keys or is_meshcomod_command_contact(key):
             continue
         selected_keys.add(key)
         selected.append((contact, reason))
@@ -1688,7 +1700,11 @@ async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
             limit=max_contacts
         ):
             key = contact.public_key.lower()
-            if contact.radio_policy == "excluded" or key in selected_keys:
+            if (
+                contact.radio_policy == "excluded"
+                or key in selected_keys
+                or is_meshcomod_command_contact(key)
+            ):
                 continue
             selected_keys.add(key)
             selected.append((contact, RESIDENCY_RECENT_DM))
@@ -1700,7 +1716,11 @@ async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
             limit=max_contacts
         ):
             key = contact.public_key.lower()
-            if contact.radio_policy == "excluded" or key in selected_keys:
+            if (
+                contact.radio_policy == "excluded"
+                or key in selected_keys
+                or is_meshcomod_command_contact(key)
+            ):
                 continue
             selected_keys.add(key)
             selected.append((contact, RESIDENCY_RECENT_ADVERT))

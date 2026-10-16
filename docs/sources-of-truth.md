@@ -56,6 +56,11 @@ machine this was authored on and may differ elsewhere.
 - Companion receive filter (`filter` CLI): `examples/companion_radio/CompanionFilter.{h,cpp}`
   and `filter/FilterStats.h` are the reply formats `app/services/companion_filter.py`
   parses; `docs/companion_receive_filter.md` is the user documentation.
+- Meshcomod command contact: `examples/companion_radio/MyMesh.cpp`
+  (`MESHCOMOD_PUB_KEY_PREFIX` "MESHCM", `getMeshcomodContact`, the
+  `CMD_SEND_TXT_MSG` local branch with its immediate `PUSH_CODE_SEND_CONFIRMED`,
+  `pushMeshcomodReply`, `handleMeshcomodCommand` and `kMeshcomodHelpMsg`) is what
+  `app/meshcomod_contact.py` and `frontend/src/utils/meshcomodContact.ts` follow.
 - Related: standalone touch UI moved to https://github.com/ALLFATHER-BV/wadamesh.
 
 ### OpenHop

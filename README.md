@@ -338,6 +338,13 @@ meshcomod v1.18.0.1 and later also have the [MeshCore 1.18 companion command lin
 
 Everything goes through the radio's own command line and never transmits. The radio's replies are capped at 158 bytes, so a long rule list can come back cut off; the card says so when that happens. The radio's raw RX log is not filtered, so messages the radio hides can still appear in RTFM-EV, which decodes that log itself.
 
+meshcomod also lists a built-in **Meshcomod** contact (key prefix `MESHCM`). Its chat is the radio's own command line: messages sent there (`help`, `status`, `wifi scan`, `wifi status`, `tcp on`/`off`, `ble on`/`off`, `ota check`, ...) run on the radio and never go out over LoRa, and the replies come back in the same chat. RTFM-EV treats it as such:
+
+- The chat explains this and has buttons that put `help`, `status`, `wifi status` or `ota check` in the message box. `reboot`, `bootloader`/`dfu`, `ota update`/`start`/`url`, `wifi off`, `wifi clear`, `tcp off` and `ble off` ask for confirmation first.
+- Sending skips what a mesh DM needs (loading the contact onto the radio, flood scope, retries, path reset); the radio confirms the message itself. The contact is never loaded into, removed from or counted against the radio's contact table.
+- Its chat is not sent to MQTT, Home Assistant, webhooks, SQS, Apprise or Web Push and gives no notification, sound or buddy line; replies still count as unread.
+- Trace, path discovery, telemetry, the Remote CLI and telemetry permission switches, route suggestions, contact sharing and the remote console are hidden for it. The API refuses trace, path discovery, telemetry, the permission and routing changes and remote commands for it (409).
+
 ### MeshCore 1.18 companion command line
 
 MeshCore companion firmware 1.18 added a command line to the companion radio itself. With a 1.18 or newer radio connected:

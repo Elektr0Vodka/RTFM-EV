@@ -457,6 +457,7 @@ Diese Seite. Öffne sie unter Werkzeuge oder über die Adresse `#manual`. Sie fo
 - **Max. Kontakte auf dem Funkgerät**, **Konfiguration exportieren** und **Importieren und neu starten**.
 - **Erwähnungsticker anzeigen**, **Erwaehnte Kanaele automatisch zum Register hinzufuegen** und die **Externe Analyzer-Knotenebene**.
 - Auf Meshcomod-Firmware (DMC-EV) ein Bereich **Meshcomod (DMC-EV)** mit CAD- und GPS-Einstellungen. Builds mit dem Empfangsfilter erhalten eine Karte **Companion-Empfangsfilter**: Filtereinstellungen, Absender- und Textregeln, blockierte Pfadpräfixe, Zähler ausgeblendeter Nachrichten mit Verlaufsdiagramm und eine Sicherung pro Funkgerät, die sich nach dem Flashen zurückspielen lässt. Es läuft auf dem Funkgerät und sendet nie.
+- meshcomod zeigt außerdem einen Kontakt **Meshcomod**. Der Chat damit ist die eigene Befehlszeile deines Funkgeräts: Was du dort sendest (`help`, `status`, `wifi scan`, `wifi status`, `tcp on`/`off`, `ble on`/`off`, `ota check` und mehr), läuft auf dem Funkgerät und geht nie über LoRa hinaus, und das Funkgerät antwortet im selben Chat. Knöpfe über dem Chat setzen einen häufigen Befehl ins Nachrichtenfeld. Befehle, die das Funkgerät neu starten oder die App von ihm trennen können (`reboot`, `bootloader`, `ota update`, `wifi off`, `wifi clear`, `tcp off`, `ble off`), fragen vorher nach. Der Chat geht nicht an MQTT, Home Assistant oder andere Integrationen und löst keine Benachrichtigungen aus; Trace, Pfadsuche, Telemetrie und die Berechtigungsschalter sind für diesen Kontakt ausgeblendet.
 
 ### Host-Repeater
 

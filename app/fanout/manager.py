@@ -8,6 +8,7 @@ from typing import Any
 
 from app.decoder import TXT_TYPE_CLI_COMMAND, TXT_TYPE_GROUP_DATA
 from app.fanout.base import FanoutModule
+from app.meshcomod_contact import is_meshcomod_command_contact
 
 logger = logging.getLogger(__name__)
 _DISPATCH_TIMEOUT_SECONDS = 30.0
@@ -72,9 +73,13 @@ def _scope_matches_message(scope: dict, data: dict) -> bool:
     channel datagram, not a message anyone typed) are dropped unless the scope
     opts in with ``"data_placeholders": "all"``; the message filter still applies.
     Incoming remote CLI commands (``txt_type`` 3, companion firmware 1.18) are
-    never fanned out: they are commands to our radio, not chat.
+    never fanned out: they are commands to our radio, not chat. Neither is the
+    chat with meshcomod's local command contact (commands and replies of the
+    radio itself, which can carry the WiFi password).
     """
     if data.get("txt_type") == TXT_TYPE_CLI_COMMAND:
+        return False
+    if data.get("type") == "PRIV" and is_meshcomod_command_contact(data.get("conversation_key")):
         return False
     if (
         data.get("txt_type") == TXT_TYPE_GROUP_DATA

@@ -1,4 +1,5 @@
 import { CONTACT_TYPE_CLIENT, CONTACT_TYPE_SENSOR, type Contact } from '../types';
+import { isMeshcomodCommandContact } from '../utils/meshcomodContact';
 import { BUDDY_ANCHORS, tabAnchor, toolAnchor } from './buddyAnchors';
 
 /**
@@ -206,13 +207,6 @@ export function buddyTourTitleKey(step: BuddyTourStep): string {
 
 export function buddyTourTextKey(step: BuddyTourStep): string {
   return `buddy_tour_${step.id}_text`;
-}
-
-/** Public key prefix of meshcomod's built-in command contact ("MESHCM"). */
-const MESHCOMOD_CONTACT_PREFIX = '4d455348434d';
-
-export function isMeshcomodCommandContact(publicKey: string): boolean {
-  return publicKey.toLowerCase().startsWith(MESHCOMOD_CONTACT_PREFIX);
 }
 
 function heardAt(contact: Contact): number {

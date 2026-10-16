@@ -361,6 +361,10 @@ Skins: `applyPopoutSkin` sets `data-theme` (`mirc`, `mirc-dark`, or the saved th
 - The buddy relies on clippyjs 0.1.0 private members; recheck them on any clippyjs upgrade: `_addToQueue`, `_balloon._balloon`, `_balloon.speak`, `_balloon.CLOSE_BALLOON_DELAY`, `_onQueueEmpty`, `_animator._data`, `_animator.exitAnimation`, `_animator.currentAnimationName`, `_playInternal`, `_getDirection`, `_el`, and the `Animator.States` values (0 = exited, 1 = waiting). `playBriefly` and `gestureAnimation` guard their calls, so a missing member costs the animation, not the line.
 - Not observable in jsdom: which animation frames play and how long they take. Check those in a browser (frames show as `background-position` on the `[data-buddy]` element).
 
+#### meshcomod command contact (`utils/meshcomodContact.ts`, `MeshcomodContactNotice.tsx`)
+
+`isMeshcomodCommandContact` (prefix `4d455348434d`, mirrors `app/meshcomod_contact.py`) marks meshcomod's local command contact. `ConversationPane` shows `MeshcomodContactNotice` instead of the unknown-profile banner (its buttons call `MessageInputHandle.setText`, they never send), turns the DM header CLI toggle off and passes `confirmSend` to `MessageInput` for `isRiskyMeshcomodCommand` texts (declined = text stays, nothing sent). `ChatHeader` hides path discovery, trace, analyzer lookup, flood scope and the location menu; `ContactInfoBody` hides telemetry, residency, permission switches, link sharing, the remote console and route suggestions. `useRealtimeAppState` sends no notification, sound or buddy `dm` event for its replies but keeps the unread count.
+
 #### Guided walkthrough (`buddy/buddyTour*.ts`, `BuddyTourRunner.tsx`, `BuddyTourOffer.tsx`)
 
 A buddy-led tour of the app. It never blocks the page (no backdrop, no focus trap, the ring has `pointer-events: none`) and it only navigates: no stop types, opens a composer or sends.

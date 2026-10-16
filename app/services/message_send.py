@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 from meshcore import EventType
 
+from app.meshcomod_contact import is_meshcomod_command_contact
 from app.models import ResendChannelMessageResponse, ResendDirectMessageResponse
 from app.radio import RadioOperationBusyError
 from app.region_scope import is_unscoped, normalize_region_scope
@@ -757,16 +758,23 @@ async def send_direct_message_to_contact(
         retry_sleep_fn = asyncio.sleep
 
     contact_data = contact.to_radio_dict()
+    # meshcomod's command contact runs the text on the radio itself: it is never
+    # loaded into the radio's contact table (that would store a copy of the fake
+    # contact), never flood-scoped and never retried. The radio confirms it at once.
+    local_command = is_meshcomod_command_contact(contact.public_key)
     sent_at: int | None = None
     sender_timestamp: int | None = None
     message = None
     result = None
     try:
         async with radio_manager.radio_operation("send_direct_message") as mc:
-            logger.debug("Ensuring contact %s is on radio before sending", contact.public_key[:12])
-            add_result = await mc.commands.add_contact(contact_data)
-            if add_result.type == EventType.ERROR:
-                logger.warning("Failed to add contact to radio: %s", add_result.payload)
+            if not local_command:
+                logger.debug(
+                    "Ensuring contact %s is on radio before sending", contact.public_key[:12]
+                )
+                add_result = await mc.commands.add_contact(contact_data)
+                if add_result.type == EventType.ERROR:
+                    logger.warning("Failed to add contact to radio: %s", add_result.payload)
 
             cached_contact = mc.get_contact_by_key_prefix(contact.public_key[:12])
             if not cached_contact:
@@ -785,7 +793,7 @@ async def send_direct_message_to_contact(
             # flood-routed; a direct send over a known path carries no transport code.
             async with temporary_flood_scope(
                 mc=mc,
-                override=contact.flood_scope_override,
+                override=None if local_command else contact.flood_scope_override,
                 radio_manager=radio_manager,
                 action_label=f"sending message to {contact.public_key[:12]}",
                 error_broadcast_fn=error_broadcast_fn,
@@ -871,7 +879,7 @@ async def send_direct_message_to_contact(
         message.acked = ack_count
         return message
 
-    if DM_SEND_MAX_ATTEMPTS > 1 and ack_code:
+    if DM_SEND_MAX_ATTEMPTS > 1 and ack_code and not local_command:
         retry_task_scheduler(
             _retry_direct_message_until_acked(
                 contact=contact,
