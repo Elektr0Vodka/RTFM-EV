@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../../api';
+import { BUDDY_ANCHORS } from '../../buddy/buddyAnchors';
 import type {
   CompanionFilterCounterKey,
   CompanionFilterHistory,
@@ -361,7 +362,11 @@ export function CompanionFilterSettings({ health }: Props) {
   return (
     <div className="space-y-4">
       <Separator />
-      <div className="flex items-center justify-between gap-2">
+      {/* The heading row, not the whole card: the card is taller than a screen. */}
+      <div
+        data-buddy-anchor={BUDDY_ANCHORS.cfilter}
+        className="flex items-center justify-between gap-2"
+      >
         <h3 className="text-base font-semibold tracking-tight">{t('cfilter_heading')}</h3>
         <Button type="button" variant="outline" size="sm" disabled={busy} onClick={load}>
           {t('cfilter_refresh')}
@@ -435,7 +440,7 @@ export function CompanionFilterSettings({ health }: Props) {
             )}
           </div>
 
-          <div className="space-y-2">
+          <div data-buddy-anchor={BUDDY_ANCHORS.cfilterCounters} className="space-y-2">
             <h4 className="text-sm font-medium">{t('cfilter_counters_heading')}</h4>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               {COUNTERS.map((c) => (
@@ -573,7 +578,7 @@ export function CompanionFilterSettings({ health }: Props) {
             />
           ))}
 
-          <div className="space-y-2">
+          <div data-buddy-anchor={BUDDY_ANCHORS.cfilterBackup} className="space-y-2">
             <h4 className="text-sm font-medium">{t('cfilter_backup_heading')}</h4>
             <p className="text-xs text-muted-foreground">
               {state.backup

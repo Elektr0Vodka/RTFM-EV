@@ -77,6 +77,12 @@ Nieuw in de app? Open de **Gebruikershandleiding** en klik op **Rondleiding star
 - In een browser die de app nog niet eerder heeft gebruikt, biedt een kaartje de rondleiding één keer aan: **Rondleiding starten**, **Nu niet** (bij het volgende bezoek vraagt hij het opnieuw) of **Niet meer vragen**.
 - Zolang je geen kanaal hebt, worden de twee chatstappen overgeslagen.
 
+Twee kortere rondleidingen laten zien wat de firmware van je radio toevoegt. Hun knoppen verschijnen in de Gebruikershandleiding en in het maatjesmenu zodra er een radio met die firmware verbonden is geweest:
+
+- **Rondleiding MeshCore 1.18** (companion-firmware 1.18 of nieuwer): de opdrachtregel in **Instellingen > Radio** en op **Mijn node**, de opdrachtregel van een andere companion in een chat en in zijn contactinfo, de **Remote CLI**-toestemming en het sensordashboard. Een stap voor een contact of sensor wordt overgeslagen als je er geen hebt; de rondleiding opent de companion die je het laatst hebt gehoord, nooit het Meshcomod-contact.
+- **Rondleiding meshcomod** (meshcomod-firmware): het paneel **Meshcomod (DMC-EV)**, de CAD-knop in de chatkop, het ingebouwde contact **Meshcomod** (wat je het stuurt, draait op de radio en gaat nooit via LoRa de lucht in), de opdrachtregel, en het **Companion-ontvangstfilter** met tellers en back-up. Stappen voor functies die jouw build niet heeft, worden overgeslagen.
+- De eerste keer dat een browser zo'n radio ziet, biedt een kaartje die rondleiding één keer aan, ook als je de app al eerder gebruikte. Er staat steeds één kaartje in beeld, en na **Nu niet** of **Niet meer vragen** volgt er tot het volgende bezoek geen ander kaartje.
+
 <!-- id: layout -->
 
 ## De indeling
@@ -451,6 +457,7 @@ Open Instellingen met de knop in de bovenbalk. Op een telefoon klapt elke sectie
 - **Max Contacten op Radio**, **Configuratie Exporteren** en **Importeren en Herstarten**.
 - **Vermeldingsticker Tonen**, **Vermelde kanalen automatisch aan register toevoegen** en de **Externe analyzer-node-laag**.
 - Op meshcomod-firmware (DMC-EV) een paneel **Meshcomod (DMC-EV)** met CAD- en GPS-instellingen. Builds met het ontvangstfilter krijgen een kaart **Companion-ontvangstfilter**: filterinstellingen, afzender- en tekstregels, geblokkeerde padprefixen, tellers van verborgen berichten met een grafiek, en een back-up per radio die je na het flashen kunt terugzetten. Het draait op de radio en zendt nooit uit.
+- meshcomod toont ook een contact **Meshcomod**. De chat daarmee is de eigen opdrachtregel van je radio: wat je daar stuurt (`help`, `status`, `wifi scan`, `wifi status`, `tcp on`/`off`, `ble on`/`off`, `ota check` en meer) draait op de radio en gaat nooit via LoRa de lucht in, en de radio antwoordt in dezelfde chat. Knoppen boven de chat zetten een veelgebruikte opdracht in het berichtveld. Opdrachten die de radio herstarten of de app van de radio kunnen afsluiten (`reboot`, `bootloader`, `ota update`, `wifi off`, `wifi clear`, `tcp off`, `ble off`) vragen eerst om bevestiging. De chat gaat niet naar MQTT, Home Assistant of andere koppelingen en geeft geen meldingen; trace, padontdekking, telemetrie en de toestemmingsschakelaars zijn voor dit contact verborgen.
 
 ### Host-repeater
 

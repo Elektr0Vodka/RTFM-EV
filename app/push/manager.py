@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pywebpush import WebPushException
 
 from app.decoder import TXT_TYPE_CLI_COMMAND
+from app.meshcomod_contact import is_meshcomod_command_contact
 from app.path_utils import message_hidden_by_hop_width
 from app.push.send import send_push
 from app.push.vapid import get_vapid_claims, get_vapid_private_key
@@ -113,6 +114,12 @@ class PushManager:
 
         # Remote CLI commands from other companions (txt_type 3) are not chat.
         if data.get("txt_type") == TXT_TYPE_CLI_COMMAND:
+            return
+
+        # Nor are the replies of meshcomod's local command contact.
+        if data.get("type") == "PRIV" and is_meshcomod_command_contact(
+            data.get("conversation_key")
+        ):
             return
 
         # Check the global conversation list

@@ -22,6 +22,7 @@ import { emitBuddyEvent } from '../buddy/buddyEvents';
 import { conversationMessageCache } from './useConversationMessages';
 import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
 import { isBotMessage, loadBotLists } from '../utils/botLists';
+import { isMeshcomodCommandContact } from '../utils/meshcomodContact';
 import type {
   Channel,
   Contact,
@@ -277,6 +278,11 @@ export function useRealtimeAppState({
           isBotHidden ||
           isRemoteCliCommand;
 
+        // Replies from meshcomod's command contact answer a command sent from
+        // here: they count as unread, but notify nothing.
+        const isLocalCommandReply =
+          msg.type === 'PRIV' && isMeshcomodCommandContact(msg.conversation_key);
+
         const { added: isNewMessage, activeConversation: isForActiveConversation } =
           observeMessage(msg);
 
@@ -289,7 +295,7 @@ export function useRealtimeAppState({
           });
         }
 
-        if (!msg.outgoing && isNewMessage && !isSilenced) {
+        if (!msg.outgoing && isNewMessage && !isSilenced && !isLocalCommandReply) {
           notifyIncomingMessage?.(msg);
           notifyMentionSound?.(msg, {
             isForActiveConversation,
@@ -302,7 +308,8 @@ export function useRealtimeAppState({
           !msg.outgoing &&
           isNewMessage &&
           !isForActiveConversation &&
-          !isSilenced
+          !isSilenced &&
+          !isLocalCommandReply
         ) {
           emitBuddyEvent({
             kind: 'dm',

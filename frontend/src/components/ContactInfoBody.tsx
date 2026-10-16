@@ -45,6 +45,7 @@ import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
 import { CompanionCliConsole } from './CompanionCliConsole';
+import { isMeshcomodCommandContact } from '../utils/meshcomodContact';
 import { ContactRemoteCliControl } from './ContactRemoteCliControl';
 import { ContactLinkShare } from './ContactLinkShare';
 import { ContactRouteSuggestionsSection } from './ContactRouteSuggestions';
@@ -269,8 +270,12 @@ export function ContactInfoBody({
   const analyzerLookupKey = isPrefixOnlyResolvedContact
     ? (softResolution?.resolved_pubkey ?? null)
     : contact.public_key;
+  // meshcomod's command contact runs on the radio itself: it never adverts and is
+  // not a node on the mesh, so the mesh, permission and sharing parts are hidden.
+  const isLocalCommandContact = isMeshcomodCommandContact(contact.public_key);
   const isUnknownFullKeyResolvedContact =
     !isPrefixOnlyResolvedContact &&
+    !isLocalCommandContact &&
     isUnknownFullKeyContact(contact.public_key, contact.last_advert);
   const isRepeater = contact.type === CONTACT_TYPE_REPEATER;
 
@@ -321,6 +326,12 @@ export function ContactInfoBody({
       {show('identity') && isUnknownFullKeyResolvedContact && (
         <div className="mx-5 mt-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           {t('contact_unknown_full_key_banner')}
+        </div>
+      )}
+
+      {show('identity') && isLocalCommandContact && (
+        <div className="mx-5 mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+          {t('meshcomod_contact_notice')}
         </div>
       )}
 
@@ -414,7 +425,7 @@ export function ContactInfoBody({
         </div>
       )}
 
-      {show('data') && (
+      {show('data') && !isLocalCommandContact && (
         <ContactTelemetrySection
           t={t}
           contact={contact}
@@ -481,19 +492,20 @@ export function ContactInfoBody({
         <ContactFleetSection publicKey={contact.public_key} onOpenFleetAsset={onOpenFleetAsset} />
       )}
 
-      {show('identity') && !isPrefixOnlyResolvedContact && (
+      {show('identity') && !isPrefixOnlyResolvedContact && !isLocalCommandContact && (
         <ContactRadioResidencyControl contact={contact} />
       )}
 
-      {show('identity') && !isPrefixOnlyResolvedContact && (
+      {show('identity') && !isPrefixOnlyResolvedContact && !isLocalCommandContact && (
         <ContactTelemetryPermissionsControl contact={contact} />
       )}
 
-      {show('identity') && !isPrefixOnlyResolvedContact && contact.type === CONTACT_TYPE_CLIENT && (
-        <ContactRemoteCliControl contact={contact} />
-      )}
+      {show('identity') &&
+        !isPrefixOnlyResolvedContact &&
+        !isLocalCommandContact &&
+        contact.type === CONTACT_TYPE_CLIENT && <ContactRemoteCliControl contact={contact} />}
 
-      {show('identity') && !isPrefixOnlyResolvedContact && (
+      {show('identity') && !isPrefixOnlyResolvedContact && !isLocalCommandContact && (
         <ContactLinkShare
           key={contact.public_key}
           load={() => api.getContactUri(contact.public_key)}
@@ -635,14 +647,17 @@ export function ContactInfoBody({
         contact.public_key.length === 64 &&
         !contact.name && <ResolveNameButton publicKey={contact.public_key} t={t} />}
 
-      {show('network') && contact.type === CONTACT_TYPE_CLIENT && !isPrefixOnlyResolvedContact && (
-        <div className="px-5 py-3 border-b border-border">
-          <CompanionCliConsole
-            target={{ kind: 'contact', publicKey: contact.public_key }}
-            cliSupported={cliSupported}
-          />
-        </div>
-      )}
+      {show('network') &&
+        contact.type === CONTACT_TYPE_CLIENT &&
+        !isPrefixOnlyResolvedContact &&
+        !isLocalCommandContact && (
+          <div className="px-5 py-3 border-b border-border">
+            <CompanionCliConsole
+              target={{ kind: 'contact', publicKey: contact.public_key }}
+              cliSupported={cliSupported}
+            />
+          </div>
+        )}
 
       {show('network') &&
         analytics &&
@@ -742,9 +757,8 @@ export function ContactInfoBody({
 
       {show('network') &&
         contact.type === CONTACT_TYPE_CLIENT &&
-        contact.public_key.length === 64 && (
-          <ContactRouteSuggestionsSection publicKey={contact.public_key} />
-        )}
+        contact.public_key.length === 64 &&
+        !isLocalCommandContact && <ContactRouteSuggestionsSection publicKey={contact.public_key} />}
 
       {show('network') && fromChannel && (
         <ChannelAttributionWarning

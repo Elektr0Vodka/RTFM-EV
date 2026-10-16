@@ -21,6 +21,7 @@ import { ChannelPathHashModeOverrideModal } from './ChannelPathHashModeOverrideM
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT } from '../i18n';
 import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
+import { isMeshcomodCommandContact } from '../utils/meshcomodContact';
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { stripRegionScopePrefix, floodScopeOverrideLabel } from '../utils/regionScope';
 import { isPrefixOnlyContact } from '../utils/pubkey';
@@ -210,6 +211,8 @@ export function ChatHeader({
       ? contacts.find((contact) => contact.public_key === conversation.id)
       : null;
   const activeContactIsRoomServer = activeContact?.type === CONTACT_TYPE_ROOM;
+  // meshcomod's command contact runs on the radio: no route, trace, scope or location.
+  const isMeshcomodChat = !!activeContact && isMeshcomodCommandContact(activeContact.public_key);
   const showCliToggle =
     !!cliConsoleAvailable && !!onToggleCliConsole && activeContact?.type === CONTACT_TYPE_CLIENT;
   const activeContactIsPrefixOnly = activeContact
@@ -444,7 +447,7 @@ export function ChatHeader({
         </div>
       )}
       <div className="flex items-center justify-end gap-0.5">
-        {conversation.type === 'contact' && !activeContactIsRoomServer && (
+        {conversation.type === 'contact' && !activeContactIsRoomServer && !isMeshcomodChat && (
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setPathDiscoveryOpen(true)}
@@ -459,7 +462,7 @@ export function ChatHeader({
             <Route className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </button>
         )}
-        {conversation.type === 'contact' && !activeContactIsRoomServer && (
+        {conversation.type === 'contact' && !activeContactIsRoomServer && !isMeshcomodChat && (
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={onTrace}
@@ -474,31 +477,34 @@ export function ChatHeader({
             <DirectTraceIcon className="h-4 w-4 text-muted-foreground" />
           </button>
         )}
-        {conversation.type === 'contact' && activeContact && analyzerSites.length > 0 && (
-          <button
-            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => {
-              if (analyzerSites.length > 1) {
-                // Every site is listed in the contact info pane; choose there.
-                onOpenContactInfo?.(activeContact.public_key);
-                return;
+        {conversation.type === 'contact' &&
+          activeContact &&
+          !isMeshcomodChat &&
+          analyzerSites.length > 0 && (
+            <button
+              className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => {
+                if (analyzerSites.length > 1) {
+                  // Every site is listed in the contact info pane; choose there.
+                  onOpenContactInfo?.(activeContact.public_key);
+                  return;
+                }
+                const url = buildNodeLookupUrl(analyzerSites[0], activeContact.public_key);
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              }}
+              title={
+                activeContactIsPrefixOnly
+                  ? t('a11y_analyzer_lookup_unavailable')
+                  : analyzerSites.length === 1
+                    ? t('contact_analyzer_lookup_title', { name: analyzerSites[0].name })
+                    : t('chat_analyzer_lookup_choose_title')
               }
-              const url = buildNodeLookupUrl(analyzerSites[0], activeContact.public_key);
-              if (url) window.open(url, '_blank', 'noopener,noreferrer');
-            }}
-            title={
-              activeContactIsPrefixOnly
-                ? t('a11y_analyzer_lookup_unavailable')
-                : analyzerSites.length === 1
-                  ? t('contact_analyzer_lookup_title', { name: analyzerSites[0].name })
-                  : t('chat_analyzer_lookup_choose_title')
-            }
-            aria-label={t('a11y_analyzer_lookup')}
-            disabled={activeContactIsPrefixOnly}
-          >
-            <ExternalLink className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          </button>
-        )}
+              aria-label={t('a11y_analyzer_lookup')}
+              disabled={activeContactIsPrefixOnly}
+            >
+              <ExternalLink className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            </button>
+          )}
         {(notificationsSupported ||
           pushSupported ||
           onToggleSoundMute ||
@@ -635,7 +641,7 @@ export function ChatHeader({
               )}
             </div>
           )}
-        {setFloodScopeOverride && (
+        {setFloodScopeOverride && !isMeshcomodChat && (
           <button
             className="flex shrink-0 items-center gap-1 rounded px-1 py-1 text-lg leading-none transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={handleEditFloodScopeOverride}
@@ -672,6 +678,7 @@ export function ChatHeader({
           onToggleCad && (
             <button
               type="button"
+              data-buddy-anchor={BUDDY_ANCHORS.chatCad}
               onClick={() => onToggleCad()}
               aria-pressed={
                 cadEnabled === null || cadEnabled === undefined ? undefined : cadEnabled
@@ -699,6 +706,7 @@ export function ChatHeader({
         {showCliToggle && (
           <button
             type="button"
+            data-buddy-anchor={BUDDY_ANCHORS.chatCli}
             onClick={() => onToggleCliConsole?.()}
             aria-pressed={!!cliConsoleOpen}
             aria-label={
@@ -719,7 +727,8 @@ export function ChatHeader({
           </button>
         )}
         {(conversation.type === 'channel' || conversation.type === 'contact') &&
-          onInsertLocation && (
+          onInsertLocation &&
+          !isMeshcomodChat && (
             <div className="sm:relative" ref={locationMenuRef}>
               <button
                 className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"

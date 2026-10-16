@@ -1,4 +1,5 @@
 import { api } from '../../api';
+import { BUDDY_ANCHORS } from '../../buddy/buddyAnchors';
 import type { HealthStatus, MeshcomodConfigUpdate } from '../../types';
 import { useMeshcomodConfig, broadcastMeshcomodConfig } from '../../hooks/useMeshcomodConfig';
 import { Checkbox } from '../ui/checkbox';
@@ -26,7 +27,7 @@ export function MeshcomodSettings({ health }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div data-buddy-anchor={BUDDY_ANCHORS.meshcomod} className="space-y-4">
       <Separator />
       <h3 className="text-base font-semibold tracking-tight">{t('settings_meshcomod_heading')}</h3>
 

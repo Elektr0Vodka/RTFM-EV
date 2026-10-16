@@ -14,6 +14,10 @@ from app.contact_uri import (
     format_contact_uri,
     parse_contact_uri,
 )
+from app.meshcomod_contact import (
+    MESHCOMOD_COMMAND_CONTACT_DETAIL,
+    is_meshcomod_command_contact,
+)
 from app.models import (
     Contact,
     ContactActiveRoom,
@@ -105,6 +109,17 @@ async def _resolve_contact_or_404(
     if not contact:
         raise HTTPException(status_code=404, detail=not_found_detail)
     return contact
+
+
+def _reject_meshcomod_command_contact(contact: Contact) -> None:
+    """Refuse mesh actions on meshcomod's command contact.
+
+    It is not a node on the mesh: a trace, path discovery or telemetry request
+    has nobody to reach, and writing its route or flags would store a copy of
+    the fake contact in the radio's contact table.
+    """
+    if is_meshcomod_command_contact(contact.public_key):
+        raise HTTPException(status_code=409, detail=MESHCOMOD_COMMAND_CONTACT_DETAIL)
 
 
 async def _ensure_on_radio(mc, contact: Contact) -> None:
@@ -806,6 +821,7 @@ async def request_trace(public_key: str) -> TraceResponse:
     radio_manager.require_connected()
 
     contact = await _resolve_contact_or_404(public_key)
+    _reject_meshcomod_command_contact(contact)
 
     tag = random.randint(1, 0xFFFFFFFF)
     # Use a 4-byte contact hash for low-collision direct trace targeting.
@@ -865,6 +881,7 @@ async def request_path_discovery(public_key: str) -> PathDiscoveryResponse:
     radio_manager.require_connected()
 
     contact = await _resolve_contact_or_404(public_key)
+    _reject_meshcomod_command_contact(contact)
     pubkey_prefix = contact.public_key[:12]
 
     async with radio_manager.radio_operation("request_path_discovery", pause_polling=True) as mc:
@@ -969,6 +986,7 @@ async def set_contact_routing_override(
 ) -> dict:
     """Set, force, or clear an explicit routing override for a contact."""
     contact = await _resolve_contact_or_404(public_key)
+    _reject_meshcomod_command_contact(contact)
 
     route_text = request.route.strip()
     if route_text == "":
@@ -1176,6 +1194,7 @@ async def set_contact_telemetry_permissions(
     that is not on the radio is not added just for this.
     """
     contact = await _resolve_contact_or_404(public_key)
+    _reject_meshcomod_command_contact(contact)
     perms = request.to_perms()
     await ContactRepository.set_telemetry_perms(contact.public_key, perms)
 
@@ -1230,6 +1249,7 @@ async def set_contact_remote_cli(public_key: str, request: ContactRemoteCliReque
     contact is on the radio, and re-applied whenever a radio snapshot differs.
     """
     contact = await _resolve_contact_or_404(public_key)
+    _reject_meshcomod_command_contact(contact)
     await ContactRepository.set_remote_cli(contact.public_key, request.enabled)
 
     applied_to_radio = False
@@ -1283,6 +1303,7 @@ async def request_contact_telemetry(public_key: str) -> ContactTelemetryResponse
 
     radio_manager.require_connected()
     contact = await _resolve_contact_or_404(public_key)
+    _reject_meshcomod_command_contact(contact)
 
     async with radio_manager.radio_operation(
         "contact_telemetry", pause_polling=True, suspend_auto_fetch=True

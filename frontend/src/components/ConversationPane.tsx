@@ -29,6 +29,7 @@ import {
   CONTACT_TYPE_SENSOR,
 } from '../types';
 import { CompanionCliConsole } from './CompanionCliConsole';
+import { MeshcomodContactNotice } from './MeshcomodContactNotice';
 import { SensorDashboardPanel } from './repeater/SensorDashboardPanel';
 import {
   getContactDisplayName,
@@ -36,6 +37,7 @@ import {
   isUnknownFullKeyContact,
 } from '../utils/pubkey';
 import { useT } from '../i18n';
+import { isMeshcomodCommandContact, isRiskyMeshcomodCommand } from '../utils/meshcomodContact';
 import { useIsMobile } from '../map/controls/breakpoints';
 import type { SearchNavigateTarget } from './SearchView';
 
@@ -369,6 +371,11 @@ export function ConversationPane({
   contactInfoViewProps,
 }: ConversationPaneProps) {
   const t = useT();
+  // Commands to meshcomod's command contact that restart the radio or can cut
+  // this app off from it are confirmed first; a "no" keeps the text in the box.
+  const confirmMeshcomodCommand = (text: string) =>
+    !isRiskyMeshcomodCommand(text) ||
+    window.confirm(t('meshcomod_contact_confirm', { command: text }));
   const isMobile = useIsMobile();
   const [roomAuthenticated, setRoomAuthenticated] = useState(false);
   // Chat contact whose DM shows the companion command line instead of the
@@ -398,9 +405,13 @@ export function ConversationPane({
   const isPrefixOnlyActiveContact = activeContact
     ? isPrefixOnlyContact(activeContact.public_key)
     : false;
+  // meshcomod's command contact never adverts, so it has no profile to wait for.
+  const isMeshcomodChat =
+    activeContact !== null && isMeshcomodCommandContact(activeContact.public_key);
   const isUnknownFullKeyActiveContact =
     activeContact !== null &&
     !isPrefixOnlyActiveContact &&
+    !isMeshcomodChat &&
     isUnknownFullKeyContact(activeContact.public_key, activeContact.last_advert);
 
   if (!activeConversation) {
@@ -759,7 +770,8 @@ export function ConversationPane({
     );
   }
 
-  const cliConsoleAvailable = activeContact?.type === CONTACT_TYPE_CLIENT;
+  // meshcomod's command contact takes its commands as plain messages.
+  const cliConsoleAvailable = activeContact?.type === CONTACT_TYPE_CLIENT && !isMeshcomodChat;
   const cliConsoleOpen =
     cliConsoleAvailable &&
     activeConversation.type === 'contact' &&
@@ -823,6 +835,15 @@ export function ConversationPane({
       )}
       {activeConversation.type === 'contact' && isUnknownFullKeyActiveContact && (
         <ContactResolutionBanner variant="unknown-full-key" />
+      )}
+      {activeConversation.type === 'contact' && isMeshcomodChat && (
+        <MeshcomodContactNotice
+          onPick={(command) => {
+            if (messageInputRef && typeof messageInputRef === 'object') {
+              messageInputRef.current?.setText?.(command);
+            }
+          }}
+        />
       )}
       {activeContactIsRoom && activeContact && (
         <RoomServerPanel
@@ -933,6 +954,7 @@ export function ConversationPane({
           key={`${activeConversation.type}:${activeConversation.id}`}
           ref={messageInputRef}
           onSend={onSendMessage}
+          confirmSend={isMeshcomodChat ? confirmMeshcomodCommand : undefined}
           disabled={!health?.radio_connected}
           conversationType={activeConversation.type}
           senderName={config?.name}

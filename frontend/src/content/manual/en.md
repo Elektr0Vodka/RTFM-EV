@@ -77,6 +77,12 @@ New to the app? Open the **User Guide** and press **Start guided walkthrough**. 
 - In a browser that has not used the app before, a card offers the walkthrough once: **Start walkthrough**, **Not now** (it asks again on the next visit) or **Don't ask again**.
 - As long as you have no channel, the two chat steps are left out.
 
+Two shorter tours show what your radio's firmware adds. Their buttons appear in the User Guide and in the buddy menu once a radio with that firmware has been connected:
+
+- **MeshCore 1.18 tour** (companion firmware 1.18 or newer): the command line in **Settings > Radio** and on **My Node**, the command line of another companion in a chat and in its contact info, the **Remote CLI** permission, and the sensor dashboard. A stop for a contact or a sensor is left out when you have none; the tour opens the companion you heard from most recently, never the Meshcomod contact.
+- **meshcomod tour** (meshcomod firmware): the **Meshcomod (DMC-EV)** panel, the CAD button in a chat header, the built-in **Meshcomod** contact (what you send it runs on the radio and never goes out over LoRa), the command line, and the **Companion receive filter** with its counters and backup. Stops for features your build does not have are left out.
+- The first time a browser sees such a radio, a card offers that tour once, also when you have used the app before. One card shows at a time, and after **Not now** or **Don't ask again** no other card follows until the next visit.
+
 <!-- id: layout -->
 
 ## The layout
@@ -451,6 +457,7 @@ Open Settings with the button in the top bar. On a phone each section expands in
 - **Max Contacts on Radio**, **Export Config** and **Import & Reboot**.
 - **Show Mention Ticker**, **Auto-add mentioned channels to registry** and the **External analyzer node overlay**.
 - On meshcomod (DMC-EV) firmware, a **Meshcomod (DMC-EV)** panel with CAD and GPS controls. Builds with the receive filter add a **Companion receive filter** card: filter settings, sender and text rules, blocked path prefixes, hidden-message counters with a history chart, and a per-radio backup you can restore after a flash. It runs on the radio and never transmits.
+- meshcomod also lists a **Meshcomod** contact. Its chat is your radio's own command line: what you send there (`help`, `status`, `wifi scan`, `wifi status`, `tcp on`/`off`, `ble on`/`off`, `ota check` and more) runs on the radio and never goes out over LoRa, and the radio answers in the same chat. Buttons above the chat put a common command in the message box. Commands that restart the radio or can cut the app off from it (`reboot`, `bootloader`, `ota update`, `wifi off`, `wifi clear`, `tcp off`, `ble off`) ask first. The chat is not sent to MQTT, Home Assistant or other integrations, and gives no notifications; trace, path discovery, telemetry and the permission switches are hidden for this contact.
 
 ### Host repeater
 

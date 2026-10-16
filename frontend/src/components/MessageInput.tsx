@@ -47,6 +47,8 @@ function byteLen(s: string): number {
 
 interface MessageInputProps {
   onSend: (text: string) => Promise<void>;
+  /** Asked before sending; false keeps the text and sends nothing. */
+  confirmSend?: (text: string) => boolean;
   disabled: boolean;
   placeholder?: string;
   /** Conversation type for character limit calculation */
@@ -59,11 +61,13 @@ type LimitState = 'normal' | 'warning' | 'danger' | 'error';
 
 export interface MessageInputHandle {
   appendText: (text: string) => void;
+  /** Replace what is in the box. */
+  setText?: (text: string) => void;
   focus: () => void;
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, disabled, placeholder, conversationType, senderName },
+  { onSend, confirmSend, disabled, placeholder, conversationType, senderName },
   ref
 ) {
   const t = useT();
@@ -86,6 +90,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   useImperativeHandle(ref, () => ({
     appendText: (appendedText: string) => {
       setText((prev) => prev + appendedText);
+      textareaRef.current?.focus();
+    },
+    setText: (replacement: string) => {
+      setText(replacement);
       textareaRef.current?.focus();
     },
     focus: () => {
@@ -194,6 +202,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       if (pickerRef.current?.contains(document.activeElement)) return;
       const trimmed = text.trim();
       if (!trimmed || sending || disabled || overHardLimit) return;
+      // Declined: nothing is sent and the text stays in the box.
+      if (confirmSend && !confirmSend(trimmed)) return;
 
       setSending(true);
       try {
@@ -215,7 +225,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       // Refocus after React re-enables the textarea
       setTimeout(() => textareaRef.current?.focus(), 0);
     },
-    [text, sending, disabled, overHardLimit, onSend, t]
+    [text, sending, disabled, overHardLimit, onSend, confirmSend, t]
   );
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {

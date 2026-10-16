@@ -77,6 +77,12 @@ Neu in der App? Öffne das **Benutzerhandbuch** und klicke auf **Geführte Tour 
 - In einem Browser, der die App noch nie benutzt hat, bietet eine Karte die Tour einmal an: **Tour starten**, **Jetzt nicht** (beim nächsten Besuch fragt sie erneut) oder **Nicht mehr fragen**.
 - Solange du keinen Kanal hast, entfallen die beiden Chat-Schritte.
 
+Zwei kürzere Touren zeigen, was die Firmware deines Funkgeräts mitbringt. Ihre Schaltflächen erscheinen im Benutzerhandbuch und im Assistenten-Menü, sobald ein Funkgerät mit dieser Firmware verbunden war:
+
+- **Tour MeshCore 1.18** (Companion-Firmware 1.18 oder neuer): die Befehlszeile unter **Einstellungen > Radio** und unter **Mein Knoten**, die Befehlszeile eines anderen Companions im Chat und in seinen Kontaktinfos, die **Remote-CLI**-Erlaubnis und das Sensor-Dashboard. Ein Schritt für einen Kontakt oder Sensor entfällt, wenn du keinen hast; die Tour öffnet den Companion, den du zuletzt gehört hast, nie den Meshcomod-Kontakt.
+- **Tour meshcomod** (meshcomod-Firmware): der Bereich **Meshcomod (DMC-EV)**, der CAD-Knopf im Chat-Kopf, der eingebaute Kontakt **Meshcomod** (was du ihm schickst, läuft auf dem Funkgerät und geht nie über LoRa hinaus), die Befehlszeile und der **Companion-Empfangsfilter** mit Zählern und Sicherung. Schritte für Funktionen, die dein Build nicht hat, entfallen.
+- Wenn ein Browser so ein Funkgerät zum ersten Mal sieht, bietet eine Karte diese Tour einmal an, auch wenn du die App schon benutzt hast. Es ist immer nur eine Karte zu sehen, und nach **Jetzt nicht** oder **Nicht mehr fragen** folgt bis zum nächsten Besuch keine weitere.
+
 <!-- id: layout -->
 
 ## Der Aufbau
@@ -451,6 +457,7 @@ Diese Seite. Öffne sie unter Werkzeuge oder über die Adresse `#manual`. Sie fo
 - **Max. Kontakte auf dem Funkgerät**, **Konfiguration exportieren** und **Importieren und neu starten**.
 - **Erwähnungsticker anzeigen**, **Erwaehnte Kanaele automatisch zum Register hinzufuegen** und die **Externe Analyzer-Knotenebene**.
 - Auf Meshcomod-Firmware (DMC-EV) ein Bereich **Meshcomod (DMC-EV)** mit CAD- und GPS-Einstellungen. Builds mit dem Empfangsfilter erhalten eine Karte **Companion-Empfangsfilter**: Filtereinstellungen, Absender- und Textregeln, blockierte Pfadpräfixe, Zähler ausgeblendeter Nachrichten mit Verlaufsdiagramm und eine Sicherung pro Funkgerät, die sich nach dem Flashen zurückspielen lässt. Es läuft auf dem Funkgerät und sendet nie.
+- meshcomod zeigt außerdem einen Kontakt **Meshcomod**. Der Chat damit ist die eigene Befehlszeile deines Funkgeräts: Was du dort sendest (`help`, `status`, `wifi scan`, `wifi status`, `tcp on`/`off`, `ble on`/`off`, `ota check` und mehr), läuft auf dem Funkgerät und geht nie über LoRa hinaus, und das Funkgerät antwortet im selben Chat. Knöpfe über dem Chat setzen einen häufigen Befehl ins Nachrichtenfeld. Befehle, die das Funkgerät neu starten oder die App von ihm trennen können (`reboot`, `bootloader`, `ota update`, `wifi off`, `wifi clear`, `tcp off`, `ble off`), fragen vorher nach. Der Chat geht nicht an MQTT, Home Assistant oder andere Integrationen und löst keine Benachrichtigungen aus; Trace, Pfadsuche, Telemetrie und die Berechtigungsschalter sind für diesen Kontakt ausgeblendet.
 
 ### Host-Repeater
 
