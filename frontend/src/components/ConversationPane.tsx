@@ -59,6 +59,7 @@ const MeshTrendsView = lazy(() =>
 const SpamGuardView = lazy(() =>
   import('./SpamGuardView').then((m) => ({ default: m.SpamGuardView }))
 );
+const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
 const MeshDiscoveryView = lazy(() =>
   import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
@@ -541,6 +542,14 @@ export function ConversationPane({
             onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
           />
         )}
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'lan-scan') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_lan_scan')} />}>
+        <LanScanView onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)} />
       </Suspense>
     );
   }

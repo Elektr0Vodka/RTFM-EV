@@ -1397,6 +1397,138 @@ class SnmpDiscoverAddressResponse(BaseModel):
     reply: str | None = Field(default=None, description="The node's reply text, if any")
 
 
+class LanScanRequest(BaseModel):
+    """Start a LAN discovery scan (UDP SNMP and, opt-in, TCP companion protocol)."""
+
+    targets: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="IPv4 addresses and networks, e.g. '192.168.1.0/24, 10.0.0.5'",
+    )
+    snmp: bool = Field(default=True, description="Ask every address for the MeshCore SNMP values")
+    snmp_port: int = Field(default=161, ge=1, le=65535)
+    community: str | None = Field(
+        default=None, max_length=64, description="SNMP community; null means 'public'"
+    )
+    companion: bool = Field(
+        default=False,
+        description=(
+            "Also connect to the companion protocol port. Stock MeshCore WiFi companions "
+            "drop their connected app when this happens"
+        ),
+    )
+    companion_port: int = Field(default=5000, ge=1, le=65535)
+    webconfig: bool = Field(
+        default=False,
+        description="Also GET a DMC observer's web config status (HTTP, read-only)",
+    )
+    webconfig_port: int = Field(default=80, ge=1, le=65535)
+
+    @field_validator("community")
+    @classmethod
+    def _printable_community(cls, value: str | None) -> str | None:
+        if value is not None and (not value.isascii() or not value.isprintable()):
+            raise ValueError("community must be printable ASCII")
+        return value
+
+
+class LanScanSnmpResult(BaseModel):
+    """What an SNMP agent answered. ``kind`` 'other' = an agent without the MeshCore values."""
+
+    kind: Literal["meshcore", "other"]
+    node_name: str | None = None
+    firmware_version: str | None = None
+    uptime_secs: int | float | None = None
+    sys_name: str | None = None
+    sys_descr: str | None = None
+    error: str | None = Field(default=None, description="Agent error, e.g. authorizationError")
+
+
+class LanScanCompanionResult(BaseModel):
+    """What the companion protocol port answered. ``found`` false = port open, no MeshCore reply."""
+
+    found: bool
+    adv_type: int | None = Field(
+        default=None, description="1 companion, 2 repeater, 3 room server, 4 sensor"
+    )
+    public_key: str | None = None
+    name: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    model: str | None = None
+    firmware_version: str | None = None
+    build_date: str | None = None
+    protocol_version: int | None = None
+    error: str | None = None
+
+
+class LanScanWebconfigResult(BaseModel):
+    """A DMC observer's web config status (``GET /api/status``, no login)."""
+
+    node_id: str = Field(description="First 8 bytes of the public key, 16 hex")
+    name: str | None = None
+    role: Literal["repeater", "room_server"]
+    adv_type: int = Field(description="2 repeater, 3 room server")
+    firmware_version: str | None = None
+    build_date: str | None = None
+    board: str | None = None
+    mode: Literal["setup", "lan"]
+    needs_setup: bool = False
+    uptime_secs: int | None = None
+
+
+class LanScanContactMatch(BaseModel):
+    """The contact a found device belongs to."""
+
+    public_key: str
+    name: str | None = None
+    type: int | None = None
+    matched_by: Literal["public_key", "node_id", "name"]
+    snmp_host: str | None = Field(default=None, description="SNMP address already set up, if any")
+    snmp_port: int | None = None
+
+
+class LanScanHost(BaseModel):
+    ip: str
+    snmp: LanScanSnmpResult | None = None
+    companion: LanScanCompanionResult | None = None
+    webconfig: LanScanWebconfigResult | None = None
+    contact: LanScanContactMatch | None = None
+
+
+class LanScanStatus(BaseModel):
+    """The current or last LAN discovery scan. The community is never returned."""
+
+    id: str
+    running: bool
+    cancelled: bool
+    error: str | None = None
+    started_at: int
+    finished_at: int | None = None
+    total: int = Field(description="Addresses in the scan")
+    done: int = Field(description="Addresses checked so far")
+    snmp: bool
+    snmp_port: int
+    companion: bool
+    companion_port: int
+    webconfig: bool = False
+    webconfig_port: int = 80
+    skipped: list[str] = Field(
+        default_factory=list,
+        description="Addresses left out of the companion check (this instance's own radio)",
+    )
+    hosts: list[LanScanHost] = Field(description="Addresses that answered, in address order")
+
+
+class LanScanSuggestions(BaseModel):
+    """Networks worth scanning, from addresses RTFM-EV already knows."""
+
+    networks: list[str]
+    own_radio: list[str] = Field(
+        default_factory=list, description="Address of the radio this instance uses over TCP"
+    )
+
+
 class RepeaterAdvertIntervalsResponse(BaseModel):
     """Advertisement intervals from a repeater."""
 

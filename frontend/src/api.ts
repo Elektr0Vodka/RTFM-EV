@@ -184,6 +184,9 @@ import type {
   SnmpAgentSettings,
   SnmpAgentState,
   SnmpDiscoverAddressResponse,
+  LanScanRequest,
+  LanScanStatus,
+  LanScanSuggestions,
   RepeaterStatusResponse,
   TelemetryHistoryEntry,
   TelemetrySchedule,
@@ -1613,6 +1616,18 @@ export const api = {
     ),
   // Every contact with SNMP set up, with its newest stored poll (read-only).
   snmpNodes: (signal?: AbortSignal) => fetchJson<SnmpNodeOverview[]>('/snmp/nodes', { signal }),
+  // LAN discovery (Tools > Network scan): LAN traffic from the server, never RF.
+  lanScanSuggestions: (signal?: AbortSignal) =>
+    fetchJson<LanScanSuggestions>('/lan-discovery/suggestions', { signal }),
+  lanScanStatus: (signal?: AbortSignal) =>
+    fetchJson<LanScanStatus | null>('/lan-discovery/scan', { signal }),
+  startLanScan: (request: LanScanRequest) =>
+    fetchJson<LanScanStatus>('/lan-discovery/scan', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+  cancelLanScan: () =>
+    fetchJson<LanScanStatus | null>('/lan-discovery/scan/cancel', { method: 'POST' }),
   // Fleet asset register (Tools > Fleet). Stored data only: nothing here uses the radio.
   fleetAssets: (signal?: AbortSignal) => fetchJson<FleetAsset[]>('/fleet/assets', { signal }),
   fleetAssetForKey: (publicKey: string, signal?: AbortSignal) =>

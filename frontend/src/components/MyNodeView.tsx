@@ -42,6 +42,8 @@ import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { DirectRadar } from './mynode/radar/DirectRadar';
 import { CompanionCliConsole } from './CompanionCliConsole';
 import { toRadarData } from './mynode/radar/radarData';
+import { typeColor } from './mynode/packetTypeColors';
+import { LiveSignalCard } from './mynode/LiveSignalCard';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -263,54 +265,6 @@ function fmtBytes(bytes: number, t: TFn): string {
   if (bytes < 1024) return t('node_value_bytes_compact', { value: bytes });
   if (bytes < 1024 * 1024) return t('node_value_kb_compact', { value: (bytes / 1024).toFixed(1) });
   return t('node_value_mb_compact', { value: (bytes / (1024 * 1024)).toFixed(2) });
-}
-
-// ─── Packet type colours ────────────────────────────────────────────────────
-// Hardcoded HSL values (~28° steps around the hue wheel) so colours are vivid
-// and distinct regardless of which theme is active.
-
-const NAMED_TYPE_COLORS: Record<string, string> = {
-  // All PayloadType enum values by exact name
-  REQUEST: 'hsl(4,   70%, 54%)', // red
-  RESPONSE: 'hsl(28,  82%, 54%)', // orange
-  TEXT_MESSAGE: 'hsl(48,  85%, 46%)', // amber
-  ACK: 'hsl(135, 60%, 44%)', // green
-  ADVERT: 'hsl(192, 78%, 46%)', // cyan
-  GROUP_TEXT: 'hsl(255, 65%, 60%)', // violet
-  GROUP_DATA: 'hsl(310, 62%, 56%)', // magenta
-  ANON_REQUEST: 'hsl(336, 70%, 56%)', // rose
-  PATH: 'hsl(158, 62%, 42%)', // teal-green
-  TRACE: 'hsl(22,  80%, 52%)', // burnt orange
-  MULTIPART: 'hsl(222, 68%, 58%)', // indigo-blue
-  CONTROL: 'hsl(282, 58%, 54%)', // purple
-  RAW_CUSTOM: 'hsl(82,  58%, 44%)', // lime
-  // Legacy / alternate spellings that may appear in older data
-  GROUPTEXT: 'hsl(255, 65%, 60%)',
-  TEXTMESSAGE: 'hsl(48,  85%, 46%)',
-};
-
-// Fallback palette for any unknown future types - 8 evenly-spaced hues
-const FALLBACK_COLORS = [
-  'hsl(0,   65%, 52%)',
-  'hsl(45,  78%, 48%)',
-  'hsl(90,  55%, 44%)',
-  'hsl(135, 58%, 44%)',
-  'hsl(180, 68%, 42%)',
-  'hsl(225, 65%, 56%)',
-  'hsl(270, 60%, 56%)',
-  'hsl(315, 62%, 54%)',
-];
-
-function typeColor(t: string): string {
-  const upper = t.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-  if (upper in NAMED_TYPE_COLORS) return NAMED_TYPE_COLORS[upper];
-  // Partial-match fallback for any prefixed/suffixed variants
-  for (const [k, v] of Object.entries(NAMED_TYPE_COLORS)) {
-    if (upper.includes(k) || k.includes(upper)) return v;
-  }
-  let hash = 0;
-  for (let i = 0; i < t.length; i++) hash = (hash * 31 + t.charCodeAt(i)) >>> 0;
-  return FALLBACK_COLORS[hash % FALLBACK_COLORS.length];
 }
 
 // ─── SVG chart constants ────────────────────────────────────────────────────
@@ -2806,6 +2760,9 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                 </div>
               </div>
             )}
+
+            {/* ── Live signal vs noise floor ── */}
+            <LiveSignalCard packets={rawPackets} />
 
             {/* ── Directly heard radar ── */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">

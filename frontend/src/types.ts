@@ -994,6 +994,7 @@ type ConversationType =
   | 'mesh-trends'
   | 'mesh-discovery'
   | 'snmp'
+  | 'lan-scan'
   | 'fleet'
   | 'spam-guard'
   | 'analyze'
@@ -1912,6 +1913,105 @@ export interface RepeaterSettingSetResponse {
 
 export interface RepeaterSettingsReadResponse {
   values: Record<string, string | null>;
+}
+
+/** Start a LAN discovery scan (Tools > Network scan). */
+export interface LanScanRequest {
+  targets: string;
+  snmp: boolean;
+  snmp_port: number;
+  /** null means 'public'. Never stored or returned by the server. */
+  community: string | null;
+  /** Stock MeshCore WiFi companions drop their connected app when this connects. */
+  companion: boolean;
+  companion_port: number;
+  /** GET a DMC observer's web config status (read-only). */
+  webconfig: boolean;
+  webconfig_port: number;
+}
+
+export interface LanScanSnmpResult {
+  kind: 'meshcore' | 'other';
+  node_name: string | null;
+  firmware_version: string | null;
+  uptime_secs: number | null;
+  sys_name: string | null;
+  sys_descr: string | null;
+  error: string | null;
+}
+
+export interface LanScanCompanionResult {
+  /** false = the port was open but did not answer with the companion protocol. */
+  found: boolean;
+  /** 1 companion, 2 repeater, 3 room server, 4 sensor */
+  adv_type: number | null;
+  public_key: string | null;
+  name: string | null;
+  lat: number | null;
+  lon: number | null;
+  model: string | null;
+  firmware_version: string | null;
+  build_date: string | null;
+  protocol_version: number | null;
+  error: string | null;
+}
+
+/** A DMC observer's web config status (GET /api/status, no login). */
+export interface LanScanWebconfigResult {
+  /** First 8 bytes of the public key, 16 hex. */
+  node_id: string;
+  name: string | null;
+  role: 'repeater' | 'room_server';
+  /** 2 repeater, 3 room server */
+  adv_type: number;
+  firmware_version: string | null;
+  build_date: string | null;
+  board: string | null;
+  mode: 'setup' | 'lan';
+  needs_setup: boolean;
+  uptime_secs: number | null;
+}
+
+export interface LanScanContactMatch {
+  public_key: string;
+  name: string | null;
+  type: number | null;
+  matched_by: 'public_key' | 'node_id' | 'name';
+  snmp_host: string | null;
+  snmp_port: number | null;
+}
+
+export interface LanScanHost {
+  ip: string;
+  snmp: LanScanSnmpResult | null;
+  companion: LanScanCompanionResult | null;
+  webconfig: LanScanWebconfigResult | null;
+  contact: LanScanContactMatch | null;
+}
+
+export interface LanScanStatus {
+  id: string;
+  running: boolean;
+  cancelled: boolean;
+  error: string | null;
+  started_at: number;
+  finished_at: number | null;
+  total: number;
+  done: number;
+  snmp: boolean;
+  snmp_port: number;
+  companion: boolean;
+  companion_port: number;
+  webconfig: boolean;
+  webconfig_port: number;
+  /** Left out of the companion check: the radio this instance uses. */
+  skipped: string[];
+  hosts: LanScanHost[];
+}
+
+export interface LanScanSuggestions {
+  networks: string[];
+  own_radio: string[];
 }
 
 /** Stored SNMP polling settings of a contact. The community is never returned. */

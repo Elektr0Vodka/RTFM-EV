@@ -464,6 +464,29 @@ describe('snmp (Tools > SNMP) route', () => {
   });
 });
 
+describe('lan-scan (Tools > Network scan) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #lan-scan', () => {
+    window.location.hash = '#lan-scan';
+    expect(parseHashConversation()).toEqual({ type: 'lan-scan', name: 'lan-scan' });
+  });
+
+  it('builds #lan-scan', () => {
+    expect(getConversationHash({ type: 'lan-scan', id: 'lan-scan', name: 'Network scan' })).toBe(
+      '#lan-scan'
+    );
+  });
+});
+
 describe('fleet (Tools > Fleet) route', () => {
   let originalHash: string;
 
