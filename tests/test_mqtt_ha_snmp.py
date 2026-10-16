@@ -59,8 +59,29 @@ def _published(mod) -> list[tuple[str, dict, bool]]:
 class TestSnmpSensorTable:
     def test_one_sensor_per_oid_table_entry(self):
         assert [s["field"] for s in _SNMP_SENSORS] == [e.key for e in mib.ENTRIES]
-        assert len({s["object_id"] for s in _SNMP_SENSORS}) == 22
+        assert len({s["object_id"] for s in _SNMP_SENSORS}) == len(mib.ENTRIES)
         assert all(s["object_id"].startswith("snmp_") for s in _SNMP_SENSORS)
+        assert [s["field"] for s in _SNMP_SENSORS if s["always"]] == [
+            e.key for e in mib.FIRST_RELEASE_ENTRIES
+        ]
+
+    def test_added_sensor_classes(self):
+        by = {s["field"]: s for s in _SNMP_SENSORS}
+        assert (by["battery_mv"]["device_class"], by["battery_mv"]["unit"]) == ("voltage", "mV")
+        assert by["mcu_temp_c"]["device_class"] == "temperature"
+        assert by["mcu_temp_c"]["state_class"] == "measurement"
+        # Counter32 totals reset on reboot or `clear stats`.
+        assert by["flood_dups"]["state_class"] == "total_increasing"
+        assert by["filter_air_saved_ms"]["state_class"] == "total_increasing"
+        assert by["filter_air_saved_ms"]["device_class"] == "duration"
+        assert by["rx_air_time_secs"]["device_class"] == "duration"
+        # Levels.
+        assert by["tx_duty_percent"]["state_class"] == "measurement"
+        assert by["neighbour_count"]["state_class"] == "measurement"
+        # Codes, flags and switches are no statistics.
+        for key in ("reset_reason_code", "error_flags", "ntp_synced", "filter_dry_run"):
+            assert by[key]["state_class"] is None
+        assert by["reset_reason"]["state_class"] is None
 
     def test_sensor_classes(self):
         by = {s["field"]: s for s in _SNMP_SENSORS}
@@ -91,6 +112,22 @@ class TestSnmpSensorTable:
         # Same HA device as the repeater's telemetry sensors.
         assert cfg["device"]["identifiers"] == [f"meshcore_{nid}"]
 
+    def test_added_sensors_only_when_the_node_serves_them(self):
+        configs = _snmp_discovery_configs(
+            "meshcore",
+            KEY,
+            "Obs",
+            RADIO,
+            expire_after=None,
+            served={"free_heap", "battery_mv", "neighbour_count"},
+        )
+        added = [topic for topic, _ in configs if "/snmp_" in topic][22:]
+        nid = _node_id(KEY)
+        assert added == [
+            f"homeassistant/sensor/meshcore_{nid}/snmp_battery_mv/config",
+            f"homeassistant/sensor/meshcore_{nid}/snmp_neighbour_count/config",
+        ]
+
     def test_no_expiry_for_a_node_polled_by_hand_only(self):
         configs = _snmp_discovery_configs("meshcore", KEY, "Obs", RADIO, expire_after=None)
         assert all("expire_after" not in cfg for _, cfg in configs)
@@ -100,6 +137,19 @@ class TestSnmpSensorTable:
             {"free_heap": 199612, "psram_free": None, "last_snr": -7.5, "host": "10.0.0.1"}
         )
         assert payload == {"free_heap": 199612, "last_snr": -7.5}
+
+    def test_state_payload_leaves_out_sentinels(self):
+        # 0 mV and -127 C mean the board cannot measure it: no 0 V in HA.
+        assert _snmp_state_payload({"battery_mv": 0, "mcu_temp_c": -127}) == {}
+        assert _snmp_state_payload({"battery_mv": 4105, "mcu_temp_c": 41}) == {
+            "battery_mv": 4105,
+            "mcu_temp_c": 41,
+        }
+        # Only those two have a sentinel; a 0 elsewhere is a real value.
+        assert _snmp_state_payload({"error_flags": 0, "ntp_synced": 0}) == {
+            "error_flags": 0,
+            "ntp_synced": 0,
+        }
 
 
 class TestOnSnmp:
@@ -119,16 +169,41 @@ class TestOnSnmp:
         mod = _module(tracked_repeaters=[KEY])
         # Sensors already discovered: no rediscovery, just the state.
         mod._discovery_topics = [
-            f"homeassistant/sensor/meshcore_{_node_id(KEY)}/snmp_uptime_secs/config"
+            topic
+            for topic, _ in _snmp_discovery_configs(
+                "meshcore", KEY, "Obs", RADIO, expire_after=None
+            )
         ]
         mod._publish_discovery = AsyncMock()
 
         await mod.on_snmp(
-            {"public_key": KEY, "timestamp": 1, "values": {"free_heap": 199612, "psram_free": None}}
+            {
+                "public_key": KEY,
+                "timestamp": 1,
+                # Not served by this node (older firmware): no new sensor.
+                "values": {"free_heap": 199612, "psram_free": None, "battery_mv": None},
+            }
         )
 
         mod._publish_discovery.assert_not_awaited()
         assert _published(mod) == [(f"meshcore/{_node_id(KEY)}/snmp", {"free_heap": 199612}, False)]
+
+    @pytest.mark.asyncio
+    async def test_a_newly_served_value_triggers_discovery(self):
+        mod = _module(tracked_repeaters=[KEY])
+        mod._discovery_topics = [
+            topic
+            for topic, _ in _snmp_discovery_configs(
+                "meshcore", KEY, "Obs", RADIO, expire_after=None
+            )
+        ]
+        mod._publish_discovery = AsyncMock()
+
+        # Firmware update: the node now serves the battery OID.
+        await mod.on_snmp({"public_key": KEY, "timestamp": 1, "values": {"battery_mv": 4105}})
+
+        mod._publish_discovery.assert_awaited_once()
+        assert _published(mod) == [(f"meshcore/{_node_id(KEY)}/snmp", {"battery_mv": 4105}, False)]
 
     @pytest.mark.asyncio
     async def test_first_poll_publishes_discovery_before_state(self, test_db):
@@ -193,6 +268,26 @@ class TestDiscoveryWithSnmp:
         # The address and community never reach the broker.
         assert "s3cret" not in repr(published)
         assert "10.0.0.1" not in repr(published)
+
+    @pytest.mark.asyncio
+    async def test_added_sensors_follow_the_newest_stored_poll(self, test_db):
+        await ContactRepository.upsert({"public_key": KEY, "name": "Obs", "type": 2, "flags": 0})
+        await put_snmp_config(KEY, ContactSnmpConfigUpdate(host="10.0.0.1"))
+        # A room server: battery served, duty gate and filter not (None).
+        await SnmpHistoryRepository.record(
+            KEY, 100, {"free_heap": 1, "battery_mv": 0, "filter_enabled": None}
+        )
+        mod = _module(tracked_repeaters=[KEY])
+
+        await mod._publish_discovery()
+
+        snmp_topics = [t for t in mod._discovery_topics if "/snmp_" in t]
+        assert len(snmp_topics) == 23
+        assert any("/snmp_battery_mv/" in t for t in snmp_topics)
+        assert not any("/snmp_filter_" in t for t in snmp_topics)
+        # The 0 mV sentinel is not replayed as a state.
+        state = [p for t, p, _ in _published(mod) if t.endswith("/snmp")]
+        assert state == [{"free_heap": 1}]
 
     @pytest.mark.asyncio
     async def test_removing_snmp_clears_its_discovery_topics(self, test_db):

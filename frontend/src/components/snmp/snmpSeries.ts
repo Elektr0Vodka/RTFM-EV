@@ -1,8 +1,9 @@
 // Turn stored SNMP polls into chart series.
 //
 // Gauges (heap, RSSI, queue depth) are plotted as they are. Counters only go up
-// since boot, so they are shown as a rate between two polls; a reboot starts
-// the counter over and that interval is left out.
+// since boot, so they are shown as a rate between two polls; a reboot (or
+// `clear stats` for the Counter32 totals) starts the counter over and that
+// interval is left out. There is no 2^32 wrap handling: a wrap reads as a reset.
 
 import type { SnmpHistoryEntry } from '../../types';
 
@@ -16,12 +17,19 @@ function numberAt(entry: SnmpHistoryEntry, key: string): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-/** History rows to chart points for one value; rows without a number are skipped. */
-export function toChartPoints(history: SnmpHistoryEntry[], key: string): SnmpChartPoint[] {
+/**
+ * History rows to chart points for one value; rows without a number are
+ * skipped, and so are rows holding `sentinel` (the node could not measure it).
+ */
+export function toChartPoints(
+  history: SnmpHistoryEntry[],
+  key: string,
+  sentinel?: number
+): SnmpChartPoint[] {
   const points: SnmpChartPoint[] = [];
   for (const entry of history) {
     const value = numberAt(entry, key);
-    if (value !== null) points.push({ time: entry.timestamp, value });
+    if (value !== null && value !== sentinel) points.push({ time: entry.timestamp, value });
   }
   return points;
 }
@@ -63,15 +71,36 @@ export function ratePoints(
   return points;
 }
 
-/** How often the uptime went down in the stored polls. */
-export function countReboots(history: SnmpHistoryEntry[]): number {
-  let reboots = 0;
+export interface SnmpReboot {
+  /** The first poll after the reboot. */
+  time: number;
+  /** Reset reason text (.1.7.0) of the new boot, when the node served it. */
+  reason: string | null;
+  /** Reset reason code (.1.6.0) of the new boot, when the node served it. */
+  code: number | null;
+}
+
+/** Every time the uptime went down in the stored polls, oldest first. */
+export function listReboots(history: SnmpHistoryEntry[]): SnmpReboot[] {
+  const reboots: SnmpReboot[] = [];
   let previous: number | null = null;
   for (const entry of history) {
     const uptime = numberAt(entry, 'uptime_secs');
     if (uptime === null) continue;
-    if (previous !== null && uptime < previous) reboots += 1;
+    if (previous !== null && uptime < previous) {
+      const reason = entry.values.reset_reason;
+      reboots.push({
+        time: entry.timestamp,
+        reason: typeof reason === 'string' && reason !== '' ? reason : null,
+        code: numberAt(entry, 'reset_reason_code'),
+      });
+    }
     previous = uptime;
   }
   return reboots;
+}
+
+/** How often the uptime went down in the stored polls. */
+export function countReboots(history: SnmpHistoryEntry[]): number {
+  return listReboots(history).length;
 }

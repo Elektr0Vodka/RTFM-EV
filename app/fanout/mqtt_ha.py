@@ -124,7 +124,8 @@ _LPP_HA_META: dict[str, dict[str, Any]] = {
 # ── SNMP sensor definitions (observer firmware, polled over the LAN) ───────
 #
 # One HA sensor per entry of the MeshCore OID table (app/snmp/mib.py), on a
-# state topic of its own so the telemetry sensors are not touched.
+# state topic of its own so the telemetry sensors are not touched. The OIDs
+# added after the first release only get a sensor once the node serves them.
 
 _SNMP_NAMES: dict[str, str] = {
     "uptime_secs": "SNMP Uptime",
@@ -149,6 +150,37 @@ _SNMP_NAMES: dict[str, str] = {
     "internal_free": "SNMP Free Internal RAM",
     "psram_free": "SNMP Free PSRAM",
     "wifi_rssi": "SNMP WiFi RSSI",
+    "battery_mv": "SNMP Battery",
+    "mcu_temp_c": "SNMP MCU Temperature",
+    "reset_reason_code": "SNMP Reset Reason Code",
+    "reset_reason": "SNMP Reset Reason",
+    "tx_queue_len": "SNMP TX Queue",
+    "flood_dups": "SNMP Duplicate Flood Packets",
+    "direct_dups": "SNMP Duplicate Direct Packets",
+    "rx_air_time_secs": "SNMP RX Air Time",
+    "tx_duty_percent": "SNMP TX Duty Cycle",
+    "error_flags": "SNMP Error Flags",
+    "ntp_synced": "SNMP NTP Synced",
+    "min_free_heap": "SNMP Lowest Free Heap",
+    "dc_gate_enabled": "SNMP Duty Gate Enabled",
+    "dc_gate_level": "SNMP Duty Gate Layers Gated",
+    "dc_gate_max_level": "SNMP Duty Gate Max Layer",
+    "dc_gate_threshold": "SNMP Duty Gate Threshold",
+    "dc_gate_hysteresis": "SNMP Duty Gate Hysteresis",
+    "filter_enabled": "SNMP Filter Enabled",
+    "filter_dry_run": "SNMP Filter Dry Run",
+    "filter_hop_limit_drops": "SNMP Filter Hop-Limit Drops",
+    "filter_rate_limit_drops": "SNMP Filter Rate-Limit Drops",
+    "filter_channel_drops": "SNMP Filter Blocked-Channel Drops",
+    "filter_path_hash_drops": "SNMP Filter Path-Hash Size Drops",
+    "filter_malformed_drops": "SNMP Filter Malformed Drops",
+    "filter_advert_drops": "SNMP Filter Advert Window Drops",
+    "filter_path_prefix_drops": "SNMP Filter Path-Prefix Drops",
+    "filter_sender_drops": "SNMP Filter Sender Rule Drops",
+    "filter_text_drops": "SNMP Filter Text Rule Drops",
+    "filter_age_drops": "SNMP Filter Message Age Drops",
+    "filter_air_saved_ms": "SNMP Filter Air Time Saved",
+    "neighbour_count": "SNMP Neighbours",
 }
 
 # The firmware resets these on reboot; total_increasing lets HA cope with that.
@@ -163,26 +195,44 @@ _SNMP_COUNTERS = frozenset(
         "recv_direct",
         "total_air_time_secs",
         "mqtt_skipped_publishes",
+        *(entry.key for entry in mib.ENTRIES if entry.kind == "counter"),
     }
 )
+
+# Codes, flags and on/off values: shown as they are, not kept as statistics.
+_SNMP_STATES = frozenset(
+    {
+        "reset_reason_code",
+        "error_flags",
+        "ntp_synced",
+        "dc_gate_enabled",
+        "filter_enabled",
+        "filter_dry_run",
+    }
+)
+
+_SNMP_DEVICE_CLASSES: dict[str, str] = {
+    "dBm": "signal_strength",
+    "B": "data_size",
+    "s": "duration",
+    "ms": "duration",
+    "mV": "voltage",
+    "°C": "temperature",
+}
 
 
 def _snmp_sensor(entry: mib.MibEntry) -> dict[str, Any]:
     device_class: str | None = None
     state_class: str | None = "measurement"
-    if entry.kind == "str":
+    if entry.kind == "str" or entry.key in _SNMP_STATES:
         state_class = None
     elif entry.key in _SNMP_COUNTERS:
         state_class = "total_increasing"
-    if entry.unit == "dBm":
-        device_class = "signal_strength"
-    elif entry.unit == "B":
-        device_class = "data_size"
-    elif entry.unit == "s":
-        device_class = "duration"
-        if entry.key == "uptime_secs":
-            # Same as the telemetry uptime sensor: a duration, not a statistic.
-            state_class = None
+    if entry.unit is not None:
+        device_class = _SNMP_DEVICE_CLASSES.get(entry.unit)
+    if entry.key == "uptime_secs":
+        # Same as the telemetry uptime sensor: a duration, not a statistic.
+        state_class = None
     return {
         "field": entry.key,
         "name": _SNMP_NAMES[entry.key],
@@ -190,6 +240,8 @@ def _snmp_sensor(entry: mib.MibEntry) -> dict[str, Any]:
         "device_class": device_class,
         "state_class": state_class,
         "unit": entry.unit,
+        "always": entry in mib.FIRST_RELEASE_ENTRIES,
+        "sentinel": entry.sentinel,
     }
 
 
@@ -212,13 +264,19 @@ def _snmp_state_payload(values: dict[str, Any]) -> dict[str, Any]:
     """Flat HA state payload for one SNMP poll.
 
     Values the node did not serve are left out, not sent as null: an absent
-    key renders empty, which HA ignores, keeping the last value.
+    key renders empty, which HA ignores, keeping the last value. So is a
+    sentinel (battery 0 mV, MCU -127 C: the board cannot measure it).
     """
     return {
         sensor["field"]: values[sensor["field"]]
         for sensor in _SNMP_SENSORS
-        if values.get(sensor["field"]) is not None
+        if values.get(sensor["field"]) is not None and values[sensor["field"]] != sensor["sentinel"]
     }
+
+
+def _snmp_served_keys(values: dict[str, Any] | None) -> set[str]:
+    """The keys a node served in a poll (a missing OID decodes to None)."""
+    return {key for key, value in (values or {}).items() if value is not None}
 
 
 def _snmp_discovery_configs(
@@ -228,17 +286,22 @@ def _snmp_discovery_configs(
     radio_key: str | None,
     *,
     expire_after: int | None,
+    served: set[str] | frozenset[str] = frozenset(),
 ) -> list[tuple[str, dict]]:
     """HA discovery configs for the SNMP sensors of a tracked repeater.
 
     ``expire_after`` is set for a node on a poll schedule and left out for a
-    node that is only polled by hand.
+    node that is only polled by hand. The first-release sensors are always
+    there; a later one only when its key is in ``served`` (the newest poll),
+    so a node on older firmware or a room server gets no empty sensors.
     """
     nid = _node_id(pub_key)
     device = _device_payload(pub_key, name, "Repeater", via_device_key=radio_key)
     state_topic = _snmp_state_topic(prefix, pub_key)
     configs: list[tuple[str, dict]] = []
     for sensor in _SNMP_SENSORS:
+        if not sensor["always"] and sensor["field"] not in served:
+            continue
         cfg: dict[str, Any] = {
             "name": sensor["name"],
             "unique_id": f"meshcore_{nid}_{sensor['object_id']}",
@@ -820,12 +883,17 @@ class MqttHaModule(FanoutModule):
                         _SNMP_EXPIRE_MIN_SECONDS,
                         snmp_config["poll_interval_minutes"] * 60 * _SNMP_EXPIRE_MISSED_POLLS,
                     )
+                latest_snmp = await self._resolve_latest_snmp(pub_key)
                 configs.extend(
                     _snmp_discovery_configs(
-                        self._prefix, pub_key, rname, self._radio_key, expire_after=expire_after
+                        self._prefix,
+                        pub_key,
+                        rname,
+                        self._radio_key,
+                        expire_after=expire_after,
+                        served=_snmp_served_keys(latest_snmp["values"] if latest_snmp else None),
                     )
                 )
-                latest_snmp = await self._resolve_latest_snmp(pub_key)
                 if latest_snmp:
                     cached_repeater_states.append(
                         (
@@ -1119,15 +1187,22 @@ class MqttHaModule(FanoutModule):
         if pub_key not in self._tracked_repeaters:
             return
 
-        # SNMP may have been set up after the last discovery run: publish the
-        # sensor configs before the first state so HA knows the entities.
-        probe = _snmp_discovery_topic(pub_key, _SNMP_SENSORS[0]["object_id"])
-        if probe not in self._discovery_topics:
+        # SNMP may have been set up after the last discovery run, or the node
+        # now serves a value it did not before (firmware update): publish the
+        # sensor configs before the state so HA knows the entities.
+        values = data.get("values") or {}
+        served = _snmp_served_keys(values)
+        known = set(self._discovery_topics)
+        if any(
+            _snmp_discovery_topic(pub_key, sensor["object_id"]) not in known
+            for sensor in _SNMP_SENSORS
+            if sensor["always"] or sensor["field"] in served
+        ):
             await self._publish_discovery()
 
         await self._publisher.publish(
             _snmp_state_topic(self._prefix, pub_key),
-            _snmp_state_payload(data.get("values") or {}),
+            _snmp_state_payload(values),
         )
 
     async def on_message(self, data: dict) -> None:

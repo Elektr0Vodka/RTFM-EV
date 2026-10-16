@@ -112,3 +112,50 @@ describe('CLI_COMMANDS', () => {
     }
   });
 });
+
+describe('DMC firmware commands', () => {
+  const find = (syntax: string) => CLI_COMMANDS.find((c) => c.syntax === syntax);
+
+  it('covers SNMP, duty gate, packet filter, MQTT, alerts and OTA', () => {
+    for (const syntax of [
+      'set snmp <on|off>',
+      'set snmp.community <string>',
+      'set dc.gate <on|off>',
+      'get dc.gate.status',
+      'filter rate <type> <limit> <secs> [soft]',
+      'filter stats <hops|rate|channel|hash|malformed|top|advert|path|air|sender|text|age>',
+      'filter watch add <#name>',
+      'set mqtt.tx <on|off|advert>',
+      'set mqtt1.preset <name>',
+      'set alert.interval <60-10080>',
+      'ota branch <prod|beta|default>',
+      'start webconfig [ap]',
+      'room.post <message>',
+    ]) {
+      expect(find(syntax), syntax).toBeDefined();
+    }
+  });
+
+  it('says which firmware a DMC-only command needs', () => {
+    for (const cmd of CLI_COMMANDS.filter((c) => c.category.startsWith('DMC'))) {
+      expect(cmd.description, cmd.syntax).toMatch(/\(DMC/);
+    }
+  });
+
+  it('flags the DMC commands that only answer on serial', () => {
+    for (const syntax of ['stats-radio-diag', 'get mqtt.owner', 'get alert.psk']) {
+      expect(find(syntax)!.description, syntax).toMatch(/serial only/);
+    }
+  });
+
+  it('suggests the duty gate commands', () => {
+    const hits = matchCliCommands('set dc.gate', 8).map((c) => c.syntax);
+    expect(hits).toEqual(
+      expect.arrayContaining([
+        'set dc.gate <on|off>',
+        'set dc.gate.thresh <1-100>',
+        'set dc.gate.hyst <0-50>',
+      ])
+    );
+  });
+});

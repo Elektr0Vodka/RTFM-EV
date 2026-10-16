@@ -14,14 +14,18 @@
 // "(serial only)" marks a command this console cannot run: it talks to the node
 // over RF. Those stay in the list so a suggestion says why nothing comes back.
 //
-// - src/helpers/CommonCLI.cpp at repeater-v1.18.0: `power` and `gps diag` are new.
+// - src/helpers/CommonCLI.cpp at repeater-v1.18.0: `power` and `gps diag` are new;
+//   `room.post` (room server) and `extra.sf` (LR2021) are not on the docs page.
 //
-// Not covered: commands that only exist in other firmware builds (DMC repeater,
-// DMC MQTT, observer). See the CLI docs link in the console header for those.
+// The DMC firmware block (description ends in "(DMC)" or "(DMC observer)") is
+// from Dutch-MeshCore/MeshCore at 0a96eae3; see the comment above that block.
+// Stock firmware answers those with "Unknown command".
 //
 // COMPANION_CLI_COMMANDS below is the companion radio's own command line
 // (firmware 1.18+), from companion-v1.18.0 examples/companion_radio/MyMesh.cpp
-// (handleCommand) and src/helpers/CommonRadioPrefs.cpp.
+// (handleCommand) and src/helpers/CommonRadioPrefs.cpp, plus the meshcomod
+// additions ("(meshcomod)"); "(not on meshcomod)" marks the settings meshcomod
+// answers with "Error: unsupported".
 //
 // Descriptions are English only, like the firmware's own replies.
 export interface CliCommand {
@@ -430,6 +434,792 @@ export const CLI_COMMANDS: CliCommand[] = [
   { category: 'Power', syntax: 'get pwrmgt.bootmv', description: 'Display boot voltage' },
 
   { category: 'Ethernet', syntax: 'eth.status', description: 'View Ethernet connection status' },
+
+  // repeater-v1.18.0, not on the docs page.
+  {
+    category: 'Room',
+    syntax: 'room.post <message>',
+    description: 'Post a system message to the room (room server)',
+  },
+  {
+    category: 'Radio',
+    syntax: 'get extra.sf',
+    description: 'View extra side-detector SFs (LR2021)',
+  },
+  {
+    category: 'Radio',
+    syntax: 'set extra.sf <sf> [sf] [sf]',
+    description: 'Set up to 3 extra side-detector SFs (LR2021)',
+  },
+
+  // ---- DMC firmware (Dutch-MeshCore dmc-dev / dmc-observer-dev) ----------------
+  // From docs/cli_commands.md, docs/packet_filter_reference.md,
+  // src/helpers/CommonCLI.cpp, src/helpers/CommonCLI_Observer.cpp and
+  // examples/simple_repeater/Filter.cpp at 0a96eae3. Stock firmware answers
+  // these with "Unknown command"; observer-only ones need an observer build.
+
+  {
+    category: 'DMC OTA',
+    syntax: 'start ota ap',
+    description: 'OTA upload page on its own hotspot (DMC)',
+  },
+  { category: 'DMC OTA', syntax: 'stop ota', description: 'Stop an idle OTA web server (DMC)' },
+  {
+    category: 'DMC OTA',
+    syntax: 'ota check',
+    description: 'Check for a newer build (DMC observer)',
+  },
+  {
+    category: 'DMC OTA',
+    syntax: 'ota update',
+    description: 'Download, flash the newer build and reboot (DMC observer)',
+  },
+  {
+    category: 'DMC OTA',
+    syntax: 'ota branch',
+    description: 'Show the OTA release channel (DMC observer)',
+  },
+  {
+    category: 'DMC OTA',
+    syntax: 'ota branch <prod|beta|default>',
+    description: 'Pick the OTA release channel (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'start webconfig [ap]',
+    description: 'Start the web config portal; ap forces the hotspot (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'stop webconfig',
+    description: 'Stop the web config portal (DMC observer)',
+  },
+  { category: 'DMC Observer', syntax: 'memory', description: 'Heap and memory stats (DMC)' },
+  {
+    category: 'DMC Observer',
+    syntax: 'stats-radio-diag',
+    description: 'Radio diagnostics (DMC, serial only)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'tls.bundletest <host[:port]|url>',
+    description: 'Test a TLS connection with the CA bundle (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'discover.scopes',
+    description: 'Ask neighbors for their region scopes, publish to MQTT (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'get radio.watchdog',
+    description: 'View radio watchdog minutes (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'set radio.watchdog <0-120>',
+    description: 'Radio watchdog in minutes, 0 = off (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'get display.timeout',
+    description: 'View display timeout (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'set display.timeout <0-3600>',
+    description: 'Seconds before the display blanks, 0 = always on (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'get display.flip',
+    description: 'View display rotation (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'set display.flip <on|off>',
+    description: 'Rotate the display 180 degrees (DMC observer)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'get fan',
+    description: 'Fan mode, temperature and state (DMC, T-Beam 1W)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'set fan <on|off|auto>',
+    description: 'Set the fan mode (DMC, T-Beam 1W)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'set fan.lo <celsius>',
+    description: 'Auto fan stop temperature (DMC)',
+  },
+  {
+    category: 'DMC Observer',
+    syntax: 'set fan.hi <celsius>',
+    description: 'Auto fan start temperature (DMC)',
+  },
+  {
+    category: 'DMC Routing',
+    syntax: 'set dutycycle auto',
+    description: 'Duty cycle limit from the frequency band (DMC)',
+  },
+
+  {
+    category: 'DMC Duty gate',
+    syntax: 'get dc.gate',
+    description: 'Duty-cycle region gating on or off (DMC)',
+  },
+  {
+    category: 'DMC Duty gate',
+    syntax: 'set dc.gate <on|off>',
+    description: 'Gate outer regions when the duty budget runs low (DMC)',
+  },
+  {
+    category: 'DMC Duty gate',
+    syntax: 'get dc.gate.thresh',
+    description: 'View gating threshold % (DMC)',
+  },
+  {
+    category: 'DMC Duty gate',
+    syntax: 'set dc.gate.thresh <1-100>',
+    description: '% of the duty budget used above which gating starts (DMC)',
+  },
+  {
+    category: 'DMC Duty gate',
+    syntax: 'get dc.gate.hyst',
+    description: 'View gating hysteresis (DMC)',
+  },
+  {
+    category: 'DMC Duty gate',
+    syntax: 'set dc.gate.hyst <0-50>',
+    description: 'Regions re-open below threshold minus this (DMC)',
+  },
+  {
+    category: 'DMC Duty gate',
+    syntax: 'get dc.gate.status',
+    description: 'Current duty cycle and gate level (DMC)',
+  },
+
+  {
+    category: 'DMC Filter',
+    syntax: 'filter',
+    description: 'Packet filter status and drops per reason (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter help',
+    description: 'List every filter subcommand (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter on', description: 'Enable the packet filter (DMC)' },
+  { category: 'DMC Filter', syntax: 'filter off', description: 'Disable the packet filter (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter reset',
+    description: 'Restore default filter settings, counters kept (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter dryrun', description: 'View dry-run state (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter dryrun <on|off>',
+    description: 'Count drops but keep forwarding (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter types', description: 'List packet type IDs (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter count',
+    description: 'Hop and rate drops per packet type (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter stats',
+    description: 'List the drop statistics topics (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter stats <hops|rate|channel|hash|malformed|top|advert|path|air|sender|text|age>',
+    description: 'Drops for one topic (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter hops', description: 'View hop limits (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter hops <type> <max_hops>',
+    description: 'Drop floods of a type at this many hops, 0-64 (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter rate', description: 'View rate limits (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter rate <type> <limit> <secs> [soft]',
+    description: 'Rate limit a packet type, 0 = off (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter channel list', description: 'Blocked channels (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter channel add <#name|Public>',
+    description: 'Block a channel, up to 16 (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter channel remove <#name|Public>',
+    description: 'Unblock a channel (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter hash',
+    description: 'View minimum path hash size (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter hash <1-3>',
+    description: 'Drop floods with a smaller path hash (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter malformed',
+    description: 'View malformed scan state (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter malformed <on|off>',
+    description: 'Drop public group texts that are not valid UTF-8 (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter advert',
+    description: 'View per-origin advert window (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter advert <0-720>',
+    description: 'Forward each origin advert once per N hours, 0 = off (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter advert clear',
+    description: 'Forget remembered advert origins (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter path list',
+    description: 'Blocked path prefixes (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter path add <hex>',
+    description: 'Block a path prefix, 2-8 hex digits (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter path remove <hex>',
+    description: 'Unblock a path prefix (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter sender list',
+    description: 'Sender rules in order (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter sender add <name> [secs] [prob]',
+    description: 'Block, throttle or dose a sender; Bot* = prefix (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter sender remove <name>',
+    description: 'Remove a sender rule (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter text list', description: 'Text rules in order (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter text add <pattern> [secs] [prob]',
+    description: 'Block, throttle or dose matching text; ^ = starts with (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter text remove <pattern>',
+    description: 'Remove a text rule (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter watch list',
+    description: 'Channels the rules can read (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter watch add <#name>',
+    description: 'Let the rules read this channel (DMC)',
+  },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter watch remove <#name>',
+    description: 'Stop reading this channel (DMC)',
+  },
+  { category: 'DMC Filter', syntax: 'filter age', description: 'View message age limit (DMC)' },
+  {
+    category: 'DMC Filter',
+    syntax: 'filter age <minutes|off>',
+    description: 'Drop group texts older than this, 1-10080 min (DMC)',
+  },
+
+  { category: 'DMC SNMP', syntax: 'get snmp', description: 'SNMP agent on or off (DMC observer)' },
+  {
+    category: 'DMC SNMP',
+    syntax: 'set snmp <on|off>',
+    description: 'Turn the SNMP agent on or off, restart to apply (DMC observer)',
+  },
+  {
+    category: 'DMC SNMP',
+    syntax: 'get snmp.community',
+    description: 'View SNMP community (DMC observer)',
+  },
+  {
+    category: 'DMC SNMP',
+    syntax: 'set snmp.community <string>',
+    description: 'Set SNMP community, restart to apply (DMC observer)',
+  },
+
+  {
+    category: 'DMC WiFi',
+    syntax: 'get wifi.ssid',
+    description: 'View WiFi network name (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'set wifi.ssid <ssid>',
+    description: 'Set WiFi network name (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'get wifi.pwd',
+    description: 'WiFi password; remote sees set/unset only (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'set wifi.pwd <password>',
+    description: 'Set WiFi password (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'get wifi.status',
+    description: 'WiFi state and IP address (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'get wifi.powersave',
+    description: 'View WiFi power save (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'set wifi.powersave <none|min|max>',
+    description: 'Set WiFi power save (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'get link.status',
+    description: 'Network link state (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'get link.diag',
+    description: 'Network link diagnostics (DMC observer)',
+  },
+  {
+    category: 'DMC WiFi',
+    syntax: 'get link.dns',
+    description: 'DNS servers in use (DMC observer)',
+  },
+  { category: 'DMC Time', syntax: 'get timezone', description: 'View timezone (DMC observer)' },
+  { category: 'DMC Time', syntax: 'set timezone <tz>', description: 'Set timezone (DMC observer)' },
+  {
+    category: 'DMC Time',
+    syntax: 'get timezone.offset',
+    description: 'View UTC offset (DMC observer)',
+  },
+  {
+    category: 'DMC Time',
+    syntax: 'set timezone.offset <-12..14>',
+    description: 'Set UTC offset in hours (DMC observer)',
+  },
+
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.stats',
+    description: 'MQTT bridge statistics (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.presets [start]',
+    description: 'List broker presets (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.iata',
+    description: 'View region (IATA) code (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.iata <code>',
+    description: 'Region code for topics, 3 letters/digits (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.origin',
+    description: 'View origin name (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.origin [name]',
+    description: 'Set origin name, empty clears it (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.status',
+    description: 'Status topic on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.status <on|off>',
+    description: 'Publish the status topic (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.packets',
+    description: 'Packets topic on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.packets <on|off>',
+    description: 'Publish the packets topic (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.raw',
+    description: 'Raw topic on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.raw <on|off>',
+    description: 'Publish the raw topic (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.rx',
+    description: 'RX packet uplink on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.rx <on|off>',
+    description: 'Uplink received packets (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.tx',
+    description: 'TX packet uplink setting (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.tx <on|off|advert>',
+    description: 'Uplink sent packets, or adverts only (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.advert.verify',
+    description: 'Advert signature check on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.advert.verify <on|off>',
+    description: 'Only uplink adverts with a valid signature (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.interval',
+    description: 'View status interval (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.interval <1-60>',
+    description: 'Status publish interval in minutes (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.filter.interval',
+    description: 'View filter-stats interval (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.filter.interval <seconds>',
+    description: 'Filter-stats publish interval, 0 = off, 60-600 s (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.neighbors',
+    description: 'Neighbors publishing on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.neighbors <on|off>',
+    description: 'Publish the neighbor table periodically (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.neighbors.interval',
+    description: 'View neighbors interval (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.neighbors.interval <12-336>',
+    description: 'Neighbors publish interval in hours (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.config',
+    description: 'Config topic on or off (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.config <on|off>',
+    description: 'Publish the node config topic (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.config.valid',
+    description: 'Check the MQTT config is complete (DMC observer)',
+  },
+  { category: 'DMC MQTT', syntax: 'get mqtt.ntp', description: 'View NTP server (DMC observer)' },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.ntp <hostname|none>',
+    description: 'Set NTP server, none clears it (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.ntp.diag',
+    description: 'Test NTP server reachability (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.analyzer.us',
+    description: 'US analyzer preset on slot 1 (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.analyzer.us <on|off>',
+    description: 'Put the US analyzer on slot 1 (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.analyzer.eu',
+    description: 'EU analyzer preset on slot 2 (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.analyzer.eu <on|off>',
+    description: 'Put the EU analyzer on slot 2 (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.owner',
+    description: 'Owner public key (DMC observer, serial only)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.owner [public_key]',
+    description: 'Owner public key, 64 hex, empty clears (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt.email',
+    description: 'Owner email (DMC observer, serial only)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt.email <email>',
+    description: 'Owner email (DMC observer)',
+  },
+  // Broker slots: mqtt1 to mqtt6 take the same keys; slot 1 stands in for all.
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.preset',
+    description: 'Broker preset of a slot, mqtt1-6 (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.preset <name>',
+    description: 'Broker preset for a slot, see get mqtt.presets (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.server',
+    description: 'Broker host of a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.server <host>',
+    description: 'Broker host for a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.port',
+    description: 'Broker port of a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.port <1-65535>',
+    description: 'Broker port for a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.username',
+    description: 'Broker username of a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.username <name>',
+    description: 'Broker username for a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.password',
+    description: 'Broker password; remote sees set/unset (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.password <password>',
+    description: 'Broker password for a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.token',
+    description: 'Broker token; remote sees set/unset (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.token <token>',
+    description: 'Broker token for a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.topic',
+    description: 'Topic template of a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.topic <template>',
+    description: 'Topic template, custom preset only (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.audience',
+    description: 'Token audience of a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.audience [audience]',
+    description: 'Token audience, empty clears (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.filter',
+    description: 'Packet types a slot gets (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.filter <all|none|types>',
+    description: 'Packet types for a slot, CSV of 0-15 or names (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.extras',
+    description: 'DMC extra topics of a slot (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'set mqtt1.extras <none|filter|config|all>',
+    description: 'Which DMC extra topics a slot gets (DMC observer)',
+  },
+  {
+    category: 'DMC MQTT',
+    syntax: 'get mqtt1.diag',
+    description: 'Connection diagnostics of a slot (DMC observer)',
+  },
+
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert',
+    description: 'Fault alerts on or off (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert <on|off>',
+    description: 'Send fault alerts to a channel (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert.psk',
+    description: 'Alert channel key (DMC observer, serial only)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert.psk [hex]',
+    description: 'Alert channel key, 32 hex; empty clears (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert.hashtag',
+    description: 'Alert hashtag channel (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert.hashtag [#name]',
+    description: 'Send alerts on this hashtag channel (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert.region',
+    description: 'Alert scope region (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert.region [name]',
+    description: 'Region for alert floods, empty = default scope (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert.wifi',
+    description: 'WiFi-down alert delay (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert.wifi <0-1440>',
+    description: 'Alert after WiFi is down this many minutes, 0 = off (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert.mqtt',
+    description: 'MQTT-down alert delay (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert.mqtt <0-10080>',
+    description: 'Alert after MQTT is down this many minutes, 0 = off (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'get alert.interval',
+    description: 'Minimum time between alerts (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'set alert.interval <60-10080>',
+    description: 'Minimum minutes between alerts (DMC observer)',
+  },
+  {
+    category: 'DMC Alerts',
+    syntax: 'alert test',
+    description: 'Send one test alert now, transmits (DMC observer)',
+  },
 ];
 
 // The companion radio's own command line (firmware 1.18+, CMD_RUN_CLI_COMMAND),
@@ -464,14 +1254,26 @@ export const COMPANION_CLI_COMMANDS: CliCommand[] = [
   { category: 'Radio', syntax: 'set af <0-9>', description: 'Set airtime factor' },
   { category: 'Radio', syntax: 'get dutycycle', description: 'Duty cycle limit in %' },
   { category: 'Radio', syntax: 'set dutycycle <1-100>', description: 'Set duty cycle limit' },
-  { category: 'Radio', syntax: 'get int.thresh', description: 'Interference threshold' },
+  {
+    category: 'Radio',
+    syntax: 'get int.thresh',
+    description: 'Interference threshold (not on meshcomod)',
+  },
   {
     category: 'Radio',
     syntax: 'set int.thresh <value>',
-    description: 'Set interference threshold',
+    description: 'Set interference threshold (not on meshcomod)',
   },
-  { category: 'Radio', syntax: 'get cad', description: 'Channel activity detection before TX' },
-  { category: 'Radio', syntax: 'set cad <on|off>', description: 'Turn CAD on or off' },
+  {
+    category: 'Radio',
+    syntax: 'get cad',
+    description: 'Channel activity detection before TX (not on meshcomod)',
+  },
+  {
+    category: 'Radio',
+    syntax: 'set cad <on|off>',
+    description: 'Turn CAD on or off (not on meshcomod)',
+  },
   { category: 'Radio', syntax: 'get radio.rxgain', description: 'RX boosted gain' },
   {
     category: 'Radio',
@@ -480,23 +1282,35 @@ export const COMPANION_CLI_COMMANDS: CliCommand[] = [
   },
   { category: 'Radio', syntax: 'get rxdelay', description: 'RX delay base' },
   { category: 'Radio', syntax: 'set rxdelay <0-20>', description: 'Set RX delay base' },
-  { category: 'Radio', syntax: 'get txdelay', description: 'Flood TX delay factor' },
-  { category: 'Radio', syntax: 'set txdelay <0-2>', description: 'Set flood TX delay factor' },
-  { category: 'Radio', syntax: 'get direct.txdelay', description: 'Direct TX delay factor' },
+  {
+    category: 'Radio',
+    syntax: 'get txdelay',
+    description: 'Flood TX delay factor (not on meshcomod)',
+  },
+  {
+    category: 'Radio',
+    syntax: 'set txdelay <0-2>',
+    description: 'Set flood TX delay factor (not on meshcomod)',
+  },
+  {
+    category: 'Radio',
+    syntax: 'get direct.txdelay',
+    description: 'Direct TX delay factor (not on meshcomod)',
+  },
   {
     category: 'Radio',
     syntax: 'set direct.txdelay <0-2>',
-    description: 'Set direct TX delay factor',
+    description: 'Set direct TX delay factor (not on meshcomod)',
   },
   {
     category: 'Radio',
     syntax: 'get agc.reset.interval',
-    description: 'AGC reset interval in seconds',
+    description: 'AGC reset interval in seconds (not on meshcomod)',
   },
   {
     category: 'Radio',
     syntax: 'set agc.reset.interval <0-1020>',
-    description: 'Set AGC reset interval (multiple of 4)',
+    description: 'Set AGC reset interval (multiple of 4) (not on meshcomod)',
   },
   {
     category: 'Radio',
@@ -527,12 +1341,125 @@ export const COMPANION_CLI_COMMANDS: CliCommand[] = [
   },
   { category: 'WiFi', syntax: 'get wifi.status', description: 'WiFi connected or not' },
   { category: 'WiFi', syntax: 'get wifi.ip', description: 'WiFi IP address' },
+  // meshcomod (Elektr0Vodka/meshcomod main 938352fa): examples/companion_radio
+  // MyMesh.cpp handleCommand, CompanionSNMP.cpp, CompanionFilter.cpp and
+  // docs/companion_snmp.md, docs/companion_receive_filter.md.
+  {
+    category: 'WiFi',
+    syntax: 'wifi.apply',
+    description: 'Reconnect with the saved WiFi settings (meshcomod)',
+  },
+  { category: 'SNMP', syntax: 'get snmp', description: 'SNMP agent on or off (meshcomod)' },
+  {
+    category: 'SNMP',
+    syntax: 'set snmp <on|off>',
+    description: 'Turn the SNMP agent on or off, applies live (meshcomod)',
+  },
+  {
+    category: 'SNMP',
+    syntax: 'get snmp.status',
+    description: 'Running, waiting for WiFi, or off (meshcomod)',
+  },
+  {
+    category: 'SNMP',
+    syntax: 'get snmp.community',
+    description: 'SNMP community, local only (meshcomod)',
+  },
+  {
+    category: 'SNMP',
+    syntax: 'set snmp.community <string>',
+    description: 'Set SNMP community, 1-23 chars (meshcomod)',
+  },
+  { category: 'Filter', syntax: 'filter', description: 'Receive filter status (meshcomod)' },
+  {
+    category: 'Filter',
+    syntax: 'filter help',
+    description: 'List the filter subcommands (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter on',
+    description: 'Turn the receive filter on (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter off',
+    description: 'Turn the receive filter off (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter reset',
+    description: 'Clear the filter settings, totals kept (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter malformed',
+    description: 'Malformed scan state (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter malformed <on|off>',
+    description: 'Drop malformed group texts (meshcomod)',
+  },
+  { category: 'Filter', syntax: 'filter age', description: 'Message age limit (meshcomod)' },
+  {
+    category: 'Filter',
+    syntax: 'filter age <minutes|off>',
+    description: 'Drop group texts older than this, 1-10080 min (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter path list',
+    description: 'Blocked path prefixes (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter path add <hex>',
+    description: 'Block a path prefix, 2-8 hex digits (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter path remove <hex>',
+    description: 'Unblock a path prefix (meshcomod)',
+  },
+  { category: 'Filter', syntax: 'filter sender list', description: 'Sender rules (meshcomod)' },
+  {
+    category: 'Filter',
+    syntax: 'filter sender add <name> [secs] [prob]',
+    description: 'Hide or throttle a sender; Bot* = prefix (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter sender remove <name>',
+    description: 'Remove a sender rule (meshcomod)',
+  },
+  { category: 'Filter', syntax: 'filter text list', description: 'Text rules (meshcomod)' },
+  {
+    category: 'Filter',
+    syntax: 'filter text add <pattern> [secs] [prob]',
+    description: 'Hide or throttle matching text; ^ = starts with (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter text remove <pattern>',
+    description: 'Remove a text rule (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter stats',
+    description: 'Hidden and dropped totals (meshcomod)',
+  },
+  {
+    category: 'Filter',
+    syntax: 'filter stats <malformed|age|path|sender|text>',
+    description: 'Totals for one reason (meshcomod)',
+  },
 ];
 
 // `set\s+radio\s` (radio followed by a space) so the harmless `set radio.rxgain`
 // does not match.
 const RISKY_COMPANION_RE =
-  /^\s*(?:[0-9A-Fa-f]{2}\|)?\s*(?:reboot\b|poweroff\b|shutdown\b|set\s+radio\s|set\s+pin\b|set\s+wifi\.)/i;
+  /^\s*(?:[0-9A-Fa-f]{2}\|)?\s*(?:reboot\b|poweroff\b|shutdown\b|set\s+radio\s|set\s+pin\b|set\s+wifi\.|wifi\.(?:apply|clear)\b)/i;
 
 /** Commands that cut the connection, change RF or change access: ask first. */
 export function isRiskyCompanionCommand(command: string): boolean {

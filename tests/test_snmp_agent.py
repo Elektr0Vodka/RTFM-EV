@@ -164,7 +164,8 @@ class TestBuildTable:
             0,
         )
         assert values["wifi_rssi"] == -127
-        assert set(values) == {entry.key for entry in mib.ENTRIES}
+        # Only the first-release table; the OIDs added later are not served.
+        assert set(values) == {entry.key for entry in mib.FIRST_RELEASE_ENTRIES}
 
 
 # --- request handling (pure) ------------------------------------------------
@@ -339,8 +340,10 @@ class TestLifecycle:
 
             values = await poll_meshcore("127.0.0.1", port, "s3cret", timeout=2)
 
-        assert values == SAMPLE
-        assert agent_service.get_snmp_agent_state(settings).requests == 1
+        # The added OIDs answer noSuchObject, which the client reads as "not supported".
+        assert values == {**SAMPLE, **{entry.key: None for entry in mib.ADDED_ENTRIES}}
+        # The client reads the table in three GETs (22, 22 and 9 OIDs).
+        assert agent_service.get_snmp_agent_state(settings).requests == 3
 
     @pytest.mark.asyncio
     async def test_wrong_community_times_out_and_is_counted(self):
