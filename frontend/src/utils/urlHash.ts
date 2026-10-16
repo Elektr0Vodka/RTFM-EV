@@ -19,6 +19,7 @@ interface ParsedHashConversation {
     | 'mesh-trends'
     | 'mesh-discovery'
     | 'snmp'
+    | 'lan-scan'
     | 'fleet'
     | 'spam-guard'
     | 'analyze'
@@ -100,6 +101,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'spam-guard') {
     return { type: 'spam-guard', name: 'spam-guard' };
+  }
+
+  if (hash === 'lan-scan') {
+    return { type: 'lan-scan', name: 'lan-scan' };
   }
 
   // SNMP page of one node: #snmp/<public key>
@@ -276,6 +281,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-trends') return '#mesh-trends';
   if (conv.type === 'mesh-discovery') return '#mesh-discovery';
   if (conv.type === 'spam-guard') return '#spam-guard';
+  if (conv.type === 'lan-scan') return '#lan-scan';
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;

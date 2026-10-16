@@ -25,6 +25,7 @@ import {
   Pencil,
   Plus,
   Radar,
+  Router,
   ScanSearch,
   ShieldCheck,
   Search as SearchIcon,
@@ -563,6 +564,7 @@ export function Sidebar({
       | 'mesh-trends'
       | 'mesh-discovery'
       | 'snmp'
+      | 'lan-scan'
       | 'fleet'
       | 'spam-guard'
       | 'analyze'
@@ -1441,6 +1443,20 @@ export function Sidebar({
             handleSelectConversation({ type: 'snmp', id: 'snmp', name: t('nav_snmp') }),
           iconOnly,
         });
+      case 'lan-scan':
+        return renderSidebarActionRow({
+          key: 'tool-lan-scan',
+          active: isActive('lan-scan', 'lan-scan'),
+          icon: <Router className="h-4 w-4" />,
+          label: t('nav_lan_scan'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'lan-scan',
+              id: 'lan-scan',
+              name: t('nav_lan_scan'),
+            }),
+          iconOnly,
+        });
       case 'fleet':
         return renderSidebarActionRow({
           key: 'tool-fleet',
@@ -2009,6 +2025,7 @@ export function Sidebar({
     'mesh-trends': t('nav_mesh_trends'),
     'mesh-discovery': t('nav_mesh_discovery'),
     snmp: t('nav_snmp'),
+    'lan-scan': t('nav_lan_scan'),
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
     raw: t('nav_packet_feed'),

@@ -11,6 +11,46 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (network scan, live signal card, feat/lan-discovery-live-signal)
+
+No migration, no new dependency or environment variable. The scan was tried on
+a real network; the automated tests run the probes against scripted servers on
+loopback.
+
+### Network scan (Tools > Network scan)
+- **New page** that finds MeshCore devices on the local network. The server
+  checks every address of the IPv4 addresses or networks you enter (local
+  network only, at most 1024 per scan); nothing goes over RF. Networks the app
+  already knows (the TCP radio and SNMP hosts) are offered.
+- **SNMP** (on by default): one GET for the MeshCore name, firmware and uptime
+  plus sysName / sysDescr, with the community you enter (never stored or
+  returned). Finds observer repeaters, room servers and meshcomod companions;
+  other SNMP devices are listed behind "Show other devices".
+- **App port** (off by default): the companion protocol on TCP 5000,
+  `APP_START` then `DEVICE_QUERY`, for the role (companion, repeater, room
+  server, sensor), name, public key, model and firmware of any MeshCore device
+  with WiFi app access. Opt-in with a warning because a stock MeshCore WiFi
+  companion drops its connected app when a new TCP connection arrives. The
+  radio this instance uses over TCP is always left out.
+- **Web config** (off by default): one `GET /api/status` on HTTP 80 finds DMC
+  observer repeaters and room servers while their config page runs, also with
+  SNMP off. No login, nothing changed; only replies with the observer's status
+  fields are listed. Matched to the contact on the node id (start of the
+  public key), with an "Open web config" link.
+- Found devices link to their contact (public key, web config node id, or a
+  name only one contact has), and **Set up SNMP** stores the found address on
+  that contact.
+- API: `GET /api/lan-discovery/suggestions`, `GET`/`POST /api/lan-discovery/scan`,
+  `POST /api/lan-discovery/scan/cancel`.
+
+### My Node
+- **Live signal card**: the RSSI of every packet of the last 2, 5 or 15
+  minutes, coloured by packet type, against the stored noise floor, with last
+  (and its SNR), noise floor, peak and margin meters. Uses the live packets the
+  page already has and the 60-second noise floor samples.
+- The packet type colours moved to `components/mynode/packetTypeColors.ts`
+  (unchanged values).
+
 ## Update 2026-10-16 (mesh text hardening)
 
 No migration, no new dependency or environment variable. Follows an audit

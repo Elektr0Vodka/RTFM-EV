@@ -79,6 +79,7 @@ from app.routers import (
     fleet_vault,
     health,
     host_repeater,
+    lan_discovery,
     links,
     messages,
     openhop,
@@ -343,6 +344,7 @@ app.include_router(rooms.router, prefix="/api")
 app.include_router(snmp.router, prefix="/api")
 app.include_router(snmp.nodes_router, prefix="/api")
 app.include_router(snmp_agent.router, prefix="/api")
+app.include_router(lan_discovery.router, prefix="/api")
 app.include_router(fleet.router, prefix="/api")
 app.include_router(fleet_vault.router, prefix="/api")
 app.include_router(fleet_config.router, prefix="/api")
