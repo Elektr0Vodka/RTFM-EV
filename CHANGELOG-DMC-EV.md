@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-16 (SNMP: added observer OIDs, feat/snmp-added-oids)
+## Update 2026-10-16 (SNMP: added observer OIDs, console commands, feat/snmp-added-oids)
 
 No migration (SNMP polls are stored as JSON, new keys just appear). No new
 environment variable. Firmware side: Dutch-MeshCore/MeshCore PR #16
@@ -49,6 +49,19 @@ agent only.
   drawing a negative rate. There is no 2^32 wrap handling (none existed).
 - **Reboots.** Each reboot in the period (uptime went down) is listed with the
   reset reason of the new boot, or "Reason not reported" on older firmware.
+
+### Console command suggestions
+- **DMC firmware.** The repeater console type-ahead now has the DMC
+  commands: SNMP, duty gate (`dc.gate`), the packet filter (`filter ...`),
+  MQTT and broker slots (`mqtt.*`, `mqtt1.*`), WiFi and link, timezone,
+  alerts, display, fan, radio watchdog, OTA channels and web config. Each says
+  "(DMC)" or "(DMC observer)", since stock firmware does not know them.
+- **MeshCore 1.18.** Added `room.post` and `get/set extra.sf`, which the 1.18
+  source has but its docs page does not.
+- **meshcomod companion.** The companion console has `wifi.apply`, the SNMP
+  commands and the receive filter commands. The five radio settings meshcomod
+  answers "unsupported" are marked "(not on meshcomod)". `wifi.apply` and
+  `wifi.clear` now ask for confirmation, like `set wifi.*`.
 
 ### Home Assistant
 - **Sensors only when served.** The added SNMP sensors are created once the
