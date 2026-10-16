@@ -11,6 +11,26 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (meshcomod commands in the radio console)
+
+No migration, no new dependency or environment variable.
+
+### Radio console
+- **meshcomod's own commands work in the radio console.** On meshcomod, `help`,
+  `status`, `mac`, `ota ...`, `wifi ...`, `tcp ...`, `ble ...` and the `ok` /
+  `cancel` confirmation answered "Unknown command": the radio's 1.18 command
+  line does not have them, they only run for a DM to the Meshcomod contact.
+  `POST /radio/cli` now sends those to that contact and returns the DMs it
+  answers with (up to 15 s for the first one, `wifi scan` and `ota check` go to
+  the network; done 1.5 s after the last). The command and the answer also show
+  in the Meshcomod chat. `ota update` / `ota url` return on the first answer:
+  the radio may only answer once the flash is done. Other commands (`ver`,
+  `get`, `set`, `reboot`, ...) still go to the command line.
+- The console offers these commands in its type-ahead only for our own
+  meshcomod radio, and asks before `wifi off|apply|clear` and
+  `ota update|url|start`.
+- `wifi set pwd <pw>` is masked in the logs like `set wifi.pwd`.
+
 ## Update 2026-10-16 (network scan, live signal card, feat/lan-discovery-live-signal)
 
 No migration, no new dependency or environment variable. The scan was tried on

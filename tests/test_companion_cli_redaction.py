@@ -20,6 +20,9 @@ from app.log_redaction import (
         ("0A|set wifi.pwd hunter2", "0A|set wifi.pwd ***"),
         ("set wifi.ssid MyNet", "set wifi.ssid MyNet"),
         ("get wifi.pwd", "get wifi.pwd"),
+        # meshcomod command contact, sent by the radio console
+        ('wifi set pwd "hunter2"', "wifi set pwd ***"),
+        ("wifi set ssid MyNet", "wifi set ssid MyNet"),
     ],
 )
 def test_redact_companion_commands(command, expected):
@@ -32,6 +35,8 @@ def test_redact_companion_commands(command, expected):
         ("get wifi.pwd", True),
         ("set wifi.pwd x", True),
         ("set pin 123456", True),
+        ("wifi set pwd x", True),
+        ("wifi status", False),
         ("get wifi.ssid", False),
         ("get name", False),
     ],

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLI_COMMANDS,
   COMPANION_CLI_COMMANDS,
+  MESHCOMOD_CONTACT_CLI_COMMANDS,
   isRiskyCompanionCommand,
   matchCliCommands,
 } from '../utils/cliCommands';
@@ -45,6 +46,17 @@ describe('companion CLI commands (firmware 1.18)', () => {
     ['wifi.clear', true],
     ['set snmp on', false],
     ['filter on', false],
+    // meshcomod command contact: drops WiFi, or flashes / reboots the radio.
+    ['wifi off', true],
+    ['wifi apply', true],
+    ['wifi clear', true],
+    ['ota update', true],
+    ['ota url https://example.com/fw.bin', true],
+    ['ota start', true],
+    ['ota check', false],
+    ['wifi status', false],
+    // The firmware asks for an `ok` itself.
+    ['tcp off', false],
   ])('isRiskyCompanionCommand(%s) = %s', (command, risky) => {
     expect(isRiskyCompanionCommand(command)).toBe(risky);
   });
@@ -78,6 +90,17 @@ describe('meshcomod companion commands', () => {
     expect(hits).toContain('filter age <minutes|off>');
     // hops / rate / channel are repeater (DMC) packet filter settings.
     expect(hits.some((h) => h.startsWith('filter hops'))).toBe(false);
+  });
+
+  it('lists the command contact commands apart from the command line', () => {
+    const contactSyntaxes = MESHCOMOD_CONTACT_CLI_COMMANDS.map((c) => c.syntax);
+    for (const syntax of ['help', 'status', 'mac', 'ota check', 'wifi scan', 'tcp off', 'ok']) {
+      expect(contactSyntaxes, syntax).toContain(syntax);
+    }
+    for (const cmd of MESHCOMOD_CONTACT_CLI_COMMANDS) {
+      expect(cmd.description, cmd.syntax).toMatch(/\(meshcomod\)$/);
+      expect(syntaxes, cmd.syntax).not.toContain(cmd.syntax);
+    }
   });
 
   it('marks the settings meshcomod does not support', () => {
