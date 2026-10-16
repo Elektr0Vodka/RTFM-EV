@@ -90,7 +90,7 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
       { key: 'block_ttl_seconds', type: 'int', min: 300, max: 315360000, unit: 'seconds' },
       { key: 'hop_block_ttl_seconds', type: 'int', min: 600, max: 315360000, unit: 'seconds' },
       { key: 'spam_text_days', type: 'int', min: 0, max: 60, unit: 'days' },
-      { key: 'max_total_rules', type: 'int', min: 20, max: 2000 },
+      { key: 'max_total_rules', type: 'int', min: 20, max: 500 },
     ],
   },
   {

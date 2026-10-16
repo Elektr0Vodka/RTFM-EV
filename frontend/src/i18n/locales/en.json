@@ -5812,7 +5812,7 @@
   "spam_set_spam_text_days_risk": "Anyone quoting that exact text is blocked until it ends. You can remove the block by hand.",
   "spam_set_max_total_rules_label": "Most rules at once",
   "spam_set_max_total_rules_help": "Safety limit on forwarding rules. The lowest priority rules are left out first.",
-  "spam_set_max_total_rules_risk": "Every rule is checked against every channel message, which costs processing time.",
+  "spam_set_max_total_rules_risk": "Every rule is checked against every channel message, which costs processing time. At most 500: more can overload an OpenHop node.",
   "spam_set_evidence_log_label": "Keep an evidence log",
   "spam_set_evidence_log_help": "Keeps every message Spam Guard reads on the protected channels, with what it made of it, and your This is spam / Not spam answers. The download and the replay below work from this log.",
   "spam_set_evidence_log_risk": "The log holds names and message texts for as long as set below. It never holds a channel key.",

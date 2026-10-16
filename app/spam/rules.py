@@ -38,7 +38,9 @@ Two dialects:
   first hop (``starts_at``).
 - ``openhop``: an OpenHop node. Channels are matched by their secret (OpenHop
   derives the hash and needs the secret to read sender and text), known names
-  live in a policy object, and rule ids are integers.
+  live in a policy object, and rule ids are integers. Every drop rule also
+  says ``local_transmission`` is not true, so a message the node's own
+  companions send is never dropped by Spam Guard.
 """
 
 from __future__ import annotations
@@ -104,6 +106,10 @@ def _cond(name: str, op: str, value: Any) -> dict[str, Any]:
 
 
 _IS_GROUP_TEXT = _cond("payload_type", "equals", PAYLOAD_TYPE_GRP_TXT)
+# OpenHop judges what its own companions send (``local_transmission`` true) with
+# the same rules and does not send it on a drop. On a node without the field
+# the condition holds and the rule works as before.
+_NOT_OWN_SEND = _cond("local_transmission", "not_equals", True)
 
 
 def _same_sender_on_openhop(name: str) -> bool:
@@ -154,6 +160,8 @@ class _Renderer:
         if origin is None and block is not None:
             origin = _ORIGINS.get(block.source, "auto")
         ending = f" ({origin})" if origin else ""
+        if self.dialect == "openhop" and action == "drop":
+            conditions = [*conditions, _NOT_OWN_SEND]
         return {
             "id": self._id(name),
             "name": f"{name[: MAX_NAME - len(ending)]}{ending}",

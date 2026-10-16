@@ -17,7 +17,15 @@ from app.filter_profiles.format import first_problem
 from app.filter_profiles.kinds import ProfileError
 from app.services import spam_guard as spam_guard_module
 from app.services.spam_guard import SpamGuardRuntime
-from app.spam.settings import PRESETS, Mode, Sensitivity, SpamConfig, SpamTunables, effective
+from app.spam.settings import (
+    PRESETS,
+    Mode,
+    Sensitivity,
+    SpamConfig,
+    SpamTunables,
+    clamp_overrides,
+    effective,
+)
 
 KIND = "spam_guard"
 # Whether message data is kept here is this installation's choice, not a profile's.
@@ -54,6 +62,8 @@ class SpamGuardProfiles:
             parsed = SpamProfilePayload.model_validate(payload)
         except ValidationError as exc:
             raise ValueError(first_problem(exc)) from exc
+        # A profile saved before a bound was lowered still applies, at the new bound.
+        parsed = parsed.model_copy(update={"overrides": clamp_overrides(parsed.overrides)})
         local = sorted(LOCAL_KEYS & set(parsed.overrides))
         if local:
             raise ValueError(f"overrides: a profile does not carry {', '.join(local)}")

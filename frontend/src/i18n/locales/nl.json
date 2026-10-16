@@ -5813,7 +5813,7 @@
   "spam_set_spam_text_days_risk": "Iedereen die precies die tekst citeert wordt geblokkeerd tot het eindigt. Je kunt de blokkade met de hand verwijderen.",
   "spam_set_max_total_rules_label": "Maximaal aantal regels tegelijk",
   "spam_set_max_total_rules_help": "Veiligheidslimiet voor doorstuurregels. De regels met de laagste prioriteit vallen het eerst af.",
-  "spam_set_max_total_rules_risk": "Elke regel wordt tegen elk kanaalbericht gecontroleerd, wat rekentijd kost.",
+  "spam_set_max_total_rules_risk": "Elke regel wordt tegen elk kanaalbericht gecontroleerd, wat rekentijd kost. Hoogstens 500: meer kan een OpenHop-node overbelasten.",
   "spam_set_evidence_log_label": "Een bewijslog bijhouden",
   "spam_set_evidence_log_help": "Bewaart elk bericht dat Spam Guard op de beschermde kanalen leest, met wat het ervan vond, en je antwoorden Dit is spam / Geen spam. De download en de herhaling hieronder werken met dit log.",
   "spam_set_evidence_log_risk": "Het log bevat namen en berichtteksten zolang als hieronder is ingesteld. Er staat nooit een kanaalsleutel in.",

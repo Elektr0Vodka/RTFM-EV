@@ -51,6 +51,11 @@ def test_validate_returns_the_stored_form():
     }
 
 
+def test_a_profile_saved_with_an_old_rule_ceiling_still_applies():
+    clean = SpamGuardProfiles().validate({**STRICT, "overrides": {"max_total_rules": 2000}})
+    assert clean["overrides"] == {"max_total_rules": 500}
+
+
 def test_validate_stores_values_as_the_settings_read_them():
     # A hand-edited file: pydantic takes 1 for a switch and "80" for a number.
     # Stored as written, the settings form would show the switch as off.
