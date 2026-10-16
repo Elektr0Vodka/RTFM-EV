@@ -73,6 +73,30 @@ describe('CompanionCliConsole', () => {
     confirm.mockRestore();
   });
 
+  function suggestionsFor(text: string) {
+    fireEvent.change(screen.getByLabelText('Console command'), { target: { value: text } });
+    return screen.queryAllByRole('option').map((el) => el.textContent ?? '');
+  }
+
+  it('offers the meshcomod commands on a meshcomod radio', () => {
+    render(<CompanionCliConsole target={{ kind: 'radio' }} cliSupported meshcomod />);
+    expect(suggestionsFor('ota c').some((s) => s.startsWith('ota check'))).toBe(true);
+  });
+
+  it('does not offer the meshcomod commands on stock firmware or for a contact', () => {
+    const { unmount } = render(<CompanionCliConsole target={{ kind: 'radio' }} cliSupported />);
+    expect(suggestionsFor('ota c')).toHaveLength(0);
+    unmount();
+    render(
+      <CompanionCliConsole
+        target={{ kind: 'contact', publicKey: 'ab'.repeat(32) }}
+        cliSupported
+        meshcomod
+      />
+    );
+    expect(suggestionsFor('ota c')).toHaveLength(0);
+  });
+
   it('starts a fresh history when the target contact changes', async () => {
     vi.mocked(api.sendRepeaterCommand).mockResolvedValue({
       command: 'get name',

@@ -3036,6 +3036,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
               <CompanionCliConsole
                 target={{ kind: 'radio' }}
                 cliSupported={!!health.radio_device_info?.cli_supported}
+                meshcomod={!!health.radio_device_info?.is_meshcomod}
               />
             )}
 

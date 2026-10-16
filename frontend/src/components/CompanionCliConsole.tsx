@@ -1,10 +1,14 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { api } from '../api';
 import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 import { useCliConsole } from '../hooks/useCliConsole';
 import { useT } from '../i18n';
-import { COMPANION_CLI_COMMANDS, isRiskyCompanionCommand } from '../utils/cliCommands';
+import {
+  COMPANION_CLI_COMMANDS,
+  MESHCOMOD_CONTACT_CLI_COMMANDS,
+  isRiskyCompanionCommand,
+} from '../utils/cliCommands';
 import { ConsolePane } from './repeater/RepeaterConsolePane';
 
 export type CompanionCliTarget = { kind: 'radio' } | { kind: 'contact'; publicKey: string };
@@ -13,8 +17,15 @@ export type CompanionCliTarget = { kind: 'radio' } | { kind: 'contact'; publicKe
  * Command line of a MeshCore 1.18+ companion: our own radio (CMD_RUN_CLI_COMMAND,
  * never transmits) or another companion over the mesh (txt_type 3, answered
  * only when that contact gave us Remote CLI permission).
+ *
+ * `meshcomod` (our radio runs meshcomod) adds meshcomod's own commands to the
+ * type-ahead of the radio target; the backend sends those to its command contact.
  */
-export function CompanionCliConsole(props: { target: CompanionCliTarget; cliSupported: boolean }) {
+export function CompanionCliConsole(props: {
+  target: CompanionCliTarget;
+  cliSupported: boolean;
+  meshcomod?: boolean;
+}) {
   // Keyed per target: history belongs to one radio or contact and must not
   // carry over when a reused view switches to another contact.
   const targetKey = props.target.kind === 'contact' ? props.target.publicKey : 'radio';
@@ -24,9 +35,11 @@ export function CompanionCliConsole(props: { target: CompanionCliTarget; cliSupp
 function CompanionCliConsoleForTarget({
   target,
   cliSupported,
+  meshcomod = false,
 }: {
   target: CompanionCliTarget;
   cliSupported: boolean;
+  meshcomod?: boolean;
 }) {
   const t = useT();
   const publicKey = target.kind === 'contact' ? target.publicKey : null;
@@ -38,6 +51,13 @@ function CompanionCliConsoleForTarget({
     [publicKey]
   );
   const { history, loading, sendCommand } = useCliConsole(send);
+  const commands = useMemo(
+    () =>
+      meshcomod && target.kind === 'radio'
+        ? [...COMPANION_CLI_COMMANDS, ...MESHCOMOD_CONTACT_CLI_COMMANDS]
+        : COMPANION_CLI_COMMANDS,
+    [meshcomod, target.kind]
+  );
   const confirmCommand = useCallback(
     (command: string) =>
       !isRiskyCompanionCommand(command) || window.confirm(t('companion_cli_confirm', { command })),
@@ -69,7 +89,7 @@ function CompanionCliConsoleForTarget({
         history={history}
         loading={loading}
         onSend={sendCommand}
-        commands={COMPANION_CLI_COMMANDS}
+        commands={commands}
         title={title}
         confirmCommand={confirmCommand}
       />

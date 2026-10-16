@@ -11,8 +11,11 @@ from meshcore import EventType
 from pydantic import BaseModel, Field
 
 from app.contact_uri import ContactUriError, card_from_export_result, format_contact_uri
+from app.event_handlers import track_pending_ack
 from app.log_redaction import redact_cli_command, redact_cli_reply
+from app.meshcomod_contact import MESHCOMOD_COMMAND_CONTACT_KEY
 from app.models import (
+    CONTACT_TYPE_CLIENT,
     CONTACT_TYPE_REPEATER,
     Contact,
     ContactUpsert,
@@ -35,7 +38,13 @@ from app.radio_sync import sync_radio_time
 from app.repository import AppSettingsRepository, ContactRepository
 from app.routers.repeaters import request_anon_region_names
 from app.routers.server_control import _monotonic
-from app.services.companion_cli import CompanionCliError, radio_cli_supported, run_local_cli
+from app.services.companion_cli import (
+    CompanionCliError,
+    radio_cli_supported,
+    routes_to_meshcomod_contact,
+    run_local_cli,
+    run_meshcomod_contact_command,
+)
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     reconcile_contact_messages,
@@ -47,6 +56,7 @@ from app.services.meshcomod import (
     read_gps_settings,
     read_meshcomod_settings,
 )
+from app.services.message_send import send_direct_message_to_contact
 from app.services.radio_commands import (
     KeystoreRefreshError,
     PathHashModeUnsupportedError,
@@ -57,7 +67,7 @@ from app.services.radio_commands import (
 )
 from app.services.radio_presets import OFFICIAL_PRESETS_URL, fetch_official_presets
 from app.services.radio_runtime import radio_runtime as radio_manager
-from app.websocket import broadcast_event, broadcast_health
+from app.websocket import broadcast_error, broadcast_event, broadcast_health
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/radio", tags=["radio"])
@@ -669,9 +679,38 @@ async def update_meshcomod_config(update: MeshcomodConfigUpdate) -> MeshcomodCon
     return await get_meshcomod_config()
 
 
+async def _run_meshcomod_contact_cli(command: str) -> str:
+    """Send a meshcomod-only command as a DM to its command contact, like the chat does.
+
+    The command and the replies are stored in the Meshcomod conversation. The DM
+    send takes the radio lock only for the send itself; the replies are collected
+    while the normal message fetch pulls them.
+    """
+    contact = await ContactRepository.get_by_key(MESHCOMOD_COMMAND_CONTACT_KEY) or Contact(
+        public_key=MESHCOMOD_COMMAND_CONTACT_KEY, name="Meshcomod", type=CONTACT_TYPE_CLIENT
+    )
+
+    async def send() -> None:
+        await send_direct_message_to_contact(
+            contact=contact,
+            text=command,
+            radio_manager=radio_manager,
+            broadcast_fn=broadcast_event,
+            track_pending_ack_fn=track_pending_ack,
+            now_fn=time.time,
+            error_broadcast_fn=broadcast_error,
+        )
+
+    return await run_meshcomod_contact_command(radio_manager.meshcore, command, send)
+
+
 @router.post("/cli", response_model=RadioCliResponse)
 async def run_radio_cli(request: RadioCliRequest) -> RadioCliResponse:
-    """Run a command on the connected radio's own command line. Never transmits."""
+    """Run a command on the connected radio's own command line. Never transmits.
+
+    On meshcomod, its own commands (wifi, tcp, ble, ota, status, ...) go to its
+    command contact instead, which the 1.18 command line does not reach.
+    """
     radio_manager.require_connected()
     if not radio_cli_supported():
         raise HTTPException(
@@ -680,11 +719,16 @@ async def run_radio_cli(request: RadioCliRequest) -> RadioCliResponse:
                 "The radio's firmware has no command line (needs MeshCore companion 1.18 or newer)"
             ),
         )
-    async with radio_manager.radio_operation("radio_cli") as mc:
-        try:
-            reply = await run_local_cli(mc, request.command)
-        except CompanionCliError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if routes_to_meshcomod_contact(
+        request.command, radio_manager.firmware_ver_code, radio_manager.firmware_version
+    ):
+        reply = await _run_meshcomod_contact_cli(request.command)
+    else:
+        async with radio_manager.radio_operation("radio_cli") as mc:
+            try:
+                reply = await run_local_cli(mc, request.command)
+            except CompanionCliError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
     logger.info(
         "Radio CLI %s -> %s",
         redact_cli_command(request.command),

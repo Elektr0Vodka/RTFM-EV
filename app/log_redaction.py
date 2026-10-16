@@ -12,6 +12,7 @@ Secret-bearing commands, per the repeater/room ``CommonCLI`` and OpenHop:
 - ``set prv.key <hex>`` / ``get prv.key``.
 - Companion firmware 1.18+: ``set pin <n>`` (the reply echoes the PIN),
   ``set wifi.pwd <pw>`` and ``get wifi.pwd`` (the reply is the password).
+- meshcomod's command contact (sent by the radio console): ``wifi set pwd <pw>``.
 """
 
 import logging
@@ -24,12 +25,14 @@ _REDACTED = "***"
 # and including the separator before the secret value.
 _SECRET_ARG_RE = re.compile(
     r"^((?:[0-9A-Fa-f]{2}\|)?\s*"
-    r"(?:password|set\s+guest\.password|set\s+prv\.key|set\s+wifi\.pwd|set\s+pin)\s+)\S.*$",
+    r"(?:password|set\s+guest\.password|set\s+prv\.key|set\s+wifi\.pwd|set\s+pin"
+    r"|wifi\s+set\s+pwd)\s+)\S.*$",
     re.DOTALL,
 )
 _SECRET_COMMAND_RE = re.compile(
     r"^(?:[0-9A-Fa-f]{2}\|)?\s*"
-    r"(?:password\s|(?:get|set)\s+(?:guest\.password|prv\.key|wifi\.pwd)\b|set\s+pin\b)"
+    r"(?:password\s|(?:get|set)\s+(?:guest\.password|prv\.key|wifi\.pwd)\b|set\s+pin\b"
+    r"|wifi\s+set\s+pwd\b)"
 )
 
 # meshcore logs ``Sending command to <hex>: <cmd>`` (send_cmd) and

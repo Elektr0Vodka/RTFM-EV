@@ -1456,10 +1456,106 @@ export const COMPANION_CLI_COMMANDS: CliCommand[] = [
   },
 ];
 
+// meshcomod's own commands (Elektr0Vodka/meshcomod 5c01ff21, examples/companion_radio
+// MyMesh.cpp handleMeshcomodCommand / kMeshcomodHelpMsg). The 1.18 command line
+// answers them with "Unknown command": the backend sends them to the "Meshcomod"
+// command contact instead, so they only work on our own meshcomod radio and the
+// console offers them only there.
+export const MESHCOMOD_CONTACT_CLI_COMMANDS: CliCommand[] = [
+  { category: 'Info', syntax: 'help', description: 'List the meshcomod commands (meshcomod)' },
+  {
+    category: 'Info',
+    syntax: 'status',
+    description: 'USB, BLE, TCP, WebSocket and WiFi state (meshcomod)',
+  },
+  { category: 'Info', syntax: 'mac', description: 'WiFi and BLE MAC addresses (meshcomod)' },
+  {
+    category: 'OTA',
+    syntax: 'ota check',
+    description: 'Ask the OTA server for a newer build (meshcomod)',
+  },
+  {
+    category: 'OTA',
+    syntax: 'ota update',
+    description: 'Install the newer build from the OTA server (meshcomod)',
+  },
+  {
+    category: 'OTA',
+    syntax: 'ota url <https://...bin>',
+    description: 'Flash the firmware at this URL (meshcomod)',
+  },
+  { category: 'OTA', syntax: 'ota status', description: 'OTA progress or idle (meshcomod)' },
+  { category: 'OTA', syntax: 'ota start', description: 'Start the local OTA mode (meshcomod)' },
+  {
+    category: 'OTA',
+    syntax: 'ota netdiag',
+    description: 'Network checks for HTTP OTA (meshcomod)',
+  },
+  { category: 'WiFi', syntax: 'wifi status', description: 'WiFi settings and state (meshcomod)' },
+  {
+    category: 'WiFi',
+    syntax: 'wifi scan',
+    description: 'List nearby 2.4 GHz networks (meshcomod)',
+  },
+  {
+    category: 'WiFi',
+    syntax: 'wifi use <n>',
+    description: 'Pick a network from the last scan (meshcomod)',
+  },
+  {
+    category: 'WiFi',
+    syntax: 'wifi set ssid <ssid>',
+    description: 'Set the WiFi network (meshcomod)',
+  },
+  {
+    category: 'WiFi',
+    syntax: 'wifi set pwd <password>',
+    description: 'Set the WiFi password (meshcomod)',
+  },
+  {
+    category: 'WiFi',
+    syntax: 'wifi apply',
+    description: 'Connect with the WiFi settings (meshcomod)',
+  },
+  { category: 'WiFi', syntax: 'wifi on', description: 'Turn the WiFi radio on (meshcomod)' },
+  { category: 'WiFi', syntax: 'wifi off', description: 'Turn the WiFi radio off (meshcomod)' },
+  { category: 'WiFi', syntax: 'wifi clear', description: 'Forget the WiFi settings (meshcomod)' },
+  {
+    category: 'Connections',
+    syntax: 'tcp status',
+    description: 'TCP server on or off (meshcomod)',
+  },
+  { category: 'Connections', syntax: 'tcp on', description: 'Turn the TCP server on (meshcomod)' },
+  {
+    category: 'Connections',
+    syntax: 'tcp off',
+    description: 'Turn the TCP server off, asks for ok (meshcomod)',
+  },
+  {
+    category: 'Connections',
+    syntax: 'ble status',
+    description: 'BLE on or off, and the peer (meshcomod)',
+  },
+  { category: 'Connections', syntax: 'ble on', description: 'Turn BLE on (meshcomod)' },
+  {
+    category: 'Connections',
+    syntax: 'ble off',
+    description: 'Turn BLE off, asks for ok (meshcomod)',
+  },
+  {
+    category: 'Connections',
+    syntax: 'ok',
+    description: 'Confirm tcp off or ble off within 30 s (meshcomod)',
+  },
+  { category: 'Connections', syntax: 'cancel', description: 'Keep TCP or BLE on (meshcomod)' },
+];
+
 // `set\s+radio\s` (radio followed by a space) so the harmless `set radio.rxgain`
-// does not match.
+// does not match. meshcomod's `wifi off|apply|clear` drop or move WiFi and
+// `ota update|url|start` flash or reboot the radio; `tcp off` / `ble off` are
+// left out because the firmware itself asks for an `ok`.
 const RISKY_COMPANION_RE =
-  /^\s*(?:[0-9A-Fa-f]{2}\|)?\s*(?:reboot\b|poweroff\b|shutdown\b|set\s+radio\s|set\s+pin\b|set\s+wifi\.|wifi\.(?:apply|clear)\b)/i;
+  /^\s*(?:[0-9A-Fa-f]{2}\|)?\s*(?:reboot\b|poweroff\b|shutdown\b|set\s+radio\s|set\s+pin\b|set\s+wifi\.|wifi\.(?:apply|clear)\b|wifi\s+(?:off|apply|clear)\b|ota\s+(?:update|url|start)\b)/i;
 
 /** Commands that cut the connection, change RF or change access: ask first. */
 export function isRiskyCompanionCommand(command: string): boolean {

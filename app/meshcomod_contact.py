@@ -8,6 +8,8 @@ the fanout, push and radio code can all use it.
 """
 
 MESHCOMOD_COMMAND_CONTACT_PREFIX = "4d455348434d"
+# The full key the radio lists: the firmware zeroes the rest of the key.
+MESHCOMOD_COMMAND_CONTACT_KEY = MESHCOMOD_COMMAND_CONTACT_PREFIX + "0" * 52
 
 
 def is_meshcomod_command_contact(public_key: str | None) -> bool:

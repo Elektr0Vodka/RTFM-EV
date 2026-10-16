@@ -1846,6 +1846,7 @@ export function SettingsRadioSection({
             <CompanionCliConsole
               target={{ kind: 'radio' }}
               cliSupported={!!health.radio_device_info?.cli_supported}
+              meshcomod={!!health.radio_device_info?.is_meshcomod}
             />
           </div>
         )}
