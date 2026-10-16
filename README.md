@@ -330,6 +330,14 @@ Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `ME
 
 Detection is automatic from the radio's device info; each control disables itself when the firmware build does not report support, and the panel is hidden on other firmware. Stock companion firmware that reports the `gps` custom var gets a standalone GPS toggle instead.
 
+meshcomod v1.18.0.1 and later also have the [MeshCore 1.18 companion command line](#meshcore-118-companion-command-line). When the build includes the meshcomod **companion receive filter** (the `filter` command, see meshcomod's `docs/companion_receive_filter.md`), a **Companion receive filter** card appears under **Settings > Radio**:
+
+- **Settings:** filter on/off, the malformed group text scan, the maximum message age, blocked path prefixes, and sender and text rules (block, or throttle with `secs` and `prob`).
+- **Counters:** messages hidden since the radio started, per reason, per prefix and per rule. RTFM-EV samples the totals every minute and shows them over time (stored like airtime history and kept for the same retention period).
+- **Backup:** the settings are kept per radio. The first read and every change made in RTFM-EV update the backup; a plain read never overwrites it, so after a flash or `filter reset` **Restore backup to radio** writes the old settings back.
+
+Everything goes through the radio's own command line and never transmits. The radio's replies are capped at 158 bytes, so a long rule list can come back cut off; the card says so when that happens. The radio's raw RX log is not filtered, so messages the radio hides can still appear in RTFM-EV, which decodes that log itself.
+
 ### MeshCore 1.18 companion command line
 
 MeshCore companion firmware 1.18 added a command line to the companion radio itself. With a 1.18 or newer radio connected:
@@ -339,7 +347,7 @@ MeshCore companion firmware 1.18 added a command line to the companion radio its
 - **Remote CLI permission:** the **Remote CLI** switch in a chat contact's info lets that contact run commands on your radio. Only turn it on for contacts you trust: they can reboot the radio, change its radio settings and read its WiFi password.
 - `reboot`, `poweroff`, `shutdown`, `set radio`, `set pin` and `set wifi.*` ask for confirmation first.
 
-Older companion firmware, meshcomod and OpenHop do not have this command line; the cards say so.
+Older companion firmware, meshcomod before v1.18.0.1 and OpenHop do not have this command line; the cards say so.
 
 ### OpenHop nodes
 

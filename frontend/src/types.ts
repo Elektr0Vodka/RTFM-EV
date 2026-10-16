@@ -66,6 +66,59 @@ export interface MeshcomodConfigUpdate {
   gps_interval?: number;
 }
 
+/** meshcomod companion receive filter (`filter` CLI on the radio). */
+export type CompanionFilterCounterKey = 'malformed' | 'age' | 'path' | 'sender' | 'text';
+export type CompanionFilterRuleKind = 'sender' | 'text';
+
+export interface CompanionFilterRule {
+  pattern: string;
+  /** 0 hides every match; otherwise one match per `secs` is shown. */
+  secs: number;
+  /** Share of matches (1-100) the rule decides. */
+  prob: number;
+}
+
+export interface CompanionFilterConfig {
+  enabled: boolean;
+  malformed: boolean;
+  /** 0 = off */
+  age_mins: number;
+  paths: string[];
+  sender_rules: CompanionFilterRule[];
+  text_rules: CompanionFilterRule[];
+}
+
+export interface CompanionFilterRuleStats extends CompanionFilterRule {
+  hidden: number | null;
+  passes: number | null;
+}
+
+export interface CompanionFilterState {
+  config: CompanionFilterConfig;
+  counters: Record<CompanionFilterCounterKey, number>;
+  malformed_reasons: Record<string, number>;
+  age_clock_set: boolean | null;
+  path_hits: { prefix: string; hidden: number | null }[];
+  sender_rules: CompanionFilterRuleStats[];
+  text_rules: CompanionFilterRuleStats[];
+  /** A list that did not fit in the radio's reply; entries may be missing. */
+  truncated: Record<'path' | CompanionFilterRuleKind, boolean>;
+  backup: { saved_at: number; truncated: boolean; config: CompanionFilterConfig } | null;
+}
+
+export interface CompanionFilterSettingsUpdate {
+  enabled?: boolean;
+  malformed?: boolean;
+  age_mins?: number;
+}
+
+export type CompanionFilterHistoryBin = Record<CompanionFilterCounterKey | 'timestamp', number>;
+
+export interface CompanionFilterHistory {
+  bins: CompanionFilterHistoryBin[];
+  totals: Record<CompanionFilterCounterKey, number>;
+}
+
 /**
  * GPS state via the generic custom-vars protocol. Unlike MeshcomodConfig this
  * is not specific to the meshcomod DMC/DMC-EV fork: any radio (stock firmware
@@ -180,8 +233,10 @@ export interface HealthStatus {
     max_channels: number | null;
     is_meshcomod: boolean;
     is_openhop: boolean;
-    /** Companion firmware 1.18+ command line (CMD_RUN_CLI_COMMAND); false on meshcomod/OpenHop. */
+    /** Companion firmware 1.18+ command line (CMD_RUN_CLI_COMMAND); meshcomod from v1.18, never OpenHop. */
     cli_supported?: boolean;
+    /** meshcomod companion receive filter (`filter` CLI) answered at connect. */
+    companion_filter_supported?: boolean;
   } | null;
   radio_stats?: RadioStatsSnapshot | null;
   database_size_mb: number;

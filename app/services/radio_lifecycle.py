@@ -240,6 +240,22 @@ async def run_post_connect_setup(radio_manager) -> None:
                 finally:
                     reader.handle_rx = _original_handle_rx
 
+                # meshcomod companion receive filter: only reachable through the
+                # 1.18 command line, which runs on the radio and never transmits.
+                from app.services.companion_cli import radio_cli_supported
+                from app.services.companion_filter import probe_filter
+                from app.services.meshcomod import is_meshcomod
+
+                radio_manager.companion_filter_supported = False
+                if radio_cli_supported() and is_meshcomod(
+                    radio_manager.firmware_ver_code, radio_manager.firmware_version
+                ):
+                    radio_manager.companion_filter_supported = await probe_filter(mc)
+                    logger.info(
+                        "meshcomod companion receive filter: %s",
+                        "present" if radio_manager.companion_filter_supported else "absent",
+                    )
+
                 # Apply flood scope from settings (best-effort; older firmware may
                 # not support the mode-1 unscoped command). Done after the device
                 # query so radio_manager.firmware_ver_code is known and the unscoped

@@ -8,29 +8,44 @@ in ``CMD_SEND_TXT_MSG``, which is what lets us send a command to another
 companion; an older radio rejects that text type.
 """
 
+import re
+
 from meshcore import EventType
 
 from app.services.meshcomod import is_meshcomod
 from app.services.openhop import is_openhop
 
 COMPANION_CLI_MIN_VER_CODE = 14
+COMPANION_CLI_MIN_VERSION = (1, 18)
+
+_VERSION_RE = re.compile(r"v?(\d+)\.(\d+)")
 
 
 class CompanionCliError(Exception):
     """The radio answered the command with an error frame."""
 
 
+def _version_at_least(version: str | None, minimum: tuple[int, int]) -> bool:
+    match = _VERSION_RE.match((version or "").strip())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2))) >= minimum
+
+
 def firmware_supports_cli(ver_code: object, version: str | None, model: str | None) -> bool:
     """True when the connected companion firmware has the 1.18 command line.
 
-    meshcomod reports version code 27 without being 1.18, and OpenHop is a
-    Python daemon with its own CLI, so both are excluded.
+    meshcomod has reported version code 27 since before 1.18, so for it the
+    version string decides (``v1.18.0.1`` and later have the command line).
+    OpenHop is a Python daemon with its own CLI, so it is excluded.
     """
     if not isinstance(ver_code, int) or isinstance(ver_code, bool):
         return False
     if ver_code < COMPANION_CLI_MIN_VER_CODE:
         return False
-    if is_meshcomod(ver_code, version):
+    if is_meshcomod(ver_code, version) and not _version_at_least(
+        version, COMPANION_CLI_MIN_VERSION
+    ):
         return False
     return not is_openhop(model)
 

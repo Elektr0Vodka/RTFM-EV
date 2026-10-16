@@ -56,6 +56,14 @@ async def _sample_all_stats() -> dict[str, Any]:
             core_event = await mc.commands.get_stats_core()
             radio_event = await mc.commands.get_stats_radio()
             packet_event = await mc.commands.get_stats_packets()
+            filter_counters = None
+            if getattr(radio_manager, "companion_filter_supported", False) is True:
+                from app.services.companion_filter import read_counters
+
+                try:
+                    filter_counters = await read_counters(mc)
+                except Exception as exc:  # noqa: BLE001 - never breaks the core sample
+                    logger.debug("Companion filter counter sample failed: %s", exc)
     except (RadioDisconnectedError, RadioOperationBusyError):
         return {}
     except Exception as exc:
@@ -76,6 +84,9 @@ async def _sample_all_stats() -> dict[str, Any]:
 
     if getattr(packet_event, "type", None) == EventType.STATS_PACKETS:
         snapshot["packets"] = packet_event.payload
+
+    if filter_counters is not None:
+        snapshot["companion_filter"] = filter_counters
 
     battery_mv = snapshot.get("battery_mv")
     if isinstance(battery_mv, int):
@@ -140,6 +151,12 @@ async def _persist_samples(snapshot: dict[str, Any]) -> None:
                 recv_errors if isinstance(recv_errors, int) else None,
                 radio_identity_id,
             )
+
+        filter_counters = snapshot.get("companion_filter")
+        if isinstance(filter_counters, dict):
+            from app.repository.companion_filter import CompanionFilterHistoryRepository
+
+            await CompanionFilterHistoryRepository.insert(ts, filter_counters, radio_identity_id)
     except Exception:
         logger.exception("Failed to persist radio stats samples")
 

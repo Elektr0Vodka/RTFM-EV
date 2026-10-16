@@ -448,7 +448,7 @@ Open Settings with the button in the top bar. On a phone each section expands in
 - Known regions for decoding region-scoped packets, including **Load Dutch scopes**.
 - **Max Contacts on Radio**, **Export Config** and **Import & Reboot**.
 - **Show Mention Ticker**, **Auto-add mentioned channels to registry** and the **External analyzer node overlay**.
-- On meshcomod (DMC-EV) firmware, a **Meshcomod (DMC-EV)** panel with CAD and GPS controls.
+- On meshcomod (DMC-EV) firmware, a **Meshcomod (DMC-EV)** panel with CAD and GPS controls. Builds with the receive filter add a **Companion receive filter** card: filter settings, sender and text rules, blocked path prefixes, hidden-message counters with a history chart, and a per-radio backup you can restore after a flash. It runs on the radio and never transmits.
 
 ### Host repeater
 

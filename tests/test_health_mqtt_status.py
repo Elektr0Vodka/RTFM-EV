@@ -110,6 +110,7 @@ class TestHealthFanoutStatus:
             "is_meshcomod": False,
             "is_openhop": False,
             "cli_supported": False,
+            "companion_filter_supported": False,
         }
 
     @pytest.mark.asyncio

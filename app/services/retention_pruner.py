@@ -75,6 +75,7 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "noise_floor": s.noise_floor_retention_days,
             "battery": s.battery_retention_days,
             "airtime": s.airtime_retention_days,
+            "companion_filter": s.airtime_retention_days,
             "link_edges": s.link_edge_retention_days,
             "packet_receptions": s.packet_reception_retention_days if rolled_up else 0,
             "relay_history": s.relay_history_retention_days,

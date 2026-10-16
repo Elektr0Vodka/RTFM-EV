@@ -96,6 +96,11 @@ import type {
   RetentionStats,
   MeshcomodConfig,
   MeshcomodConfigUpdate,
+  CompanionFilterHistory,
+  CompanionFilterRule,
+  CompanionFilterRuleKind,
+  CompanionFilterSettingsUpdate,
+  CompanionFilterState,
   GpsConfig,
   GpsConfigUpdate,
   Message,
@@ -357,6 +362,42 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(update),
     }),
+  // meshcomod companion receive filter: every call runs `filter ...` on the
+  // radio's own command line (never transmits) and returns the state read back.
+  getCompanionFilter: () => fetchJson<CompanionFilterState>('/radio/meshcomod/filter'),
+  updateCompanionFilter: (update: CompanionFilterSettingsUpdate) =>
+    fetchJson<CompanionFilterState>('/radio/meshcomod/filter', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  addCompanionFilterPath: (prefix: string) =>
+    fetchJson<CompanionFilterState>('/radio/meshcomod/filter/paths', {
+      method: 'POST',
+      body: JSON.stringify({ prefix }),
+    }),
+  removeCompanionFilterPath: (prefix: string) =>
+    fetchJson<CompanionFilterState>('/radio/meshcomod/filter/paths/remove', {
+      method: 'POST',
+      body: JSON.stringify({ prefix }),
+    }),
+  addCompanionFilterRule: (kind: CompanionFilterRuleKind, rule: CompanionFilterRule) =>
+    fetchJson<CompanionFilterState>(`/radio/meshcomod/filter/rules/${kind}`, {
+      method: 'POST',
+      body: JSON.stringify(rule),
+    }),
+  removeCompanionFilterRule: (kind: CompanionFilterRuleKind, pattern: string) =>
+    fetchJson<CompanionFilterState>(`/radio/meshcomod/filter/rules/${kind}/remove`, {
+      method: 'POST',
+      body: JSON.stringify({ pattern }),
+    }),
+  saveCompanionFilterBackup: () =>
+    fetchJson<CompanionFilterState>('/radio/meshcomod/filter/backup', { method: 'POST' }),
+  restoreCompanionFilter: () =>
+    fetchJson<CompanionFilterState>('/radio/meshcomod/filter/restore', { method: 'POST' }),
+  getCompanionFilterHistory: (startTs: number, endTs: number, binCount = 48) =>
+    fetchJson<CompanionFilterHistory>(
+      `/radio/meshcomod/filter/history?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}`
+    ),
   // Host repeater (plan 29): settings are versioned, a stale save answers 409.
   getHostRepeater: () => fetchJson<HostRepeaterState>('/radio/host-repeater'),
   saveHostRepeaterSettings: (version: number, settings: HostRepeaterSettings) =>

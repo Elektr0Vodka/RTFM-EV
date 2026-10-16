@@ -448,7 +448,7 @@ Open Instellingen met de knop in de bovenbalk. Op een telefoon klapt elke sectie
 - Bekende regio's voor het decoderen van pakketten met een regioscope, inclusief **Nederlandse scopes laden**.
 - **Max Contacten op Radio**, **Configuratie Exporteren** en **Importeren en Herstarten**.
 - **Vermeldingsticker Tonen**, **Vermelde kanalen automatisch aan register toevoegen** en de **Externe analyzer-node-laag**.
-- Op meshcomod-firmware (DMC-EV) een paneel **Meshcomod (DMC-EV)** met CAD- en GPS-instellingen.
+- Op meshcomod-firmware (DMC-EV) een paneel **Meshcomod (DMC-EV)** met CAD- en GPS-instellingen. Builds met het ontvangstfilter krijgen een kaart **Companion-ontvangstfilter**: filterinstellingen, afzender- en tekstregels, geblokkeerde padprefixen, tellers van verborgen berichten met een grafiek, en een back-up per radio die je na het flashen kunt terugzetten. Het draait op de radio en zendt nooit uit.
 
 ### Host-repeater
 

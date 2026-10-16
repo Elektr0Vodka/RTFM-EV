@@ -73,7 +73,11 @@ const ROWS: RowDef[] = [
   },
   { id: 'noise_floor', statKeys: ['noise_floor'], fields: [DAYS('noise_floor_retention_days')] },
   { id: 'battery', statKeys: ['battery'], fields: [DAYS('battery_retention_days')] },
-  { id: 'airtime', statKeys: ['airtime'], fields: [DAYS('airtime_retention_days')] },
+  {
+    id: 'airtime',
+    statKeys: ['airtime', 'companion_filter'],
+    fields: [DAYS('airtime_retention_days')],
+  },
   {
     id: 'advert_paths',
     statKeys: ['advert_paths'],

@@ -7,6 +7,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
+import { CompanionFilterSettings } from './CompanionFilterSettings';
 import { CompanionCliConsole } from '../CompanionCliConsole';
 import { GpsSettings } from './GpsSettings';
 import { OpenHopSettings } from './OpenHopSettings';
@@ -1837,6 +1838,7 @@ export function SettingsRadioSection({
         </div>
 
         <MeshcomodSettings health={health} />
+        <CompanionFilterSettings health={health} />
         {health?.radio_connected && (
           <div className="space-y-2">
             <Separator />

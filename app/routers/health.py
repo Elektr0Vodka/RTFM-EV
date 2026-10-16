@@ -27,6 +27,7 @@ class RadioDeviceInfoResponse(BaseModel):
     is_meshcomod: bool = False
     is_openhop: bool = False
     cli_supported: bool = False
+    companion_filter_supported: bool = False
 
 
 class AppInfoResponse(BaseModel):
@@ -177,6 +178,10 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
                 getattr(radio_manager, "firmware_version", None),
                 getattr(radio_manager, "device_model", None),
             ),
+            "companion_filter_supported": getattr(
+                radio_manager, "companion_filter_supported", False
+            )
+            is True,
         }
 
     # Local radio stats from the 60s background sampler
