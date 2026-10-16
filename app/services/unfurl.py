@@ -101,9 +101,23 @@ def parse_link_preview(html: str, url: str) -> LinkPreview:
         url=url,
         title=pick("og:title", "twitter:title") or p.title_tag,
         description=pick("og:description", "twitter:description", "description"),
-        image=pick("og:image", "twitter:image", "twitter:image:src"),
+        image=_web_image_url(pick("og:image", "twitter:image", "twitter:image:src")),
         site_name=pick("og:site_name"),
     )
+
+
+def _web_image_url(value: str | None) -> str | None:
+    """Keep the page's image only when it is an absolute http(s) address.
+
+    The browser loads it straight into an ``<img>``, so a page must not hand it
+    another scheme (``data:``, ``javascript:``) or a path on this app's origin.
+    """
+    if not value:
+        return None
+    parts = urlsplit(value)
+    if parts.scheme.lower() not in ("http", "https") or not parts.netloc:
+        return None
+    return value
 
 
 def _page_charset(declared: str | None) -> str:

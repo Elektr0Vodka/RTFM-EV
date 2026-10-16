@@ -1269,8 +1269,37 @@ class TestAppriseFormatBody:
         body = _format_body(
             {"type": "PRIV", "text": "hello {sender_name}", "sender_name": "Alice"},
             body_format_dm="{sender_name}: {text}",
+            markdown=False,
         )
         assert body == "Alice: hello {sender_name}"
+
+    def test_markdown_escapes_mesh_text(self):
+        """Mesh-sourced values cannot inject HTML, links or emphasis into markdown."""
+        from app.fanout.apprise_mod import _format_body
+
+        body = _format_body(
+            {
+                "type": "CHAN",
+                "text": "<img src=x onerror=alert(1)> ![t](http://x/a.png) *b* \\",
+                "sender_name": "<b>Eve</b>_",
+                "channel_name": "#[x](http://evil)",
+            },
+            body_format_channel="**{channel_name}:** {sender_name}: {text}",
+        )
+        assert body == (
+            "**#\\[x\\](http://evil):** \\<b\\>Eve\\</b\\>\\_: "
+            "\\<img src=x onerror=alert(1)\\> !\\[t\\](http://x/a.png) \\*b\\* \\\\"
+        )
+
+    def test_plain_text_mode_leaves_mesh_text_unescaped(self):
+        from app.fanout.apprise_mod import _format_body
+
+        body = _format_body(
+            {"type": "PRIV", "text": "<b>*hi*</b>", "sender_name": "A_b"},
+            body_format_dm="{sender_name}: {text}",
+            markdown=False,
+        )
+        assert body == "A_b: <b>*hi*</b>"
 
     @pytest.mark.asyncio
     async def test_empty_format_string_uses_default(self):

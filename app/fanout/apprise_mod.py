@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from app.fanout.base import FanoutModule, get_fanout_message_text
@@ -94,8 +95,25 @@ def _compute_hops(data: dict) -> tuple[str, str, int]:
     )
 
 
-def _build_template_vars(data: dict) -> dict[str, str]:
-    """Build the variable dict for format string substitution."""
+# Characters that let mesh text add raw HTML, links/images or emphasis to a
+# markdown body. Apprise converts markdown to HTML for HTML targets (email,
+# Telegram, ...), passing raw HTML through, so names and messages from the mesh
+# are backslash-escaped (CommonMark escapes; Apprise accepts all punctuation).
+_MARKDOWN_ESCAPE_RE = re.compile(r"([\\`*_~\[\]<>])")
+
+# Template variables whose values come from the mesh, not from this app.
+_MESH_SOURCED_VARS = ("text", "sender_name", "channel_name")
+
+
+def _escape_markdown(value: str) -> str:
+    return _MARKDOWN_ESCAPE_RE.sub(r"\\\1", value)
+
+
+def _build_template_vars(data: dict, *, markdown: bool = False) -> dict[str, str]:
+    """Build the variable dict for format string substitution.
+
+    With ``markdown`` set, mesh-sourced values are escaped so they render as text.
+    """
     hops_raw, hops_bt, hop_count = _compute_hops(data)
 
     paths = data.get("paths")
@@ -110,7 +128,7 @@ def _build_template_vars(data: dict) -> dict[str, str]:
         if snr_val is not None:
             snr = str(snr_val)
 
-    return {
+    variables = {
         "type": data.get("type", ""),
         "text": get_fanout_message_text(data),
         "sender_name": data.get("sender_name") or "Unknown",
@@ -123,11 +141,14 @@ def _build_template_vars(data: dict) -> dict[str, str]:
         "rssi": rssi,
         "snr": snr,
     }
+    if markdown:
+        for key in _MESH_SOURCED_VARS:
+            variables[key] = _escape_markdown(variables[key])
+    return variables
 
 
 def _apply_format(fmt: str, variables: dict[str, str]) -> str:
     """Apply template variables in a single pass to avoid re-expanding substituted values."""
-    import re
 
     def _replacer(m: re.Match[str]) -> str:
         key = m.group(1)
@@ -150,7 +171,7 @@ def _format_body(
         body_format_channel = (
             DEFAULT_BODY_FORMAT_CHANNEL if markdown else DEFAULT_BODY_FORMAT_CHANNEL_PLAIN
         )
-    variables = _build_template_vars(data)
+    variables = _build_template_vars(data, markdown=markdown)
     msg_type = data.get("type", "")
     fmt = body_format_dm if msg_type == "PRIV" else body_format_channel
     try:

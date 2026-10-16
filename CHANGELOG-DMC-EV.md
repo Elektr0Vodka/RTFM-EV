@@ -51,6 +51,31 @@ loopback.
 - The packet type colours moved to `components/mynode/packetTypeColors.ts`
   (unchanged values).
 
+## Update 2026-10-16 (mesh text hardening)
+
+No migration, no new dependency or environment variable. Follows an audit
+against the [MeshCore XSS in Home Assistant](https://mxsasha.eu/posts/meshcore-xss-home-assistant/)
+write-up: the web UI renders node names and messages as text everywhere, so
+these changes harden the places that pass mesh text on to other systems.
+
+### Apprise
+- **Mesh text is escaped in markdown bodies.** With "Markdown formatting" on,
+  `{text}`, `{sender_name}` and `{channel_name}` get a backslash before
+  `` \ ` * _ ~ [ ] < > ``, so a node name or message cannot add raw HTML, links,
+  images or emphasis to a notification (Apprise turns markdown into HTML for
+  email, Telegram and similar targets). The format string's own markdown is
+  untouched. Plain-text mode is unchanged.
+
+### Link previews
+- **Only http(s) preview images.** A page's `og:image` / `twitter:image` is
+  kept only when it is an absolute `http://` or `https://` address; other
+  schemes and relative paths are dropped.
+
+### Home Assistant docs
+- `README_HA.md`: the message feed example now warns that names and message
+  text arrive unfiltered from the mesh and must be escaped by any card that
+  builds HTML from them.
+
 ## Update 2026-10-16 (buddy add-on tours, meshcomod command contact, feat/buddy-feature-tours)
 
 No migration, no new dependency or environment variable. Both parts follow the
