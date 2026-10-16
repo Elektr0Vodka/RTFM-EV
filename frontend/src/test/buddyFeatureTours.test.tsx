@@ -375,7 +375,11 @@ describe('BuddyHost with the add-on tours', () => {
       context({ cli: true, contactKey: BOB_KEY, sensorKey: SENSOR_KEY })
     );
     act(() => moveBuddyTour(steps, 1));
-    expect(props.onOpenSettings).toHaveBeenLastCalledWith('radio');
+    // The panel mounts once the buddy agent has loaded, outside act(), so the
+    // runner's store subscription (a passive effect of useSyncExternalStore)
+    // may not be attached yet: this first move can show a tick later. After
+    // it every move re-renders inside act().
+    await waitFor(() => expect(props.onOpenSettings).toHaveBeenLastCalledWith('radio'));
     act(() => moveBuddyTour(steps, 1));
     expect(props.onSelectConversation).toHaveBeenLastCalledWith({
       type: 'node',
@@ -426,7 +430,8 @@ describe('BuddyHost with the add-on tours', () => {
 
     const steps = BUDDY_TOURS.meshcomod;
     act(() => moveBuddyTour(steps, 1));
-    expect(props.onOpenSettings).toHaveBeenLastCalledWith('radio');
+    // The first move can show a tick later, as in the MeshCore 1.18 test above.
+    await waitFor(() => expect(props.onOpenSettings).toHaveBeenLastCalledWith('radio'));
     act(() => moveBuddyTour(steps, 1));
     expect(getBuddyTourState('meshcomod').stepId).toBe('mcm_cad');
     expect(props.onSelectConversation).toHaveBeenLastCalledWith({
