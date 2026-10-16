@@ -184,6 +184,8 @@ class RadioManager:
         # report support (fw < 9); RTFM-EV never sets this to True itself.
         self.client_repeat: bool | None = None
         self.allowed_repeat_freqs: list[dict] | None = None
+        # meshcomod companion receive filter (`filter` CLI), probed at connect.
+        self.companion_filter_supported: bool = False
         self._channel_slot_by_key: OrderedDict[str, int] = OrderedDict()
         self._channel_key_by_slot: dict[int, str] = {}
         self._pending_message_channel_key_by_slot: dict[int, str] = {}
@@ -234,6 +236,7 @@ class RadioManager:
         self.path_hash_mode_supported = False
         self.client_repeat = None
         self.allowed_repeat_freqs = None
+        self.companion_filter_supported = False
         self.reset_channel_send_cache()
         self.clear_pending_message_channel_slots()
 

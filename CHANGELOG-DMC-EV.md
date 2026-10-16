@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (meshcomod companion receive filter, feat/meshcomod-companion-filter)
+
+Migration `_152` (companion_filter_history, companion_filter_backups). No new
+dependency or environment variable. Built against meshcomod `main` 2e637c22
+(the `filter` CLI from `Feat/companion-receive-filter`). Not tested against a
+real radio running the filter yet; the reply parsers are tested against the
+firmware source formats.
+
+### Companion command line on meshcomod
+- **Console unlocks on meshcomod 1.18.** meshcomod always reports version code
+  27, so the command line was blocked for every meshcomod build. The version
+  string now decides: `v1.18.0.1` and later get the Settings > Radio and My
+  Node command line; older meshcomod stays blocked.
+
+### Companion receive filter (meshcomod)
+- **Settings card.** A **Companion receive filter** card in Settings > Radio
+  when the connected meshcomod radio answers `filter`: on/off, malformed scan,
+  message age limit, blocked path prefixes, sender and text rules (block or
+  throttle, with probability). Everything runs on the radio's command line and
+  never transmits.
+- **Counters and history.** Live hidden counts per reason, per prefix and per
+  rule (with throttle passes). The 60 s stats sampler stores the totals; the
+  card charts hidden messages per interval for 1h/24h/7d/30d. Radio restarts
+  (counters back to zero) are handled. Kept as long as airtime history.
+- **Backup and restore.** The filter settings are kept per radio. A plain read
+  only creates the first backup, so a radio read after a flash does not wipe
+  it; **Restore backup to radio** resets the filter and replays the backup.
+- **Clipped replies.** The radio's 158-byte reply limit can cut a long rule
+  list; the card and the backup flag it.
+
 ## Update 2026-10-15 (MeshCore 1.18 parity, feat/meshcore-1-18-parity)
 
 Migrations `_150` (contacts.remote_cli, messages.cli_permitted) and `_151`

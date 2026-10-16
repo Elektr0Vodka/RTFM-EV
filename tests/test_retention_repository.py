@@ -9,6 +9,7 @@ from app.repository import ContactRepository, MessageRepository
 from app.repository.advert_events import AdvertEventRepository
 from app.repository.airtime_history import AirtimeHistoryRepository
 from app.repository.battery_history import BatteryHistoryRepository
+from app.repository.companion_filter import CompanionFilterHistoryRepository
 from app.repository.contact_snmp import SnmpHistoryRepository
 from app.repository.contact_telemetry import ContactTelemetryRepository
 from app.repository.contacts import ContactAdvertPathRepository, ContactLocationHistoryRepository
@@ -61,6 +62,7 @@ async def test_prune_older_than_each_age_table(test_db):
         await NoiseFloorRepository.insert(ts, -110)
         await BatteryHistoryRepository.insert(ts, 4100)
         await AirtimeHistoryRepository.insert(ts, 10, 20)
+        await CompanionFilterHistoryRepository.insert(ts, {"path": 1})
         async with test_db.tx() as conn:
             await conn.execute(
                 "INSERT INTO link_edge_events (raw_packet_id, ts, a_pubkey, b_pubkey, "

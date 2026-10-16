@@ -23,7 +23,13 @@ from app.services.companion_cli import (
         (13, "v1.17.1", "Heltec V3", False),
         (None, None, None, False),
         ("14", "v1.18.0", "Heltec V3", False),  # not an int (e.g. a mock)
-        (27, "v1.12.0-DMC", "Heltec V3", False),  # meshcomod
+        (27, "v1.12.0-DMC", "Heltec V3", False),  # meshcomod before 1.18
+        (27, "v1.17.0.4", "Heltec V3", False),
+        (27, "v1.16.0-touch", "Heltec V3", False),
+        (27, None, "Heltec V3", False),
+        (27, "v1.18.0.1", "Heltec V3", True),  # meshcomod merged 1.18
+        (27, "v1.19.0", "Heltec V3", True),
+        (27, "v2.0.0", "Heltec V3", True),
         (14, "v1.18.0", "openHop-Repeater-Companion", False),  # OpenHop
     ],
 )

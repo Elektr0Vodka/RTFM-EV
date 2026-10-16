@@ -93,3 +93,22 @@ async def test_persist_skips_airtime_when_missing(monkeypatch):
     # Only one of the two counters present -> nothing written.
     await radio_stats._persist_samples({"timestamp": 1000, "tx_air_secs": 5})
     assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_persist_writes_companion_filter_counters(monkeypatch):
+    from app.repository.companion_filter import CompanionFilterHistoryRepository
+
+    _patch_repos(monkeypatch, [])
+    stored: list[tuple[int, dict]] = []
+
+    async def fake_insert(ts, counters, radio_identity_id=None):
+        stored.append((ts, counters))
+
+    monkeypatch.setattr(CompanionFilterHistoryRepository, "insert", staticmethod(fake_insert))
+    counters = {"malformed": 1, "age": 0, "path": 2, "sender": 3, "text": 4}
+
+    await radio_stats._persist_samples({"timestamp": 1000, "companion_filter": counters})
+    await radio_stats._persist_samples({"timestamp": 1060, "battery_mv": 4000})
+
+    assert stored == [(1000, counters)]

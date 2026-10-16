@@ -66,6 +66,7 @@ from app.routers import (
     channel_sets,
     channels,
     communities,
+    companion_filter,
     contacts,
     debug,
     external_map,
@@ -332,6 +333,7 @@ app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
+app.include_router(companion_filter.router, prefix="/api")
 app.include_router(radio_identities.router, prefix="/api")
 app.include_router(host_repeater.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")

@@ -189,6 +189,50 @@ class TestSampleAllStats:
         assert len(radio_stats._noise_floor_samples) == 1
 
     @pytest.mark.asyncio
+    async def test_samples_companion_filter_counters_when_supported(self):
+        from meshcore import EventType
+
+        packet_event = _make_event(EventType.STATS_PACKETS, {"recv": 1, "sent": 1})
+        mock_mc = AsyncMock()
+        mock_mc.commands.get_stats_core = AsyncMock(return_value=_make_event(EventType.ERROR))
+        mock_mc.commands.get_stats_radio = AsyncMock(return_value=_make_event(EventType.ERROR))
+        mock_mc.commands.get_stats_packets = AsyncMock(return_value=packet_event)
+        mock_mc.commands.run_cli_command = AsyncMock(
+            return_value=_make_event(
+                EventType.CLI_REPLY,
+                {
+                    "text": "> Filter on: Hidden [ Malformed: 1 | Age: 2 | Path: 3 | "
+                    "Sender: 4 | Text: 5 ]"
+                },
+            )
+        )
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_mc)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(radio_stats, "radio_manager") as mock_rm:
+            mock_rm.is_connected = True
+            mock_rm.companion_filter_supported = True
+            mock_rm.radio_operation = MagicMock(return_value=mock_ctx)
+            snapshot = await radio_stats._sample_all_stats()
+
+            assert snapshot["companion_filter"] == {
+                "enabled": True,
+                "malformed": 1,
+                "age": 2,
+                "path": 3,
+                "sender": 4,
+                "text": 5,
+            }
+            mock_mc.commands.run_cli_command.assert_awaited_once_with("filter")
+
+            mock_rm.companion_filter_supported = False
+            mock_mc.commands.run_cli_command.reset_mock()
+            snapshot = await radio_stats._sample_all_stats()
+            assert "companion_filter" not in snapshot
+            mock_mc.commands.run_cli_command.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_all_stats_succeed(self):
         """All three stats commands succeed - full snapshot returned."""
         from meshcore import EventType

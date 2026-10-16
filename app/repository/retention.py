@@ -17,6 +17,7 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     "noise_floor": ("noise_floor_samples", "timestamp"),
     "battery": ("battery_history", "timestamp"),
     "airtime": ("airtime_history", "timestamp"),
+    "companion_filter": ("companion_filter_history", "timestamp"),
     "messages": ("messages", "received_at"),
     "link_edges": ("link_edge_events", "ts"),
     "packet_receptions": ("packet_receptions", "observed_at"),

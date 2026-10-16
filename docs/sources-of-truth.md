@@ -51,6 +51,11 @@ machine this was authored on and may differ elsewhere.
 - Local: `G:\Github\repositories\Elektr0Vodka\meshcomod`.
 - Role: multi-transport **companion** firmware (USB + BLE + TCP simultaneously) for
   Heltec / Seeed. Source of CAD and phone-GPS support that RTFM-EV features build on.
+- Version: reports `FIRMWARE_VER_CODE` 27 on every release, so the version string
+  decides features; `v1.18.0.1` (MeshCore 1.18 merge) has the companion command line.
+- Companion receive filter (`filter` CLI): `examples/companion_radio/CompanionFilter.{h,cpp}`
+  and `filter/FilterStats.h` are the reply formats `app/services/companion_filter.py`
+  parses; `docs/companion_receive_filter.md` is the user documentation.
 - Related: standalone touch UI moved to https://github.com/ALLFATHER-BV/wadamesh.
 
 ### OpenHop

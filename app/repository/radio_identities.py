@@ -24,7 +24,12 @@ import aiosqlite
 from app.database import db
 from app.models import RadioIdentity
 
-SCOPED_STAT_TABLES = ("battery_history", "noise_floor_samples", "airtime_history")
+SCOPED_STAT_TABLES = (
+    "battery_history",
+    "noise_floor_samples",
+    "airtime_history",
+    "companion_filter_history",
+)
 
 LineageKind = Literal["stats", "owned"]
 
