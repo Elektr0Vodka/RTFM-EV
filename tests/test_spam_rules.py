@@ -24,6 +24,7 @@ SPAM = "Amazing offer cheap radios available now at the usual place come quickly
 GENERATED = ["UD6DWREK", "QK3ZP9XV", "ZX8CV2BN"]
 DISTINCT = ["weather is nice today", "anyone seen my antenna", "testing one two three"]
 GRP = {"field": "payload_type", "op": "equals", "value": 5}
+NOT_OWN_SEND = {"field": "local_transmission", "op": "not_equals", "value": True}
 ON_PUBLIC = {"field": "channel_hash", "op": "equals", "value": PUBLIC_HASH}
 
 
@@ -143,11 +144,12 @@ class TestHostDocuments:
         say(det, clock, "Dave", LONG)
         det.decide()
         (rule,) = render(det, "openhop").before
-        assert rule["if"]["all"][-1] == {
+        assert rule["if"]["all"][-2] == {
             "field": "channel_sender",
             "op": "equals",
             "value": "Dave",
         }
+        assert rule["if"]["all"][-1] == NOT_OWN_SEND
 
     def test_duplicate_block_for_everyone_names_no_sender(self):
         det, clock = make(overrides={"dedupe_scope": "everyone"})
@@ -382,6 +384,22 @@ class TestOpenHopDocuments:
         det, _ = make()
         det.action("block_text", text="cheap radios today", channel=PUBLIC)
         assert render(det, "openhop").rules == render(det, "openhop").rules
+
+    def test_drop_rules_leave_the_nodes_own_sends_alone(self):
+        det, _ = TestRulesAgreeWithTheDetector().build()
+        det.action("lockdown", minutes=30)
+        rules = render(det, "openhop", bot_senders=BOTS).rules
+        drops = [r for r in rules if r["then"]["action"] == "drop"]
+        allows = [r for r in rules if r["then"]["action"] == "allow"]
+        assert drops and allows
+        assert all(r["if"]["all"][-1] == NOT_OWN_SEND for r in drops)
+        assert all(NOT_OWN_SEND not in r["if"]["all"] for r in allows)
+
+    def test_host_rules_have_no_own_send_condition(self):
+        det, _ = TestRulesAgreeWithTheDetector().build()
+        rules = render(det, "host", bot_senders=BOTS).rules
+        assert rules
+        assert all(NOT_OWN_SEND not in r["if"]["all"] for r in rules)
 
     def test_first_hop_mode_is_not_widened(self):
         det, _ = make()
@@ -682,6 +700,7 @@ class TestBotLists:
             GRP,
             {"field": "channel_hash", "op": "equals", "value": PUBLIC.lower()},
             {"field": "channel_sender", "op": "in", "value": BOT_REF},
+            NOT_OWN_SEND,
         ]
         assert rules.bot_senders == BOTS
 

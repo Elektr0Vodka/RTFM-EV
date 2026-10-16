@@ -318,6 +318,21 @@ class TestPersistence:
         assert "nonsense" not in json.dumps(health)
         await again.stop()
 
+    @pytest.mark.asyncio
+    async def test_stored_ceiling_above_the_new_bound_is_brought_down(self, feed):
+        stored = feed.runtime.config.model_dump(mode="json")
+        stored["overrides"] = {"max_total_rules": 2000}
+        stored["sensitivity"] = "strict"
+        await SpamGuardConfigRepository.save(feed.runtime.version, stored)
+        again = SpamGuardRuntime(clock=feed.clock)
+        again.host = HostBackend(HostRepeaterRuntime())
+        await again.load()
+        assert again.load_error is None
+        assert again.config.sensitivity == "strict"
+        assert again.config.channels == feed.runtime.config.channels
+        assert again.detector.tunables.max_total_rules == 500
+        await again.stop()
+
 
 class TestSettingsAndActions:
     @pytest.mark.asyncio

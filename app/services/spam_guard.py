@@ -45,7 +45,14 @@ from app.services.spam_backend_openhop import FAILURES_BAD, OpenHopBackend
 from app.spam.detector import DecideResult, Event, SpamDetector
 from app.spam.evidence import label_record, message_record
 from app.spam.rules import RuleSet, render
-from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables, effective
+from app.spam.settings import (
+    PRESETS,
+    ProtectedChannel,
+    SpamConfig,
+    SpamTunables,
+    clamp_overrides,
+    effective,
+)
 from app.websocket import broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -138,6 +145,8 @@ class SpamGuardRuntime:
             self.version, self.config = 0, default_config()
         else:
             version, data = stored
+            if isinstance(data, dict) and "overrides" in data:
+                data = {**data, "overrides": clamp_overrides(data["overrides"])}
             try:
                 config = SpamConfig.model_validate(data)
             except ValidationError as exc:

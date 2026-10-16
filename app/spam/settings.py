@@ -38,6 +38,11 @@ MAX_EXCEPTIONS = 500
 # Duplicate suppression: the shortest message it looks at, and the shortest
 # piece of a message one of its rules matches.
 MIN_DUPLICATE_CHARS = 5
+# Ceiling on the rules Spam Guard writes at once. Many more can overload an
+# OpenHop node: a tester saw its database lock up after a wave of identical
+# spam on several channels. Settings stored before this cap was lowered are
+# brought down to it by ``clamp_overrides``.
+MAX_RULES = 500
 
 PRESETS: dict[str, dict[str, int]] = {
     "relaxed": {
@@ -139,7 +144,7 @@ class SpamTunables(BaseModel):
     block_ttl_seconds: int = Field(default=6 * 3600, ge=300, le=PERMANENT_SECONDS)
     hop_block_ttl_seconds: int = Field(default=2 * 3600, ge=600, le=PERMANENT_SECONDS)
     spam_text_days: int = Field(default=7, ge=0, le=60)
-    max_total_rules: int = Field(default=300, ge=20, le=2000)
+    max_total_rules: int = Field(default=300, ge=20, le=MAX_RULES)
     # Evidence log
     evidence_log: bool = False
     evidence_days: int = Field(default=7, ge=1, le=30)
@@ -239,3 +244,14 @@ class SpamConfig(BaseModel):
 def effective(config: SpamConfig) -> SpamTunables:
     """The tunables in force: defaults, then the preset, then the overrides."""
     return SpamTunables(**{**PRESETS[config.sensitivity], **config.overrides})
+
+
+def clamp_overrides(overrides: Any) -> Any:
+    """Stored overrides with values beyond a bound that has since been lowered
+    brought down to it, so older settings still load. Anything else as given."""
+    if not isinstance(overrides, dict):
+        return overrides
+    rules = overrides.get("max_total_rules")
+    if isinstance(rules, int) and not isinstance(rules, bool) and rules > MAX_RULES:
+        return {**overrides, "max_total_rules": MAX_RULES}
+    return overrides

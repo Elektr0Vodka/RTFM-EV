@@ -5813,7 +5813,7 @@
   "spam_set_spam_text_days_risk": "Jeder, der genau diesen Text zitiert, wird gesperrt, bis sie endet. Du kannst die Sperre von Hand entfernen.",
   "spam_set_max_total_rules_label": "Höchstzahl an Regeln gleichzeitig",
   "spam_set_max_total_rules_help": "Sicherheitsgrenze für Weiterleitungsregeln. Die Regeln mit der niedrigsten Priorität fallen zuerst weg.",
-  "spam_set_max_total_rules_risk": "Jede Regel wird gegen jede Kanalnachricht geprüft, was Rechenzeit kostet.",
+  "spam_set_max_total_rules_risk": "Jede Regel wird gegen jede Kanalnachricht geprüft, was Rechenzeit kostet. Höchstens 500: mehr kann einen OpenHop-Knoten überlasten.",
   "spam_set_evidence_log_label": "Ein Beweisprotokoll führen",
   "spam_set_evidence_log_help": "Speichert jede Nachricht, die Spam Guard auf den geschützten Kanälen liest, mit seiner Bewertung, und deine Antworten Das ist Spam / Kein Spam. Der Download und die Wiederholung unten arbeiten mit diesem Protokoll.",
   "spam_set_evidence_log_risk": "Das Protokoll enthält Namen und Nachrichtentexte so lange wie unten eingestellt. Es enthält nie einen Kanalschlüssel.",

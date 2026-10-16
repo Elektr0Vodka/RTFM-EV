@@ -5,7 +5,15 @@ from hashlib import sha256
 import pytest
 from pydantic import ValidationError
 
-from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables, effective
+from app.spam.settings import (
+    MAX_RULES,
+    PRESETS,
+    ProtectedChannel,
+    SpamConfig,
+    SpamTunables,
+    clamp_overrides,
+    effective,
+)
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
 
@@ -58,6 +66,24 @@ def test_duplicate_lengths_go_down_to_five(key):
     assert getattr(effective(SpamConfig(overrides={key: 5})), key) == 5
     with pytest.raises(ValidationError):
         SpamConfig(overrides={key: 4})
+
+
+def test_rule_ceiling_stops_at_500():
+    assert MAX_RULES == 500
+    assert effective(SpamConfig(overrides={"max_total_rules": 500})).max_total_rules == 500
+    with pytest.raises(ValidationError):
+        SpamConfig(overrides={"max_total_rules": 501})
+
+
+def test_clamp_overrides_brings_an_old_ceiling_down():
+    assert clamp_overrides({"max_total_rules": 2000, "similarity": 70}) == {
+        "max_total_rules": 500,
+        "similarity": 70,
+    }
+    kept = {"max_total_rules": 400}
+    assert clamp_overrides(kept) is kept
+    assert clamp_overrides({}) == {}
+    assert clamp_overrides("not a dict") == "not a dict"
 
 
 def test_unknown_override_rejected():

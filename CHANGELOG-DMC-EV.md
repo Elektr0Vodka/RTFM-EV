@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (Spam Guard on OpenHop: own messages, rule ceiling, fix/openhop-own-sends-rule-cap)
+
+No migration, no new dependency or environment variable. Not tested against a
+real OpenHop node.
+
+### Spam Guard
+- **Your own messages are never dropped on an OpenHop radio.** OpenHop runs
+  what its own companions send (the one RTFM-EV is connected to included)
+  through the same policy rules, and does not send a message a rule drops. A
+  duplicate, lockdown or text block could therefore stop your own message.
+  Every drop rule Spam Guard writes to the node now also says
+  `local_transmission` is not true. A node without that field matches the rule
+  as before. The host repeater is unchanged. Found while comparing with
+  openhop-spamguard v5.28, which made the same change.
+- **"Most rules at once" stops at 500** (was 2000). More rules can overload an
+  OpenHop node. A higher value saved earlier, in the settings or in a Spam
+  Guard profile, is read as 500, so older settings still load.
+
 ## Update 2026-10-16 (meshcomod commands in the radio console)
 
 No migration, no new dependency or environment variable.
