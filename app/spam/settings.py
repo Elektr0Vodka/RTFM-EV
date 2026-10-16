@@ -145,6 +145,9 @@ class SpamTunables(BaseModel):
     # A malformed message (``app/malformed.py``: random characters, or a clock
     # that was never set) counts as a made-up sender and is flagged as spam.
     malformed_signal: bool = False
+    # Unreadable random text (``app/spam/text.py`` ``is_unreadable``) from a name
+    # Spam Guard does not know counts as a made-up sender.
+    detect_unreadable: bool = True
     # Timing
     window_seconds: int = Field(default=600, ge=60, le=86400)
     long_window_seconds: int = Field(default=7200, ge=600, le=86400)

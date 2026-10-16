@@ -84,6 +84,7 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
       { key: 'name_score_threshold', type: 'int', min: 1, max: 6 },
       { key: 'random_name_patterns', type: 'patterns' },
       { key: 'malformed_signal', type: 'bool' },
+      { key: 'detect_unreadable', type: 'bool' },
     ],
   },
   {

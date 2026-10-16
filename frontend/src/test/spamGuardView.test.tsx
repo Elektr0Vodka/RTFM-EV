@@ -77,6 +77,7 @@ const TUNABLES: SpamGuardTunables = {
   name_score_threshold: 3,
   random_name_patterns: ['(?=.*\\d)(?=.*[a-z])[a-z0-9]{8}'],
   malformed_signal: false,
+  detect_unreadable: true,
   window_seconds: 600,
   long_window_seconds: 7200,
   block_ttl_seconds: 21600,

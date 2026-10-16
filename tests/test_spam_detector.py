@@ -1114,6 +1114,34 @@ class TestRepeatGuard:
         assert len(self.repeat_blocks(det)) == 1
 
 
+class TestNewerFloods:
+    def test_unreadable_text_from_a_new_name_is_made_up(self):
+        det, clock = make()
+        assert say(det, clock, "Dave", "Ж☙ᦐ").random is True
+        assert say(det, clock, "Dave", "evening all").random is False
+
+    def test_unreadable_text_from_a_known_name_is_not(self):
+        det, clock = make(overrides={"known_min_msgs": 1})
+        say(det, clock, "Dave", "evening all")
+        settle(det, clock)
+        assert say(det, clock, "Dave", "Ж☙ᦐ").random is False
+
+    def test_unreadable_can_be_switched_off(self):
+        det, clock = make(overrides={"detect_unreadable": False})
+        event = say(det, clock, "Dave", "Ж☙ᦐ")
+        assert event.random is False and event.unreadable is False
+
+    def test_tagged_name_is_made_up_until_known(self):
+        det, clock = make(overrides={"known_min_msgs": 1})
+        assert say(det, clock, "Marco-7fq2k", "hello").random is True
+        trusted, _ = make(allow_senders=["Marco-7fq2k"])
+        assert say(trusted, clock, "Marco-7fq2k", "hello").random is False
+
+    def test_a_call_sign_name_is_not_made_up(self):
+        det, clock = make()
+        assert say(det, clock, "Jan-pd0abc", "evening all").random is False
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

@@ -3345,6 +3345,7 @@ export interface SpamGuardTunables {
   name_score_threshold: number;
   random_name_patterns: string[];
   malformed_signal: boolean;
+  detect_unreadable: boolean;
   window_seconds: number;
   long_window_seconds: number;
   block_ttl_seconds: number;

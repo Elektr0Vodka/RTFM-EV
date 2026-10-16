@@ -45,6 +45,7 @@ from app.spam.settings import (
 from app.spam.text import (
     hops_related,
     is_disguised,
+    is_unreadable,
     longest_piece,
     middle_piece,
     normalise,
@@ -55,6 +56,7 @@ from app.spam.text import (
     similar,
     strip_emoji,
     strip_mentions,
+    tagged_name_score,
 )
 from app.spam.text import name_score as _name_score  # ``ingest`` has a parameter of that name
 
@@ -124,6 +126,8 @@ class Event:
     exempt: bool = False
     # Random characters or a clock that was never set (``app/malformed.py``).
     malformed: bool = False
+    # Unreadable random text from a name Spam Guard does not know.
+    unreadable: bool = False
     matched: str | None = None
     # Caught in a way that marks the message itself as spam (see ``_match``).
     spam: bool = False
@@ -336,6 +340,10 @@ class SpamDetector:
         entry = self.known.get(name)
         return entry is not None and entry[2] >= self.tunables.known_min_msgs
 
+    def _familiar(self, name: str) -> bool:
+        """Trusted or known: a name the newer-flood signals leave alone."""
+        return name in self.allow_senders or self.is_known(name)
+
     def known_names(self) -> list[str]:
         """Names that pass the gated blocks, for the known-people rule."""
         return sorted({n for n in self.known if self.is_known(n)} | self.allow_senders)
@@ -527,11 +535,20 @@ class SpamDetector:
         sender = sender or "?"
         hops = tuple(hop.upper() for hop in path)
         norm = normalise(text)
-        score = _name_score(sender, self._patterns) if name_score is None else name_score
+        trusted = sender in self.allow_senders
+        familiar = self._familiar(sender)
+        if name_score is None:
+            score = _name_score(sender, self._patterns)
+            if not familiar:
+                score = max(score, tagged_name_score(sender))
+        else:
+            score = name_score
         if name_disguised is None:
             name_disguised = is_disguised(sender, name=True)
         disguised = is_disguised(strip_mentions(text)) or name_disguised
-        trusted = sender in self.allow_senders
+        unreadable = (
+            self.tunables.detect_unreadable and not familiar and is_unreadable(strip_mentions(text))
+        )
         event = Event(
             ts=ts,
             path=hops,
@@ -549,10 +566,12 @@ class SpamDetector:
             and (
                 score >= self.tunables.name_score_threshold
                 or disguised
+                or unreadable
                 or (malformed and self.tunables.malformed_signal)
             ),
             exempt=self._text_allowed(text),
             malformed=malformed,
+            unreadable=unreadable,
         )
 
         history = self.senders.get(sender)

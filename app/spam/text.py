@@ -18,6 +18,8 @@ import unicodedata
 from collections.abc import Sequence
 from difflib import SequenceMatcher
 
+from app.malformed import is_gibberish_text
+
 # Invisible characters. U+200C / U+200D are legitimate joiners (inside emoji and
 # some scripts), so they only count as hidden text between two ASCII characters.
 _ZERO_WIDTH = "​‌‍⁠﻿­᠎"
@@ -247,6 +249,61 @@ def name_score(name: str, patterns: Sequence[re.Pattern[str]] = ()) -> int:
     ) >= 4:
         score += 1
     return min(score, 6)
+
+
+# A real-looking first name with a random tag stuck on, e.g. "Marco-7fq2k": a
+# name generator dressing made-up names as people. Optional digits after the
+# name, an optional middle word, then a tag of lower-case letters and digits.
+_TAGGED_NAME = re.compile(r"[A-Z][a-z]{2,11}\d{0,4}[-_.](?:[a-z]{2,8}[-_.])?([a-z0-9]{4,6})")
+# An amateur call sign after a name ("Jan-pd0abc", "Ann-2e0abc") is not a tag.
+_CALL_SIGN = re.compile(r"[a-z]{1,2}\d[a-z]{1,4}|\d[a-z]\d[a-z]{1,4}")
+# Kana, Han and Hangul are one family: real East Asian text mixes them.
+_EAST_ASIAN = frozenset({"CJK", "HIRAGANA", "KATAKANA", "KATAKANA-HIRAGANA", "HANGUL"})
+_SHORT_UNREADABLE = range(3, 9)
+
+
+def tagged_name_score(name: str) -> int:
+    """How made-up a first name with a random tag looks: 0, 3, or 4 when the tag
+    keeps switching between letters and digits."""
+    match = _TAGGED_NAME.fullmatch(name.strip())
+    if match is None:
+        return 0
+    tag = match.group(1)
+    if not (re.search(r"\d", tag) and re.search(r"[a-z]", tag)) or _CALL_SIGN.fullmatch(tag):
+        return 0
+    return 4 if _switches([ch.isdigit() for ch in tag]) >= 2 else 3
+
+
+def _reading_class(ch: str) -> str | None:
+    """What a character of a short message is for ``is_unreadable``: the script of a
+    letter, ``symbol`` for a symbol that is not an emoji, None for the rest."""
+    code = ord(ch)
+    if code >= 0x1F000 or _EMOJI_PART.match(ch) or ch.isspace():
+        return None
+    category = unicodedata.category(ch)
+    if category.startswith("L"):
+        script = unicodedata.name(ch, "").split(" ", 1)[0]
+        return "EAST_ASIAN" if script in _EAST_ASIAN else script or None
+    if category in ("So", "Sm", "Sk"):
+        return "symbol"
+    return None
+
+
+def is_unreadable(text: str) -> bool:
+    """Whether a message body is unreadable random text.
+
+    Longer text follows the chat's malformed rule (``app/malformed.py``). A short
+    body of 3 to 8 characters with no ASCII letter or digit counts when it mixes
+    three kinds of character: letters of different scripts, or symbols. "ok",
+    "73", an emoji, "日本語", "♥♥" or a kaomoji never do.
+    """
+    if is_gibberish_text(text):
+        return True
+    if any(ch.isascii() and ch.isalnum() for ch in text):
+        return False
+    classes = [_reading_class(ch) for ch in text]
+    kept = [c for c in classes if c is not None]
+    return len(kept) in _SHORT_UNREADABLE and len(set(kept)) >= 3
 
 
 def middle_piece(text: str, length: int, *, whole_words: bool = True) -> str:

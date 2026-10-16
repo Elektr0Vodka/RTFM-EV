@@ -210,3 +210,64 @@ class TestRuleText:
         assert t.hops_related("27", "27AB")
         assert t.hops_related("27AB01", "27")
         assert not t.hops_related("27", "28AB")
+
+
+class TestTaggedNames:
+    @pytest.mark.parametrize(
+        "name", ["Marco-7fq2k", "Lena_a9b3c", "Tomas.mesh.4kd9", "Ruben88-x7k2p"]
+    )
+    def test_first_name_with_a_random_tag(self, name):
+        assert t.tagged_name_score(name) >= 3
+
+    def test_a_tag_that_flips_often_scores_higher(self):
+        assert t.tagged_name_score("Lena_a9b3c") == 4
+        assert t.tagged_name_score("Lena_abcd9") == 3
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Jan-pd0abc",
+            "Mike_pa3xyz",
+            "Piet-pe1ab",
+            "Ann-2e0abc",
+            "Jan-PD0ABC",
+            "Dave",
+            "Dave M",
+            "Node-1234",
+            "Kees-abcd",
+            "MeshNL-Utrecht",
+            "dave-7fq2k",
+        ],
+    )
+    def test_call_signs_and_ordinary_names_are_not_tagged(self, name):
+        assert t.tagged_name_score(name) == 0
+
+
+class TestUnreadable:
+    @pytest.mark.parametrize("body", ["Ж☙ᦐ", "ꓫ┤ɛ", "ᵐᦐ৺", "Ѭ⍟ᚱჯ"])
+    def test_short_mixed_scripts_and_symbols(self, body):
+        assert t.is_unreadable(body)
+
+    def test_longer_gibberish_uses_the_chat_rule(self):
+        assert t.is_unreadable("ЖѬѮ ჯᚱᛝ ꙨЖѬ ჯᚱᛝ ЖѬѮ")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "ok",
+            "73",
+            "👍",
+            "👍👍👍",
+            "日本語",
+            "東京タワーです",
+            "♥♥",
+            "ʕ•ᴥ•ʔ",
+            "(＾▽＾)",
+            "Привет всем",
+            "…",
+            "Ça va",
+            "°°°",
+        ],
+    )
+    def test_short_genuine_messages(self, body):
+        assert not t.is_unreadable(body)

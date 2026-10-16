@@ -75,6 +75,7 @@ def message_record(event: Event, *, known: bool, channel_name: str = "") -> dict
         "known": known,
         "exempt": event.exempt,
         "malformed": event.malformed,
+        "unreadable": event.unreadable,
         "matched": event.matched,
         "spam": event.spam,
     }
