@@ -354,6 +354,43 @@ describe('SnmpNodeView', () => {
     expect(screen.getByTestId('snmp-tile-reboots')).toHaveTextContent('2');
   });
 
+  it('charts a meshcomod companion: clients, contacts and the receive filter', async () => {
+    const hidden = [0, 4, 8, 12, 16];
+    const history = HISTORY.map((row, i) => ({
+      ...row,
+      values: {
+        ...row.values,
+        uptime_secs: 1000 + i * 60,
+        companion_tcp_clients: 1,
+        companion_ws_clients: i % 2,
+        companion_contacts: 300 + i,
+        companion_channels: 8,
+        cfilter_enabled: 1,
+        cfilter_sender_hidden: hidden[i],
+        cfilter_text_hidden: 0,
+      },
+    }));
+    await renderNode([node({ type: 1, latest: history[history.length - 1] })], history);
+    await screen.findByTestId('snmp-chart-companion_clients');
+
+    expect(seriesPoints('companion_clients', 'companion_ws_clients')).toHaveLength(5);
+    expect(seriesPoints('companion_store', 'companion_contacts').map((p) => p.value)).toEqual([
+      300, 301, 302, 303, 304,
+    ]);
+    // 4 hidden per minute; a rule reason that never hid anything is not drawn.
+    expect(seriesPoints('cfilter', 'cfilter_sender_hidden').map((p) => p.value)).toEqual([
+      4, 4, 4, 4,
+    ]);
+    expect(
+      screen.getByTestId('snmp-chart-cfilter').querySelector('[data-series="cfilter_text_hidden"]')
+    ).toBeNull();
+    expect(screen.getByTestId('snmp-group-companion')).toBeInTheDocument();
+    expect(screen.getByTestId('snmp-row-cfilter_enabled')).toHaveTextContent('Yes');
+    // Not a repeater: no duty gate or repeater filter.
+    expect(screen.queryByTestId('snmp-group-duty_gate')).toBeNull();
+    expect(screen.queryByTestId('snmp-chart-filter_drops')).toBeNull();
+  });
+
   it('says the reason was not reported on older firmware', async () => {
     await renderNode();
 

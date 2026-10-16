@@ -426,12 +426,13 @@ export function ContactInfoBody({
         />
       )}
 
-      {/* Observer firmware runs as a repeater or a room server. */}
+      {/* Observer firmware runs as a repeater or a room server; meshcomod companions
+          serve the same OIDs. */}
       {show('data') &&
         !isPrefixOnlyResolvedContact &&
-        (isRepeater || contact.type === CONTACT_TYPE_ROOM) && (
-          <ContactSnmpSection contact={contact} />
-        )}
+        (isRepeater ||
+          contact.type === CONTACT_TYPE_ROOM ||
+          contact.type === CONTACT_TYPE_CLIENT) && <ContactSnmpSection contact={contact} />}
 
       {show('identity') && (
         <div className="px-5 py-3 border-b border-border">

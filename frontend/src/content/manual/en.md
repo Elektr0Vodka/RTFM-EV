@@ -221,6 +221,8 @@ The Settings Editor changes one repeater setting at a time: you edit, confirm th
 
 Repeaters and room servers on observer firmware can also be read over your network. On the contact page, the **SNMP (LAN)** card takes the node's IP address, port and community; **Poll now** then shows radio, MQTT, memory and WiFi values without using RF. SNMP must be on on the node (Observer firmware group in the Settings Editor, then reboot) and the server must be able to reach it over UDP. Turn on **Poll on a schedule** to have the server poll the node every few minutes and keep the results; the card then shows a history chart for the value and range you pick. If the Home Assistant integration tracks the repeater, the values also appear there as SNMP sensors. **Ask node for its address** sends one command over RF to look up the IP and needs an admin login. The **SNMP** page under Tools shows all nodes with SNMP set up side by side.
 
+Companions on meshcomod firmware have the same card. Turn the agent on with `set snmp on` in the companion's command line, look up its address with `get wifi.ip`, and type that IP address or hostname into the card: a companion cannot be asked for it over RF. Its page also shows the connected clients, contacts and channels and what its receive filter kept from you. Your own connected radio is a companion contact too, so it can be added the same way.
+
 ### Room servers
 
 Room servers also have a password or guest login, with telemetry, ACL, sensor data, a CLI console and a history of ACL changes.

@@ -181,6 +181,16 @@ _SNMP_NAMES: dict[str, str] = {
     "filter_age_drops": "SNMP Filter Message Age Drops",
     "filter_air_saved_ms": "SNMP Filter Air Time Saved",
     "neighbour_count": "SNMP Neighbours",
+    "companion_tcp_clients": "SNMP TCP Clients",
+    "companion_ws_clients": "SNMP WebSocket Clients",
+    "companion_contacts": "SNMP Contacts",
+    "companion_channels": "SNMP Channels",
+    "cfilter_enabled": "SNMP Receive Filter Enabled",
+    "cfilter_malformed_drops": "SNMP Receive Filter Malformed Drops",
+    "cfilter_age_drops": "SNMP Receive Filter Age Drops",
+    "cfilter_path_drops": "SNMP Receive Filter Path Drops",
+    "cfilter_sender_hidden": "SNMP Receive Filter Sender Hidden",
+    "cfilter_text_hidden": "SNMP Receive Filter Text Hidden",
 }
 
 # The firmware resets these on reboot; total_increasing lets HA cope with that.
@@ -208,6 +218,7 @@ _SNMP_STATES = frozenset(
         "dc_gate_enabled",
         "filter_enabled",
         "filter_dry_run",
+        "cfilter_enabled",
     }
 )
 

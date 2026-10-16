@@ -8,7 +8,12 @@ at 0a96eae3). Every entry is a scalar under the temporary, unregistered
 enterprise number 99999:
 
     .1.x.0 system, .2.x.0 radio, .3.x.0 mqtt, .4.x.0 memory, .5.x.0 network,
-    .6.x.0 duty gate, .7.x.0 packet filter, .8.x.0 neighbours
+    .6.x.0 duty gate, .7.x.0 packet filter, .8.x.0 neighbours,
+    .9.x.0 companion, .10.x.0 companion receive filter
+
+The .9 and .10 groups come from the meshcomod companion firmware
+(Elektr0Vodka/meshcomod main 938352fa, ``docs/companion_snmp.md``), which
+serves the same tree as a companion: no .3.1-.3.3, .2.16, .6, .7 or .8.
 
 The first 22 numbers are INTEGER and the two names OCTET STRING. Those
 counters are uint32 cast to a signed int, so a counter past 2^31 reads
@@ -33,7 +38,16 @@ from app.snmp.ber import Oid, SnmpValue
 ENTERPRISE_BASE: Oid = (1, 3, 6, 1, 4, 1, 99999)
 
 MibGroup = Literal[
-    "system", "radio", "mqtt", "memory", "network", "duty_gate", "filter", "neighbours"
+    "system",
+    "radio",
+    "mqtt",
+    "memory",
+    "network",
+    "duty_gate",
+    "filter",
+    "neighbours",
+    "companion",
+    "companion_filter",
 ]
 MibKind = Literal["int", "counter", "str"]
 MibValue = int | float | str | None
@@ -81,7 +95,7 @@ FIRST_RELEASE_ENTRIES: tuple[MibEntry, ...] = (
     MibEntry("wifi_rssi", "network", (5, 1), unit="dBm"),
 )
 
-# Added by Dutch-MeshCore/MeshCore PR #16. Any of these can be missing.
+# Added by Dutch-MeshCore/MeshCore PR #16 and meshcomod. Any of these can be missing.
 ADDED_ENTRIES: tuple[MibEntry, ...] = (
     MibEntry("battery_mv", "system", (1, 4), unit="mV", sentinel=0),
     MibEntry("mcu_temp_c", "system", (1, 5), unit="°C", sentinel=-127),
@@ -117,6 +131,18 @@ ADDED_ENTRIES: tuple[MibEntry, ...] = (
     MibEntry("filter_age_drops", "filter", (7, 12), kind="counter"),
     MibEntry("filter_air_saved_ms", "filter", (7, 13), kind="counter", unit="ms"),
     MibEntry("neighbour_count", "neighbours", (8, 1)),
+    # meshcomod companion only.
+    MibEntry("companion_tcp_clients", "companion", (9, 1)),
+    MibEntry("companion_ws_clients", "companion", (9, 2)),
+    MibEntry("companion_contacts", "companion", (9, 3)),
+    MibEntry("companion_channels", "companion", (9, 4)),
+    # Messages kept from the user, not packets kept off the air (that is .7).
+    MibEntry("cfilter_enabled", "companion_filter", (10, 1)),
+    MibEntry("cfilter_malformed_drops", "companion_filter", (10, 2), kind="counter"),
+    MibEntry("cfilter_age_drops", "companion_filter", (10, 3), kind="counter"),
+    MibEntry("cfilter_path_drops", "companion_filter", (10, 4), kind="counter"),
+    MibEntry("cfilter_sender_hidden", "companion_filter", (10, 5), kind="counter"),
+    MibEntry("cfilter_text_hidden", "companion_filter", (10, 6), kind="counter"),
 )
 
 ENTRIES: tuple[MibEntry, ...] = FIRST_RELEASE_ENTRIES + ADDED_ENTRIES

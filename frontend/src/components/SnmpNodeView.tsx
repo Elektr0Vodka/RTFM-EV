@@ -23,6 +23,7 @@ import { SnmpRefreshSelect, useSnmpRefreshSeconds } from './snmp/SnmpRefreshSele
 import { SnmpSeriesChart, type SnmpChartSeries } from './snmp/SnmpSeriesChart';
 import { SnmpValueGroups } from './snmp/SnmpValueGroups';
 import {
+  COMPANION_FILTER_KEYS,
   FILTER_DROP_KEYS,
   SNMP_FIELDS,
   SNMP_GROUPS,
@@ -168,6 +169,31 @@ const CHARTS: ChartDef[] = [
     kind: 'gauge',
     keys: ['neighbour_count'],
     optional: true,
+  },
+  {
+    id: 'companion_clients',
+    group: 'companion',
+    kind: 'gauge',
+    keys: ['companion_tcp_clients', 'companion_ws_clients'],
+    titleKey: 'snmp_node_chart_companion_clients',
+    optional: true,
+  },
+  {
+    id: 'companion_store',
+    group: 'companion',
+    kind: 'gauge',
+    keys: ['companion_contacts', 'companion_channels'],
+    titleKey: 'snmp_node_chart_companion_store',
+    optional: true,
+  },
+  {
+    id: 'cfilter',
+    group: 'companion_filter',
+    kind: 'counter',
+    keys: COMPANION_FILTER_KEYS,
+    titleKey: 'snmp_node_chart_cfilter',
+    optional: true,
+    hideZeroSeries: true,
   },
 ];
 

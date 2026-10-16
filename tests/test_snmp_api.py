@@ -199,8 +199,19 @@ class TestConfigEndpoints:
         assert saved.last_ok_at == 1700000000
 
     @pytest.mark.asyncio
-    async def test_put_is_refused_for_a_client_contact(self, test_db):
+    async def test_companion_is_allowed_with_a_typed_hostname(self, test_db):
+        # meshcomod companions run the same agent; the address is typed in.
         await _insert_contact(contact_type=1)
+        saved = await put_snmp_config(
+            KEY_A, ContactSnmpConfigUpdate(host="companion.lan", poll_enabled=True)
+        )
+        assert (saved.host, saved.poll_enabled) == ("companion.lan", True)
+        assert (await ContactSnmpRepository.get(KEY_A))["host"] == "companion.lan"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("contact_type", [0, 4])
+    async def test_put_is_refused_for_unknown_and_sensor_contacts(self, test_db, contact_type):
+        await _insert_contact(contact_type=contact_type)
         with pytest.raises(HTTPException) as exc:
             await put_snmp_config(KEY_A, ContactSnmpConfigUpdate(host="10.0.0.1"))
         assert exc.value.status_code == 400

@@ -221,6 +221,8 @@ Met Instellingen bewerken wijzig je één repeaterinstelling tegelijk: je past a
 
 Repeaters en roomservers met observer-firmware kun je ook via je netwerk uitlezen. Op de contactpagina vraagt de kaart **SNMP (LAN)** om het IP-adres, de poort en de community van de node; met **Nu uitlezen** zie je daarna radio-, MQTT-, geheugen- en wifi-waarden zonder RF te gebruiken. SNMP moet op de node aan staan (groep Observer-firmware in Instellingen bewerken, daarna herstarten) en de server moet de node via UDP kunnen bereiken. Zet **Volgens schema uitlezen** aan om de server de node om de paar minuten te laten uitlezen en de resultaten te bewaren; de kaart toont dan een historiegrafiek voor de gekozen waarde en periode. Als de Home Assistant-integratie de repeater volgt, verschijnen de waarden daar ook als SNMP-sensoren. **Adres aan node vragen** stuurt één commando via RF om het IP op te vragen en vereist een admin-login. De pagina **SNMP** onder Hulpmiddelen toont alle nodes met SNMP naast elkaar.
 
+Companions met meshcomod-firmware hebben dezelfde kaart. Zet de agent aan met `set snmp on` op de opdrachtregel van de companion, zoek het adres op met `get wifi.ip` en vul dat IP-adres of die hostnaam in op de kaart: een companion kan er niet via RF om gevraagd worden. Zijn pagina toont ook de verbonden clients, contacten en kanalen en wat zijn ontvangstfilter voor je verborg. Je eigen verbonden radio is ook een companion-contact en kan dus op dezelfde manier worden toegevoegd.
+
 ### Roomservers
 
 Ook roomservers hebben een login met wachtwoord of als gast, met telemetrie, ACL, sensordata, een CLI-console en een geschiedenis van ACL-wijzigingen.
