@@ -68,6 +68,7 @@ const REASON_KEYS: Record<string, string> = {
   links_always: 'spam_reason_links_always',
   links_campaign: 'spam_reason_links_campaign',
   lockdown: 'spam_reason_lockdown',
+  auto_lockdown: 'spam_reason_auto_lockdown',
   manual: 'spam_reason_manual',
   marked_spam: 'spam_reason_marked_spam',
 };

@@ -54,6 +54,7 @@ const TUNABLES: SpamGuardTunables = {
   hop_campaign_senders: 3,
   hop_random_senders_long: 5,
   enable_rotation_guard: true,
+  auto_lockdown: true,
   rotate_first_hops: 3,
   route_memory_days: 7,
   max_paths_per_hop: 50,

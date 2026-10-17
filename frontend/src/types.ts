@@ -3322,6 +3322,7 @@ export interface SpamGuardTunables {
   hop_campaign_senders: number;
   hop_random_senders_long: number;
   enable_rotation_guard: boolean;
+  auto_lockdown: boolean;
   rotate_first_hops: number;
   route_memory_days: number;
   max_paths_per_hop: number;

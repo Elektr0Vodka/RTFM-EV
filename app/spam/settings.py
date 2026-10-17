@@ -112,6 +112,9 @@ class SpamTunables(BaseModel):
     hop_campaign_senders: int = Field(default=3, ge=2, le=100)
     hop_random_senders_long: int = Field(default=5, ge=2, le=500)
     enable_rotation_guard: bool = True
+    # A short automatic lockdown when made-up names flood in through many
+    # repeaters at once (``detector.AUTO_LOCKDOWN_*``).
+    auto_lockdown: bool = True
     rotate_first_hops: int = Field(default=3, ge=2, le=50)
     route_memory_days: int = Field(default=7, ge=1, le=60)
     max_paths_per_hop: int = Field(default=50, ge=1, le=500)

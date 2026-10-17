@@ -62,7 +62,15 @@ from app.spam.text import name_score as _name_score  # ``ingest`` has a paramete
 
 BlockKind = Literal["text", "words", "hop", "suffix", "links", "lockdown"]
 BlockSource = Literal[
-    "manual", "hop", "campaign", "dedupe", "repeat", "rotation", "links", "lockdown"
+    "manual",
+    "hop",
+    "campaign",
+    "dedupe",
+    "repeat",
+    "rotation",
+    "links",
+    "lockdown",
+    "auto_lockdown",
 ]
 # Sources that only hold back repeats: a caught message is a duplicate, not spam.
 _REPEAT_SOURCES = frozenset({"dedupe", "repeat"})
@@ -109,6 +117,12 @@ MAX_PEOPLE_BLOCK_SECONDS = 7 * 86400
 MANUAL_TEXT_MIN_CHARS = 12
 # Text blocks the user made: they only stop names Spam Guard does not know.
 _USER_TEXT_REASONS = frozenset({"manual", "marked_spam"})
+# A flood of made-up names through many repeaters at once, faster than blocks on
+# single repeaters can follow: only known people get through for a while.
+AUTO_LOCKDOWN_WINDOW = 120.0
+AUTO_LOCKDOWN_NAMES = 12
+AUTO_LOCKDOWN_HOPS = 6
+AUTO_LOCKDOWN_SECONDS = 900
 # Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
 # was 1) genuine messages; older state keeps the people it already knew.
 STATE_VERSION = 2
@@ -588,9 +602,12 @@ class SpamDetector:
             if event.ts < block.created - 1 or not self._block_matches(block, event):
                 continue
             event.matched = block.key
-            event.forgivable = block.source in ("rotation", "campaign", "lockdown") or (
-                block.kind == "hop" and self.gated(block)
-            )
+            event.forgivable = block.source in (
+                "rotation",
+                "campaign",
+                "lockdown",
+                "auto_lockdown",
+            ) or (block.kind == "hop" and self.gated(block))
             block.hits += 1
             block.last_hit = event.ts
             event.duplicate = block.source in _REPEAT_SOURCES
@@ -1257,6 +1274,33 @@ class SpamDetector:
                 )
                 self._mark()
 
+    def _auto_lockdown(self, window: list[Event], now: float) -> None:
+        """A big flood: many made-up names through many first repeaters within
+        two minutes. Only known people get through for 15 minutes, then it ends
+        by itself. Newcomers are held too, so it can be switched off."""
+        if LOCKDOWN_KEY in self.blocks:
+            return
+        recent = [
+            e
+            for e in window
+            if e.ts >= now - AUTO_LOCKDOWN_WINDOW
+            and e.random
+            and e.first_hop != DIRECT
+            and not self._familiar(e.sender)
+        ]
+        names = {e.sender for e in recent}
+        hops = {e.first_hop for e in recent}
+        if len(names) >= AUTO_LOCKDOWN_NAMES and len(hops) >= AUTO_LOCKDOWN_HOPS:
+            self._want(
+                LOCKDOWN_KEY,
+                "lockdown",
+                None,
+                "auto_lockdown",
+                "auto_lockdown",
+                detail={"count": len(names), "origins": len(hops)},
+                ttl=AUTO_LOCKDOWN_SECONDS,
+            )
+
     def _hold_links(self, now: float) -> None:
         mode = self.tunables.hold_links
         current = self.blocks.get(LINKS_KEY)
@@ -1364,6 +1408,8 @@ class SpamDetector:
         if tun.enable_rotation_guard:
             self._block_rotation(window)
         self._hold_links(now)
+        if tun.auto_lockdown:
+            self._auto_lockdown(window, now)
 
         for key in [k for k, b in self.blocks.items() if b.expires <= now]:
             block = self.blocks.pop(key)
@@ -1624,6 +1670,8 @@ class SpamDetector:
             if block.source in _REPEAT_SOURCES:
                 self._release(block)
                 return {"key": key}
+            if block.source == "lockdown":  # your own: nothing would put it back
+                return {"key": key}
         # Otherwise the same evidence would put it straight back.
         self.suppressed[key] = self._clock() + suppress_seconds
         return {"key": key}
@@ -1635,6 +1683,9 @@ class SpamDetector:
         if minutes <= 0:
             if ended is not None:
                 self._note("lockdown_ended")
+                if ended.source == "auto_lockdown":
+                    # Ended by hand: the same flood must not start it again at once.
+                    self.suppressed[LOCKDOWN_KEY] = self._clock() + SUPPRESS_SECONDS
             return {"active": False}
         self.suppressed.pop(LOCKDOWN_KEY, None)
         self._add_block(
@@ -1804,11 +1855,11 @@ class SpamDetector:
     def _do_clear_auto(self) -> None:
         now = self._clock()
         for key, block in list(self.blocks.items()):
-            if block.source == "manual":
+            if block.source in ("manual", "lockdown"):
                 continue
             del self.blocks[key]
             # Otherwise the same evidence would put it straight back.
-            if block.source == "dedupe":
+            if block.source in _REPEAT_SOURCES:
                 self._release(block)
             else:
                 self.suppressed[key] = now + SUPPRESS_SECONDS

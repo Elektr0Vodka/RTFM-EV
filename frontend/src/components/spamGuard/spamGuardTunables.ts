@@ -41,6 +41,7 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
       { key: 'hop_campaign_senders', type: 'int', min: 2, max: 100 },
       { key: 'hop_random_senders_long', type: 'int', min: 2, max: 500 },
       { key: 'enable_rotation_guard', type: 'bool' },
+      { key: 'auto_lockdown', type: 'bool' },
       { key: 'rotate_first_hops', type: 'int', min: 2, max: 50 },
       { key: 'route_memory_days', type: 'int', min: 1, max: 60, unit: 'days' },
       { key: 'max_paths_per_hop', type: 'int', min: 1, max: 500 },

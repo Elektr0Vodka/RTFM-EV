@@ -6,7 +6,8 @@ import time
 
 import pytest
 
-from app.spam.detector import STATE_VERSION, SettledOutcome, SpamDetector
+from app.spam.detector import LOCKDOWN_KEY, STATE_VERSION, SettledOutcome, SpamDetector
+from app.spam.rules import render
 from app.spam.settings import SpamConfig
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
@@ -1361,6 +1362,93 @@ class TestSpamNotOpinions:
         other.load(state)
         assert other.blocks["hop:27"].expires <= clock.now + self.WEEK
         assert other.blocks["hop:44"].expires > clock.now + self.WEEK
+
+
+MADE_UP_FLOOD = [f"Q{index:02d}ZP9XV" for index in range(14)]
+
+
+class TestAutoLockdown:
+    quiet = {"enable_hop_rules": False, "enable_rotation_guard": False, "dedupe_enabled": False}
+
+    def flood(self, det, clock, names=12, hops=6, step=5.0):
+        for index in range(names):
+            hop = f"{0xA0 + index % hops:02X}"
+            say(
+                det,
+                clock,
+                MADE_UP_FLOOD[index],
+                f"junk number {index} here",
+                path=(hop, "B1"),
+                step=step,
+            )
+        det.decide()
+
+    def test_a_flood_through_many_repeaters_locks_down_for_15_minutes(self):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock)
+        block = det.blocks[LOCKDOWN_KEY]
+        assert block.source == "auto_lockdown" and block.reason == "auto_lockdown"
+        assert block.detail == {"count": 12, "origins": 6}
+        assert block.expires == clock.now + 900
+        rendered = [r["name"] for r in render(det, "openhop", preview=True).rules]
+        assert f"rtfm-spam:lockdown:{PUBLIC} (auto)" in rendered
+
+    @pytest.mark.parametrize("names,hops", [(11, 6), (12, 5)])
+    def test_a_smaller_flood_does_not(self, names, hops):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock, names=names, hops=hops)
+        assert LOCKDOWN_KEY not in det.blocks
+
+    def test_a_slow_flood_does_not(self):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock, step=12.0)  # 12 names over more than two minutes
+        assert LOCKDOWN_KEY not in det.blocks
+
+    def test_known_names_do_not_count(self):
+        det, clock = make(overrides=self.quiet)
+        for name in MADE_UP_FLOOD[:2]:
+            det.known[name] = [clock.now - 7200, clock.now - 60, 5]
+        det.action("allow_sender", sender=MADE_UP_FLOOD[2])
+        self.flood(det, clock, names=14)  # 11 names it does not know
+        assert LOCKDOWN_KEY not in det.blocks
+
+    def test_never_while_your_own_lockdown_runs(self):
+        det, clock = make(overrides=self.quiet)
+        det.action("lockdown", minutes=60)
+        self.flood(det, clock)
+        assert det.blocks[LOCKDOWN_KEY].source == "lockdown"
+
+    @pytest.mark.parametrize("how", ["lockdown", "unblock"])
+    def test_ending_it_by_hand_holds_it_off_for_a_day(self, how):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock)
+        if how == "lockdown":
+            det.action("lockdown", minutes=0)
+        else:
+            det.action("unblock", key=LOCKDOWN_KEY)
+        self.flood(det, clock)
+        assert LOCKDOWN_KEY not in det.blocks
+        assert det.suppressed[LOCKDOWN_KEY] >= clock.now + 86000
+
+    def test_ending_your_own_lockdown_does_not_hold_it_off(self):
+        det, clock = make(overrides=self.quiet)
+        det.action("lockdown", minutes=60)
+        det.action("lockdown", minutes=0)
+        assert LOCKDOWN_KEY not in det.suppressed
+        det.action("lockdown", minutes=60)
+        det.action("unblock", key=LOCKDOWN_KEY)
+        assert LOCKDOWN_KEY not in det.suppressed
+
+    def test_clearing_automatic_blocks_keeps_your_own_lockdown(self):
+        det, clock = make(overrides=self.quiet)
+        det.action("lockdown", minutes=60)
+        det.action("clear_auto")
+        assert det.blocks[LOCKDOWN_KEY].source == "lockdown"
+
+    def test_can_be_switched_off(self):
+        det, clock = make(overrides={**self.quiet, "auto_lockdown": False})
+        self.flood(det, clock)
+        assert LOCKDOWN_KEY not in det.blocks
 
 
 def test_spam_package_does_not_import_the_radio():
