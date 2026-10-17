@@ -1325,8 +1325,20 @@ export function MapView({
   }, [linksOn, linkMode, advertEdges, trafficEdges, linkConfidence, wrongLocationKeys]);
   const linkCountsRef = useRef(linkCounts);
   linkCountsRef.current = linkCounts;
-  const popupEnvRef = useRef({ myLatLon, distanceUnit, roleColors });
-  popupEnvRef.current = { myLatLon, distanceUnit, roleColors };
+  // The colours actually drawn (picked or colourblind palette), so the popup's
+  // icon ring and recency dot match the marker.
+  const popupEnvRef = useRef({
+    myLatLon,
+    distanceUnit,
+    roleColors: drawnRoleColors,
+    recencyColors: mapColors.recency,
+  });
+  popupEnvRef.current = {
+    myLatLon,
+    distanceUnit,
+    roleColors: drawnRoleColors,
+    recencyColors: mapColors.recency,
+  };
 
   // Build the per-type popup (map/NodeMapPopup) for a contact. It renders
   // synchronously so MapLibre measures real content when it places the popup;
@@ -1345,6 +1357,7 @@ export function MapView({
             contact={contact}
             nowSec={Date.now() / 1000}
             roleColor={env.roleColors[contact.type] ?? env.roleColors[CONTACT_TYPE_CLIENT]}
+            recencyColors={env.recencyColors}
             selfLatLon={env.myLatLon}
             distanceUnit={env.distanceUnit}
             coordinateFormat={coordinateFormatRef.current}

@@ -45,7 +45,7 @@ import {
 import { POWER_SOURCE_LABEL_KEY, resolvePowerSource, type PowerSource } from '../utils/powerSource';
 import { cn } from '../lib/utils';
 import { STALE_SEC } from './layers/telemetryLayer';
-import { NODE_RECENCY_COLORS, recencyTier } from './layers/nodesLayer';
+import { NODE_RECENCY_COLORS, recencyTier, type RecencyTier } from './layers/nodesLayer';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -112,6 +112,8 @@ export interface NodeMapPopupProps {
   nowSec: number;
   /** Marker ring (role) colour, drawn as the icon's ring like on the map. */
   roleColor: string;
+  /** Marker fill per recency tier as drawn (colourblind palette when on). */
+  recencyColors?: Record<RecencyTier, string>;
   selfLatLon: [number, number] | null;
   distanceUnit: DistanceUnit;
   coordinateFormat: CoordinateFormat;
@@ -172,6 +174,7 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
     contact,
     nowSec,
     roleColor,
+    recencyColors,
     selfLatLon,
     distanceUnit,
     coordinateFormat,
@@ -208,7 +211,9 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
   const displayName = contact.name || contact.public_key.slice(0, 12);
 
   // Same tier and colour as the marker fill, so dot and marker agree.
-  const recencyColor = NODE_RECENCY_COLORS[recencyTier(contact.last_seen, nowSec)];
+  const recencyColor = (recencyColors ?? NODE_RECENCY_COLORS)[
+    recencyTier(contact.last_seen, nowSec)
+  ];
   const heard =
     contact.last_seen != null
       ? t('map_popup_heard', { age: relativeAge(nowSec - contact.last_seen, t) })

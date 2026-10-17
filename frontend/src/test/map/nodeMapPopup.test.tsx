@@ -202,6 +202,18 @@ describe('NodeMapPopup', () => {
     expect(screen.queryByText('no battery data')).toBeNull();
   });
 
+  it('colours the recency dot and icon ring with the drawn palette', () => {
+    const { container } = renderPopup({
+      contact: contact({ last_seen: NOW - 240 }),
+      roleColor: '#123456',
+      recencyColors: { recent: '#010203', today: '#040506', stale: '#070809', old: '#0a0b0c' },
+    });
+    const dot = container.querySelector<HTMLElement>('span.rounded-full[style]');
+    expect(dot?.style.backgroundColor).toBe('rgb(1, 2, 3)');
+    const ring = container.querySelector<HTMLElement>('div.border-2[style]');
+    expect(ring?.style.borderColor).toBe('rgb(18, 52, 86)');
+  });
+
   it('sensor without telemetry says so', () => {
     renderPopup({ contact: contact({ type: CONTACT_TYPE_SENSOR }) });
     expect(screen.getByText('No readings yet')).toBeInTheDocument();

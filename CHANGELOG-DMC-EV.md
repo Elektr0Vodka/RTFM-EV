@@ -31,7 +31,8 @@ Frontend only. No migration, no new dependency. Nothing is sent over the radio.
   bar, temperature and their neighbour count on the drawn advert/traffic
   links; companions show last DM and a learned/set route; room servers show
   last visited; sensors show temperature and battery as large readings.
-  Telemetry older than a day is dimmed. An "Adverts heard" rate is fetched
+  The recency dot and icon ring use the colours the map draws, so they
+  follow colourblind mode. Telemetry older than a day is dimmed. An "Adverts heard" rate is fetched
   once per open from `GET /contacts/analytics` (read-only, aborted on close);
   it counts advert copies, so the same advert via several paths counts more
   than once.
