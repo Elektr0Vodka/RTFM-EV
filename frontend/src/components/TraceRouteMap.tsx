@@ -4,7 +4,8 @@ import type { Contact, RadioConfig, RadioTraceNode } from '../types';
 import { useT } from '../i18n';
 import { MiniMap } from '../map/MiniMap';
 import { getBasemap, getSavedBasemapId } from '../map/engine/basemaps';
-import { getHopColor, markerEl, SENDER_COLOR } from '../map/routeMapVisuals';
+import { getHopColor, markerEl, readableLabelColor } from '../map/routeMapVisuals';
+import { useCvdColors, useCvdMode } from '../hooks/useCvdColors';
 import {
   buildTraceMapSegments,
   formatSNR,
@@ -55,6 +56,9 @@ export function TraceRouteMap({
     () => getBasemap(getSavedBasemapId()).tone ?? 'dark'
   );
   const lineColor = basemapTone === 'dark' ? '#e2e8f0' : '#1e293b';
+  // Colourblind mode: hop and self colours for the basemap's tone (today's when off).
+  const cvdMode = useCvdMode();
+  const cvdColors = useCvdColors(basemapTone);
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<MlMarker[]>([]);
 
@@ -90,14 +94,14 @@ export function TraceRouteMap({
     return locatedNodes.map((n) => {
       const isLocal = n.index === 0 || n.index === lastIndex;
       const label = isLocal ? t('trace_badge_self') : String(n.index);
-      const color = isLocal ? SENDER_COLOR : getHopColor(n.index - 1);
+      const color = isLocal ? cvdColors.sender : getHopColor(n.index - 1, cvdColors.hops);
       const shortKey = n.publicKey ? n.publicKey.slice(0, 12) : t('trace_unknown_key');
       const namePart = n.name || shortKey;
       const snrText = formatSNR(n.snr);
       const title = snrText ? `${namePart} · ${t('trace_snr_label')} ${snrText}` : namePart;
       return { lngLat: [n.lon as number, n.lat as number], label, color, title };
     });
-  }, [locatedNodes, lastIndex, t]);
+  }, [locatedNodes, lastIndex, t, cvdColors]);
 
   const draw = useCallback(
     (map: MlMap) => {
@@ -133,12 +137,20 @@ export function TraceRouteMap({
       m.getSource(SOURCE_ID)?.setData(lineFeatures.features.length ? lineFeatures : EMPTY_FC);
       markersRef.current.forEach((mk) => mk.remove());
       markersRef.current = markerSpecs.map((s) =>
-        new MlMarker({ element: markerEl(s.label, s.color, s.title) })
+        new MlMarker({
+          // Palette colours include light ones: pick the label that reads (white when off).
+          element: markerEl(
+            s.label,
+            s.color,
+            s.title,
+            cvdMode === 'off' ? undefined : readableLabelColor(s.color)
+          ),
+        })
           .setLngLat(s.lngLat)
           .addTo(map)
       );
     },
-    [lineFeatures, markerSpecs, lineColor]
+    [lineFeatures, markerSpecs, lineColor, cvdMode]
   );
 
   const handleReady = useCallback(

@@ -34,9 +34,12 @@ function Row({ color, ring, label }: { color: string; ring?: string; label: stri
 export function MapLegend({
   extra,
   roleColors = NODE_TYPE_STROKE,
+  recencyColors = NODE_RECENCY_COLORS,
 }: {
   extra?: ReactNode;
   roleColors?: Record<number, string>;
+  /** Fill per recency tier (the colourblind palette when a mode is on). */
+  recencyColors?: Record<RecencyTier, string>;
 }) {
   const t = useT();
   const typeRows = [
@@ -71,7 +74,7 @@ export function MapLegend({
           {t('map_legend_recency')}
         </div>
         {recencyRows.map((r) => (
-          <Row key={r.tier} color={NODE_RECENCY_COLORS[r.tier]} label={r.label} />
+          <Row key={r.tier} color={recencyColors[r.tier]} label={r.label} />
         ))}
       </div>
       {extra}

@@ -996,7 +996,7 @@ export function MeshAdvertsPanel({
                             isHighAlert
                               ? 'font-semibold text-destructive'
                               : isMedAlert
-                                ? 'font-semibold text-yellow-600 dark:text-yellow-400'
+                                ? 'font-semibold text-yellow-600 dark:text-yellow-400 cvd:text-warning'
                                 : 'text-muted-foreground'
                           }
                         >
@@ -1038,7 +1038,7 @@ export function MeshAdvertsPanel({
                         <span
                           className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                             n.isActive
-                              ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                              ? 'bg-green-500/15 text-green-600 dark:text-green-400 cvd:bg-success/15 cvd:text-success'
                               : 'bg-muted text-muted-foreground'
                           }`}
                         >
@@ -1158,16 +1158,16 @@ export function MeshAdvertsPanel({
 
       {/* MEDIUM alerts */}
       {mediumAlerts.length > 0 && (
-        <div className="rounded-lg border border-yellow-500/40 bg-card overflow-hidden">
-          <div className="border-b border-yellow-500/30 bg-yellow-500/10 px-3 py-2 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
-            <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
+        <div className="rounded-lg border border-yellow-500/40 cvd:border-warning/40 bg-card overflow-hidden">
+          <div className="border-b border-yellow-500/30 bg-yellow-500/10 cvd:border-warning/30 cvd:bg-warning/10 px-3 py-2 flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400 cvd:text-warning" />
+            <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 cvd:text-warning">
               {t('mesh_health_medium_alert_heading')}
             </span>
-            <span className="text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
+            <span className="text-[10px] text-yellow-600/70 dark:text-yellow-400/70 cvd:text-warning/70">
               · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
             </span>
-            <span className="ml-auto text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
+            <span className="ml-auto text-[10px] text-yellow-600/70 dark:text-yellow-400/70 cvd:text-warning/70">
               {t('mesh_health_alert_node_count', { count: mediumAlerts.length })}
             </span>
           </div>
@@ -1247,7 +1247,7 @@ function AlertRow({
         className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
           isHigh
             ? 'bg-destructive/15 text-destructive'
-            : 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300'
+            : 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 cvd:bg-warning/15 cvd:text-warning'
         }`}
       >
         {isHigh ? t('mesh_health_level_high') : t('mesh_health_level_medium')}

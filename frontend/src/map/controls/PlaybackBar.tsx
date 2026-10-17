@@ -116,7 +116,9 @@ export function PlaybackBar({
         aria-pressed={isLive}
         className={
           'flex items-center gap-1 rounded px-2 py-0.5 text-xs ' +
-          (isLive ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground')
+          (isLive
+            ? 'bg-red-500 text-white cvd:bg-destructive cvd:text-destructive-foreground'
+            : 'bg-muted text-muted-foreground')
         }
         onClick={onLive}
       >

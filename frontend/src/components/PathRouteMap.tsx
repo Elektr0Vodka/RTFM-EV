@@ -5,7 +5,8 @@ import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
 import { useT } from '../i18n';
 import { MiniMap } from '../map/MiniMap';
 import { getBasemap, getSavedBasemapId } from '../map/engine/basemaps';
-import { RECEIVER_COLOR, SENDER_COLOR, getHopColor, markerEl } from '../map/routeMapVisuals';
+import { getHopColor, markerEl, readableLabelColor } from '../map/routeMapVisuals';
+import { useCvdColors, useCvdMode } from '../hooks/useCvdColors';
 
 interface PathRouteMapProps {
   /** Single resolved route (legacy callers). Ignored when `routes` is given. */
@@ -97,6 +98,15 @@ export function PathRouteMap({
     () => getBasemap(getSavedBasemapId()).tone ?? 'dark'
   );
   const singleLineColor = basemapTone === 'dark' ? '#e2e8f0' : '#1e293b';
+  // Colourblind mode: hop, endpoint and route colours from the palette for the
+  // basemap's tone (today's colours when off).
+  const cvdMode = useCvdMode();
+  const cvdColors = useCvdColors(basemapTone);
+  const routeColor = useCallback(
+    (ri: number) =>
+      cvdMode === 'off' ? getRouteColor(ri) : cvdColors.series[ri % cvdColors.series.length],
+    [cvdMode, cvdColors]
+  );
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<MlMarker[]>([]);
 
@@ -123,11 +133,11 @@ export function PathRouteMap({
       .filter(({ line }) => line.length >= 2)
       .map(({ line, ri }) => ({
         type: 'Feature' as const,
-        properties: { color: isMulti ? getRouteColor(ri) : singleLineColor },
+        properties: { color: isMulti ? routeColor(ri) : singleLineColor },
         geometry: { type: 'LineString' as const, coordinates: line },
       }));
     return { type: 'FeatureCollection' as const, features };
-  }, [routeList, isMulti, singleLineColor]);
+  }, [routeList, isMulti, singleLineColor, routeColor]);
 
   const markerSpecs = useMemo<MarkerSpec[]>(() => {
     if (!shared) return [];
@@ -136,7 +146,7 @@ export function PathRouteMap({
       specs.push({
         lngLat: [shared.sender.lon!, shared.sender.lat!],
         label: 'S',
-        color: SENDER_COLOR,
+        color: cvdColors.sender,
         title: `${shared.sender.prefix} · ${senderInfo.name || t('path_modal_sender_label')}`,
       });
     }
@@ -148,7 +158,7 @@ export function PathRouteMap({
           specs.push({
             lngLat: [m.lon!, m.lat!],
             label: String(hopIdx + 1),
-            color: isMulti ? getRouteColor(ri) : getHopColor(hopIdx),
+            color: isMulti ? routeColor(ri) : getHopColor(hopIdx, cvdColors.hops),
             title: isMulti ? `${t('path_modal_path_number', { n: ri + 1 })} · ${who}` : who,
           });
         }
@@ -158,12 +168,12 @@ export function PathRouteMap({
       specs.push({
         lngLat: [shared.receiver.lon!, shared.receiver.lat!],
         label: 'R',
-        color: RECEIVER_COLOR,
+        color: cvdColors.receiver,
         title: `${shared.receiver.prefix} · ${shared.receiver.name || t('path_map_receiver_fallback')}`,
       });
     }
     return specs;
-  }, [routeList, shared, isMulti, senderInfo, t]);
+  }, [routeList, shared, isMulti, senderInfo, t, routeColor, cvdColors]);
 
   const someMissingGps = useMemo(() => {
     if (!hasAnyGps || !shared) return false;
@@ -200,12 +210,20 @@ export function PathRouteMap({
       m.getSource('pr-line')?.setData(routeFeatures.features.length ? routeFeatures : EMPTY_FC);
       markersRef.current.forEach((mk) => mk.remove());
       markersRef.current = markerSpecs.map((s) =>
-        new MlMarker({ element: markerEl(s.label, s.color, s.title) })
+        new MlMarker({
+          // Palette colours include light ones: pick the label that reads (white when off).
+          element: markerEl(
+            s.label,
+            s.color,
+            s.title,
+            cvdMode === 'off' ? undefined : readableLabelColor(s.color)
+          ),
+        })
           .setLngLat(s.lngLat)
           .addTo(map)
       );
     },
-    [routeFeatures, markerSpecs]
+    [routeFeatures, markerSpecs, cvdMode]
   );
 
   const handleReady = useCallback(
@@ -267,7 +285,7 @@ export function PathRouteMap({
             >
               <span
                 className="inline-block h-2 w-3 rounded-sm"
-                style={{ backgroundColor: getRouteColor(ri) }}
+                style={{ backgroundColor: routeColor(ri) }}
               />
               {t('path_map_route_legend', { n: ri + 1, hops: r.hops.length })}
             </span>

@@ -1,4 +1,5 @@
 import type { MessageLayout } from '../contexts/MessageLayoutContext';
+import { refreshCvdTokens } from '../utils/accessibility';
 import { applyCrt, CRT_EFFECTS } from '../utils/crt';
 import { getEffectiveTheme, isDarkTheme, THEME_CHANGE_EVENT, THEME_KEY } from '../utils/theme';
 
@@ -63,6 +64,7 @@ export function applyPopoutSkin(skin: PopoutSkin): void {
   } else {
     root.dataset.theme = effective;
   }
+  refreshCvdTokens();
 
   applyCrt();
   if (skin !== 'theme') {

@@ -1,3 +1,4 @@
+import { refreshCvdTokens } from './accessibility';
 import { applyCrt, CRT_CHANGE_EVENT, legacyCrtThemeId } from './crt';
 
 /** Page layout a theme asks for. 'atlas' is the EU MeshCore Analyzer shell. */
@@ -225,6 +226,9 @@ export function applyTheme(themeId: string): void {
   } else {
     document.documentElement.dataset.theme = effective;
   }
+
+  // Surface tone + colourblind status tokens follow the theme just applied.
+  refreshCvdTokens();
 
   // Keep CRT effect attributes in sync so they are present the moment a CRT
   // theme becomes active (and harmless otherwise). Effect defaults follow the

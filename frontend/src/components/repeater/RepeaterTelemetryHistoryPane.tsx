@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSeriesColor } from '../../hooks/useCvdColors';
 import {
   AreaChart,
   Area,
@@ -274,6 +275,8 @@ export function TelemetryHistoryPane({
   onToggleTrackedTelemetry,
 }: TelemetryHistoryPaneProps) {
   const t = useT();
+  // Several series in one chart: colourblind palette when a mode is on.
+  const seriesColor = useSeriesColor();
   const { distanceUnit } = useDistanceUnit();
   const [metric, setMetric] = useState<string>('battery_volts');
   const [toggling, setToggling] = useState(false);
@@ -400,28 +403,28 @@ export function TelemetryHistoryPane({
       return [
         {
           key: 'packets_received',
-          color: '#0ea5e9',
+          color: seriesColor(0, '#0ea5e9'),
           axis: 'left' as const,
           line: false,
           label: t('repeater_series_received'),
         },
         {
           key: 'packets_sent',
-          color: '#f43f5e',
+          color: seriesColor(1, '#f43f5e'),
           axis: 'left' as const,
           line: false,
           label: t('repeater_series_sent'),
         },
         {
           key: 'packets_received_delta',
-          color: '#14b8a6',
+          color: seriesColor(2, '#14b8a6'),
           axis: 'right' as const,
           line: true,
           label: t('repeater_series_received_delta'),
         },
         {
           key: 'packets_sent_delta',
-          color: '#f59e0b',
+          color: seriesColor(3, '#f59e0b'),
           axis: 'right' as const,
           line: true,
           label: t('repeater_series_sent_delta'),
@@ -432,14 +435,14 @@ export function TelemetryHistoryPane({
       return [
         {
           key: 'recv_errors',
-          color: '#ef4444',
+          color: seriesColor(0, '#ef4444'),
           axis: 'left' as const,
           line: false,
           label: t('repeater_rx_errors_label'),
         },
         {
           key: 'recv_error_pct',
-          color: '#f59e0b',
+          color: seriesColor(1, '#f59e0b'),
           axis: 'right' as const,
           line: false,
           label: t('repeater_series_error_rate'),
@@ -455,7 +458,7 @@ export function TelemetryHistoryPane({
         label: activeConfig.label,
       },
     ];
-  }, [activeMetric, activeConfig, t]);
+  }, [activeMetric, activeConfig, t, seriesColor]);
 
   const leftKeys = useMemo(
     () => series.filter((s) => s.axis === 'left').map((s) => s.key),
@@ -716,7 +719,7 @@ export function TelemetryHistoryPane({
               variant="outline"
               onClick={handleToggle}
               disabled={toggling}
-              className="border-green-600/50 text-green-600 hover:bg-green-600/10"
+              className="border-green-600/50 text-green-600 hover:bg-green-600/10 cvd:border-success/50 cvd:text-success cvd:hover:bg-success/10"
             >
               {toggling ? t('repeater_updating') : t('repeater_opt_in_tracking_button')}
             </Button>

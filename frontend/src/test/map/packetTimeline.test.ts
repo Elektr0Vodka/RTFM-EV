@@ -143,6 +143,18 @@ describe('packetTimeline', () => {
     });
   }
 
+  it('colours new arcs with the signal stops it is given', () => {
+    const tl = createPacketTimeline({
+      resolveCoord,
+      getContext: makeContext,
+      state: createPacketNetworkState('Me'),
+      getSignalColors: () => ({ bad: '#010203', mid: '#040506', good: '#0a0b0c' }),
+    });
+    tl.ingest([{ ...createPacket('dm-direct'), snr: 12 }]);
+    const { maxMs } = tl.range();
+    expect(tl.stateAsOf(maxMs).arcs[0].color).toEqual([10, 11, 12]);
+  });
+
   it('resolves a direct packet to one witnessed arc with pulse and glow', () => {
     const tl = makeTimeline();
     tl.ingest([createPacket('dm-direct')]);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCvdColors, useCvdMode } from '../../../hooks/useCvdColors';
 import { useT } from '../../../i18n';
 import {
   clampZoom,
@@ -19,6 +20,10 @@ interface Props {
 // pointer/resize/theme wiring. The draw itself lives in renderRadar.
 export function DirectRadar({ data }: Props) {
   const t = useT();
+  // Colourblind mode: SNR dots and legend use the palette's signal stops.
+  const cvdMode = useCvdMode();
+  const cvdColors = useCvdColors();
+  const signalColors = cvdMode === 'off' ? undefined : cvdColors.signal;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [view, setView] = useState<RadarView>(defaultView());
@@ -30,6 +35,7 @@ export function DirectRadar({ data }: Props) {
     renderRadar(canvas, data, {
       zoom,
       view,
+      signalColors,
       text: {
         noLocation: t('node_radar_no_location'),
         noContacts: t('node_radar_no_contacts'),
@@ -39,7 +45,7 @@ export function DirectRadar({ data }: Props) {
         sizeLabel: t('node_radar_size_label'),
       },
     });
-  }, [data, zoom, view, t]);
+  }, [data, zoom, view, t, signalColors]);
 
   // Repaint on data/zoom/view/text change.
   useEffect(() => {

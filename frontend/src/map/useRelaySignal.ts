@@ -23,9 +23,17 @@ export interface UseRelaySignalOptions {
   until: number | null;
   /** Contacts with manual location overrides applied. */
   contacts: Contact[];
+  /** Colourblind SNR stops; today's ramp when unset. */
+  signalColors?: { bad: string; mid: string; good: string };
 }
 
-export function useRelaySignal({ enabled, since, until, contacts }: UseRelaySignalOptions) {
+export function useRelaySignal({
+  enabled,
+  since,
+  until,
+  contacts,
+  signalColors,
+}: UseRelaySignalOptions) {
   const [relays, setRelays] = useState<RelaySummary[]>([]);
   const [tick, setTick] = useState(0);
   const layerRef = useRef<ReturnType<typeof createRelaySignalLayer> | null>(null);
@@ -65,7 +73,10 @@ export function useRelaySignal({ enabled, since, until, contacts }: UseRelaySign
     return () => window.clearInterval(id);
   }, [enabled, until]);
 
-  const built = useMemo(() => buildRelaySignalFeatures(relays, contacts), [relays, contacts]);
+  const built = useMemo(
+    () => buildRelaySignalFeatures(relays, contacts, signalColors),
+    [relays, contacts, signalColors]
+  );
   const builtRef = useRef(built);
   builtRef.current = built;
 

@@ -10,9 +10,17 @@ import { App } from './App';
 import { TapTooltipLayer } from './components/TapTooltipLayer';
 import './index.css';
 import './app-layers.css';
+import './accessibility.css';
 import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
 import { applyCrt } from './utils/crt';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
+import {
+  applyCvdMode,
+  applyReadingFont,
+  followAccessibilityFromOtherWindows,
+  getSavedCvdMode,
+  getSavedReadingFont,
+} from './utils/accessibility';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
 import { I18nProvider } from './i18n';
 import { setCountryFlagFontActive } from './utils/countryFlagFont';
@@ -37,6 +45,10 @@ applyCrt();
 // Re-apply when the OS color-scheme preference changes, if on "Follow OS".
 initFollowOSListener();
 applyFontScale(getSavedFontScale());
+// Colourblind mode and reading font sit on top of any theme (and popup skin).
+applyReadingFont(getSavedReadingFont());
+applyCvdMode(getSavedCvdMode());
+followAccessibilityFromOtherWindows();
 // Multi-radio mode: the gateway serves this same build at /gateway/ as the
 // radios page. No radio API exists there, so the app itself is not started.
 const onRadiosPage = getGatewayContext()?.page === 'radios';
