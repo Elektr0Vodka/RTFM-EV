@@ -1,0 +1,31 @@
+/*
+  MapLibre popups themed via the app's HSL tokens.
+
+  Unlayered on purpose and imported right after maplibre-gl.css (MapSurface).
+  maplibre-gl.css is unlayered too, so a rule in the Tailwind utilities layer
+  (styles.css) loses to it regardless of specificity: popups stayed white with
+  the theme's light text on dark themes. Here the selectors match MapLibre's
+  and come later, so they win.
+*/
+.maplibregl-popup-content {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+}
+/* The tip is a border triangle; MapLibre colours one side per anchor. */
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: hsl(var(--popover));
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: hsl(var(--popover));
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: hsl(var(--popover));
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: hsl(var(--popover));
+}
