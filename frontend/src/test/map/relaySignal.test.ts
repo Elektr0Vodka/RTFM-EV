@@ -67,6 +67,16 @@ describe('relay signal overlay', () => {
     expect(feature.properties.radius).toBe(relayRingRadius(8));
   });
 
+  it('colours relays with given signal stops', () => {
+    const signal = { bad: '#010203', mid: '#040506', good: '#0a0b0c' };
+    const { collection } = buildRelaySignalFeatures(
+      [relay({ resolved_pubkey: KEY_A, resolved_name: 'Relay A', receptions: 8, avg_snr: 15 })],
+      [contact(KEY_A, 'Relay A', 52.1, 4.3)],
+      signal
+    );
+    expect(collection.features[0].properties.color).toBe('rgb(10, 11, 12)');
+  });
+
   it('counts unresolved, colliding and unlocated relays as unplaced and skips the direct row', () => {
     const { placed, unplaced } = buildRelaySignalFeatures(
       [

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { ExternalLink, Library, Star } from 'lucide-react';
 import { api } from '../api';
@@ -415,16 +416,17 @@ const TOOLTIP_STYLE = {
 } as const;
 
 function HopWidthChart({ stats, ready, t }: { stats: PathHashWidthStats; ready: boolean; t: TFn }) {
+  const seriesColor = useSeriesColor();
   const data = useMemo(
     () =>
       hopWidthSegments(t)
-        .map(({ key, label, color }) => ({
+        .map(({ key, label, color }, i) => ({
           name: label,
           value: stats[key] as number,
-          color,
+          color: seriesColor(i, color),
         }))
         .filter((d) => d.value > 0),
-    [stats, t]
+    [stats, t, seriesColor]
   );
 
   return (

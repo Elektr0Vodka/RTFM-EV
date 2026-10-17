@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildNodeFeatures,
   circleRadiusExpr,
+  circleColorExpr,
   createNodesLayer,
   recencyTier,
   observedIdTag,
@@ -88,6 +89,17 @@ describe('createNodesLayer equal sizes', () => {
     expect(radius()).toEqual(circleRadiusExpr(20, 20));
     layer.setEqualSizes(false);
     expect(radius()).toEqual(circleRadiusExpr(14, 20));
+  });
+
+  it('repaints the fill when the recency colours change', () => {
+    const { map } = fakeMap();
+    const recency = { recent: '#010203', today: '#040506', stale: '#070809', old: '#0a0b0c' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const layer = createNodesLayer(map as any);
+    layer.ensure();
+    expect(map.getLayer('rt-nodes')?.paint['circle-color']).toEqual(circleColorExpr());
+    layer.setRecencyColors(recency);
+    expect(map.getLayer('rt-nodes')?.paint['circle-color']).toEqual(circleColorExpr(recency));
   });
 });
 

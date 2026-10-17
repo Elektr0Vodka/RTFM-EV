@@ -6,6 +6,9 @@ import {
   BatteryWarning,
   Menu,
   MessagesSquare,
+  CircleCheck,
+  CircleX,
+  LoaderCircle,
   Moon,
   Sun,
 } from 'lucide-react';
@@ -64,6 +67,21 @@ interface StatusBarProps {
    * the layout, which moves this bar to another place in the tree.
    */
   onOpenThemeSettings?: () => void;
+}
+
+type RadioIconState = 'connected' | 'connecting' | 'disconnected';
+
+/** Radio state as a shape (tick, spinner ring, cross), for when the label is hidden. */
+function RadioStateIcon({ state }: { state: RadioIconState }) {
+  const Icon =
+    state === 'connected' ? CircleCheck : state === 'connecting' ? LoaderCircle : CircleX;
+  return (
+    <Icon
+      data-radio-icon={state}
+      aria-hidden="true"
+      className="h-3 w-3 shrink-0 text-muted-foreground lg:hidden"
+    />
+  );
 }
 
 export function StatusBar({
@@ -217,6 +235,13 @@ export function StatusBar({
     }
   };
 
+  const radioIconState: RadioIconState =
+    radioState === 'initializing' || radioState === 'connecting'
+      ? 'connecting'
+      : connected
+        ? 'connected'
+        : 'disconnected';
+
   return (
     <header
       className={cn(
@@ -271,6 +296,9 @@ export function StatusBar({
           style={connected && pulseKind ? { backgroundColor: pulseColorFor(pulseKind) } : undefined}
           aria-hidden="true"
         />
+        {/* Below lg the label is hidden: a shape per state, so the dot's colour
+            is not the only cue. */}
+        {!topbar && <RadioStateIcon state={radioIconState} />}
         <span className={cn('text-muted-foreground', !topbar && 'hidden lg:inline')}>
           {statusLabel}
         </span>

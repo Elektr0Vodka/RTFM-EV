@@ -94,7 +94,7 @@ export function HostRepeaterRegions({ draft, onChange, repeaters, prefilled }: P
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{t('settings_host_repeater_regions_desc')}</p>
       {prefilled && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
+        <p className="text-xs text-amber-600 dark:text-amber-400 cvd:text-warning">
           {t('settings_host_repeater_regions_prefilled')}
         </p>
       )}

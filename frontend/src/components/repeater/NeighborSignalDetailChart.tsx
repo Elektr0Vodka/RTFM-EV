@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useSeriesColor } from '../../hooks/useCvdColors';
 import {
   LineChart,
   Line,
@@ -34,6 +35,7 @@ function formatTime(ts: number): string {
 
 export function NeighborSignalDetailChart({ name, repeaterSamples, selfSamples }: Props) {
   const t = useT();
+  const seriesColor = useSeriesColor();
   const data = useMemo(
     () => mergeSignalSeries(repeaterSamples, selfSamples),
     [repeaterSamples, selfSamples]
@@ -102,7 +104,7 @@ export function NeighborSignalDetailChart({ name, repeaterSamples, selfSamples }
                   type="monotone"
                   dataKey="repeater_snr"
                   name={t('neighbor_signal_series_repeater')}
-                  stroke="#3b82f6"
+                  stroke={seriesColor(0, '#3b82f6')}
                   strokeWidth={1.5}
                   dot={false}
                   connectNulls
@@ -112,7 +114,7 @@ export function NeighborSignalDetailChart({ name, repeaterSamples, selfSamples }
                   type="monotone"
                   dataKey="self_snr"
                   name={t('neighbor_signal_series_self')}
-                  stroke="#f59e0b"
+                  stroke={seriesColor(1, '#f59e0b')}
                   strokeWidth={1.5}
                   dot={false}
                   connectNulls

@@ -956,7 +956,7 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
       </details>
 
       {hr.remoteChanged && (
-        <p className="text-sm text-amber-600 dark:text-amber-400">
+        <p className="text-sm text-amber-600 dark:text-amber-400 cvd:text-warning">
           {t('settings_host_repeater_remote_changed')}{' '}
           <button type="button" className="underline" onClick={() => void hr.reload()}>
             {t('settings_host_repeater_reload')}

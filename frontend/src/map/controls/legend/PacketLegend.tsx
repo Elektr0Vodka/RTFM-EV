@@ -19,7 +19,15 @@ const ROW = 'flex items-center gap-2 py-0.5 text-xs text-muted-foreground';
 /** Legend for the live packet visualization: packet-type colours, the SNR arc
  *  gradient, and the witnessed-vs-inferred line-style key. Appended to MapLegend
  *  (as its `extra`) while packet visualization is on. */
-export function PacketLegend() {
+export function PacketLegend({
+  signalColors,
+}: {
+  /** Colourblind SNR stops (bad / mid / good); today's ramp when unset. */
+  signalColors?: { bad: string; mid: string; good: string };
+} = {}) {
+  const snrGradient = signalColors
+    ? `linear-gradient(to right, ${signalColors.bad}, ${signalColors.mid}, ${signalColors.good})`
+    : 'linear-gradient(to right, rgb(245,158,11), rgb(59,130,246), rgb(34,197,94))';
   const t = useT();
   return (
     <>
@@ -39,14 +47,7 @@ export function PacketLegend() {
 
       <div role="group" aria-label={t('map_legend_snr')}>
         <div className={SECTION}>{t('map_legend_snr')}</div>
-        <div
-          aria-hidden
-          className="h-2 w-full rounded"
-          style={{
-            background:
-              'linear-gradient(to right, rgb(245,158,11), rgb(59,130,246), rgb(34,197,94))',
-          }}
-        />
+        <div aria-hidden className="h-2 w-full rounded" style={{ background: snrGradient }} />
         <div className="flex justify-between text-[10px] text-muted-foreground">
           <span>{t('map_legend_snr_low')}</span>
           <span>{t('map_legend_snr_high')}</span>

@@ -128,6 +128,22 @@ describe('buildNeonNodeLayers', () => {
     expect(fill(data[0]).slice(0, 3)).toEqual([6, 182, 212]);
   });
 
+  it('colours the core with given recency colours', () => {
+    const recency = { recent: '#010203', today: '#040506', stale: '#070809', old: '#0a0b0c' };
+    const [, core] = buildNeonNodeLayers(
+      fakeDeck(),
+      data,
+      1,
+      undefined,
+      undefined,
+      false,
+      recency
+    ) as unknown as FakeLayer[];
+    const fill = core.props.getFillColor as (d: NeonNodeDatum) => number[];
+    expect(fill(data[0]).slice(0, 3)).toEqual([1, 2, 3]);
+    expect(fill(data[1]).slice(0, 3)).toEqual([10, 11, 12]);
+  });
+
   it('rings the core with the per-type role colour (matches the legend/picker)', () => {
     const roleColors = { [CONTACT_TYPE_CLIENT]: '#010203', [CONTACT_TYPE_REPEATER]: '#0a141e' };
     const [, core] = buildNeonNodeLayers(fakeDeck(), data, 1, roleColors) as unknown as FakeLayer[];

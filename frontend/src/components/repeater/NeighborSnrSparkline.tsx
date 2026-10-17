@@ -1,3 +1,4 @@
+import { useCvdMode } from '../../hooks/useCvdColors';
 import type { SnrPoint } from './neighborSignalUtils';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
  *  (a single point is a misleading "trend"). Line color follows the latest
  *  SNR, matching the table's SNR thresholds. */
 export function NeighborSnrSparkline({ samples, width = 64, height = 18, ariaLabel }: Props) {
+  const cvdMode = useCvdMode();
   if (samples.length < 2) return null;
   const xs = samples.map((s) => s.observed_at);
   const ys = samples.map((s) => s.snr);
@@ -28,7 +30,19 @@ export function NeighborSnrSparkline({ samples, width = 64, height = 18, ariaLab
     })
     .join(' ');
   const last = ys[ys.length - 1];
-  const color = last >= 6 ? '#22c55e' : last >= 0 ? '#eab308' : '#ef4444';
+  // Under a colourblind mode, the same status tokens the neighbour table's SNR text uses.
+  const color =
+    cvdMode === 'off'
+      ? last >= 6
+        ? '#22c55e'
+        : last >= 0
+          ? '#eab308'
+          : '#ef4444'
+      : last >= 6
+        ? 'hsl(var(--success))'
+        : last >= 0
+          ? 'hsl(var(--warning))'
+          : 'hsl(var(--destructive))';
   return (
     <svg
       width={width}

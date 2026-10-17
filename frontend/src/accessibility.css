@@ -1,0 +1,30 @@
+/* Reading font (Settings > Local > Accessibility). Replaces the theme's sans
+   font on top of every theme; the monospace font is never touched, so packet
+   hex, keys and aligned columns keep their layout. `html:root[...]` outranks
+   the themes' `:root[data-theme=...]` token blocks. The flag-emoji font stays
+   first, as in the base stack: it only has flag glyphs. */
+html:root[data-reading-font='opendyslexic'] {
+  --font-sans: 'Twemoji Country Flags', 'OpenDyslexic', system-ui, sans-serif;
+}
+
+html:root[data-reading-font='atkinson'] {
+  --font-sans: 'Twemoji Country Flags', 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+
+html:root[data-reading-font='lexend'] {
+  --font-sans: 'Twemoji Country Flags', 'Lexend', system-ui, sans-serif;
+}
+
+/* Themes that set a display font on headings directly instead of through
+   --font-sans: DarkDutch (Aldrich) and MCEU (Bricolage Grotesque). */
+html[data-reading-font][data-theme='darkdutch']
+  :is(.app-statusbar h1, .conversation-header h2, .dd-section-label),
+html[data-reading-font][data-theme^='mceu-'] :is(h1, h2, h3) {
+  font-family: var(--font-sans);
+}
+
+/* The mIRC popup skins draw the chat pane in a fixed-width font. That is chat
+   text people read, not data, so the reading font reaches it too. */
+html[data-reading-font][data-theme^='mirc'] .popout-pane {
+  font-family: var(--font-sans);
+}

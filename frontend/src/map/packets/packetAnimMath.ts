@@ -68,15 +68,25 @@ export function glowIntensity(ageMs: number, durMs: number = GLOW_MS): number {
   return 1 - ageMs / durMs;
 }
 
-/** SNR colour ramp: amber (low) -> blue (mid) -> green (high). Unknown SNR maps
- *  to a neutral grey. Returns an [r,g,b] triple for deck.gl. */
-export function snrColor(snr: number | null | undefined): [number, number, number] {
+/** SNR colour ramp: amber (low) -> blue (mid) -> green (high), or the given
+ *  colourblind stops. Unknown SNR maps to a neutral grey. Returns an [r,g,b]
+ *  triple for deck.gl. */
+export function snrColor(
+  snr: number | null | undefined,
+  colors?: { bad: string; mid: string; good: string }
+): [number, number, number] {
   if (snr == null || Number.isNaN(snr)) return [150, 150, 150];
-  const stops: Array<[number, [number, number, number]]> = [
-    [-20, [245, 158, 11]],
-    [0, [59, 130, 246]],
-    [10, [34, 197, 94]],
-  ];
+  const stops: Array<[number, [number, number, number]]> = colors
+    ? [
+        [-20, hexToRgb(colors.bad)],
+        [0, hexToRgb(colors.mid)],
+        [10, hexToRgb(colors.good)],
+      ]
+    : [
+        [-20, [245, 158, 11]],
+        [0, [59, 130, 246]],
+        [10, [34, 197, 94]],
+      ];
   if (snr <= stops[0][0]) return stops[0][1];
   if (snr >= stops[stops.length - 1][0]) return stops[stops.length - 1][1];
   for (let i = 0; i + 1 < stops.length; i++) {
