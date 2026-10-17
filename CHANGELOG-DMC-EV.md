@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-17 (Frontend test flake: route suggestions fetch, CI run 39059119427)
+
+Tests only; the app does not change.
+
+### Tests: `asks for route suggestions for companions only` (frontend)
+- `src/test/contactInfoPane.test.tsx` failed on `main` (1b8e6335) with
+  `expected "vi.fn()" to be called with arguments` / `Number of calls: 0`,
+  while the same tests passed on the branch runs before it.
+  `ContactRouteSuggestionsSection` calls `api.contactRouteSuggestions` from its
+  own mount effect, and the test asserted the call right after the Notes field
+  appeared, without waiting for that effect.
+- The test now waits for the call with `waitFor`. The negative (repeater) check
+  is unchanged.
+
 ## Update 2026-10-17 (shared dependency folder for worktrees: feat/shared-deps-folder)
 
 Developer tooling only; the app does not change. Windows (PowerShell).
