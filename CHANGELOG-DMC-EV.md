@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-17 (host repeater: transport code 0 is un-scoped, fix/host-repeater-code0-unscoped)
+
+No migration, no new dependency or environment variable. Not tested on air.
+
+### Host repeater
+- **A flood with transport code 0 is judged as un-scoped.** MeshCore 1.18
+  treats code 0 as the wildcard region (#3568); the engine dropped such a
+  packet as an unknown region. It now follows the rules for `*` like a plain
+  flood, as in Dutch-MeshCore/MeshCore#22: it is dropped when unscoped floods
+  are denied or the duty-cycle gate holds `*`, and `flood.max.unscoped`
+  applies to it. Its policy `region` field is `unscoped`. Stock clients never
+  send code 0.
+
 ## Update 2026-10-17 (message box keeps the cursor: fix/composer-keep-focus)
 
 Richard's request. No migration, no setting. Not tested on a phone.

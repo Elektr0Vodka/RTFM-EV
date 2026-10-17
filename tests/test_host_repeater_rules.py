@@ -239,6 +239,9 @@ def test_region_field_is_the_resolved_name_or_unscoped():
     scoped = frame(TFLOOD, TXT, 0x01, b"\x11", bytes(20), codes=b"\x01\x02\x03\x04")
     assert decide(eng, scoped, region="Foo").policy_rule_id == "foo"
     assert decide(eng, scoped, region="Bar").policy_rule_id is None
+    # transport code 0 is un-scoped (firmware 1.18 RegionMap::findMatch)
+    zero = frame(TFLOOD, TXT, 0x01, b"\x11", bytes([5]) * 20, codes=b"\x00\x00\x03\x04")
+    assert decide(eng, zero).policy_rule_id == "plain"
     # direct packets have no region and match neither
     assert decide(eng, frame(DIRECT, TXT, 0x01, b"\xab", bytes(20))).policy_rule_id is None
 
