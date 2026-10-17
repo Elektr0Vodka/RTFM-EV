@@ -1563,6 +1563,47 @@ class TestKnownList:
             det.action("forget_known", name="Nobody")
 
 
+class TestMetricsPerChannel:
+    def build(self):
+        det, clock = make(channels=TWO_CHANNELS, overrides={"dedupe_enabled": False})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)  # Public: spam
+        for index in range(2):
+            clock.tick(5)
+            det.ingest(
+                ts=clock.now,
+                path=("44",),
+                sender="Dave",
+                text=f"evening on the club channel {index}",
+                channel=OTHER,
+                length=60,
+            )
+        settle(det, clock)
+        return det, clock
+
+    def test_one_channel_or_all(self):
+        det, clock = self.build()
+        everything = det.metrics()
+        club = det.metrics(channel=OTHER)
+        public = det.metrics(channel=PUBLIC)
+        total = lambda metrics: sum(p["messages"] for p in metrics["hourly"])  # noqa: E731
+        assert (total(everything), total(club), total(public)) == (5, 2, 3)
+        assert sum(club["by_hour"]) == 0
+        assert sum(public["by_hour"]) == sum(everything["by_hour"]) > 0
+        # The number tiles stay "all channels".
+        assert club["d1"] == everything["d1"]
+        assert club["channel_since"] == public["channel_since"] is not None
+        assert everything["channel_since"] is None
+
+    def test_per_channel_counts_survive_a_restart(self):
+        det, clock = self.build()
+        other, _ = make(channels=TWO_CHANNELS)
+        other._clock = clock
+        other.load(json.loads(json.dumps(det.dump())))
+        assert other.metrics(channel=OTHER)["hourly"] == det.metrics(channel=OTHER)["hourly"]
+        assert other.channels_since == det.channels_since
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

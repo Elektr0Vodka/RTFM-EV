@@ -293,6 +293,9 @@ def _empty_hour() -> dict[str, Any]:
         # Spam (stopped or let through) per first hop, and when each was last seen.
         "hops": {},
         "last": {},
+        # channel key -> {"messages", "stopped", "let_through"}, for the graphs of
+        # one channel (since ``SpamDetector.channels_since``).
+        "channels": {},
     }
 
 
@@ -313,6 +316,8 @@ class SpamDetector:
         self.relays: dict[str, float] = {}
         # start of hour (epoch seconds) -> counters, see ``_empty_hour``
         self.hours: dict[int, dict[str, Any]] = {}
+        # When counting per channel started (older hours have no split).
+        self.channels_since: float | None = None
         self.held: deque[dict[str, Any]] = deque(maxlen=60)
         self.activity: deque[dict[str, Any]] = deque(maxlen=300)
         self.campaigns: dict[int, _Campaign] = {}
@@ -1509,6 +1514,14 @@ class SpamDetector:
         hour = self.hours.setdefault(int(event.ts // 3600) * 3600, _empty_hour())
         hour["messages"] += 1
         outcome, block = self._outcome(event)
+        if self.channels_since is None:
+            self.channels_since = event.ts
+        channel = hour.setdefault("channels", {}).setdefault(
+            event.channel, {"messages": 0, "stopped": 0, "let_through": 0}
+        )
+        channel["messages"] += 1
+        if outcome in ("stopped", "let_through"):
+            channel[outcome] += 1
         if outcome == "held":
             hour["held_genuine"] += 1
         elif outcome != "clean":
@@ -1542,8 +1555,18 @@ class SpamDetector:
         hour = self.hours.setdefault(int(ts // 3600) * 3600, _empty_hour())
         hour["airtime_ms"] = round(hour["airtime_ms"] + airtime_ms, 1)
 
-    def metrics(self) -> dict[str, Any]:
+    def metrics(self, channel: str | None = None) -> dict[str, Any]:
+        """Numbers for the overview. With ``channel`` the graphs (hourly, daily,
+        hour of day) count that channel only; the totals and sources stay for
+        all channels."""
         now = self._clock()
+        key = channel.upper() if channel else None
+
+        def pick(hour: dict[str, Any]) -> dict[str, Any]:
+            if key is None:
+                return hour
+            return (hour.get("channels") or {}).get(key, {})
+
         day_ago, week_ago = now - 86400, now - 7 * 86400
         counters = ("messages", "stopped", "let_through", "held_genuine", "airtime_ms")
 
@@ -1563,7 +1586,7 @@ class SpamDetector:
             out = {"t": start, "messages": 0, "stopped": 0, "let_through": 0}
             for hour in hours:
                 for name in ("messages", "stopped", "let_through"):
-                    out[name] += hour.get(name, 0)
+                    out[name] += pick(hour).get(name, 0)
             return out
 
         this_hour = int(now // 3600) * 3600
@@ -1587,7 +1610,10 @@ class SpamDetector:
                 continue
             # Hour of day in UTC: the server's time zone is not the viewer's, so
             # the frontend shifts this to local time.
-            by_hour[time.gmtime(start).tm_hour] += hour["stopped"] + hour["let_through"]
+            picked = pick(hour)
+            by_hour[time.gmtime(start).tm_hour] += picked.get("stopped", 0) + picked.get(
+                "let_through", 0
+            )
             for hop, count in hour["hops"].items():
                 source = sources.setdefault(hop, {"hop": hop, "d7": 0, "d1": 0, "last": 0})
                 source["d7"] += count
@@ -1606,6 +1632,8 @@ class SpamDetector:
             "by_hour": by_hour,
             "sources": top,
             "since": min(self.hours, default=None),
+            "channel": key,
+            "channel_since": self.channels_since if key else None,
         }
 
     # ── state ────────────────────────────────────────────────────────────
@@ -1616,6 +1644,7 @@ class SpamDetector:
             "version": STATE_VERSION,
             "blocks": {key: asdict(block) for key, block in self.blocks.items()},
             "suppressed": dict(self.suppressed),
+            "channels_since": self.channels_since,
             "known": {name: list(entry) for name, entry in self.known.items()},
             "homes": {name: dict(hops) for name, hops in self.homes.items()},
             "routes": {route: list(record) for route, record in self.routes.items()},
@@ -1666,6 +1695,8 @@ class SpamDetector:
             if isinstance(v, (int, float)) and v > now
         }
         self.known = rows("known", 3)
+        since = state.get("channels_since")
+        self.channels_since = float(since) if isinstance(since, (int, float)) else None
         version = state.get("version")
         if not isinstance(version, int) or version < 2:
             for entry in self.known.values():

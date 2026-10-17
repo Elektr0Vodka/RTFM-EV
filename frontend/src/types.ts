@@ -3504,6 +3504,10 @@ export interface SpamGuardMetrics {
   by_hour: number[];
   sources: SpamSource[];
   since: number | null;
+  /** The channel the graphs count (upper case), null for all channels. */
+  channel?: string | null;
+  /** When counting per channel started; set when `channel` is. */
+  channel_since?: number | null;
 }
 
 export type SpamGuardSyncState =

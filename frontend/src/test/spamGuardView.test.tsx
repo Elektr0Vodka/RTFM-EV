@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   getOpenHopPolicy: vi.fn(),
   getFilterProfiles: vi.fn(),
   getSpamGuardKnown: vi.fn(),
+  getSpamGuardMetrics: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -337,6 +338,38 @@ beforeEach(() => {
 });
 
 describe('SpamGuardView overview', () => {
+  it('shows the graphs for one channel when picked, and remembers it', async () => {
+    localStorage.removeItem('spamGuardChartChannel');
+    const state = makeState();
+    mocks.getSpamGuardMetrics.mockResolvedValue({
+      ...state.metrics,
+      channel: OTHER,
+      channel_since: NOW - 3600,
+    });
+    await renderView({
+      ...state,
+      settings: {
+        ...state.settings,
+        channels: [
+          { key: PUBLIC, name: 'Public' },
+          { key: OTHER, name: '#other' },
+        ],
+      },
+    });
+    const picker = screen.getByLabelText('Show the graphs for');
+    expect(picker).toHaveValue('');
+    fireEvent.change(picker, { target: { value: OTHER } });
+    await waitFor(() => expect(mocks.getSpamGuardMetrics).toHaveBeenCalledWith(OTHER));
+    expect(await screen.findByText(/Counted per channel since/)).toBeInTheDocument();
+    expect(localStorage.getItem('spamGuardChartChannel')).toBe(OTHER);
+    localStorage.removeItem('spamGuardChartChannel');
+  });
+
+  it('has no channel picker with one protected channel', async () => {
+    await renderView();
+    expect(screen.queryByLabelText('Show the graphs for')).toBeNull();
+  });
+
   it('shows mode, health and the numbers', async () => {
     await renderView();
     expect(screen.getByRole('button', { name: 'Monitor' })).toHaveAttribute('aria-pressed', 'true');

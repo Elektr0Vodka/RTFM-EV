@@ -88,6 +88,16 @@ async def get_spam_guard() -> dict[str, Any]:
     return spam_guard.snapshot()
 
 
+@router.get("/metrics")
+async def get_spam_guard_metrics(
+    channel: str | None = Query(default=None, max_length=64, description="Channel key"),
+) -> dict[str, Any]:
+    """The overview numbers; with ``channel`` the graphs count that channel only
+    (``channel_since`` says from when)."""
+    await spam_guard.ensure_loaded()
+    return spam_guard.detector.metrics(channel=channel)
+
+
 @router.get("/known")
 async def get_spam_guard_known(
     q: str = Query(default="", max_length=64, description="Part of a name, any case"),

@@ -411,3 +411,11 @@ class TestKnownPeopleRoute:
         runtime.detector.known["Bram"] = [now - 900, now - 600, 4]
         body = await router_module.get_spam_guard_known(q="an", limit=10, offset=0)
         assert body["total"] == 1 and body["people"][0]["name"] == "Anouk"
+
+
+class TestMetricsRoute:
+    @pytest.mark.asyncio
+    async def test_metrics_for_one_channel(self, runtime):
+        body = await router_module.get_spam_guard_metrics(channel=PUBLIC.lower())
+        assert set(body) >= {"hourly", "daily", "by_hour", "channel_since"}
+        assert body["channel"] == PUBLIC

@@ -1,11 +1,39 @@
+import { useEffect, useState } from 'react';
+
+import { api } from '../../api';
 import type { SpamGuardController } from '../../hooks/useSpamGuard';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/utils';
-import type { SpamGuardSensitivity, SpamGuardState, SpamPoint, SpamTotals } from '../../types';
+import type {
+  SpamGuardMetrics,
+  SpamGuardSensitivity,
+  SpamGuardState,
+  SpamPoint,
+  SpamTotals,
+} from '../../types';
 import { Button } from '../ui/button';
 import { formatAirtime, formatDuration } from './spamGuardText';
 
 const SENSITIVITIES: SpamGuardSensitivity[] = ['relaxed', 'balanced', 'strict'];
+/** The channel the graphs show, remembered per browser. */
+const CHART_CHANNEL_STORAGE = 'spamGuardChartChannel';
+
+function readChartChannel(): string {
+  try {
+    return localStorage.getItem(CHART_CHANNEL_STORAGE) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function storeChartChannel(key: string): void {
+  try {
+    if (key) localStorage.setItem(CHART_CHANNEL_STORAGE, key);
+    else localStorage.removeItem(CHART_CHANNEL_STORAGE);
+  } catch {
+    // Storage blocked: the choice lasts until the page reloads.
+  }
+}
 
 const HEALTH_CLASS: Record<SpamGuardState['health']['state'], string> = {
   off: 'bg-muted text-muted-foreground',
@@ -117,6 +145,29 @@ export function SpamOverviewTab({
 }) {
   const t = useT();
   const { settings, health, metrics } = state;
+  const [chartChannel, setChartChannel] = useState(readChartChannel);
+  const [channelMetrics, setChannelMetrics] = useState<SpamGuardMetrics | null>(null);
+  const picked = settings.channels.some((c) => c.key === chartChannel) ? chartChannel : '';
+  useEffect(() => {
+    if (!picked) return;
+    let current = true;
+    api
+      .getSpamGuardMetrics(picked)
+      .then((result) => {
+        if (current) setChannelMetrics(result);
+      })
+      .catch(() => {
+        if (current) setChannelMetrics(null);
+      });
+    return () => {
+      current = false;
+    };
+  }, [picked, metrics]);
+  // The graphs follow the picked channel; the number tiles stay "all channels".
+  const charts =
+    picked && channelMetrics && channelMetrics.channel === picked.toUpperCase()
+      ? channelMetrics
+      : metrics;
   const disabled = guard.busy || !state.enabled;
   const update = (patch: Partial<typeof settings>) => void guard.save({ ...settings, ...patch });
   const hourKey = (point: SpamPoint) => String(point.t);
@@ -127,8 +178,8 @@ export function SpamOverviewTab({
   const nowSeconds = Date.now() / 1000;
   // The server counts hour of day in UTC; show it in the viewer's time.
   const utcOffsetHours = Math.round(-new Date().getTimezoneOffset() / 60);
-  const byLocalHour = metrics.by_hour.map(
-    (_, hour) => metrics.by_hour[(((hour - utcOffsetHours) % 24) + 24) % 24]
+  const byLocalHour = charts.by_hour.map(
+    (_, hour) => charts.by_hour[(((hour - utcOffsetHours) % 24) + 24) % 24]
   );
 
   return (
@@ -244,6 +295,36 @@ export function SpamOverviewTab({
       <Totals title={t('spam_last_7d')} totals={metrics.d7} />
 
       <section className="space-y-3">
+        {settings.channels.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label htmlFor="spam-chart-channel" className="text-foreground">
+              {t('spam_chart_channel')}
+            </label>
+            <select
+              id="spam-chart-channel"
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={picked}
+              onChange={(e) => {
+                setChartChannel(e.target.value);
+                storeChartChannel(e.target.value);
+              }}
+            >
+              <option value="">{t('spam_chart_all_channels')}</option>
+              {settings.channels.map((channel) => (
+                <option key={channel.key} value={channel.key}>
+                  {channel.name || channel.key.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+            {picked && charts.channel_since && (
+              <span className="text-[0.75rem] text-muted-foreground">
+                {t('spam_chart_channel_since', {
+                  date: new Date(charts.channel_since * 1000).toLocaleString(),
+                })}
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3 text-[0.75rem] text-muted-foreground">
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 bg-status-connected/80" aria-hidden="true" />
@@ -258,16 +339,16 @@ export function SpamOverviewTab({
           <h3 className="mb-1 text-sm font-semibold text-foreground">{t('spam_chart_hourly')}</h3>
           <StackedBars
             ariaLabel={t('spam_chart_hourly')}
-            points={metrics.hourly.map((p) => ({ ...p, key: hourKey(p) }))}
-            labelFor={(i) => hourLabel(metrics.hourly[i].t)}
+            points={charts.hourly.map((p) => ({ ...p, key: hourKey(p) }))}
+            labelFor={(i) => hourLabel(charts.hourly[i].t)}
           />
         </div>
         <div>
           <h3 className="mb-1 text-sm font-semibold text-foreground">{t('spam_chart_daily')}</h3>
           <StackedBars
             ariaLabel={t('spam_chart_daily')}
-            points={metrics.daily.map((p) => ({ ...p, key: hourKey(p) }))}
-            labelFor={(i) => dayLabel(metrics.daily[i].t)}
+            points={charts.daily.map((p) => ({ ...p, key: hourKey(p) }))}
+            labelFor={(i) => dayLabel(charts.daily[i].t)}
           />
         </div>
         <div>

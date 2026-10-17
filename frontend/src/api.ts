@@ -112,6 +112,7 @@ import type {
   SpamGuardActionResult,
   SpamGuardReplayRequest,
   SpamGuardReplayResult,
+  SpamGuardMetrics,
   SpamGuardRules,
   SpamKnownList,
   SpamGuardSettings,
@@ -441,6 +442,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ op, args, message_id: messageId ?? null }),
     }),
+  /** Overview numbers with the graphs for one channel. */
+  getSpamGuardMetrics: (channel: string) =>
+    fetchJson<SpamGuardMetrics>(`/spam-guard/metrics?channel=${encodeURIComponent(channel)}`),
   /** Known people, newest heard first; `query` is part of a name. */
   getSpamGuardKnown: (query: string, limit: number, offset = 0) =>
     fetchJson<SpamKnownList>(
