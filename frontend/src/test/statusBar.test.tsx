@@ -145,6 +145,8 @@ describe('StatusBar', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
+    // Sections start collapsed.
+    fireEvent.click(screen.getByRole('button', { name: 'Color theme' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Cyberpunk' }));
 
     expect(localStorage.getItem('remoteterm-theme')).toBe('cyberpunk');
@@ -158,8 +160,12 @@ describe('StatusBar', () => {
     render(<StatusBar health={baseHealth} config={null} onSettingsClick={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open theme settings' }));
     expect(screen.queryByLabelText('Desktop buddy')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Desktop buddy' })).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Color theme' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Windows 95' }));
+    // The buddy section appears (collapsed) once Windows 95 is used.
+    fireEvent.click(screen.getByRole('button', { name: 'Desktop buddy' }));
     expect(screen.getByLabelText('Desktop buddy')).toHaveValue('clippy');
     // The dialog keeps to the picker and threshold; the rest lives in Settings.
     expect(screen.queryByText('Tell me about')).not.toBeInTheDocument();

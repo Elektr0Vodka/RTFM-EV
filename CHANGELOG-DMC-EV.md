@@ -51,6 +51,21 @@ Tests only; the app does not change.
 - The test now waits for the call with `waitFor`. The negative (repeater) check
   is unchanged.
 
+## Update 2026-10-17 (theme dialog sections: feat/theme-dialog-accessibility-sections)
+
+Follow-up to the accessibility settings. Frontend only: no migration, no new
+dependency.
+
+### Theme dialog (sun or moon button)
+- New **Accessibility** section with the colourblind mode and reading font,
+  the same settings as Settings > Local > Accessibility.
+- Every section (Color theme, CRT screen effects, Accessibility, Desktop buddy)
+  is collapsed by default. The sections you open stay open next time, per
+  browser.
+- With a reading font on, the theme picker fits as many columns as there is
+  room for and wraps long names, instead of running names over the next
+  swatch. With the theme's own font it looks as before.
+
 ## Update 2026-10-17 (Accessibility: colourblind mode and reading font: feat/accessibility-colour-reading-font)
 
 Two per-browser settings that work on top of every theme. Frontend only: no

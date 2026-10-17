@@ -5,7 +5,7 @@ import { useT } from '../../i18n';
 /** 3x2 grid of colored dots previewing a theme's palette. */
 function ThemeSwatch({ colors }: { colors: readonly string[] }) {
   return (
-    <div className="grid grid-cols-3 gap-[3px]" aria-hidden="true">
+    <div className="grid shrink-0 grid-cols-3 gap-[3px]" aria-hidden="true">
       {colors.map((c, i) => (
         <div
           key={i}
@@ -27,7 +27,7 @@ export function ThemeSelector() {
   };
 
   return (
-    <fieldset className="flex flex-wrap gap-2 md:grid md:grid-cols-4">
+    <fieldset className="theme-grid flex flex-wrap gap-2 md:grid md:grid-cols-4">
       <legend className="sr-only">{t('settings_theme_legend')}</legend>
       {THEMES.map((theme) => (
         <label
@@ -48,7 +48,8 @@ export function ThemeSelector() {
             className="sr-only"
           />
           <ThemeSwatch colors={theme.swatches} />
-          <span className="text-xs whitespace-nowrap">{theme.name}</span>
+          {/* accessibility.css lets this wrap while a (wider) reading font is on. */}
+          <span className="theme-name min-w-0 text-xs whitespace-nowrap">{theme.name}</span>
         </label>
       ))}
     </fieldset>

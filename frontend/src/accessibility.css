@@ -28,3 +28,14 @@ html[data-reading-font][data-theme^='mceu-'] :is(h1, h2, h3) {
 html[data-reading-font][data-theme^='mirc'] .popout-pane {
   font-family: var(--font-sans);
 }
+
+/* Theme picker: reading fonts are wider, so four fixed columns would run the
+   names over the next swatch. Fit as many columns as there is room for and
+   wrap names at spaces. Only while a reading font is on. */
+html[data-reading-font] .theme-grid {
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}
+
+html[data-reading-font] .theme-name {
+  white-space: normal;
+}

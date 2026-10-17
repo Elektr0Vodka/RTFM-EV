@@ -886,6 +886,7 @@ Desktop:
 - `StatusBar variant="topbar"` renders inside `<main>` and shows radio state only (sparkline, status pill, battery, node name, reconnect).
 - `<main>` itself is never moved or wrapped, so switching theme or crossing the breakpoint does not remount the conversation pane. Keep it that way.
 - The theme dialog's open state lives in `AppShell` (`ThemeSettingsDialog`), because picking a theme with another layout unmounts whichever control opened it.
+- `ThemeSettingsDialog` sections (theme, CRT, accessibility, buddy) are collapsible and start collapsed; the open ones are stored per browser in `remoteterm-theme-dialog-open` (`utils/themeDialogSections.ts`). A section's body only mounts while open. The buddy section is only listed once `isBuddyAvailable()`.
 
 Phones:
 

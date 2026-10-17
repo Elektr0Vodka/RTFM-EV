@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { useT } from '../../i18n';
 import {
@@ -16,9 +16,16 @@ import { Label } from '../ui/label';
 
 const SELECT_CLASS = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
 
-/** Settings > Local > Accessibility: colourblind mode and reading font (per browser). */
-export function AccessibilitySettings() {
+/**
+ * Colourblind mode and reading font (per browser). Full form in Settings >
+ * Local; `compact` is the body of the quick theme dialog's Accessibility
+ * section (no heading of its own). Both can be mounted at once, so ids are generated.
+ */
+export function AccessibilitySettings({ compact = false }: { compact?: boolean }) {
   const t = useT();
+  const id = useId();
+  const cvdId = `${id}-cvd-mode`;
+  const fontId = `${id}-reading-font`;
   const [cvdMode, setCvdMode] = useState<CvdMode>(getSavedCvdMode);
   const [readingFont, setReadingFont] = useState<ReadingFont>(getSavedReadingFont);
 
@@ -33,15 +40,18 @@ export function AccessibilitySettings() {
   );
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-base font-semibold tracking-tight">
-        {t('settings_accessibility_heading')}
-      </h3>
+    <section className={compact ? 'mt-4 space-y-3' : 'space-y-4'}>
+      {/* Compact sits under the theme dialog's own collapsible "Accessibility" header. */}
+      {!compact && (
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_accessibility_heading')}
+        </h3>
+      )}
 
       <div className="space-y-2">
-        <Label htmlFor="cvd-mode">{t('settings_cvd_mode_label')}</Label>
+        <Label htmlFor={cvdId}>{t('settings_cvd_mode_label')}</Label>
         <select
-          id="cvd-mode"
+          id={cvdId}
           value={cvdMode}
           onChange={(event) => {
             const next = event.target.value as CvdMode;
@@ -60,9 +70,9 @@ export function AccessibilitySettings() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="reading-font">{t('settings_reading_font_label')}</Label>
+        <Label htmlFor={fontId}>{t('settings_reading_font_label')}</Label>
         <select
-          id="reading-font"
+          id={fontId}
           value={readingFont}
           onChange={(event) => {
             const next = event.target.value as ReadingFont;
@@ -79,6 +89,6 @@ export function AccessibilitySettings() {
         </select>
         <p className="text-[0.8125rem] text-muted-foreground">{t('settings_reading_font_help')}</p>
       </div>
-    </div>
+    </section>
   );
 }
