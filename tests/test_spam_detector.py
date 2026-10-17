@@ -1510,6 +1510,59 @@ class TestKnownPeopleAreNotNew:
         assert det.blocks["hop:44"].reason == "hop_new"
 
 
+class TestKnownList:
+    def build(self):
+        det, clock = make()
+        det.known["Anouk"] = [clock.now - 900, clock.now - 600, 5]
+        det.known["Bram"] = [clock.now - 900, clock.now - 60, 1]  # still being learnt
+        det.known["Carla"] = [clock.now - 900, clock.now - 300, 9]
+        det.action("allow_sender", sender="Zeno")  # trusted, no history
+        det.action("allow_sender", sender="Carla")
+        return det, clock
+
+    def test_most_recently_heard_first_with_trusted_names(self):
+        det, clock = self.build()
+        listed = det.known_list()
+        assert listed["total"] == 4
+        assert [p["name"] for p in listed["people"]] == ["Bram", "Carla", "Anouk", "Zeno"]
+        bram = listed["people"][0]
+        assert bram == {
+            "name": "Bram",
+            "genuine": 1,
+            "first": clock.now - 900,
+            "last": clock.now - 60,
+            "known": False,
+            "trusted": False,
+        }
+        assert listed["people"][1]["trusted"] and listed["people"][1]["known"]
+        assert listed["people"][3] == {
+            "name": "Zeno",
+            "genuine": 0,
+            "first": None,
+            "last": None,
+            "known": True,
+            "trusted": True,
+        }
+
+    def test_search_and_pages(self):
+        det, _ = self.build()
+        assert [p["name"] for p in det.known_list(q="AN")["people"]] == ["Anouk"]
+        page = det.known_list(limit=2, offset=1)
+        assert page["total"] == 4
+        assert [p["name"] for p in page["people"]] == ["Carla", "Anouk"]
+
+    def test_forget_makes_someone_new_again(self):
+        det, clock = self.build()
+        det.homes["Carla"] = {"C9": 4}
+        det.action("forget_known", name="Carla")
+        assert "Carla" not in det.known and "Carla" not in det.homes
+        assert "Carla" not in det.allow_senders
+        assert not det.is_known("Carla")
+        assert any(a["event"] == "known_forgotten" for a in det.activity)
+        with pytest.raises(ValueError):
+            det.action("forget_known", name="Nobody")
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

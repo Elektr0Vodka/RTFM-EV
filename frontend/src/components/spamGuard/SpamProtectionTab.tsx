@@ -5,6 +5,7 @@ import { useT } from '../../i18n';
 import type { SpamBlock, SpamGuardHopMatch, SpamGuardState } from '../../types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { SpamKnownPeopleCard } from './SpamKnownPeopleCard';
 import { blockLabel, formatDuration, formatExpiry, reasonLabel } from './spamGuardText';
 
 const LOCKDOWN_MINUTES = [30, 60, 120];
@@ -407,6 +408,8 @@ export function SpamProtectionTab({
           </Button>
         </form>
       </section>
+
+      <SpamKnownPeopleCard state={state} guard={guard} />
     </div>
   );
 }

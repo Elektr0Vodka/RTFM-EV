@@ -3371,6 +3371,21 @@ export interface SpamGuardSettings {
 
 export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';
 
+export interface SpamKnownPerson {
+  name: string;
+  /** Genuine messages counted towards being known. */
+  genuine: number;
+  first: number | null;
+  last: number | null;
+  known: boolean;
+  trusted: boolean;
+}
+
+export interface SpamKnownList {
+  total: number;
+  people: SpamKnownPerson[];
+}
+
 export interface SpamBlock {
   key: string;
   kind: SpamBlockKind;

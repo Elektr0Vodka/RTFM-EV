@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   replaySpamGuard: vi.fn(),
   getOpenHopPolicy: vi.fn(),
   getFilterProfiles: vi.fn(),
+  getSpamGuardKnown: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -72,7 +73,7 @@ const TUNABLES: SpamGuardTunables = {
   repeat_max: 3,
   repeat_window_seconds: 600,
   repeat_block_seconds: 3600,
-  known_min_msgs: 1,
+  known_min_msgs: 3,
   known_days: 30,
   hold_links: 'campaign',
   name_score_threshold: 3,
@@ -325,6 +326,7 @@ function protectedChannels() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.spamGuardAction.mockImplementation(async () => ({ result: {}, state: makeState() }));
+  mocks.getSpamGuardKnown.mockResolvedValue({ total: 0, people: [] });
   mocks.saveSpamGuardSettings.mockImplementation(async () => makeState({ version: 5 }));
   mocks.getFilterProfiles.mockResolvedValue({
     kind: 'spam_guard',
@@ -645,6 +647,56 @@ describe('SpamGuardView protection', () => {
       expect(mocks.spamGuardAction).toHaveBeenCalledWith(
         'block_text',
         { text: 'buy this now', channel: PUBLIC },
+        undefined
+      )
+    );
+  });
+
+  it('lists known people, searches and trusts or forgets one', async () => {
+    const now = Date.now() / 1000;
+    mocks.getSpamGuardKnown.mockResolvedValue({
+      total: 2,
+      people: [
+        {
+          name: 'Anouk',
+          genuine: 5,
+          first: now - 900,
+          last: now - 120,
+          known: true,
+          trusted: false,
+        },
+        {
+          name: 'Bram',
+          genuine: 1,
+          first: now - 900,
+          last: now - 60,
+          known: false,
+          trusted: false,
+        },
+      ],
+    });
+    await renderView();
+    openTab(/Protection/);
+    const card = await screen.findByTestId('spam-known-people');
+    await waitFor(() => expect(within(card).getAllByTestId('spam-known-person')).toHaveLength(2));
+    expect(within(card).getByText(/Known, 5 genuine messages/)).toBeInTheDocument();
+    expect(within(card).getByText(/Being learnt, 1 of 3/)).toBeInTheDocument();
+    fireEvent.change(within(card).getByLabelText('Find a name'), { target: { value: 'ano' } });
+    await waitFor(() => expect(mocks.getSpamGuardKnown).toHaveBeenCalledWith('ano', 50));
+    const anouk = within(card).getAllByTestId('spam-known-person')[0];
+    fireEvent.click(within(anouk).getByRole('button', { name: 'Trust' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'allow_sender',
+        { sender: 'Anouk' },
+        undefined
+      )
+    );
+    fireEvent.click(within(anouk).getByRole('button', { name: 'Forget' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'forget_known',
+        { name: 'Anouk' },
         undefined
       )
     );

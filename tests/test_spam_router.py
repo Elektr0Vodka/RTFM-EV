@@ -401,3 +401,13 @@ async def test_rules_show_the_bot_names(runtime):
     # Monitor mode: nothing of it is applied.
     assert (await router_module.get_spam_guard_rules(preview=False))["bot_senders"] == []
     assert runtime.host.status()["rules_present"] == 0
+
+
+class TestKnownPeopleRoute:
+    @pytest.mark.asyncio
+    async def test_lists_known_people(self, runtime):
+        now = runtime._clock()
+        runtime.detector.known["Anouk"] = [now - 900, now - 60, 5]
+        runtime.detector.known["Bram"] = [now - 900, now - 600, 4]
+        body = await router_module.get_spam_guard_known(q="an", limit=10, offset=0)
+        assert body["total"] == 1 and body["people"][0]["name"] == "Anouk"

@@ -428,6 +428,36 @@ class SpamDetector:
         if len(homes) > MAX_HOMES_PER_NAME:
             del homes[min(homes, key=lambda hop: (homes[hop], hop == event.first_hop))]
 
+    def known_list(self, q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """Known people and names still being learnt, most recently heard first,
+        then trusted names with no history. Names only, never messages."""
+        needle = q.strip().casefold()
+        people = [
+            {
+                "name": name,
+                "genuine": int(entry[2]),
+                "first": entry[0],
+                "last": entry[1],
+                "known": self.is_known(name),
+                "trusted": name in self.allow_senders,
+            }
+            for name, entry in sorted(self.known.items(), key=lambda kv: -kv[1][1])
+        ]
+        people += [
+            {
+                "name": name,
+                "genuine": 0,
+                "first": None,
+                "last": None,
+                "known": True,
+                "trusted": True,
+            }
+            for name in sorted(self.allow_senders - self.known.keys())
+        ]
+        if needle:
+            people = [p for p in people if needle in p["name"].casefold()]
+        return {"total": len(people), "people": people[offset : offset + limit]}
+
     def _familiar(self, name: str) -> bool:
         """Trusted, known or established: a name the newer-flood signals leave alone."""
         return name in self.allow_senders or self.established(name)
@@ -1854,6 +1884,17 @@ class SpamDetector:
 
     def _do_unallow_hop(self, hop: str) -> None:
         self.allow_hops.discard(hop.strip().upper())
+
+    def _do_forget_known(self, name: str) -> None:
+        """Count someone as new again: off the known list, their usual repeaters
+        forgotten, and no longer trusted."""
+        if name not in self.known and name not in self.allow_senders:
+            raise ValueError("That name is not on the list")
+        self.known.pop(name, None)
+        self.homes.pop(name, None)
+        self.allow_senders.discard(name)
+        self._note("known_forgotten", sender=name)
+        self._mark()
 
     def _do_allow_sender(self, sender: str) -> None:
         if not sender.strip():
