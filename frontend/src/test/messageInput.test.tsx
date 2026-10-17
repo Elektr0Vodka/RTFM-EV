@@ -481,4 +481,47 @@ describe('MessageInput', () => {
       });
     });
   });
+
+  describe('keeps the cursor in the box', () => {
+    it('keeps focus while the send is in flight', async () => {
+      let finish: () => void = () => {};
+      onSend.mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)));
+      const user = userEvent.setup();
+      renderInput({ conversationType: 'contact' });
+
+      await user.click(getInput());
+      await user.type(getInput(), 'Hello{Enter}');
+
+      expect(onSend).toHaveBeenCalledWith('Hello');
+      expect(getInput()).toHaveFocus();
+      expect(getInput()).toHaveAttribute('readonly');
+      finish();
+      await vi.waitFor(() => expect(getInput()).toHaveValue(''));
+      expect(getInput()).toHaveFocus();
+    });
+
+    it('returns focus to the box after sending with the Send button', async () => {
+      const user = userEvent.setup();
+      renderInput({ conversationType: 'contact' });
+
+      await user.type(getInput(), 'Hello');
+      await user.click(getSendButton());
+
+      await vi.waitFor(() => expect(getInput()).toHaveValue(''));
+      await vi.waitFor(() => expect(getInput()).toHaveFocus());
+    });
+
+    it('returns focus to the box after a failed send', async () => {
+      onSend.mockRejectedValueOnce(new Error('boom'));
+      const user = userEvent.setup();
+      renderInput({ conversationType: 'contact' });
+
+      await user.type(getInput(), 'Hello');
+      await user.click(getSendButton());
+
+      await vi.waitFor(() => expect(mockToast.error).toHaveBeenCalled());
+      expect(getInput()).toHaveValue('Hello');
+      await vi.waitFor(() => expect(getInput()).toHaveFocus());
+    });
+  });
 });
