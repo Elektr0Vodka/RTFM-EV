@@ -24,6 +24,18 @@ No migration, no new dependency or environment variable. Not tested on air.
   applies to it. Its policy `region` field is `unscoped`. Stock clients never
   send code 0.
 
+## Update 2026-10-17 (message box keeps the cursor: fix/composer-keep-focus)
+
+Richard's request. No migration, no setting. Not tested on a phone.
+
+### Chat
+- **The cursor stays in the message box after sending.** While a message is
+  being sent the box is read-only instead of disabled, so it no longer loses
+  focus (a disabled box drops it, and on a phone that closes the keyboard).
+  After a failed send the cursor now also goes back to the box, with the text
+  still in it; before, it was left on the page. After clicking Send the
+  cursor returns to the box as before.
+
 ## Update 2026-10-17 (Spam Guard catch-up, parts 2 to 4: feat/spam-guard-catch-up-2)
 
 The rest of the openhop-spamguard v5.37 catch-up, written from scratch. No
