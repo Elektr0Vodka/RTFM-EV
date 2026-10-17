@@ -145,7 +145,7 @@ def replay(
     by_kind: dict[str, int] = {}
     duplicates = 0
     for kind, source in blocks.values():
-        if source == "dedupe":
+        if source in ("dedupe", "repeat"):
             duplicates += 1
         else:
             by_kind[kind] = by_kind.get(kind, 0) + 1

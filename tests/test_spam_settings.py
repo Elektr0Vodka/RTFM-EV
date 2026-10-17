@@ -29,7 +29,7 @@ def test_defaults_are_the_balanced_preset():
     assert tun.spam_text_days == 7
     assert tun.min_rule_chars == 14
     assert tun.text_rule_chars == 40
-    assert tun.known_min_msgs == 1
+    assert tun.known_min_msgs == 3
     assert tun.known_days == 30
     assert tun.hold_links == "campaign"
     assert tun.hop_match_mode == "contains_known"

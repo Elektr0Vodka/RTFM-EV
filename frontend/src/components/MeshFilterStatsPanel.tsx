@@ -63,6 +63,7 @@ const BLOCK_LABEL_KEYS: Record<string, string> = {
   hop: 'mesh_filter_block_hop',
   campaign: 'mesh_filter_block_campaign',
   dedupe: 'mesh_filter_block_dedupe',
+  repeat: 'mesh_filter_block_repeat',
   rotation: 'mesh_filter_block_rotation',
   links: 'mesh_filter_block_links',
   lockdown: 'mesh_filter_block_lockdown',

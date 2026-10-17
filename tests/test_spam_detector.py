@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from app.spam.detector import SettledOutcome, SpamDetector
+from app.spam.detector import STATE_VERSION, SettledOutcome, SpamDetector
 from app.spam.settings import SpamConfig
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
@@ -507,7 +507,7 @@ class TestCampaigns:
 
 class TestKnownPeople:
     def test_genuine_sender_becomes_known_after_settling(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all")
         det.decide()
         assert not det.is_known("Dave")
@@ -558,7 +558,7 @@ class TestRepeaterBlocks:
         assert det.blocks["hop:27"].reason == "hop_random"
 
     def test_known_people_pass_a_default_repeater_block(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all", path=("44",))
         settle(det, clock)
         self.flood(det, clock)
@@ -575,7 +575,7 @@ class TestRepeaterBlocks:
         assert det.decide().flag == {7}
 
     def test_passing_through_a_blocked_repeater_still_counts_towards_known(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         self.flood(det, clock)
         say(det, clock, "Newcomer", "hello from a new person", path=("44", "27"))
         settle(det, clock)
@@ -657,7 +657,7 @@ class TestLinksAndLockdown:
         assert "links:new" not in det.blocks
 
     def test_lockdown_holds_strangers_and_ends(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all")
         settle(det, clock)
         det.action("lockdown", minutes=30)
@@ -990,12 +990,17 @@ class TestMetricsAndState:
         assert day["stopped"] == 0
 
     def test_dump_is_json_safe_and_round_trips(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all")
         settle(det, clock)
         det.action("block_hop", hop="27")
         state = json.loads(json.dumps(det.dump()))
-        other = SpamDetector(SpamConfig(channels=[{"key": PUBLIC, "name": "Public"}]), clock=clock)
+        other = SpamDetector(
+            SpamConfig(
+                channels=[{"key": PUBLIC, "name": "Public"}], overrides={"known_min_msgs": 1}
+            ),
+            clock=clock,
+        )
         other.load(state)
         assert other.is_known("Dave")
         assert "hop:27" in other.blocks
@@ -1014,6 +1019,247 @@ class TestMetricsAndState:
         assert not other.blocks
         other.load({"blocks": {"hop:27": {"kind": "hop"}}})
         assert not other.blocks
+
+    def test_state_written_before_known_after_three_keeps_known_people(self):
+        # Before STATE_VERSION 2 a name was known after one genuine message.
+        det, clock = make()
+        det.load({"known": {"Dave": [clock.now, clock.now, 1]}})
+        assert det.tunables.known_min_msgs == 3
+        assert det.is_known("Dave")
+        assert det.dump()["version"] == STATE_VERSION
+
+    def test_current_state_is_not_bumped(self):
+        det, clock = make()
+        det.load({"version": STATE_VERSION, "known": {"Dave": [clock.now, clock.now, 1]}})
+        assert not det.is_known("Dave")
+
+    def test_a_name_is_known_after_three_genuine_messages(self):
+        det, clock = make()
+        for count in range(1, 4):
+            say(det, clock, "Dave", f"evening all, message {count}")
+            settle(det, clock)
+            assert det.is_known("Dave") is (count == 3)
+
+
+REPEAT = "anyone want my old radio"  # under dedupe_min_chars: duplicate suppression leaves it
+
+
+class TestRepeatGuard:
+    def repeat(self, det, clock, times, sender="Bobby", step=60.0):
+        return [say(det, clock, sender, REPEAT, step=step) for _ in range(times)]
+
+    def repeat_blocks(self, det):
+        return [b for b in det.blocks.values() if b.source == "repeat"]
+
+    def test_four_copies_stop_further_copies_from_that_name_only(self):
+        det, clock = make()
+        self.repeat(det, clock, 4)
+        det.decide()
+        (block,) = self.repeat_blocks(det)
+        assert block.key.startswith("repeat:")
+        assert block.sender == "Bobby" and block.sender_only
+        assert block.reason == "repeat" and block.detail == {"count": 4}
+        assert block.expires == clock.now + 3600
+        mine = say(det, clock, "Bobby", REPEAT)
+        assert mine.matched == block.key
+        assert mine.duplicate is True and mine.spam is False
+        theirs = say(det, clock, "Sue", REPEAT)
+        assert theirs.matched != block.key
+        other = say(det, clock, "Bobby", "something else entirely")
+        assert other.matched is None
+
+    def test_three_copies_are_fine(self):
+        det, clock = make()
+        self.repeat(det, clock, 3)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_copies_spread_over_more_than_the_window_are_fine(self):
+        det, clock = make()
+        self.repeat(det, clock, 6, step=300.0)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_trusted_names_and_allowed_texts_are_left_alone(self):
+        det, clock = make(allow_senders=["Bobby"], allow_texts=["my old radio"])
+        self.repeat(det, clock, 5)
+        self.repeat(det, clock, 5, sender="Carol")
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_short_messages_are_left_alone(self):
+        det, clock = make()
+        for _ in range(6):
+            say(det, clock, "Bobby", "@[Sue] ok ok", step=60.0)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_can_be_switched_off(self):
+        det, clock = make(overrides={"repeat_guard": False})
+        self.repeat(det, clock, 6)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_removing_it_forgives_the_copies_without_a_hold_off(self):
+        det, clock = make()
+        self.repeat(det, clock, 4)
+        det.decide()
+        (block,) = self.repeat_blocks(det)
+        det.action("unblock", key=block.key)
+        assert block.key not in det.suppressed
+        det.decide()
+        assert not self.repeat_blocks(det)
+        self.repeat(det, clock, 4)
+        det.decide()
+        assert len(self.repeat_blocks(det)) == 1
+
+
+class TestNewerFloods:
+    def test_unreadable_text_from_a_new_name_is_made_up(self):
+        det, clock = make()
+        assert say(det, clock, "Dave", "Ж☙ᦐ").random is True
+        assert say(det, clock, "Dave", "evening all").random is False
+
+    def test_unreadable_text_from_a_known_name_is_not(self):
+        det, clock = make(overrides={"known_min_msgs": 1})
+        say(det, clock, "Dave", "evening all")
+        settle(det, clock)
+        assert say(det, clock, "Dave", "Ж☙ᦐ").random is False
+
+    def test_unreadable_can_be_switched_off(self):
+        det, clock = make(overrides={"detect_unreadable": False})
+        event = say(det, clock, "Dave", "Ж☙ᦐ")
+        assert event.random is False and event.unreadable is False
+
+    def test_tagged_name_is_made_up_until_known(self):
+        det, clock = make(overrides={"known_min_msgs": 1})
+        assert say(det, clock, "Marco-7fq2k", "hello").random is True
+        trusted, _ = make(allow_senders=["Marco-7fq2k"])
+        assert say(trusted, clock, "Marco-7fq2k", "hello").random is False
+
+    def test_a_call_sign_name_is_not_made_up(self):
+        det, clock = make()
+        assert say(det, clock, "Jan-pd0abc", "evening all").random is False
+
+
+class TestSeedKnown:
+    def test_only_normal_names_are_learnt(self):
+        det, clock = make()
+        added = det.seed_known(
+            [
+                ("Dave", 4, clock.now - 3600, clock.now - 60),
+                ("UD6DWREK", 9, clock.now - 3600, clock.now - 60),
+                ("Marco-7fq2k", 5, clock.now - 3600, clock.now - 60),
+                ("?", 3, clock.now - 3600, clock.now - 60),
+                ("", 3, clock.now - 3600, clock.now - 60),
+                ("Unknown", 3, clock.now - 3600, clock.now - 60),
+                ("pаypal", 3, clock.now - 3600, clock.now - 60),
+            ]
+        )
+        assert added == 1
+        assert det.known == {"Dave": [clock.now - 3600, clock.now - 60, 4]}
+        assert det.is_known("Dave")
+        assert det.activity[-1]["event"] == "known_seeded"
+
+    def test_an_existing_entry_is_kept(self):
+        det, clock = make()
+        det.known["Dave"] = [1.0, 2.0, 7]
+        assert det.seed_known([("Dave", 3, clock.now - 60, clock.now)]) == 0
+        assert det.known["Dave"] == [1.0, 2.0, 7]
+
+
+def regular(det, clock, name="Carol", hop="C9", onward=("B1",), times=6):
+    """Someone chatting for over an hour from the same repeater."""
+    for index in range(times):
+        say(
+            det,
+            clock,
+            name,
+            f"{name} chatting about topic {index}",
+            path=(hop, *onward),
+            step=700.0,
+        )
+    settle(det, clock)
+
+
+class TestRegulars:
+    def test_home_counts_uncaught_messages_and_is_kept(self):
+        det, clock = make()
+        for index in range(3):
+            say(det, clock, "Carol", f"chat {index} from home", path=("C9", "B1"))
+        det.action("lockdown", minutes=60)
+        say(det, clock, "Newbie", "hello there", path=("C9", "B1"))
+        settle(det, clock)
+        assert det.homes == {"Carol": {"C9": 3}}
+        other, _ = make()
+        other.load(json.loads(json.dumps(det.dump())))
+        assert other.homes == {"Carol": {"C9": 3}}
+
+    def test_established_is_known_or_an_hour_of_chat(self):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        say(det, clock, "Dave", "first words")
+        assert not det.established("Dave")
+        regular(det, clock)
+        assert det.established("Carol") and not det.is_known("Carol")
+
+    @pytest.mark.parametrize("block", ["lockdown", "home_repeater"])
+    def test_a_regular_caught_at_home_keeps_learning(self, block):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        regular(det, clock)
+        if block == "lockdown":
+            det.action("lockdown", minutes=60)
+        else:
+            det.action("block_hop", hop="C9")
+        before = det.known["Carol"][2]
+        caught = say(det, clock, "Carol", "still here at home", path=("C9", "B1"))
+        assert caught.matched is not None
+        settle(det, clock)
+        assert det.known["Carol"][2] == before + 1
+
+    def test_the_same_name_from_elsewhere_does_not(self):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        regular(det, clock)
+        det.action("lockdown", minutes=60)
+        before = det.known["Carol"][2]
+        assert say(det, clock, "Carol", "it is me, honest", path=("D4", "B1")).matched
+        settle(det, clock)
+        assert det.known["Carol"][2] == before
+
+    def test_known_people_saying_the_same_greeting_is_no_campaign(self):
+        det, clock = make()
+        det.seed_known([(name, 5, clock.now - 7200, clock.now - 600) for name in "ABCDE"])
+        for name in "ABCDE":
+            say(det, clock, name, "good evening mesh, all well here?")
+        det.decide()
+        assert not any(b.source == "campaign" for b in det.blocks.values())
+        new, clock = make()
+        for name in ("Anna", "Bert", "Cees", "Dirk", "Eef"):
+            say(new, clock, name, "good evening mesh, all well here?")
+        new.decide()
+        assert any(b.source == "campaign" for b in new.blocks.values())
+
+    def test_an_established_tagged_name_is_not_made_up(self):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        assert say(det, clock, "Marco-7fq2k", "hello all").random is True
+        regular(det, clock, name="Marco-7fq2k")
+        assert say(det, clock, "Marco-7fq2k", "hello again").random is False
+
+
+class TestRotationAndRegulars:
+    quiet = {"enable_hop_rules": False, "dedupe_enabled": False, "known_min_msgs": 20}
+
+    def test_an_established_person_from_a_new_hop_is_no_evidence(self):
+        det, clock = make(overrides=self.quiet)
+        for index in range(6):
+            for name in ("Carol", "Dave", "Erik"):
+                say(det, clock, name, f"{name} chatting about topic {index}", step=250.0)
+        settle(det, clock)
+        # Each turns up once from a never-seen first hop, the same onward route,
+        # in a suspect campaign: not one spammer changing identity.
+        for hop, name in [("A1", "Carol"), ("A2", "Dave"), ("A3", "Erik")]:
+            say(det, clock, name, "Amazing offer cheap radios now", path=(hop, "B1", "7E"))
+        det.decide()
+        assert "suffix:B1>7E" not in det.blocks
 
 
 def test_spam_package_does_not_import_the_radio():

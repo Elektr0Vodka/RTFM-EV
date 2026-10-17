@@ -125,8 +125,15 @@ class SpamTunables(BaseModel):
     dedupe_seconds: int = Field(default=900, ge=30, le=86400)
     dedupe_min_chars: int = Field(default=30, ge=MIN_DUPLICATE_CHARS, le=150)
     text_rule_chars: int = Field(default=40, ge=MIN_DUPLICATE_CHARS, le=150)
+    # Repeat guard: one name sending the same message over and over. After
+    # ``repeat_max`` copies within the window, further copies from that name
+    # are held back; anyone else may still quote it.
+    repeat_guard: bool = True
+    repeat_max: int = Field(default=3, ge=2, le=20)
+    repeat_window_seconds: int = Field(default=600, ge=60, le=7200)
+    repeat_block_seconds: int = Field(default=3600, ge=300, le=86400)
     # Known people
-    known_min_msgs: int = Field(default=1, ge=1, le=20)
+    known_min_msgs: int = Field(default=3, ge=1, le=20)
     known_days: int = Field(default=30, ge=1, le=365)
     hold_links: HoldLinks = "campaign"
     # Sender names
@@ -138,6 +145,9 @@ class SpamTunables(BaseModel):
     # A malformed message (``app/malformed.py``: random characters, or a clock
     # that was never set) counts as a made-up sender and is flagged as spam.
     malformed_signal: bool = False
+    # Unreadable random text (``app/spam/text.py`` ``is_unreadable``) from a name
+    # Spam Guard does not know counts as a made-up sender.
+    detect_unreadable: bool = True
     # Timing
     window_seconds: int = Field(default=600, ge=60, le=86400)
     long_window_seconds: int = Field(default=7200, ge=600, le=86400)

@@ -66,6 +66,8 @@ RECENT_ACTIVITY = 100
 FRESH_FRAME_SECONDS = 3.0
 # Unimportant changes (duplicate-suppression blocks, counters) wait this long.
 LAZY_FLUSH_SECONDS = 300.0
+# Chat stored in this window teaches a fresh start its first known people.
+SEED_KNOWN_SECONDS = 86400
 # Why a settings document cannot be saved for the connected radio: code and
 # sentence. The settings route answers the sentence, the filter library the code.
 REFUSALS = {
@@ -165,10 +167,24 @@ class SpamGuardRuntime:
         state = await SpamGuardStateRepository.get()
         if state:
             self.detector.load(state)
+        else:
+            await self._seed_known()
         self._index_channels()
         self._saved_at = self._clock()
         self.loaded = True
         await self.set_enabled(settings.spam_guard_enabled)
+
+    async def _seed_known(self) -> None:
+        """Learn the first known people from the chat stored in the last day."""
+        since = int(self._clock()) - SEED_KNOWN_SECONDS
+        try:
+            rows = await MessageRepository.channel_sender_counts(
+                [channel.key for channel in self.config.channels], since
+            )
+        except Exception:
+            logger.warning("Could not read stored chat to learn known people", exc_info=True)
+            return
+        self.detector.seed_known(rows)
 
     async def ensure_loaded(self) -> None:
         if not self.loaded:
@@ -471,6 +487,8 @@ class SpamGuardRuntime:
             if op == "not_spam" and message_id is not None and not body.get("matched"):
                 body = {**body, "matched": self._block_behind(message_id)}
             outcome = self.detector.action(op, **body)
+            if op == "reset_learned":
+                await self._seed_known()
             if message_id is not None and op in ("mark_spam", "not_spam"):
                 await self.set_message_spam(message_id, op == "mark_spam")
                 if self.detector.tunables.evidence_log:

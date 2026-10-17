@@ -408,6 +408,28 @@ class TestOpenHopDocuments:
         assert len(render(det, "host").rules) == 1
 
 
+class TestRepeatRules:
+    def build(self):
+        det, clock = make()
+        for _ in range(4):
+            say(det, clock, "Bobby", "anyone want my old radio")
+        det.decide()
+        return det
+
+    @pytest.mark.parametrize("dialect", ["host", "openhop"])
+    def test_rendered_for_that_name_only(self, dialect):
+        (rule,) = render(self.build(), dialect).before
+        assert rule["name"].endswith(" (repeat)")
+        assert {"field": "channel_sender", "op": "equals", "value": "Bobby"} in rule["if"]["all"]
+
+    def test_detector_and_rules_agree(self):
+        det = self.build()
+        clock = det._clock
+        for sender in ("Bobby", "Sue"):
+            event = say(det, clock, sender, "anyone want my old radio")
+            assert (host_verdict(det, event) == "drop") == (event.matched is not None)
+
+
 class TestRulesAgreeWithTheDetector:
     """A message the detector says a block caught is one the rules drop, and vice versa."""
 

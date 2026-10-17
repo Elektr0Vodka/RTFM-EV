@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-17 (Spam Guard catch-up, part 1: feat/spam-guard-catch-up-1)
+
+Catching up with openhop-spamguard v5.12 to v5.37, written from scratch (since
+v5.33 SpamGuard is AGPL-3.0; no code or test data is taken from it). No
+migration, no new dependency or environment variable. Not tested against a
+real OpenHop node or on air.
+
+### Spam Guard
+- **Repeat guard.** One name sending the same message more than 3 times in 10
+  minutes gets further copies of it held back for an hour (rule names end in
+  `(repeat)`). Their first copies and anything else they say still go out;
+  others quoting it are not affected. Settings under Duplicate suppression.
+- **Newer floods.** A real-looking first name with a random tag (`Marco-7fq2k`)
+  counts as made-up, a call sign after a name (`Jan-pd0abc`) does not. Short
+  unreadable text from a name Spam Guard does not know counts as made-up too
+  (new setting, on by default).
+- **Known after three genuine messages** (was one). People already known stay
+  known.
+- **Keep getting to know regulars.** A fresh start learns known people from the
+  chat stored in the last day. A regular caught by a block while heard from
+  their usual repeater keeps counting towards known. Regulars saying the same
+  greeting never make a spam campaign, and are no evidence of a repeater
+  changing identity.
+- **Simulated attack test.** A deterministic six-hour chat plus three-hour
+  attack, judged by both the host engine and the OpenHop policy port, now gates
+  the test suite: at least 90% of spam stopped, at most 3% of regulars held.
+  Before this change (cold start): host 93.2% stopped / 3.2% held, OpenHop
+  92.3% / 2.9%. After, cold start: host 96.9% / 3.2%, OpenHop 95.7% / 2.9%.
+  After, starting from a day of stored chat (what a fresh start now does):
+  host 96.9% / 1.4%, OpenHop 95.7% / 1.2%.
+
 ## Update 2026-10-16 (Spam Guard on OpenHop: own messages, rule ceiling, fix/openhop-own-sends-rule-cap)
 
 No migration, no new dependency or environment variable. Not tested against a

@@ -45,6 +45,7 @@ from app.spam.settings import (
 from app.spam.text import (
     hops_related,
     is_disguised,
+    is_unreadable,
     longest_piece,
     middle_piece,
     normalise,
@@ -55,14 +56,21 @@ from app.spam.text import (
     similar,
     strip_emoji,
     strip_mentions,
+    tagged_name_score,
 )
 from app.spam.text import name_score as _name_score  # ``ingest`` has a parameter of that name
 
 BlockKind = Literal["text", "words", "hop", "suffix", "links", "lockdown"]
-BlockSource = Literal["manual", "hop", "campaign", "dedupe", "rotation", "links", "lockdown"]
+BlockSource = Literal[
+    "manual", "hop", "campaign", "dedupe", "repeat", "rotation", "links", "lockdown"
+]
+# Sources that only hold back repeats: a caught message is a duplicate, not spam.
+_REPEAT_SOURCES = frozenset({"dedupe", "repeat"})
 
 DIRECT = "DIRECT"
 LOCKDOWN_KEY = "lockdown"
+# What an OpenHop node calls the sender of channel text without a "Name: " prefix.
+UNKNOWN_SENDER = "Unknown"
 LINKS_KEY = "links:new"
 LINK_MARKERS = ["http", "www."]
 
@@ -79,17 +87,31 @@ MAX_ROUTES = 5000
 MAX_CAMPAIGN_EVENTS = 400
 SHARED_CACHE_SIZE = 64
 MIN_CAMPAIGN_CHARS = 8
+# The repeat guard leaves shorter messages ("ok", "73") alone.
+MIN_REPEAT_CHARS = 8
 MAX_VARIANT_BLOCKS = 5
 HISTORY_HOURS = 8 * 24
 MAX_SOURCES = 15
 MAX_FLAGGED = 5000
+# Usual first hops kept per name, and how many uncaught messages from a first
+# hop make it one of them.
+MAX_HOMES_PER_NAME = 4
+HOME_MESSAGES = 3
+# Someone chatting this long with at least this many messages is established:
+# not yet known, perhaps, but no newcomer either.
+ESTABLISHED_SECONDS = 3600
+ESTABLISHED_MESSAGES = 5
+# Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
+# was 1) genuine messages; older state keeps the people it already knew.
+STATE_VERSION = 2
+KNOWN_BEFORE_VERSION_2 = 3
 
 # Blocks that hold people back rather than a spam text. A normal-looking name
 # caught by one of these is a likely mistake and goes on the held list.
 _PEOPLE_KINDS = frozenset({"hop", "suffix", "links", "lockdown"})
 # Evaluation order, mirrored by the rule renderer: manual first, and blocks that
 # let known people through after everything else.
-_RANK = {"manual": 0, "hop": 1, "campaign": 2, "dedupe": 3}
+_RANK = {"manual": 0, "hop": 1, "campaign": 2, "dedupe": 3, "repeat": 3}
 _GATED_RANK = 10
 _HOP_MODES = frozenset(get_args(HopMatch))
 
@@ -114,6 +136,11 @@ class Event:
     exempt: bool = False
     # Random characters or a clock that was never set (``app/malformed.py``).
     malformed: bool = False
+    # Unreadable random text from a name Spam Guard does not know.
+    unreadable: bool = False
+    # Caught by a block that can wrongly catch a regular (rotation, campaign,
+    # lockdown, or a repeater block that lets known people through).
+    forgivable: bool = False
     matched: str | None = None
     # Caught in a way that marks the message itself as spam (see ``_match``).
     spam: bool = False
@@ -253,6 +280,8 @@ class SpamDetector:
         self.senders: dict[str, _SenderHistory] = {}
         # name -> [first seen, last seen, genuine messages]
         self.known: dict[str, list[float]] = {}
+        # name -> first hop -> uncaught messages: where someone is usually heard from
+        self.homes: dict[str, dict[str, int]] = {}
         # "27>B1>7E" -> [first seen, last seen, genuine messages, spam messages]
         self.routes: dict[str, list[float]] = {}
         # hop -> last time it was seen relaying (anywhere but first in a path)
@@ -326,6 +355,56 @@ class SpamDetector:
         entry = self.known.get(name)
         return entry is not None and entry[2] >= self.tunables.known_min_msgs
 
+    def seed_known(self, rows: Iterable[tuple[str, int, float, float]]) -> int:
+        """Learn known people from chat stored before Spam Guard started reading.
+
+        ``rows`` are ``(name, genuine messages, first seen, last seen)``. A fresh
+        start would otherwise treat every regular as new, and a few of them
+        saying the same thing ("good evening mesh") would look like a campaign.
+        Names that look made-up or disguised, and ones that are no name at all,
+        are left out; an existing entry is kept. Returns how many were added.
+        """
+        added = 0
+        for name, count, first, last in rows:
+            if not name or name in ("?", UNKNOWN_SENDER) or name in self.known:
+                continue
+            score = max(_name_score(name, self._patterns), tagged_name_score(name))
+            if score >= self.tunables.name_score_threshold or is_disguised(name, name=True):
+                continue
+            self.known[name] = [float(first), float(last), int(count)]
+            added += 1
+        if added:
+            self._note("known_seeded", count=added)
+            self._mark()
+        return added
+
+    def established(self, name: str) -> bool:
+        """Known, or chatting under this name for over an hour with a few messages."""
+        if self.is_known(name):
+            return True
+        history = self.senders.get(name)
+        return (
+            history is not None
+            and history.count >= ESTABLISHED_MESSAGES
+            and history.first <= self._clock() - ESTABLISHED_SECONDS
+        )
+
+    def _at_home(self, event: Event) -> bool:
+        """Heard from one of the first hops this name is usually heard from."""
+        return self.homes.get(event.sender, {}).get(event.first_hop, 0) >= HOME_MESSAGES
+
+    def _record_home(self, event: Event) -> None:
+        if event.matched is not None or event.random or event.sender in ("", "?"):
+            return
+        homes = self.homes.setdefault(event.sender, {})
+        homes[event.first_hop] = homes.get(event.first_hop, 0) + 1
+        if len(homes) > MAX_HOMES_PER_NAME:
+            del homes[min(homes, key=lambda hop: (homes[hop], hop == event.first_hop))]
+
+    def _familiar(self, name: str) -> bool:
+        """Trusted, known or established: a name the newer-flood signals leave alone."""
+        return name in self.allow_senders or self.established(name)
+
     def known_names(self) -> list[str]:
         """Names that pass the gated blocks, for the known-people rule."""
         return sorted({n for n in self.known if self.is_known(n)} | self.allow_senders)
@@ -350,14 +429,31 @@ class SpamDetector:
         caught = event.matched is not None and not self._passing_through(event)
         return event.random or caught or bool(campaign and campaign.suspect)
 
+    def _still_a_regular(self, event: Event) -> bool:
+        """A regular a block caught at home: keep getting to know them.
+
+        One wrong block (a campaign on an everyday phrase, a route or repeater
+        regulars use, a lockdown) must not lock people out for good. A name heard
+        from somewhere else may be copied, so it does not count.
+        """
+        return (
+            event.forgivable
+            and not (event.random or event.disguised or event.unreadable)
+            and self.established(event.sender)
+            and self._at_home(event)
+        )
+
     def _learn_sender(self, event: Event) -> None:
-        if self._spammy(event) or event.sender in ("", "?"):
+        if event.sender in ("", "?"):
             return
-        if any(
-            b.kind == "hop" and event.path and event.path[0] == b.value
-            for b in self.blocks.values()
-        ):
-            return
+        if not self._still_a_regular(event):
+            if self._spammy(event):
+                return
+            if any(
+                b.kind == "hop" and event.path and event.path[0] == b.value
+                for b in self.blocks.values()
+            ):
+                return
         was_known = self.is_known(event.sender)
         entry = self.known.get(event.sender)
         if entry is None:
@@ -386,6 +482,8 @@ class SpamDetector:
         sender_horizon = now - SENDER_HISTORY_SECONDS
         for name in [n for n, h in self.senders.items() if h.last < sender_horizon]:
             del self.senders[name]
+        for name in [n for n in self.homes if n not in self.known and n not in self.senders]:
+            del self.homes[name]
 
     # ── block matching (mirrors the rendered rules) ──────────────────────
 
@@ -467,9 +565,12 @@ class SpamDetector:
             if event.ts < block.created - 1 or not self._block_matches(block, event):
                 continue
             event.matched = block.key
+            event.forgivable = block.source in ("rotation", "campaign", "lockdown") or (
+                block.kind == "hop" and self.gated(block)
+            )
             block.hits += 1
             block.last_hit = event.ts
-            event.duplicate = block.source == "dedupe"
+            event.duplicate = block.source in _REPEAT_SOURCES
             if block.kind in ("text", "words"):
                 event.spam = block.source in ("campaign", "manual")
             elif block.kind in ("hop", "suffix"):
@@ -517,11 +618,20 @@ class SpamDetector:
         sender = sender or "?"
         hops = tuple(hop.upper() for hop in path)
         norm = normalise(text)
-        score = _name_score(sender, self._patterns) if name_score is None else name_score
+        trusted = sender in self.allow_senders
+        familiar = self._familiar(sender)
+        if name_score is None:
+            score = _name_score(sender, self._patterns)
+            if not familiar:
+                score = max(score, tagged_name_score(sender))
+        else:
+            score = name_score
         if name_disguised is None:
             name_disguised = is_disguised(sender, name=True)
         disguised = is_disguised(strip_mentions(text)) or name_disguised
-        trusted = sender in self.allow_senders
+        unreadable = (
+            self.tunables.detect_unreadable and not familiar and is_unreadable(strip_mentions(text))
+        )
         event = Event(
             ts=ts,
             path=hops,
@@ -539,10 +649,12 @@ class SpamDetector:
             and (
                 score >= self.tunables.name_score_threshold
                 or disguised
+                or unreadable
                 or (malformed and self.tunables.malformed_signal)
             ),
             exempt=self._text_allowed(text),
             malformed=malformed,
+            unreadable=unreadable,
         )
 
         history = self.senders.get(sender)
@@ -672,6 +784,10 @@ class SpamDetector:
             return False
         if event.random:
             return True
+        # Regulars saying the same everyday thing ("good evening mesh") is a
+        # conversation, even on the day they have only just started talking.
+        if self.established(event.sender):
+            return False
         history = self.senders.get(event.sender)
         return history is None or history.count <= 2
 
@@ -925,6 +1041,46 @@ class SpamDetector:
                 continue
             hold("text", piece, "duplicate", copies)
 
+    def _block_repeats(self, recent: list[Event]) -> None:
+        """One name sending the same message over and over (the repeat guard).
+
+        After ``repeat_max`` copies within the window, further copies of that
+        message from that name are held back for ``repeat_block_seconds``. Their
+        first copies and anything else they say still go out, and other people
+        quoting it are not affected. It also slows a known person's repeats: Spam
+        Guard never blocks what someone says, only that they keep saying it.
+        """
+        tun = self.tunables
+        copies: dict[tuple[str, str, str], list[tuple[Event, str]]] = {}
+        for event in recent:
+            if event.exempt or event.released or event.sender in self.allow_senders:
+                continue
+            if event.sender in ("", "?"):
+                continue
+            content = longest_piece(strip_mentions(event.text)).strip()
+            if len(content) < MIN_REPEAT_CHARS:
+                continue
+            copies.setdefault((event.sender, event.channel, normalise(content)), []).append(
+                (event, content)
+            )
+        for (sender, channel, _), seen in copies.items():
+            if len(seen) <= tun.repeat_max:
+                continue
+            piece = self._rule_piece(seen[-1][1])
+            self._want(
+                f"repeat:{_digest(f'{sender}|{piece}')}",
+                "text",
+                piece,
+                "repeat",
+                "repeat",
+                detail={"count": len(seen)},
+                channel=channel,
+                ttl=tun.repeat_block_seconds,
+                from_ts=seen[-1][0].ts,
+                sender=sender,
+                sender_only=True,
+            )
+
     def _block_repeaters(self, window: list[Event], long_window: list[Event], now: float) -> None:
         tun = self.tunables
         signals: dict[str, _HopSignals] = {}
@@ -1005,6 +1161,7 @@ class SpamDetector:
                         event.enforced,
                     )
                 )
+            self._record_home(event)
             self._learn_sender(event)
             if not event.path:
                 continue
@@ -1022,11 +1179,21 @@ class SpamDetector:
 
     def _block_rotation(self, window: list[Event]) -> None:
         """One spammer whose repeater keeps changing identity: never-seen first
-        repeaters, always the same onward route."""
+        repeaters, always the same onward route.
+
+        An established person heard from a new first hop is no evidence of that.
+        Unlike openhop-spamguard, routes regulars use are not spared: a rotation
+        block lets known people through here (``gated``), and the attack
+        simulation (``tests/spam_redteam.py``) showed sparing them, or asking
+        twice the evidence next to this repeater, let floods through without
+        holding fewer regulars.
+        """
         tun = self.tunables
         candidates: dict[tuple[str, ...], tuple[set[str], set[str]]] = {}
         for event in window:
             if not event.path or self.known_origin(event.first_hop):
+                continue
+            if self.established(event.sender):
                 continue
             if not (event.random or event.campaign is not None):
                 continue
@@ -1163,6 +1330,8 @@ class SpamDetector:
                 judged=rematch,
                 fresh_seconds=fresh_seconds,
             )
+        if tun.repeat_guard:
+            self._block_repeats([e for e in long_window if e.ts >= now - tun.repeat_window_seconds])
         if tun.enable_hop_rules:
             self._block_repeaters(window, long_window, now)
         self._learn_paths(long_window)
@@ -1318,9 +1487,11 @@ class SpamDetector:
     def dump(self) -> dict[str, Any]:
         """Everything worth keeping across a restart, as plain JSON types."""
         return {
+            "version": STATE_VERSION,
             "blocks": {key: asdict(block) for key, block in self.blocks.items()},
             "suppressed": dict(self.suppressed),
             "known": {name: list(entry) for name, entry in self.known.items()},
+            "homes": {name: dict(hops) for name, hops in self.homes.items()},
             "routes": {route: list(record) for route, record in self.routes.items()},
             "relays": dict(self.relays),
             "hours": {str(start): hour for start, hour in self.hours.items()},
@@ -1367,6 +1538,15 @@ class SpamDetector:
             if isinstance(v, (int, float)) and v > now
         }
         self.known = rows("known", 3)
+        version = state.get("version")
+        if not isinstance(version, int) or version < 2:
+            for entry in self.known.values():
+                entry[2] = max(entry[2], KNOWN_BEFORE_VERSION_2)
+        self.homes = {
+            str(name): {str(hop): count for hop, count in hops.items() if isinstance(count, int)}
+            for name, hops in section("homes").items()
+            if isinstance(hops, dict)
+        }
         self.routes = rows("routes", 4)
         self.relays = {
             str(k): float(v) for k, v in section("relays").items() if isinstance(v, (int, float))
@@ -1414,7 +1594,7 @@ class SpamDetector:
         block = self.blocks.pop(key, None)
         if block is not None:
             self._note("block_removed", key=key, kind=block.kind)
-            if block.source == "dedupe":
+            if block.source in _REPEAT_SOURCES:
                 self._release(block)
                 return {"key": key}
         # Otherwise the same evidence would put it straight back.

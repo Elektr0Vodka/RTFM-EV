@@ -1385,6 +1385,31 @@ class MessageRepository:
         return row["cnt"] if row else 0
 
     @staticmethod
+    async def channel_sender_counts(
+        channel_keys: Sequence[str], since: int
+    ) -> list[tuple[str, int, int, int]]:
+        """Who chatted on these channels since ``since``: ``(sender name, messages,
+        first received_at, last received_at)``. Incoming messages only, without
+        those flagged as spam. Spam Guard learns its first known people from it."""
+        keys = [key.upper() for key in channel_keys]
+        if not keys:
+            return []
+        marks = ",".join("?" * len(keys))
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT sender_name, COUNT(*) AS messages, MIN(received_at) AS first_at, "
+                "MAX(received_at) AS last_at FROM messages "
+                "WHERE type = 'CHAN' AND received_at >= ? AND outgoing = 0 AND spam = 0 "
+                f"AND UPPER(conversation_key) IN ({marks}) AND sender_name IS NOT NULL "
+                "GROUP BY sender_name",
+                (since, *keys),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [
+            (row["sender_name"], row["messages"], row["first_at"], row["last_at"]) for row in rows
+        ]
+
+    @staticmethod
     async def get_first_channel_message_by_sender_name(sender_name: str) -> int | None:
         """Get the earliest stored channel message timestamp for a display name."""
         async with db.readonly() as conn:

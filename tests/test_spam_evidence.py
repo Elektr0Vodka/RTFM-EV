@@ -59,6 +59,7 @@ class TestRecords:
             "known": False,
             "exempt": False,
             "malformed": False,
+            "unreadable": False,
             "matched": None,
             "spam": False,
         }
