@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-17 (shared dependency folder for worktrees: feat/shared-deps-folder)
+
+Developer tooling only; the app does not change. Windows (PowerShell).
+
+### Development setup
+- **`scripts/setup/link_shared_deps.ps1`** links a worktree's
+  `frontend/node_modules` and `.venv` to installs kept once in
+  `RTFM-EV-deps/` next to the main checkout, so a new worktree needs no
+  `npm ci` / `uv sync`. There is one install per lockfile version (plus Node
+  major / Python interpreter), created the first time a worktree needs it, so
+  a branch with different dependencies gets its own install and a shared one
+  never goes stale. `-List` and `-Prune` show and clear installs no worktree
+  uses. Documented in `docs/agents/ci-checks.md`.
+
 ## Update 2026-10-17 (Spam Guard catch-up, parts 2 to 4: feat/spam-guard-catch-up-2)
 
 The rest of the openhop-spamguard v5.37 catch-up, written from scratch. No
