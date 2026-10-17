@@ -63,7 +63,8 @@ npm run test:run
 npm run build
 ```
 
-Locally (after `npm ci` once in the worktree):
+Locally (after `npm ci` once in the worktree, or the shared dependency folder
+below):
 
 ```bash
 cd frontend
@@ -75,18 +76,38 @@ npm run build          # tsc typecheck + vite build
 
 Fix prettier with `npx prettier --write <files>` (only the files you changed).
 
-Instead of `npm ci` per worktree you can link `frontend/node_modules` to the
-main checkout's install (PowerShell:
-`New-Item -ItemType Junction -Path frontend/node_modules -Target <main>/frontend/node_modules`).
-Only do this when the worktree's `frontend/package-lock.json` matches the main
-checkout's, and keep the main install current (`npm ci` in the main checkout
-after a lockfile change) or new dependencies will be missing. Never run
-`npm install` or `npm ci` in a linked worktree: it writes to the shared install.
-To switch back to a local install, remove only the link with
-`(Get-Item frontend/node_modules).Delete()`; `Remove-Item -Recurse` on a
-junction can delete the shared install's contents. `vite.config.ts` and
-`vitest.config.ts` allow the link's real path in `server.fs.allow`, which the
-maplibre `?worker&url` import needs.
+### Shared dependency folder (Windows, instead of `npm ci` / `uv sync` per worktree)
+
+```powershell
+pwsh scripts/setup/link_shared_deps.ps1          # node + python
+pwsh scripts/setup/link_shared_deps.ps1 -Only node
+```
+
+Installs live once in `RTFM-EV-deps/` next to the main checkout (override with
+`-Store` or `$env:RTFM_DEPS_STORE`), one install per lockfile version:
+`node/<key>/node_modules` (key: `frontend/package-lock.json`, `frontend/.npmrc`,
+Node major) and `python/<key>/.venv` (key: `uv.lock`, the system Python uv
+picks). The script links the worktree's `frontend/node_modules` and `.venv` to
+the matching install as directory junctions, and installs it first when it does
+not exist yet. A branch that changes a lockfile gets its own key and install, so
+nothing goes stale; run the script again after a lockfile change.
+
+- A real `node_modules` / `.venv` in the worktree is left alone unless you pass
+  `-Force`. `-DryRun` shows what would happen.
+- `-List` shows the installs and which worktrees link to each; `-Prune` deletes
+  the ones no worktree links to (`-Prune -DryRun` first).
+- Never run `npm install <pkg>`, `npm ci` or `uv add` in a linked worktree: it
+  writes into the install other worktrees share. Change the manifest and
+  lockfile, then re-run the script. `uv run` also syncs the venv to the
+  worktree's `uv.lock`, so after a `uv.lock` change run the script before the
+  next `uv run` (or use `uv run --frozen`).
+- To drop a link, delete only the junction:
+  `[IO.Directory]::Delete("frontend/node_modules", $false)`. Never
+  `Remove-Item -Recurse` through a junction.
+- Vite's cache (`node_modules/.vite`) is shared too, so two dev servers on the
+  same install at once can disturb each other's dependency prebundle.
+- `vite.config.ts` and `vitest.config.ts` allow the link's real path in
+  `server.fs.allow`, which the maplibre `?worker&url` import needs.
 
 ## Docs site (not a PR gate)
 
