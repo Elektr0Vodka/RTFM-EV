@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   replaySpamGuard: vi.fn(),
   getOpenHopPolicy: vi.fn(),
   getFilterProfiles: vi.fn(),
+  getSpamGuardKnown: vi.fn(),
+  getSpamGuardMetrics: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -54,6 +56,8 @@ const TUNABLES: SpamGuardTunables = {
   hop_campaign_senders: 3,
   hop_random_senders_long: 5,
   enable_rotation_guard: true,
+  auto_lockdown: true,
+  auto_protect: false,
   rotate_first_hops: 3,
   route_memory_days: 7,
   max_paths_per_hop: 50,
@@ -71,7 +75,7 @@ const TUNABLES: SpamGuardTunables = {
   repeat_max: 3,
   repeat_window_seconds: 600,
   repeat_block_seconds: 3600,
-  known_min_msgs: 1,
+  known_min_msgs: 3,
   known_days: 30,
   hold_links: 'campaign',
   name_score_threshold: 3,
@@ -324,6 +328,7 @@ function protectedChannels() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.spamGuardAction.mockImplementation(async () => ({ result: {}, state: makeState() }));
+  mocks.getSpamGuardKnown.mockResolvedValue({ total: 0, people: [] });
   mocks.saveSpamGuardSettings.mockImplementation(async () => makeState({ version: 5 }));
   mocks.getFilterProfiles.mockResolvedValue({
     kind: 'spam_guard',
@@ -334,6 +339,78 @@ beforeEach(() => {
 });
 
 describe('SpamGuardView overview', () => {
+  it('shows the graphs for one channel when picked, and remembers it', async () => {
+    localStorage.removeItem('spamGuardChartChannel');
+    const state = makeState();
+    mocks.getSpamGuardMetrics.mockResolvedValue({
+      ...state.metrics,
+      channel: OTHER,
+      channel_since: NOW - 3600,
+    });
+    await renderView({
+      ...state,
+      settings: {
+        ...state.settings,
+        channels: [
+          { key: PUBLIC, name: 'Public' },
+          { key: OTHER, name: '#other' },
+        ],
+      },
+    });
+    const picker = screen.getByLabelText('Show the graphs for');
+    expect(picker).toHaveValue('');
+    fireEvent.change(picker, { target: { value: OTHER } });
+    await waitFor(() => expect(mocks.getSpamGuardMetrics).toHaveBeenCalledWith(OTHER));
+    expect(await screen.findByText(/Counted per channel since/)).toBeInTheDocument();
+    expect(localStorage.getItem('spamGuardChartChannel')).toBe(OTHER);
+    localStorage.removeItem('spamGuardChartChannel');
+  });
+
+  it('says when it switches to Protect by itself and can stay in Monitor', async () => {
+    await renderView(
+      makeState({
+        auto_protect: { since: NOW - 3600, due: NOW + 86400, spam: 4, held: 0, waiting: null },
+      })
+    );
+    const line = screen.getByTestId('spam-auto-protect');
+    expect(within(line).getByText(/Switches to Protect by itself on/)).toBeInTheDocument();
+    expect(within(line).queryByRole('button', { name: 'Watch again' })).toBeNull();
+    fireEvent.click(within(line).getByRole('button', { name: 'Stay in Monitor' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('stay_in_monitor', {}, undefined)
+    );
+  });
+
+  it('says what auto-Protect waits for and can watch again', async () => {
+    await renderView(
+      makeState({
+        auto_protect: {
+          since: NOW - 3600,
+          due: NOW + 86400,
+          spam: 4,
+          held: 0,
+          waiting: 'marked_genuine',
+        },
+      })
+    );
+    const line = screen.getByTestId('spam-auto-protect');
+    expect(within(line).getByText(/you marked a message/)).toBeInTheDocument();
+    fireEvent.click(within(line).getByRole('button', { name: 'Watch again' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('watch_again', {}, undefined)
+    );
+  });
+
+  it('shows no auto-Protect line when it is off', async () => {
+    await renderView();
+    expect(screen.queryByTestId('spam-auto-protect')).toBeNull();
+  });
+
+  it('has no channel picker with one protected channel', async () => {
+    await renderView();
+    expect(screen.queryByLabelText('Show the graphs for')).toBeNull();
+  });
+
   it('shows mode, health and the numbers', async () => {
     await renderView();
     expect(screen.getByRole('button', { name: 'Monitor' })).toHaveAttribute('aria-pressed', 'true');
@@ -632,9 +709,11 @@ describe('SpamGuardView protection', () => {
       expect(mocks.spamGuardAction).toHaveBeenCalledWith('block_hop', { hop: '5C' }, undefined)
     );
     const blockText = screen.getByRole('button', { name: 'Block text' });
-    fireEvent.change(screen.getByLabelText(/Text \(at least 5/), { target: { value: 'abc' } });
+    fireEvent.change(screen.getByLabelText(/Text \(at least 12/), {
+      target: { value: 'buy it now' },
+    });
     expect(blockText).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/Text \(at least 5/), {
+    fireEvent.change(screen.getByLabelText(/Text \(at least 12/), {
       target: { value: 'buy this now' },
     });
     fireEvent.click(blockText);
@@ -642,6 +721,56 @@ describe('SpamGuardView protection', () => {
       expect(mocks.spamGuardAction).toHaveBeenCalledWith(
         'block_text',
         { text: 'buy this now', channel: PUBLIC },
+        undefined
+      )
+    );
+  });
+
+  it('lists known people, searches and trusts or forgets one', async () => {
+    const now = Date.now() / 1000;
+    mocks.getSpamGuardKnown.mockResolvedValue({
+      total: 2,
+      people: [
+        {
+          name: 'Anouk',
+          genuine: 5,
+          first: now - 900,
+          last: now - 120,
+          known: true,
+          trusted: false,
+        },
+        {
+          name: 'Bram',
+          genuine: 1,
+          first: now - 900,
+          last: now - 60,
+          known: false,
+          trusted: false,
+        },
+      ],
+    });
+    await renderView();
+    openTab(/Protection/);
+    const card = await screen.findByTestId('spam-known-people');
+    await waitFor(() => expect(within(card).getAllByTestId('spam-known-person')).toHaveLength(2));
+    expect(within(card).getByText(/Known, 5 genuine messages/)).toBeInTheDocument();
+    expect(within(card).getByText(/Being learnt, 1 of 3/)).toBeInTheDocument();
+    fireEvent.change(within(card).getByLabelText('Find a name'), { target: { value: 'ano' } });
+    await waitFor(() => expect(mocks.getSpamGuardKnown).toHaveBeenCalledWith('ano', 50));
+    const anouk = within(card).getAllByTestId('spam-known-person')[0];
+    fireEvent.click(within(anouk).getByRole('button', { name: 'Trust' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'allow_sender',
+        { sender: 'Anouk' },
+        undefined
+      )
+    );
+    fireEvent.click(within(anouk).getByRole('button', { name: 'Forget' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'forget_known',
+        { name: 'Anouk' },
         undefined
       )
     );

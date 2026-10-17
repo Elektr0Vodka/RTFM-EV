@@ -5,6 +5,7 @@ import { useT } from '../../i18n';
 import type { SpamBlock, SpamGuardHopMatch, SpamGuardState } from '../../types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { SpamKnownPeopleCard } from './SpamKnownPeopleCard';
 import { blockLabel, formatDuration, formatExpiry, reasonLabel } from './spamGuardText';
 
 const LOCKDOWN_MINUTES = [30, 60, 120];
@@ -56,14 +57,16 @@ function BlockRow({
           >
             {t('spam_block_extend')}
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={guard.busy}
-            onClick={() => void guard.action('extend', { key: block.key, permanent: true })}
-          >
-            {t('spam_block_keep')}
-          </Button>
+          {!block.week_at_most && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={guard.busy}
+              onClick={() => void guard.action('extend', { key: block.key, permanent: true })}
+            >
+              {t('spam_block_keep')}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -399,12 +402,14 @@ export function SpamProtectionTab({
             type="submit"
             size="sm"
             variant="outline"
-            disabled={disabled || text.trim().length < 5 || !textChannel}
+            disabled={disabled || text.trim().length < 12 || !textChannel}
           >
             {t('spam_manual_block_text')}
           </Button>
         </form>
       </section>
+
+      <SpamKnownPeopleCard state={state} guard={guard} />
     </div>
   );
 }

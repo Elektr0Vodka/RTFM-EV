@@ -3322,6 +3322,8 @@ export interface SpamGuardTunables {
   hop_campaign_senders: number;
   hop_random_senders_long: number;
   enable_rotation_guard: boolean;
+  auto_lockdown: boolean;
+  auto_protect: boolean;
   rotate_first_hops: number;
   route_memory_days: number;
   max_paths_per_hop: number;
@@ -3370,6 +3372,29 @@ export interface SpamGuardSettings {
 
 export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';
 
+export interface SpamAutoProtectStatus {
+  since: number;
+  due: number;
+  spam: number;
+  held: number;
+  waiting: 'paused' | 'marked_genuine' | 'held' | null;
+}
+
+export interface SpamKnownPerson {
+  name: string;
+  /** Genuine messages counted towards being known. */
+  genuine: number;
+  first: number | null;
+  last: number | null;
+  known: boolean;
+  trusted: boolean;
+}
+
+export interface SpamKnownList {
+  total: number;
+  people: SpamKnownPerson[];
+}
+
 export interface SpamBlock {
   key: string;
   kind: SpamBlockKind;
@@ -3396,6 +3421,8 @@ export interface SpamBlock {
   user_allowed: string[];
   /** Lets known people through. */
   gated: boolean;
+  /** Lasts at most a week and cannot be kept (spam, not opinions). */
+  week_at_most?: boolean;
   /** Hop blocks: the match mode in force. */
   mode: SpamGuardHopMatch | null;
   /** Suffix blocks: first hops let through. */
@@ -3486,6 +3513,10 @@ export interface SpamGuardMetrics {
   by_hour: number[];
   sources: SpamSource[];
   since: number | null;
+  /** The channel the graphs count (upper case), null for all channels. */
+  channel?: string | null;
+  /** When counting per channel started; set when `channel` is. */
+  channel_since?: number | null;
 }
 
 export type SpamGuardSyncState =
@@ -3529,6 +3560,8 @@ export interface SpamGuardState extends SpamGuardSummary {
   defaults: SpamGuardTunables;
   health: SpamGuardHealth;
   metrics: SpamGuardMetrics;
+  /** Monitor with auto_protect on: when it switches to Protect, or what it waits for. */
+  auto_protect?: SpamAutoProtectStatus | null;
   block_list: SpamBlock[];
   held: SpamHeldMessage[];
   messages: SpamGuardMessage[];

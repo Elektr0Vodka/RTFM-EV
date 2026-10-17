@@ -292,6 +292,9 @@ class _Renderer:
                 ]
             elif block.kind == "hop":
                 variants = [("", [_cond("path_hashes", "contains", block.value)])]
+            elif block.kind in ("text", "words"):
+                pieces = block.value if block.kind == "words" else [block.value]
+                variants = [("", [_cond("channel_message_body", "contains", p) for p in pieces])]
             else:  # lockdown
                 variants = [("", [])]
             for key in channel_keys:

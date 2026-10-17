@@ -62,7 +62,15 @@ from app.spam.text import name_score as _name_score  # ``ingest`` has a paramete
 
 BlockKind = Literal["text", "words", "hop", "suffix", "links", "lockdown"]
 BlockSource = Literal[
-    "manual", "hop", "campaign", "dedupe", "repeat", "rotation", "links", "lockdown"
+    "manual",
+    "hop",
+    "campaign",
+    "dedupe",
+    "repeat",
+    "rotation",
+    "links",
+    "lockdown",
+    "auto_lockdown",
 ]
 # Sources that only hold back repeats: a caught message is a duplicate, not spam.
 _REPEAT_SOURCES = frozenset({"dedupe", "repeat"})
@@ -101,6 +109,32 @@ HOME_MESSAGES = 3
 # not yet known, perhaps, but no newcomer either.
 ESTABLISHED_SECONDS = 3600
 ESTABLISHED_MESSAGES = 5
+# Spam, not opinions: a block that also stops people Spam Guard knows (any text
+# block, a repeater block that does not let known people through) lasts at most
+# a week and cannot be kept for ever. A text you block yourself must be long
+# enough to be a spam message rather than a word or a name.
+MAX_PEOPLE_BLOCK_SECONDS = 7 * 86400
+MANUAL_TEXT_MIN_CHARS = 12
+# Text blocks the user made: they only stop names Spam Guard does not know.
+_USER_TEXT_REASONS = frozenset({"manual", "marked_spam"})
+# A flood of made-up names through many repeaters at once, faster than blocks on
+# single repeaters can follow: only known people get through for a while.
+AUTO_LOCKDOWN_WINDOW = 120.0
+AUTO_LOCKDOWN_NAMES = 12
+AUTO_LOCKDOWN_HOPS = 6
+AUTO_LOCKDOWN_SECONDS = 900
+# A campaign block that caught this many known people, each heard from home,
+# is ordinary chat: it stops.
+CAMPAIGN_REGULARS = 3
+# Switching from Monitor to Protect by itself (``auto_protect``): after watching
+# at least a day with this much spam it would have stopped, or after three
+# quiet days; never while more than this many genuine-looking messages were
+# held, or after the user marked something it would block as genuine.
+AUTO_MIN_SECONDS = 86400
+AUTO_QUIET_SECONDS = 3 * 86400
+AUTO_MIN_SPAM = 10
+AUTO_MAX_HELD = 3
+MAX_GENUINE_MARKS = 100
 # Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
 # was 1) genuine messages; older state keeps the people it already knew.
 STATE_VERSION = 2
@@ -268,6 +302,9 @@ def _empty_hour() -> dict[str, Any]:
         # Spam (stopped or let through) per first hop, and when each was last seen.
         "hops": {},
         "last": {},
+        # channel key -> {"messages", "stopped", "let_through"}, for the graphs of
+        # one channel (since ``SpamDetector.channels_since``).
+        "channels": {},
     }
 
 
@@ -288,6 +325,12 @@ class SpamDetector:
         self.relays: dict[str, float] = {}
         # start of hour (epoch seconds) -> counters, see ``_empty_hour``
         self.hours: dict[int, dict[str, Any]] = {}
+        # When counting per channel started (older hours have no split).
+        self.channels_since: float | None = None
+        # auto_protect: when the current watch began, and when the user said a
+        # message it would have blocked was genuine.
+        self.watch_since: float | None = None
+        self.genuine_marks: list[float] = []
         self.held: deque[dict[str, Any]] = deque(maxlen=60)
         self.activity: deque[dict[str, Any]] = deque(maxlen=300)
         self.campaigns: dict[int, _Campaign] = {}
@@ -313,14 +356,24 @@ class SpamDetector:
 
     def configure(self, config: SpamConfig) -> None:
         previous: SpamTunables | None = getattr(self, "tunables", None)
+        previous_mode = getattr(self, "config", config).mode
         self.config = config
         self.tunables: SpamTunables = effective(config)
+        if previous is not None and (
+            (self.tunables.auto_protect and not previous.auto_protect)
+            or (config.mode == "monitor" and previous_mode != "monitor")
+        ):
+            # A new watch: auto_protect counts from the later of the two.
+            self.watch_since = self._clock()
+            self._mark()
         if previous is not None and previous.dedupe_scope != self.tunables.dedupe_scope:
             # Duplicate blocks made for the other scope hold back the wrong people.
             for key in [k for k, b in self.blocks.items() if b.source == "dedupe"]:
                 del self.blocks[key]
                 self._mark()
         self._patterns = [re.compile(p, re.IGNORECASE) for p in self.tunables.random_name_patterns]
+        for block in getattr(self, "blocks", {}).values():
+            self._cap(block)  # the repeater matching mode may have changed
         self.allow_hops: set[str] = set(config.allow_hops)
         self.allow_senders: set[str] = set(config.allow_senders)
         self.allow_texts: set[str] = set(config.allow_texts)
@@ -400,6 +453,36 @@ class SpamDetector:
         homes[event.first_hop] = homes.get(event.first_hop, 0) + 1
         if len(homes) > MAX_HOMES_PER_NAME:
             del homes[min(homes, key=lambda hop: (homes[hop], hop == event.first_hop))]
+
+    def known_list(self, q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """Known people and names still being learnt, most recently heard first,
+        then trusted names with no history. Names only, never messages."""
+        needle = q.strip().casefold()
+        people = [
+            {
+                "name": name,
+                "genuine": int(entry[2]),
+                "first": entry[0],
+                "last": entry[1],
+                "known": self.is_known(name),
+                "trusted": name in self.allow_senders,
+            }
+            for name, entry in sorted(self.known.items(), key=lambda kv: -kv[1][1])
+        ]
+        people += [
+            {
+                "name": name,
+                "genuine": 0,
+                "first": None,
+                "last": None,
+                "known": True,
+                "trusted": True,
+            }
+            for name in sorted(self.allow_senders - self.known.keys())
+        ]
+        if needle:
+            people = [p for p in people if needle in p["name"].casefold()]
+        return {"total": len(people), "people": people[offset : offset + limit]}
 
     def _familiar(self, name: str) -> bool:
         """Trusted, known or established: a name the newer-flood signals leave alone."""
@@ -498,9 +581,22 @@ class SpamDetector:
         other blocks that hold people, and it keeps this matching identical to
         the rendered rules (see ``app/spam/rules.py``).
         """
+        if block.kind in ("text", "words"):
+            # Spam, not opinions: a text you block stops names it does not know,
+            # never what people it knows say.
+            return block.reason in _USER_TEXT_REASONS
         return block.kind in ("links", "lockdown", "suffix") or (
             block.kind == "hop" and self.hop_mode(block) == "contains_known"
         )
+
+    def week_at_most(self, block: Block) -> bool:
+        """Blocks that may last at most ``MAX_PEOPLE_BLOCK_SECONDS``: every text
+        block, and a repeater block that also stops known people."""
+        return block.kind in ("text", "words") or (block.kind == "hop" and not self.gated(block))
+
+    def _cap(self, block: Block) -> None:
+        if self.week_at_most(block):
+            block.expires = min(block.expires, self._clock() + MAX_PEOPLE_BLOCK_SECONDS)
 
     def known_origin(self, hop: str) -> bool:
         """A repeater with a genuine history: it relays, or has started genuine messages."""
@@ -565,9 +661,12 @@ class SpamDetector:
             if event.ts < block.created - 1 or not self._block_matches(block, event):
                 continue
             event.matched = block.key
-            event.forgivable = block.source in ("rotation", "campaign", "lockdown") or (
-                block.kind == "hop" and self.gated(block)
-            )
+            event.forgivable = block.source in (
+                "rotation",
+                "campaign",
+                "lockdown",
+                "auto_lockdown",
+            ) or (block.kind == "hop" and self.gated(block))
             block.hits += 1
             block.last_hit = event.ts
             event.duplicate = block.source in _REPEAT_SOURCES
@@ -723,12 +822,14 @@ class SpamDetector:
                 sender_only=sender_only,
                 match=match,
             )
+            self._cap(self.blocks[key])
             if source != "dedupe":  # routine, and there are many of them
                 self._note("block_started", key=key, kind=kind, value=value, reason=reason)
             self._mark(important=source != "dedupe")
             return True
         if expires >= block.expires:
             block.expires = expires
+            self._cap(block)
             if block.source != "manual":
                 block.reason = reason
                 block.detail = detail or {}
@@ -942,6 +1043,27 @@ class SpamDetector:
                             from_ts=last,
                         )
 
+    def _correct_campaigns(self, long_window: list[Event], now: float) -> None:
+        """Stop a campaign block that keeps catching regulars.
+
+        People Spam Guard knows, each heard from where they usually are, saying
+        the same thing is ordinary chat. A spammer copying a regular's name
+        usually comes from somewhere else, so such a copy does not count. The
+        key is held off for a day so the same messages do not bring it back.
+        """
+        for key, block in list(self.blocks.items()):
+            if block.source != "campaign" or block.kind not in ("text", "words"):
+                continue
+            caught = {
+                e.sender
+                for e in long_window
+                if e.matched == key and self.is_known(e.sender) and self._at_home(e)
+            }
+            if len(caught) >= CAMPAIGN_REGULARS:
+                self._drop_block(key)
+                self.suppressed[key] = now + SUPPRESS_SECONDS
+                self._note("campaign_corrected", key=key, count=len(caught))
+
     def _stopped(self, event: Event) -> bool:
         """Already held back by an enforced block that is not duplicate suppression.
 
@@ -1096,7 +1218,7 @@ class SpamDetector:
                 history is not None
                 and history.count <= 2
                 and history.first >= now - tun.window_seconds
-                and event.sender not in self.allow_senders
+                and not self._familiar(event.sender)
             ):
                 hop.new.add(event.sender)
             campaign = self.campaigns.get(event.campaign) if event.campaign is not None else None
@@ -1232,6 +1354,33 @@ class SpamDetector:
                 )
                 self._mark()
 
+    def _auto_lockdown(self, window: list[Event], now: float) -> None:
+        """A big flood: many made-up names through many first repeaters within
+        two minutes. Only known people get through for 15 minutes, then it ends
+        by itself. Newcomers are held too, so it can be switched off."""
+        if LOCKDOWN_KEY in self.blocks:
+            return
+        recent = [
+            e
+            for e in window
+            if e.ts >= now - AUTO_LOCKDOWN_WINDOW
+            and e.random
+            and e.first_hop != DIRECT
+            and not self._familiar(e.sender)
+        ]
+        names = {e.sender for e in recent}
+        hops = {e.first_hop for e in recent}
+        if len(names) >= AUTO_LOCKDOWN_NAMES and len(hops) >= AUTO_LOCKDOWN_HOPS:
+            self._want(
+                LOCKDOWN_KEY,
+                "lockdown",
+                None,
+                "auto_lockdown",
+                "auto_lockdown",
+                detail={"count": len(names), "origins": len(hops)},
+                ttl=AUTO_LOCKDOWN_SECONDS,
+            )
+
     def _hold_links(self, now: float) -> None:
         mode = self.tunables.hold_links
         current = self.blocks.get(LINKS_KEY)
@@ -1324,6 +1473,7 @@ class SpamDetector:
 
         if tun.enable_text_rules:
             self._block_campaigns()
+        self._correct_campaigns(long_window, now)
         if tun.dedupe_enabled:
             self._block_duplicates(
                 [e for e in long_window if e.ts >= now - tun.dedupe_seconds],
@@ -1339,6 +1489,8 @@ class SpamDetector:
         if tun.enable_rotation_guard:
             self._block_rotation(window)
         self._hold_links(now)
+        if tun.auto_lockdown:
+            self._auto_lockdown(window, now)
 
         for key in [k for k, b in self.blocks.items() if b.expires <= now]:
             block = self.blocks.pop(key)
@@ -1383,6 +1535,14 @@ class SpamDetector:
         hour = self.hours.setdefault(int(event.ts // 3600) * 3600, _empty_hour())
         hour["messages"] += 1
         outcome, block = self._outcome(event)
+        if self.channels_since is None:
+            self.channels_since = event.ts
+        channel = hour.setdefault("channels", {}).setdefault(
+            event.channel, {"messages": 0, "stopped": 0, "let_through": 0}
+        )
+        channel["messages"] += 1
+        if outcome in ("stopped", "let_through"):
+            channel[outcome] += 1
         if outcome == "held":
             hour["held_genuine"] += 1
         elif outcome != "clean":
@@ -1416,8 +1576,51 @@ class SpamDetector:
         hour = self.hours.setdefault(int(ts // 3600) * 3600, _empty_hour())
         hour["airtime_ms"] = round(hour["airtime_ms"] + airtime_ms, 1)
 
-    def metrics(self) -> dict[str, Any]:
+    def auto_protect_status(self) -> dict[str, Any] | None:
+        """Whether and when Spam Guard switches itself from Monitor to Protect.
+
+        None unless in Monitor with ``auto_protect`` on. ``waiting`` says what
+        holds it back (``paused``, ``marked_genuine``, ``held``), or is None.
+        Spam and held messages are counted from the start of the hour the watch
+        began.
+        """
+        if self.config.mode != "monitor" or not self.tunables.auto_protect:
+            return None
+        if self.watch_since is None:
+            self.watch_since = self._clock()
+        since = self.watch_since
+        first_hour = int(since // 3600) * 3600
+        counted = [hour for start, hour in self.hours.items() if start >= first_hour]
+        spam = sum(hour.get("stopped", 0) for hour in counted)
+        held = sum(hour.get("held_genuine", 0) for hour in counted)
+        waiting: str | None = None
+        if self.config.paused:
+            waiting = "paused"
+        elif any(mark >= since for mark in self.genuine_marks):
+            waiting = "marked_genuine"
+        elif held > AUTO_MAX_HELD:
+            waiting = "held"
+        due = since + (AUTO_MIN_SECONDS if spam >= AUTO_MIN_SPAM else AUTO_QUIET_SECONDS)
+        return {"since": since, "due": due, "spam": spam, "held": held, "waiting": waiting}
+
+    def note_auto_protect(self, status: dict[str, Any]) -> None:
+        """Activity entry for a switch to Protect the runtime just made by itself."""
+        hours = round((self._clock() - status["since"]) / 3600)
+        self._note("auto_protect", count=status["spam"], hours=hours)
+        self._mark()
+
+    def metrics(self, channel: str | None = None) -> dict[str, Any]:
+        """Numbers for the overview. With ``channel`` the graphs (hourly, daily,
+        hour of day) count that channel only; the totals and sources stay for
+        all channels."""
         now = self._clock()
+        key = channel.upper() if channel else None
+
+        def pick(hour: dict[str, Any]) -> dict[str, Any]:
+            if key is None:
+                return hour
+            return (hour.get("channels") or {}).get(key, {})
+
         day_ago, week_ago = now - 86400, now - 7 * 86400
         counters = ("messages", "stopped", "let_through", "held_genuine", "airtime_ms")
 
@@ -1437,7 +1640,7 @@ class SpamDetector:
             out = {"t": start, "messages": 0, "stopped": 0, "let_through": 0}
             for hour in hours:
                 for name in ("messages", "stopped", "let_through"):
-                    out[name] += hour.get(name, 0)
+                    out[name] += pick(hour).get(name, 0)
             return out
 
         this_hour = int(now // 3600) * 3600
@@ -1461,7 +1664,10 @@ class SpamDetector:
                 continue
             # Hour of day in UTC: the server's time zone is not the viewer's, so
             # the frontend shifts this to local time.
-            by_hour[time.gmtime(start).tm_hour] += hour["stopped"] + hour["let_through"]
+            picked = pick(hour)
+            by_hour[time.gmtime(start).tm_hour] += picked.get("stopped", 0) + picked.get(
+                "let_through", 0
+            )
             for hop, count in hour["hops"].items():
                 source = sources.setdefault(hop, {"hop": hop, "d7": 0, "d1": 0, "last": 0})
                 source["d7"] += count
@@ -1480,6 +1686,8 @@ class SpamDetector:
             "by_hour": by_hour,
             "sources": top,
             "since": min(self.hours, default=None),
+            "channel": key,
+            "channel_since": self.channels_since if key else None,
         }
 
     # ── state ────────────────────────────────────────────────────────────
@@ -1490,6 +1698,9 @@ class SpamDetector:
             "version": STATE_VERSION,
             "blocks": {key: asdict(block) for key, block in self.blocks.items()},
             "suppressed": dict(self.suppressed),
+            "channels_since": self.channels_since,
+            "watch_since": self.watch_since,
+            "genuine_marks": list(self.genuine_marks),
             "known": {name: list(entry) for name, entry in self.known.items()},
             "homes": {name: dict(hops) for name, hops in self.homes.items()},
             "routes": {route: list(record) for route, record in self.routes.items()},
@@ -1532,12 +1743,24 @@ class SpamDetector:
                 continue
             if isinstance(block.expires, (int, float)) and block.expires > now:
                 self.blocks[str(key)] = block
+        for block in self.blocks.values():
+            self._cap(block)
         self.suppressed = {
             str(k): float(v)
             for k, v in section("suppressed").items()
             if isinstance(v, (int, float)) and v > now
         }
         self.known = rows("known", 3)
+        since = state.get("channels_since")
+        self.channels_since = float(since) if isinstance(since, (int, float)) else None
+        watch = state.get("watch_since")
+        self.watch_since = float(watch) if isinstance(watch, (int, float)) else None
+        marks = state.get("genuine_marks")
+        self.genuine_marks = [
+            float(mark)
+            for mark in (marks if isinstance(marks, list) else [])
+            if isinstance(mark, (int, float))
+        ][-MAX_GENUINE_MARKS:]
         version = state.get("version")
         if not isinstance(version, int) or version < 2:
             for entry in self.known.values():
@@ -1597,6 +1820,8 @@ class SpamDetector:
             if block.source in _REPEAT_SOURCES:
                 self._release(block)
                 return {"key": key}
+            if block.source == "lockdown":  # your own: nothing would put it back
+                return {"key": key}
         # Otherwise the same evidence would put it straight back.
         self.suppressed[key] = self._clock() + suppress_seconds
         return {"key": key}
@@ -1608,6 +1833,9 @@ class SpamDetector:
         if minutes <= 0:
             if ended is not None:
                 self._note("lockdown_ended")
+                if ended.source == "auto_lockdown":
+                    # Ended by hand: the same flood must not start it again at once.
+                    self.suppressed[LOCKDOWN_KEY] = self._clock() + SUPPRESS_SECONDS
             return {"active": False}
         self.suppressed.pop(LOCKDOWN_KEY, None)
         self._add_block(
@@ -1653,8 +1881,11 @@ class SpamDetector:
         return {"key": key}
 
     def _manual_text(self, text: str, channel: str, reason: str, ttl: int | None) -> dict[str, Any]:
-        if len(text) < 5:
-            raise ValueError("The text must be at least 5 characters")
+        if len(text) < MANUAL_TEXT_MIN_CHARS:
+            raise ValueError(
+                f"Use at least {MANUAL_TEXT_MIN_CHARS} characters of the spam message: "
+                "Spam Guard blocks spam messages, not single words or names"
+            )
         key = text_key(text)
         self.suppressed.pop(key, None)
         self.blocks.pop(key, None)
@@ -1667,13 +1898,25 @@ class SpamDetector:
         return self._manual_text(text.strip(), channel, "manual", ttl_seconds)
 
     def _do_mark_spam(
-        self, text: str, channel: str, ttl_seconds: int | None = None
+        self, text: str, channel: str, ttl_seconds: int | None = None, sender: str = ""
     ) -> dict[str, Any]:
-        return self._manual_text(self._rule_piece(text), channel, "marked_spam", ttl_seconds)
+        if sender and (sender in self.allow_senders or self.is_known(sender)):
+            raise ValueError(
+                f"{sender} is someone Spam Guard knows, so it does not block what they say. "
+                "If they keep repeating it, the repeat guard already slows that down"
+            )
+        length = max(self.tunables.text_rule_chars, MANUAL_TEXT_MIN_CHARS)
+        piece = middle_piece(text, length)
+        if len(piece) < MANUAL_TEXT_MIN_CHARS:
+            piece = middle_piece(text, length, whole_words=False)
+        return self._manual_text(piece, channel, "marked_spam", ttl_seconds)
 
     def _do_not_spam(self, sender: str = "", matched: str | None = None) -> dict[str, Any]:
         if sender:
             self.allow_senders.add(sender)
+        if matched:
+            # It would have blocked a genuine message: auto_protect waits for the user.
+            self.genuine_marks = [*self.genuine_marks, self._clock()][-MAX_GENUINE_MARKS:]
         block = self.blocks.get(matched) if matched else None
         removed = False
         if matched and block is not None and block.kind in ("text", "words"):
@@ -1683,13 +1926,25 @@ class SpamDetector:
         self._note("not_spam", sender=sender, key=matched)
         return {"sender": sender, "removed": removed, "kind": block.kind if block else None}
 
+    def _do_watch_again(self) -> None:
+        """auto_protect: start counting again from now."""
+        self.watch_since = self._clock()
+        self._note("watch_again")
+        self._mark()
+
     def _do_extend(self, key: str, seconds: int = 3600, permanent: bool = False) -> dict[str, Any]:
         block = self._existing(key)
         now = self._clock()
+        if permanent and self.week_at_most(block):
+            raise ValueError(
+                "Blocks on message text, and repeater blocks that also stop people "
+                "Spam Guard knows, last at most 7 days"
+            )
         if permanent:
             block.expires = now + PERMANENT_SECONDS
         else:
             block.expires = max(block.expires, now) + seconds
+        self._cap(block)
         if block.source == "dedupe":
             block.source = "manual"
         return {"key": key, "expires": block.expires}
@@ -1702,6 +1957,7 @@ class SpamDetector:
         if match is not None and match not in _HOP_MODES:
             raise ValueError("Unknown matching mode")
         block.match = cast("HopMatch | None", match)
+        self._cap(block)
         self._learn_paths(self.events)
 
     def _do_forget_path(self, key: str, path: str) -> None:
@@ -1733,6 +1989,17 @@ class SpamDetector:
     def _do_unallow_hop(self, hop: str) -> None:
         self.allow_hops.discard(hop.strip().upper())
 
+    def _do_forget_known(self, name: str) -> None:
+        """Count someone as new again: off the known list, their usual repeaters
+        forgotten, and no longer trusted."""
+        if name not in self.known and name not in self.allow_senders:
+            raise ValueError("That name is not on the list")
+        self.known.pop(name, None)
+        self.homes.pop(name, None)
+        self.allow_senders.discard(name)
+        self._note("known_forgotten", sender=name)
+        self._mark()
+
     def _do_allow_sender(self, sender: str) -> None:
         if not sender.strip():
             raise ValueError("Enter a name")
@@ -1758,11 +2025,11 @@ class SpamDetector:
     def _do_clear_auto(self) -> None:
         now = self._clock()
         for key, block in list(self.blocks.items()):
-            if block.source == "manual":
+            if block.source in ("manual", "lockdown"):
                 continue
             del self.blocks[key]
             # Otherwise the same evidence would put it straight back.
-            if block.source == "dedupe":
+            if block.source in _REPEAT_SOURCES:
                 self._release(block)
             else:
                 self.suppressed[key] = now + SUPPRESS_SECONDS

@@ -6,7 +6,8 @@ import time
 
 import pytest
 
-from app.spam.detector import STATE_VERSION, SettledOutcome, SpamDetector
+from app.spam.detector import LOCKDOWN_KEY, STATE_VERSION, SettledOutcome, SpamDetector
+from app.spam.rules import render
 from app.spam.settings import SpamConfig
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
@@ -291,7 +292,8 @@ class TestShortDuplicates:
     def test_marking_a_message_as_spam_works_with_a_short_piece(self):
         det, _ = make(overrides={"text_rule_chars": 5})
         text = det.action("mark_spam", text="Dit is een test voor mij 1", channel=PUBLIC)["text"]
-        assert len(text) >= 5
+        # A block you make takes at least 12 characters, whatever the duplicate length.
+        assert len(text) >= 12
 
 
 class TestDuplicateScope:
@@ -1260,6 +1262,423 @@ class TestRotationAndRegulars:
             say(det, clock, name, "Amazing offer cheap radios now", path=(hop, "B1", "7E"))
         det.decide()
         assert "suffix:B1>7E" not in det.blocks
+
+
+class TestSpamNotOpinions:
+    WEEK = 7 * 86400
+
+    def known_dave(self):
+        det, clock = make(overrides={"known_min_msgs": 1, "dedupe_enabled": False})
+        say(det, clock, "Dave", "evening all")
+        settle(det, clock)
+        return det, clock
+
+    def test_a_text_you_block_stops_only_names_it_does_not_know(self):
+        det, clock = self.known_dave()
+        det.action("block_text", text="cheap radios today", channel=PUBLIC)
+        (block,) = det.blocks.values()
+        assert det.gated(block)
+        assert say(det, clock, "Dave", "cheap radios today, said Dave").matched is None
+        assert say(det, clock, "Stranger", "cheap radios today").matched == block.key
+
+    def test_this_is_spam_also_lets_known_people_through(self):
+        det, clock = self.known_dave()
+        det.action("mark_spam", text=LONG, channel=PUBLIC)
+        (block,) = det.blocks.values()
+        assert det.gated(block)
+        assert say(det, clock, "Dave", LONG).matched is None
+
+    def test_a_campaign_text_still_stops_everyone(self):
+        det, clock = self.known_dave()
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        block = next(b for b in det.blocks.values() if b.source == "campaign")
+        assert not det.gated(block)
+        assert say(det, clock, "Dave", SPAM).matched == block.key
+
+    def test_block_text_needs_twelve_characters(self):
+        det, _ = make()
+        with pytest.raises(ValueError, match="12"):
+            det.action("block_text", text="cheap radio", channel=PUBLIC)
+        det.action("block_text", text="cheap radio!", channel=PUBLIC)
+
+    def test_this_is_spam_needs_twelve_characters(self):
+        det, _ = make()
+        with pytest.raises(ValueError, match="12"):
+            det.action("mark_spam", text="buy now ok", channel=PUBLIC)
+
+    @pytest.mark.parametrize("trusted", [False, True])
+    def test_this_is_spam_on_someone_it_knows_is_refused(self, trusted):
+        det, clock = self.known_dave()
+        if trusted:
+            det.action("allow_sender", sender="Sue")
+        name = "Sue" if trusted else "Dave"
+        with pytest.raises(ValueError, match="repeat guard"):
+            det.action("mark_spam", text=LONG, channel=PUBLIC, sender=name)
+        assert not det.blocks
+
+    def test_text_blocks_last_at_most_a_week(self):
+        det, clock = make(overrides={"spam_text_days": 7, "block_ttl_seconds": 30 * 86400})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        for block in det.blocks.values():
+            if block.kind in ("text", "words"):
+                assert block.expires <= clock.now + self.WEEK
+
+    def test_keep_is_refused_for_blocks_that_stop_known_people(self):
+        det, clock = make()
+        det.action("block_text", text="cheap radios today", channel=PUBLIC)
+        det.action("block_hop", hop="27", match="contains")
+        for key in ("hop:27", next(k for k in det.blocks if k.startswith("text:"))):
+            with pytest.raises(ValueError, match="7 days"):
+                det.action("extend", key=key, permanent=True)
+            det.action("extend", key=key, seconds=30 * 86400)
+            assert det.blocks[key].expires <= clock.now + self.WEEK
+
+    def test_a_repeater_block_that_lets_known_people_through_can_be_kept(self):
+        det, clock = make()
+        det.action("block_hop", hop="27")
+        det.action("extend", key="hop:27", permanent=True)
+        assert det.blocks["hop:27"].expires > clock.now + 365 * 86400
+
+    def test_switching_a_kept_repeater_block_to_stop_everyone_caps_it(self):
+        det, clock = make()
+        det.action("block_hop", hop="27")
+        det.action("extend", key="hop:27", permanent=True)
+        det.action("hop_mode", key="hop:27", match="contains")
+        assert det.blocks["hop:27"].expires <= clock.now + self.WEEK
+
+    def test_stored_permanent_blocks_are_capped_on_load(self):
+        det, clock = make()
+        det.action("block_hop", hop="27", match="contains")
+        det.action("block_hop", hop="44")
+        state = det.dump()
+        for block in state["blocks"].values():
+            block["expires"] = clock.now + 10 * 365 * 86400
+        other, _ = make()
+        other._clock = clock
+        other.load(state)
+        assert other.blocks["hop:27"].expires <= clock.now + self.WEEK
+        assert other.blocks["hop:44"].expires > clock.now + self.WEEK
+
+
+MADE_UP_FLOOD = [f"Q{index:02d}ZP9XV" for index in range(14)]
+
+
+class TestAutoLockdown:
+    quiet = {"enable_hop_rules": False, "enable_rotation_guard": False, "dedupe_enabled": False}
+
+    def flood(self, det, clock, names=12, hops=6, step=5.0):
+        for index in range(names):
+            hop = f"{0xA0 + index % hops:02X}"
+            say(
+                det,
+                clock,
+                MADE_UP_FLOOD[index],
+                f"junk number {index} here",
+                path=(hop, "B1"),
+                step=step,
+            )
+        det.decide()
+
+    def test_a_flood_through_many_repeaters_locks_down_for_15_minutes(self):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock)
+        block = det.blocks[LOCKDOWN_KEY]
+        assert block.source == "auto_lockdown" and block.reason == "auto_lockdown"
+        assert block.detail == {"count": 12, "origins": 6}
+        assert block.expires == clock.now + 900
+        rendered = [r["name"] for r in render(det, "openhop", preview=True).rules]
+        assert f"rtfm-spam:lockdown:{PUBLIC} (auto)" in rendered
+
+    @pytest.mark.parametrize("names,hops", [(11, 6), (12, 5)])
+    def test_a_smaller_flood_does_not(self, names, hops):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock, names=names, hops=hops)
+        assert LOCKDOWN_KEY not in det.blocks
+
+    def test_a_slow_flood_does_not(self):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock, step=12.0)  # 12 names over more than two minutes
+        assert LOCKDOWN_KEY not in det.blocks
+
+    def test_known_names_do_not_count(self):
+        det, clock = make(overrides=self.quiet)
+        for name in MADE_UP_FLOOD[:2]:
+            det.known[name] = [clock.now - 7200, clock.now - 60, 5]
+        det.action("allow_sender", sender=MADE_UP_FLOOD[2])
+        self.flood(det, clock, names=14)  # 11 names it does not know
+        assert LOCKDOWN_KEY not in det.blocks
+
+    def test_never_while_your_own_lockdown_runs(self):
+        det, clock = make(overrides=self.quiet)
+        det.action("lockdown", minutes=60)
+        self.flood(det, clock)
+        assert det.blocks[LOCKDOWN_KEY].source == "lockdown"
+
+    @pytest.mark.parametrize("how", ["lockdown", "unblock"])
+    def test_ending_it_by_hand_holds_it_off_for_a_day(self, how):
+        det, clock = make(overrides=self.quiet)
+        self.flood(det, clock)
+        if how == "lockdown":
+            det.action("lockdown", minutes=0)
+        else:
+            det.action("unblock", key=LOCKDOWN_KEY)
+        self.flood(det, clock)
+        assert LOCKDOWN_KEY not in det.blocks
+        assert det.suppressed[LOCKDOWN_KEY] >= clock.now + 86000
+
+    def test_ending_your_own_lockdown_does_not_hold_it_off(self):
+        det, clock = make(overrides=self.quiet)
+        det.action("lockdown", minutes=60)
+        det.action("lockdown", minutes=0)
+        assert LOCKDOWN_KEY not in det.suppressed
+        det.action("lockdown", minutes=60)
+        det.action("unblock", key=LOCKDOWN_KEY)
+        assert LOCKDOWN_KEY not in det.suppressed
+
+    def test_clearing_automatic_blocks_keeps_your_own_lockdown(self):
+        det, clock = make(overrides=self.quiet)
+        det.action("lockdown", minutes=60)
+        det.action("clear_auto")
+        assert det.blocks[LOCKDOWN_KEY].source == "lockdown"
+
+    def test_can_be_switched_off(self):
+        det, clock = make(overrides={**self.quiet, "auto_lockdown": False})
+        self.flood(det, clock)
+        assert LOCKDOWN_KEY not in det.blocks
+
+
+class TestCampaignsCorrectThemselves:
+    REGULARS = [("Carol", "C7"), ("Dave", "C8"), ("Erik", "C9"), ("Fien", "CA")]
+
+    def setup(self, regulars=4):
+        det, clock = make(overrides={"dedupe_enabled": False, "enable_hop_rules": False})
+        for index in range(3):
+            for name, hop in self.REGULARS[:regulars]:
+                say(det, clock, name, f"{name} chatting about topic {index}", path=(hop, "B1"))
+        settle(det, clock)
+        for name in GENERATED:
+            say(det, clock, name, SPAM, path=("27", "B1"))
+        det.decide()
+        key = next(k for k, b in det.blocks.items() if b.source == "campaign" and b.kind == "text")
+        return det, clock, key
+
+    def quote(self, det, clock, regulars, home=True):
+        for name, hop in regulars:
+            event = say(det, clock, name, SPAM, path=(hop if home else "EE", "B1"))
+            assert event.matched is not None
+        det.decide()
+
+    def test_a_campaign_block_that_catches_three_regulars_at_home_stops(self):
+        det, clock, key = self.setup()
+        self.quote(det, clock, self.REGULARS[:3])
+        assert key not in det.blocks
+        assert det.suppressed[key] >= clock.now + 86000
+        (entry,) = [a for a in det.activity if a["event"] == "campaign_corrected"]
+        assert entry["count"] == 3
+
+    def test_two_regulars_are_not_enough(self):
+        det, clock, key = self.setup()
+        self.quote(det, clock, self.REGULARS[:2])
+        assert key in det.blocks
+
+    def test_names_heard_from_elsewhere_do_not_count(self):
+        det, clock, key = self.setup()
+        self.quote(det, clock, self.REGULARS[:3], home=False)
+        assert key in det.blocks
+
+
+class TestKnownPeopleAreNotNew:
+    NAMES = ["Anouk", "Bram", "Daan", "Femke", "Gert", "Hanna"]
+
+    def test_known_people_do_not_count_as_brand_new_names(self):
+        det, clock = make(overrides={"dedupe_enabled": False})
+        det.seed_known([(name, 5, clock.now - 7200, clock.now - 600) for name in self.NAMES])
+        for name in self.NAMES:
+            say(det, clock, name, f"{name} says hello to everyone", path=("44", "B1"))
+        det.decide()
+        assert "hop:44" not in det.blocks
+
+    def test_brand_new_names_still_do(self):
+        det, clock = make(overrides={"dedupe_enabled": False})
+        for name in self.NAMES:
+            say(det, clock, name, f"{name} says hello to everyone", path=("44", "B1"))
+        det.decide()
+        assert det.blocks["hop:44"].reason == "hop_new"
+
+
+class TestKnownList:
+    def build(self):
+        det, clock = make()
+        det.known["Anouk"] = [clock.now - 900, clock.now - 600, 5]
+        det.known["Bram"] = [clock.now - 900, clock.now - 60, 1]  # still being learnt
+        det.known["Carla"] = [clock.now - 900, clock.now - 300, 9]
+        det.action("allow_sender", sender="Zeno")  # trusted, no history
+        det.action("allow_sender", sender="Carla")
+        return det, clock
+
+    def test_most_recently_heard_first_with_trusted_names(self):
+        det, clock = self.build()
+        listed = det.known_list()
+        assert listed["total"] == 4
+        assert [p["name"] for p in listed["people"]] == ["Bram", "Carla", "Anouk", "Zeno"]
+        bram = listed["people"][0]
+        assert bram == {
+            "name": "Bram",
+            "genuine": 1,
+            "first": clock.now - 900,
+            "last": clock.now - 60,
+            "known": False,
+            "trusted": False,
+        }
+        assert listed["people"][1]["trusted"] and listed["people"][1]["known"]
+        assert listed["people"][3] == {
+            "name": "Zeno",
+            "genuine": 0,
+            "first": None,
+            "last": None,
+            "known": True,
+            "trusted": True,
+        }
+
+    def test_search_and_pages(self):
+        det, _ = self.build()
+        assert [p["name"] for p in det.known_list(q="AN")["people"]] == ["Anouk"]
+        page = det.known_list(limit=2, offset=1)
+        assert page["total"] == 4
+        assert [p["name"] for p in page["people"]] == ["Carla", "Anouk"]
+
+    def test_forget_makes_someone_new_again(self):
+        det, clock = self.build()
+        det.homes["Carla"] = {"C9": 4}
+        det.action("forget_known", name="Carla")
+        assert "Carla" not in det.known and "Carla" not in det.homes
+        assert "Carla" not in det.allow_senders
+        assert not det.is_known("Carla")
+        assert any(a["event"] == "known_forgotten" for a in det.activity)
+        with pytest.raises(ValueError):
+            det.action("forget_known", name="Nobody")
+
+
+class TestMetricsPerChannel:
+    def build(self):
+        det, clock = make(channels=TWO_CHANNELS, overrides={"dedupe_enabled": False})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)  # Public: spam
+        for index in range(2):
+            clock.tick(5)
+            det.ingest(
+                ts=clock.now,
+                path=("44",),
+                sender="Dave",
+                text=f"evening on the club channel {index}",
+                channel=OTHER,
+                length=60,
+            )
+        settle(det, clock)
+        return det, clock
+
+    def test_one_channel_or_all(self):
+        det, clock = self.build()
+        everything = det.metrics()
+        club = det.metrics(channel=OTHER)
+        public = det.metrics(channel=PUBLIC)
+        total = lambda metrics: sum(p["messages"] for p in metrics["hourly"])  # noqa: E731
+        assert (total(everything), total(club), total(public)) == (5, 2, 3)
+        assert sum(club["by_hour"]) == 0
+        assert sum(public["by_hour"]) == sum(everything["by_hour"]) > 0
+        # The number tiles stay "all channels".
+        assert club["d1"] == everything["d1"]
+        assert club["channel_since"] == public["channel_since"] is not None
+        assert everything["channel_since"] is None
+
+    def test_per_channel_counts_survive_a_restart(self):
+        det, clock = self.build()
+        other, _ = make(channels=TWO_CHANNELS)
+        other._clock = clock
+        other.load(json.loads(json.dumps(det.dump())))
+        assert other.metrics(channel=OTHER)["hourly"] == det.metrics(channel=OTHER)["hourly"]
+        assert other.channels_since == det.channels_since
+
+
+class TestAutoProtectStatus:
+    def watching(self, **overrides):
+        det, clock = make(overrides={"auto_protect": True, "dedupe_enabled": False, **overrides})
+        return det, clock
+
+    def campaign(self, det, clock, rounds=5):
+        for index in range(rounds):
+            for name in GENERATED:
+                say(det, clock, f"{name[:6]}{index:02d}", f"{SPAM} {index}")
+            det.decide()
+        settle(det, clock)
+
+    def test_off_by_default_and_not_in_protect(self):
+        det, _ = make()
+        assert det.tunables.auto_protect is False
+        assert det.auto_protect_status() is None
+        protect, _ = make(mode="protect", overrides={"auto_protect": True})
+        assert protect.auto_protect_status() is None
+
+    def test_quiet_switches_after_three_days(self):
+        det, clock = self.watching()
+        status = det.auto_protect_status()
+        assert status["since"] == clock.now
+        assert status["due"] == clock.now + 3 * 86400
+        assert status["waiting"] is None
+
+    def test_enough_spam_switches_after_a_day(self):
+        det, clock = self.watching()
+        since = det.auto_protect_status()["since"]
+        self.campaign(det, clock)
+        status = det.auto_protect_status()
+        assert status["spam"] >= 10
+        assert status["due"] == since + 86400
+
+    def test_a_genuine_mark_on_something_it_would_block_waits_for_you(self):
+        det, clock = self.watching()
+        self.campaign(det, clock, rounds=1)
+        key = next(k for k, b in det.blocks.items() if b.source == "campaign")
+        det.action("not_spam", matched=key)
+        assert det.auto_protect_status()["waiting"] == "marked_genuine"
+        clock.tick(10)
+        det.action("watch_again")
+        status = det.auto_protect_status()
+        assert status["waiting"] is None and status["since"] == clock.now
+
+    def test_many_held_messages_wait_for_you(self):
+        det, clock = self.watching()
+        det.action("lockdown", minutes=60)
+        for index in range(4):
+            say(det, clock, f"Newcomer{index}", "hello from a new person here")
+        settle(det, clock)
+        assert det.auto_protect_status()["waiting"] == "held"
+
+    def test_paused_waits(self):
+        det, _ = make(paused=True, overrides={"auto_protect": True})
+        assert det.auto_protect_status()["waiting"] == "paused"
+
+    def test_turning_it_on_starts_the_count(self):
+        det, clock = make()
+        clock.tick(5000)
+        det.configure(
+            SpamConfig(
+                channels=[{"key": PUBLIC, "name": "Public"}], overrides={"auto_protect": True}
+            )
+        )
+        assert det.auto_protect_status()["since"] == clock.now
+
+    def test_the_count_survives_a_restart(self):
+        det, clock = self.watching()
+        since = det.auto_protect_status()["since"]
+        other, _ = self.watching()
+        other._clock = clock
+        clock.tick(600)
+        other.load(json.loads(json.dumps(det.dump())))
+        assert other.auto_protect_status()["since"] == since
 
 
 def test_spam_package_does_not_import_the_radio():

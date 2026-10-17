@@ -75,6 +75,12 @@ def test_rule_ceiling_stops_at_500():
         SpamConfig(overrides={"max_total_rules": 501})
 
 
+def test_spam_text_days_stop_at_a_week():
+    with pytest.raises(ValidationError):
+        SpamConfig(overrides={"spam_text_days": 8})
+    assert clamp_overrides({"spam_text_days": 30}) == {"spam_text_days": 7}
+
+
 def test_clamp_overrides_brings_an_old_ceiling_down():
     assert clamp_overrides({"max_total_rules": 2000, "similarity": 70}) == {
         "max_total_rules": 500,

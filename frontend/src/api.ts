@@ -112,7 +112,9 @@ import type {
   SpamGuardActionResult,
   SpamGuardReplayRequest,
   SpamGuardReplayResult,
+  SpamGuardMetrics,
   SpamGuardRules,
+  SpamKnownList,
   SpamGuardSettings,
   SpamGuardState,
   OpenHopEnvelope,
@@ -440,6 +442,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ op, args, message_id: messageId ?? null }),
     }),
+  /** Overview numbers with the graphs for one channel. */
+  getSpamGuardMetrics: (channel: string) =>
+    fetchJson<SpamGuardMetrics>(`/spam-guard/metrics?channel=${encodeURIComponent(channel)}`),
+  /** Known people, newest heard first; `query` is part of a name. */
+  getSpamGuardKnown: (query: string, limit: number, offset = 0) =>
+    fetchJson<SpamKnownList>(
+      `/spam-guard/known?${new URLSearchParams({ q: query, limit: String(limit), offset: String(offset) })}`
+    ),
   getSpamGuardRules: (preview = false) =>
     fetchJson<SpamGuardRules>(`/spam-guard/rules${preview ? '?preview=true' : ''}`),
   /** Where the browser downloads the evidence log from (JSON Lines). */

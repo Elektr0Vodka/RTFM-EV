@@ -11,6 +11,38 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-17 (Spam Guard catch-up, parts 2 to 4: feat/spam-guard-catch-up-2)
+
+The rest of the openhop-spamguard v5.37 catch-up, written from scratch. No
+migration, no new dependency or environment variable. Not tested against a real
+OpenHop node or on air.
+
+### Spam Guard
+- **Spam, not opinions.** A text you block yourself (Block text, This is spam)
+  only stops names Spam Guard does not know: it sits after the known-people
+  rule. It needs at least 12 characters, and This is spam is refused for a
+  name Spam Guard knows or trusts. Every text block, and a repeater block that
+  also stops known people, lasts at most 7 days and cannot be kept for ever.
+  The "remember spam texts" setting stops at 7 days.
+- **Short automatic lockdown during a big flood.** 12 made-up names through 6
+  repeaters within two minutes: only known people get through for 15 minutes.
+  On by default; ending it by hand holds it off for a day. Clear automatic
+  blocks now leaves your own lockdown alone.
+- **Campaign blocks correct themselves** when they catch three known people
+  heard from their usual repeater. Known people no longer count as brand-new
+  names towards a repeater block.
+- **Known people list** on the Protection tab: search, Trust and Forget.
+- **Graphs per channel** on the Overview when more than one channel is
+  protected.
+- **Switch to Protect by itself** after watching (off by default): after a day
+  with 10 spam messages it would have stopped, or three quiet days. It waits
+  for you after a Not spam on something it would block or when more than 3
+  genuine-looking messages were held. Stay in Monitor and Watch again on the
+  Overview.
+- Attack simulation (stopped / held, host): seed 1 96.9% / 2.2%, seed 2
+  97.2% / 1.0%, seed 3 97.4% / 3.0%, seed 7 97.2% / 1.4%, cold start
+  97.2% / 1.8%.
+
 ## Update 2026-10-17 (Spam Guard catch-up, part 1: feat/spam-guard-catch-up-1)
 
 Catching up with openhop-spamguard v5.12 to v5.37, written from scratch (since

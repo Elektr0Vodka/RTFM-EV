@@ -67,6 +67,7 @@ const BLOCK_LABEL_KEYS: Record<string, string> = {
   rotation: 'mesh_filter_block_rotation',
   links: 'mesh_filter_block_links',
   lockdown: 'mesh_filter_block_lockdown',
+  auto_lockdown: 'mesh_filter_block_auto_lockdown',
   expired: 'mesh_filter_block_expired',
 };
 

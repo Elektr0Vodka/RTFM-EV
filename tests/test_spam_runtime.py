@@ -334,6 +334,77 @@ class TestPersistence:
         await again.stop()
 
 
+class TestSpamNotOpinions:
+    @pytest.mark.asyncio
+    async def test_this_is_spam_on_a_known_name_is_refused(self, feed):
+        await protect(feed, known_min_msgs=1, dedupe_enabled=False)
+        await feed.say("Dave", "evening all")
+        feed.clock.now += 130
+        await feed.runtime.tick()
+        message_id = await feed.say("Dave", LONG)
+        with pytest.raises(ValueError, match="repeat guard"):
+            await feed.runtime.action(
+                "mark_spam", {"text": LONG, "channel": PUBLIC}, message_id=message_id
+            )
+        assert not feed.runtime.detector.blocks
+
+
+class TestAutoProtect:
+    @staticmethod
+    async def watch(feed, **overrides):
+        config = SpamConfig(
+            channels=[{"key": PUBLIC, "name": "Public"}],
+            overrides={"auto_protect": True, **overrides},
+        )
+        assert await feed.runtime.save_config(feed.runtime.version, config) is not None
+
+    @pytest.mark.asyncio
+    async def test_switches_to_protect_when_due(self, feed):
+        await self.watch(feed)
+        feed.clock.now += 3 * 86400 + 60
+        await feed.runtime.tick()
+        assert feed.runtime.config.mode == "protect"
+        events = [a["event"] for a in feed.runtime.detector.activity]
+        assert "auto_protect" in events
+
+    @pytest.mark.asyncio
+    async def test_not_before_it_is_due(self, feed):
+        await self.watch(feed)
+        feed.clock.now += 86400
+        await feed.runtime.tick()
+        assert feed.runtime.config.mode == "monitor"
+
+    @pytest.mark.asyncio
+    async def test_never_when_off(self, feed):
+        feed.clock.now += 30 * 86400
+        await feed.runtime.tick()
+        assert feed.runtime.config.mode == "monitor"
+
+    @pytest.mark.asyncio
+    async def test_never_while_a_refusal_applies(self, feed, monkeypatch):
+        await self.watch(feed)
+        monkeypatch.setattr(feed.runtime, "refusal", lambda config: "openhop_starts_at")
+        feed.clock.now += 3 * 86400 + 60
+        await feed.runtime.tick()
+        assert feed.runtime.config.mode == "monitor"
+
+    @pytest.mark.asyncio
+    async def test_stay_in_monitor_turns_it_off(self, feed):
+        await self.watch(feed)
+        await feed.runtime.action("stay_in_monitor", {})
+        assert feed.runtime.config.overrides["auto_protect"] is False
+        assert feed.runtime.detector.auto_protect_status() is None
+
+    @pytest.mark.asyncio
+    async def test_choosing_monitor_yourself_turns_it_off(self, feed):
+        await self.watch(feed)
+        protect_config = feed.runtime.config.model_copy(update={"mode": "protect"})
+        assert await feed.runtime.save_config(feed.runtime.version, protect_config) is not None
+        monitor_config = feed.runtime.config.model_copy(update={"mode": "monitor"})
+        assert await feed.runtime.save_config(feed.runtime.version, monitor_config) is not None
+        assert feed.runtime.config.overrides["auto_protect"] is False
+
+
 class TestFreshStartSeed:
     @staticmethod
     async def store(sender, at, *, channel=PUBLIC, outgoing=False, spam=False):

@@ -43,6 +43,7 @@ class SpamGuardActionRequest(BaseModel):
             "block_action, hop_mode, forget_path, allow_origin, unallow_origin, allow_hop, "
             "unallow_hop, allow_sender, unallow_sender, allow_text, unallow_text, "
             "clear_auto, clear_suppressed, clear_held, clear_messages, forget_source, "
+            "forget_known, watch_again, stay_in_monitor, "
             "reset_learned or reset_settings"
         )
     )
@@ -85,6 +86,29 @@ async def get_spam_guard() -> dict[str, Any]:
     recent messages with their signals, numbers for the overview and health."""
     await spam_guard.ensure_loaded()
     return spam_guard.snapshot()
+
+
+@router.get("/metrics")
+async def get_spam_guard_metrics(
+    channel: str | None = Query(default=None, max_length=64, description="Channel key"),
+) -> dict[str, Any]:
+    """The overview numbers; with ``channel`` the graphs count that channel only
+    (``channel_since`` says from when)."""
+    await spam_guard.ensure_loaded()
+    return spam_guard.detector.metrics(channel=channel)
+
+
+@router.get("/known")
+async def get_spam_guard_known(
+    q: str = Query(default="", max_length=64, description="Part of a name, any case"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    """Who Spam Guard knows: names learnt from genuine messages (with how many
+    and when last heard), names still being learnt, and trusted names. Names
+    only, never message text."""
+    await spam_guard.ensure_loaded()
+    return spam_guard.detector.known_list(q=q, limit=limit, offset=offset)
 
 
 @router.put("/settings")
