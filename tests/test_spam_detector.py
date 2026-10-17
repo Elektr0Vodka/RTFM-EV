@@ -1604,6 +1604,83 @@ class TestMetricsPerChannel:
         assert other.channels_since == det.channels_since
 
 
+class TestAutoProtectStatus:
+    def watching(self, **overrides):
+        det, clock = make(overrides={"auto_protect": True, "dedupe_enabled": False, **overrides})
+        return det, clock
+
+    def campaign(self, det, clock, rounds=5):
+        for index in range(rounds):
+            for name in GENERATED:
+                say(det, clock, f"{name[:6]}{index:02d}", f"{SPAM} {index}")
+            det.decide()
+        settle(det, clock)
+
+    def test_off_by_default_and_not_in_protect(self):
+        det, _ = make()
+        assert det.tunables.auto_protect is False
+        assert det.auto_protect_status() is None
+        protect, _ = make(mode="protect", overrides={"auto_protect": True})
+        assert protect.auto_protect_status() is None
+
+    def test_quiet_switches_after_three_days(self):
+        det, clock = self.watching()
+        status = det.auto_protect_status()
+        assert status["since"] == clock.now
+        assert status["due"] == clock.now + 3 * 86400
+        assert status["waiting"] is None
+
+    def test_enough_spam_switches_after_a_day(self):
+        det, clock = self.watching()
+        since = det.auto_protect_status()["since"]
+        self.campaign(det, clock)
+        status = det.auto_protect_status()
+        assert status["spam"] >= 10
+        assert status["due"] == since + 86400
+
+    def test_a_genuine_mark_on_something_it_would_block_waits_for_you(self):
+        det, clock = self.watching()
+        self.campaign(det, clock, rounds=1)
+        key = next(k for k, b in det.blocks.items() if b.source == "campaign")
+        det.action("not_spam", matched=key)
+        assert det.auto_protect_status()["waiting"] == "marked_genuine"
+        clock.tick(10)
+        det.action("watch_again")
+        status = det.auto_protect_status()
+        assert status["waiting"] is None and status["since"] == clock.now
+
+    def test_many_held_messages_wait_for_you(self):
+        det, clock = self.watching()
+        det.action("lockdown", minutes=60)
+        for index in range(4):
+            say(det, clock, f"Newcomer{index}", "hello from a new person here")
+        settle(det, clock)
+        assert det.auto_protect_status()["waiting"] == "held"
+
+    def test_paused_waits(self):
+        det, _ = make(paused=True, overrides={"auto_protect": True})
+        assert det.auto_protect_status()["waiting"] == "paused"
+
+    def test_turning_it_on_starts_the_count(self):
+        det, clock = make()
+        clock.tick(5000)
+        det.configure(
+            SpamConfig(
+                channels=[{"key": PUBLIC, "name": "Public"}], overrides={"auto_protect": True}
+            )
+        )
+        assert det.auto_protect_status()["since"] == clock.now
+
+    def test_the_count_survives_a_restart(self):
+        det, clock = self.watching()
+        since = det.auto_protect_status()["since"]
+        other, _ = self.watching()
+        other._clock = clock
+        clock.tick(600)
+        other.load(json.loads(json.dumps(det.dump())))
+        assert other.auto_protect_status()["since"] == since
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

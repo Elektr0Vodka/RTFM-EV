@@ -28,8 +28,9 @@ from app.spam.settings import (
 )
 
 KIND = "spam_guard"
-# Whether message data is kept here is this installation's choice, not a profile's.
-LOCAL_KEYS = frozenset({"evidence_log", "evidence_days"})
+# Whether message data is kept here, and whether this installation may switch
+# itself to Protect, is its own choice, not a profile's.
+LOCAL_KEYS = frozenset({"evidence_log", "evidence_days", "auto_protect"})
 
 
 class SpamProfilePayload(BaseModel):

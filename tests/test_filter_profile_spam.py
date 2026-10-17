@@ -38,7 +38,7 @@ async def save(rt: SpamGuardRuntime, config: SpamConfig) -> None:
 
 def test_the_kind_name():
     assert SpamGuardProfiles.kind == KIND == "spam_guard"
-    assert set(LOCAL_KEYS) == {"evidence_log", "evidence_days"}
+    assert set(LOCAL_KEYS) == {"evidence_log", "evidence_days", "auto_protect"}
 
 
 def test_validate_returns_the_stored_form():

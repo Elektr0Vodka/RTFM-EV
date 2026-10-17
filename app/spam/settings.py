@@ -160,6 +160,9 @@ class SpamTunables(BaseModel):
     hop_block_ttl_seconds: int = Field(default=2 * 3600, ge=600, le=PERMANENT_SECONDS)
     spam_text_days: int = Field(default=7, ge=0, le=MAX_SPAM_TEXT_DAYS)
     max_total_rules: int = Field(default=300, ge=20, le=MAX_RULES)
+    # Switch from Monitor to Protect by itself once it has watched long enough
+    # (``detector.auto_protect_status``). Off unless the user turns it on.
+    auto_protect: bool = False
     # Evidence log
     evidence_log: bool = False
     evidence_days: int = Field(default=7, ge=1, le=30)

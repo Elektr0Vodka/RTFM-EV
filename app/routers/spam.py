@@ -43,7 +43,7 @@ class SpamGuardActionRequest(BaseModel):
             "block_action, hop_mode, forget_path, allow_origin, unallow_origin, allow_hop, "
             "unallow_hop, allow_sender, unallow_sender, allow_text, unallow_text, "
             "clear_auto, clear_suppressed, clear_held, clear_messages, forget_source, "
-            "forget_known, "
+            "forget_known, watch_again, stay_in_monitor, "
             "reset_learned or reset_settings"
         )
     )

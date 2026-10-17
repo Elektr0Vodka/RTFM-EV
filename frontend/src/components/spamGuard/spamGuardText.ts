@@ -110,6 +110,8 @@ const ACTIVITY_KEYS: Record<string, string> = {
   known_seeded: 'spam_activity_known_seeded',
   campaign_corrected: 'spam_activity_campaign_corrected',
   known_forgotten: 'spam_activity_known_forgotten',
+  auto_protect: 'spam_activity_auto_protect',
+  watch_again: 'spam_activity_watch_again',
 };
 
 function str(value: unknown): string {
@@ -129,6 +131,7 @@ export function activityLabel(entry: SpamActivityEntry, t: TFn): string {
     sender: str(entry.sender),
     hits: num(entry.hits),
     count: num(entry.count),
+    hours: num(entry.hours),
   });
 }
 

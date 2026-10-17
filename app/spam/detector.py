@@ -126,6 +126,15 @@ AUTO_LOCKDOWN_SECONDS = 900
 # A campaign block that caught this many known people, each heard from home,
 # is ordinary chat: it stops.
 CAMPAIGN_REGULARS = 3
+# Switching from Monitor to Protect by itself (``auto_protect``): after watching
+# at least a day with this much spam it would have stopped, or after three
+# quiet days; never while more than this many genuine-looking messages were
+# held, or after the user marked something it would block as genuine.
+AUTO_MIN_SECONDS = 86400
+AUTO_QUIET_SECONDS = 3 * 86400
+AUTO_MIN_SPAM = 10
+AUTO_MAX_HELD = 3
+MAX_GENUINE_MARKS = 100
 # Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
 # was 1) genuine messages; older state keeps the people it already knew.
 STATE_VERSION = 2
@@ -318,6 +327,10 @@ class SpamDetector:
         self.hours: dict[int, dict[str, Any]] = {}
         # When counting per channel started (older hours have no split).
         self.channels_since: float | None = None
+        # auto_protect: when the current watch began, and when the user said a
+        # message it would have blocked was genuine.
+        self.watch_since: float | None = None
+        self.genuine_marks: list[float] = []
         self.held: deque[dict[str, Any]] = deque(maxlen=60)
         self.activity: deque[dict[str, Any]] = deque(maxlen=300)
         self.campaigns: dict[int, _Campaign] = {}
@@ -343,8 +356,16 @@ class SpamDetector:
 
     def configure(self, config: SpamConfig) -> None:
         previous: SpamTunables | None = getattr(self, "tunables", None)
+        previous_mode = getattr(self, "config", config).mode
         self.config = config
         self.tunables: SpamTunables = effective(config)
+        if previous is not None and (
+            (self.tunables.auto_protect and not previous.auto_protect)
+            or (config.mode == "monitor" and previous_mode != "monitor")
+        ):
+            # A new watch: auto_protect counts from the later of the two.
+            self.watch_since = self._clock()
+            self._mark()
         if previous is not None and previous.dedupe_scope != self.tunables.dedupe_scope:
             # Duplicate blocks made for the other scope hold back the wrong people.
             for key in [k for k, b in self.blocks.items() if b.source == "dedupe"]:
@@ -1555,6 +1576,39 @@ class SpamDetector:
         hour = self.hours.setdefault(int(ts // 3600) * 3600, _empty_hour())
         hour["airtime_ms"] = round(hour["airtime_ms"] + airtime_ms, 1)
 
+    def auto_protect_status(self) -> dict[str, Any] | None:
+        """Whether and when Spam Guard switches itself from Monitor to Protect.
+
+        None unless in Monitor with ``auto_protect`` on. ``waiting`` says what
+        holds it back (``paused``, ``marked_genuine``, ``held``), or is None.
+        Spam and held messages are counted from the start of the hour the watch
+        began.
+        """
+        if self.config.mode != "monitor" or not self.tunables.auto_protect:
+            return None
+        if self.watch_since is None:
+            self.watch_since = self._clock()
+        since = self.watch_since
+        first_hour = int(since // 3600) * 3600
+        counted = [hour for start, hour in self.hours.items() if start >= first_hour]
+        spam = sum(hour.get("stopped", 0) for hour in counted)
+        held = sum(hour.get("held_genuine", 0) for hour in counted)
+        waiting: str | None = None
+        if self.config.paused:
+            waiting = "paused"
+        elif any(mark >= since for mark in self.genuine_marks):
+            waiting = "marked_genuine"
+        elif held > AUTO_MAX_HELD:
+            waiting = "held"
+        due = since + (AUTO_MIN_SECONDS if spam >= AUTO_MIN_SPAM else AUTO_QUIET_SECONDS)
+        return {"since": since, "due": due, "spam": spam, "held": held, "waiting": waiting}
+
+    def note_auto_protect(self, status: dict[str, Any]) -> None:
+        """Activity entry for a switch to Protect the runtime just made by itself."""
+        hours = round((self._clock() - status["since"]) / 3600)
+        self._note("auto_protect", count=status["spam"], hours=hours)
+        self._mark()
+
     def metrics(self, channel: str | None = None) -> dict[str, Any]:
         """Numbers for the overview. With ``channel`` the graphs (hourly, daily,
         hour of day) count that channel only; the totals and sources stay for
@@ -1645,6 +1699,8 @@ class SpamDetector:
             "blocks": {key: asdict(block) for key, block in self.blocks.items()},
             "suppressed": dict(self.suppressed),
             "channels_since": self.channels_since,
+            "watch_since": self.watch_since,
+            "genuine_marks": list(self.genuine_marks),
             "known": {name: list(entry) for name, entry in self.known.items()},
             "homes": {name: dict(hops) for name, hops in self.homes.items()},
             "routes": {route: list(record) for route, record in self.routes.items()},
@@ -1697,6 +1753,14 @@ class SpamDetector:
         self.known = rows("known", 3)
         since = state.get("channels_since")
         self.channels_since = float(since) if isinstance(since, (int, float)) else None
+        watch = state.get("watch_since")
+        self.watch_since = float(watch) if isinstance(watch, (int, float)) else None
+        marks = state.get("genuine_marks")
+        self.genuine_marks = [
+            float(mark)
+            for mark in (marks if isinstance(marks, list) else [])
+            if isinstance(mark, (int, float))
+        ][-MAX_GENUINE_MARKS:]
         version = state.get("version")
         if not isinstance(version, int) or version < 2:
             for entry in self.known.values():
@@ -1850,6 +1914,9 @@ class SpamDetector:
     def _do_not_spam(self, sender: str = "", matched: str | None = None) -> dict[str, Any]:
         if sender:
             self.allow_senders.add(sender)
+        if matched:
+            # It would have blocked a genuine message: auto_protect waits for the user.
+            self.genuine_marks = [*self.genuine_marks, self._clock()][-MAX_GENUINE_MARKS:]
         block = self.blocks.get(matched) if matched else None
         removed = False
         if matched and block is not None and block.kind in ("text", "words"):
@@ -1858,6 +1925,12 @@ class SpamDetector:
             removed = True
         self._note("not_spam", sender=sender, key=matched)
         return {"sender": sender, "removed": removed, "kind": block.kind if block else None}
+
+    def _do_watch_again(self) -> None:
+        """auto_protect: start counting again from now."""
+        self.watch_since = self._clock()
+        self._note("watch_again")
+        self._mark()
 
     def _do_extend(self, key: str, seconds: int = 3600, permanent: bool = False) -> dict[str, Any]:
         block = self._existing(key)

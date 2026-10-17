@@ -214,6 +214,39 @@ export function SpamOverviewTab({
             ? t('spam_mode_paused_desc')
             : t(settings.mode === 'monitor' ? 'spam_mode_monitor_desc' : 'spam_mode_protect_desc')}
         </p>
+        {state.auto_protect && (
+          <div
+            className="flex flex-wrap items-center gap-2 text-[0.8125rem]"
+            data-testid="spam-auto-protect"
+          >
+            <span className="text-foreground">
+              {state.auto_protect.waiting
+                ? t(`spam_auto_protect_waiting_${state.auto_protect.waiting}`)
+                : t('spam_auto_protect_due', {
+                    date: new Date(state.auto_protect.due * 1000).toLocaleString(),
+                    count: state.auto_protect.spam,
+                  })}
+            </span>
+            {state.auto_protect.waiting && state.auto_protect.waiting !== 'paused' && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => void guard.action('watch_again')}
+              >
+                {t('spam_auto_protect_watch_again')}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => void guard.action('stay_in_monitor')}
+            >
+              {t('spam_auto_protect_stay')}
+            </Button>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="spam-sensitivity" className="text-sm font-medium text-foreground">
             {t('spam_sensitivity_label')}

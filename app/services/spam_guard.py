@@ -236,6 +236,32 @@ class SpamGuardRuntime:
             # Cheap, and it picks up a radio swapped for (or from) an OpenHop node.
             self.apply_rules()
             await self.flush()
+            switched = await self._maybe_auto_protect()
+        if switched:
+            self.broadcast()
+
+    async def _maybe_auto_protect(self) -> bool:
+        """Switch from Monitor to Protect by itself when ``auto_protect`` says it
+        is due. Never past a refusal for the connected radio. Caller holds the lock."""
+        status = self.detector.auto_protect_status()
+        if status is None or status["waiting"] or self._clock() < status["due"]:
+            return False
+        target = self.config.model_copy(update={"mode": "protect"})
+        if self.refusal(target) is not None:
+            return False
+        version = await SpamGuardConfigRepository.save(self.version, target.model_dump(mode="json"))
+        if version is None:
+            return False
+        self.version, self.config = version, target
+        self.detector.configure(target)
+        self.detector.note_auto_protect(status)
+        logger.info(
+            "Spam Guard switched itself to Protect after watching (spam %s)", status["spam"]
+        )
+        self.apply_rules()
+        self._dirty = True
+        await self.flush(force=True)
+        return True
 
     # ── backend ──────────────────────────────────────────────────────────
 
@@ -458,6 +484,11 @@ class SpamGuardRuntime:
         """Persist the settings if ``expected_version`` is current; None on a conflict."""
         async with self._lock:
             await self.ensure_loaded()
+            if self.config.mode == "protect" and config.mode == "monitor":
+                # Choosing Monitor yourself: do not switch back by itself.
+                config = config.model_copy(
+                    update={"overrides": {**config.overrides, "auto_protect": False}}
+                )
             version = await SpamGuardConfigRepository.save(
                 expected_version, config.model_dump(mode="json")
             )
@@ -484,6 +515,8 @@ class SpamGuardRuntime:
             await self.ensure_loaded()
             if op == "reset_settings":
                 return await self._reset_settings(body)
+            if op == "stay_in_monitor":
+                return await self._stay_in_monitor()
             if op == "not_spam" and message_id is not None and not body.get("matched"):
                 body = {**body, "matched": self._block_behind(message_id)}
             if op == "mark_spam" and message_id is not None and not body.get("sender"):
@@ -515,6 +548,21 @@ class SpamGuardRuntime:
             await self.flush(force=True)
         self.broadcast()
         return outcome
+
+    async def _stay_in_monitor(self) -> dict[str, Any]:
+        """Turn auto_protect off. Caller holds the lock."""
+        config = self.config.model_copy(
+            update={"overrides": {**self.config.overrides, "auto_protect": False}}
+        )
+        version = await SpamGuardConfigRepository.save(self.version, config.model_dump(mode="json"))
+        if version is None:
+            raise ValueError("Spam Guard settings were changed elsewhere; reload and try again")
+        self.version, self.config = version, config
+        self.detector.configure(config)
+        self._dirty = True
+        await self.flush(force=True)
+        self.broadcast()
+        return {"version": version}
 
     async def _reset_settings(self, body: dict[str, Any]) -> dict[str, Any]:
         """Put the settings back to those of a fresh install. Caller holds the lock.
@@ -742,6 +790,7 @@ class SpamGuardRuntime:
             "health": self.health(),
             "metrics": det.metrics(),
             "block_list": blocks,
+            "auto_protect": det.auto_protect_status(),
             "held": list(det.held)[::-1],
             "messages": messages,
             "campaigns": campaigns,

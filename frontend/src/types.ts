@@ -3323,6 +3323,7 @@ export interface SpamGuardTunables {
   hop_random_senders_long: number;
   enable_rotation_guard: boolean;
   auto_lockdown: boolean;
+  auto_protect: boolean;
   rotate_first_hops: number;
   route_memory_days: number;
   max_paths_per_hop: number;
@@ -3370,6 +3371,14 @@ export interface SpamGuardSettings {
 }
 
 export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';
+
+export interface SpamAutoProtectStatus {
+  since: number;
+  due: number;
+  spam: number;
+  held: number;
+  waiting: 'paused' | 'marked_genuine' | 'held' | null;
+}
 
 export interface SpamKnownPerson {
   name: string;
@@ -3551,6 +3560,8 @@ export interface SpamGuardState extends SpamGuardSummary {
   defaults: SpamGuardTunables;
   health: SpamGuardHealth;
   metrics: SpamGuardMetrics;
+  /** Monitor with auto_protect on: when it switches to Protect, or what it waits for. */
+  auto_protect?: SpamAutoProtectStatus | null;
   block_list: SpamBlock[];
   held: SpamHeldMessage[];
   messages: SpamGuardMessage[];

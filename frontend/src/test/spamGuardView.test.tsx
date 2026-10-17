@@ -57,6 +57,7 @@ const TUNABLES: SpamGuardTunables = {
   hop_random_senders_long: 5,
   enable_rotation_guard: true,
   auto_lockdown: true,
+  auto_protect: false,
   rotate_first_hops: 3,
   route_memory_days: 7,
   max_paths_per_hop: 50,
@@ -363,6 +364,46 @@ describe('SpamGuardView overview', () => {
     expect(await screen.findByText(/Counted per channel since/)).toBeInTheDocument();
     expect(localStorage.getItem('spamGuardChartChannel')).toBe(OTHER);
     localStorage.removeItem('spamGuardChartChannel');
+  });
+
+  it('says when it switches to Protect by itself and can stay in Monitor', async () => {
+    await renderView(
+      makeState({
+        auto_protect: { since: NOW - 3600, due: NOW + 86400, spam: 4, held: 0, waiting: null },
+      })
+    );
+    const line = screen.getByTestId('spam-auto-protect');
+    expect(within(line).getByText(/Switches to Protect by itself on/)).toBeInTheDocument();
+    expect(within(line).queryByRole('button', { name: 'Watch again' })).toBeNull();
+    fireEvent.click(within(line).getByRole('button', { name: 'Stay in Monitor' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('stay_in_monitor', {}, undefined)
+    );
+  });
+
+  it('says what auto-Protect waits for and can watch again', async () => {
+    await renderView(
+      makeState({
+        auto_protect: {
+          since: NOW - 3600,
+          due: NOW + 86400,
+          spam: 4,
+          held: 0,
+          waiting: 'marked_genuine',
+        },
+      })
+    );
+    const line = screen.getByTestId('spam-auto-protect');
+    expect(within(line).getByText(/you marked a message/)).toBeInTheDocument();
+    fireEvent.click(within(line).getByRole('button', { name: 'Watch again' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('watch_again', {}, undefined)
+    );
+  });
+
+  it('shows no auto-Protect line when it is off', async () => {
+    await renderView();
+    expect(screen.queryByTestId('spam-auto-protect')).toBeNull();
   });
 
   it('has no channel picker with one protected channel', async () => {
