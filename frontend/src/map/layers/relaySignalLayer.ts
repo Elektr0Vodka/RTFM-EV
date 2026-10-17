@@ -44,7 +44,11 @@ export function relayRingRadius(receptions: number): number {
  * contact (unresolved or colliding hashes) or without a location are counted
  * in `unplaced`. `contacts` should already carry manual location overrides.
  */
-export function buildRelaySignalFeatures(relays: RelaySummary[], contacts: Contact[]) {
+export function buildRelaySignalFeatures(
+  relays: RelaySummary[],
+  contacts: Contact[],
+  signalColors?: { bad: string; mid: string; good: string }
+) {
   const byKey = new Map(contacts.map((c) => [c.public_key.toLowerCase(), c]));
   let unplaced = 0;
   const features = [];
@@ -56,7 +60,7 @@ export function buildRelaySignalFeatures(relays: RelaySummary[], contacts: Conta
       unplaced += 1;
       continue;
     }
-    const [r, g, b] = snrColor(relay.avg_snr);
+    const [r, g, b] = snrColor(relay.avg_snr, signalColors);
     const snr = formatSNR(relay.avg_snr);
     features.push({
       type: 'Feature' as const,

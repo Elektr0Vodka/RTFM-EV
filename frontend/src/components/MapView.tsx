@@ -53,6 +53,7 @@ import { createTelemetryLayer } from '../map/layers/telemetryLayer';
 import { NodeMapPopup } from '../map/NodeMapPopup';
 import { DateTimeField } from './DateTimeField';
 import {
+  effectiveRoleColors,
   getSavedNodeRoleColors,
   saveNodeRoleColors,
   DEFAULT_NODE_ROLE_COLORS,
@@ -138,6 +139,8 @@ import {
 import type { ExtraFab, MapLinkMode } from '../map/controls/MapControls';
 import { buildNodesGpx, gpxExportFilename } from '../utils/gpxExport';
 import { contactTypeLabel } from './ContactInfoBody';
+import { useCvdColors, useCvdMode } from '../hooks/useCvdColors';
+import type { Tone } from '../utils/accessibility';
 
 interface MapViewProps {
   contacts: Contact[];
@@ -477,6 +480,17 @@ export function MapView({
   );
   const [neonNodes, setNeonNodes] = useState(getSavedNeonOn);
   const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
+  // Colourblind mode: map marks take the palette for the basemap's tone (the
+  // surface they are drawn on), and stock role colours follow the palette.
+  const [basemapTone, setBasemapTone] = useState<Tone>('dark');
+  const cvdMode = useCvdMode();
+  const mapColors = useCvdColors(basemapTone);
+  const mapColorsRef = useRef(mapColors);
+  mapColorsRef.current = mapColors;
+  const drawnRoleColors = useMemo(
+    () => effectiveRoleColors(roleColors, cvdMode, basemapTone),
+    [roleColors, cvdMode, basemapTone]
+  );
   const [labelMode, setLabelMode] = useState<NodeLabelMode>(getSavedLabelMode);
   const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
   const [latestTelemetry, setLatestTelemetry] = useState<Record<string, LatestTelemetry>>({});
@@ -805,6 +819,7 @@ export function MapView({
         resolveCoord: (id) => resolveCoordRef.current?.(id),
         getContext: () => linkContextRef.current ?? linkContext,
         state: createPacketNetworkState(config?.name || 'Me'),
+        getSignalColors: () => mapColorsRef.current.signal,
       });
     }
     return timelineRef.current;
@@ -1034,13 +1049,22 @@ export function MapView({
     latestTelemetryRef.current = latestTelemetry;
   }, [latestTelemetry]);
 
-  // Persist per-role node colours and push them to the live layer + legend.
+  // Persist the per-role node colours the user picked.
   useEffect(() => {
-    roleColorsRef.current = roleColors;
     saveNodeRoleColors(roleColors);
-    nodesRef.current?.setRoleColors(roleColors);
-    neonOverlayRef.current?.setRoleColors(roleColors);
   }, [roleColors]);
+
+  // Push the colours actually drawn (picked, or the colourblind palette) to the
+  // live layers; the legend reads the same values.
+  useEffect(() => {
+    roleColorsRef.current = drawnRoleColors;
+    nodesRef.current?.setRoleColors(drawnRoleColors);
+    neonOverlayRef.current?.setRoleColors(drawnRoleColors);
+  }, [drawnRoleColors]);
+  useEffect(() => {
+    nodesRef.current?.setRecencyColors(mapColors.recency);
+    neonOverlayRef.current?.setRecencyColors(mapColors.recency);
+  }, [mapColors]);
 
   const handleRoleColorChange = useCallback((type: number, color: string) => {
     setRoleColors((prev) => ({ ...prev, [type]: color }));
@@ -1590,6 +1614,7 @@ export function MapView({
     since: sinceCutoffSec,
     until: sinceUntilSec,
     contacts: mappableContacts,
+    signalColors: mapColors.signal,
   });
 
   const handleReady = useCallback(
@@ -1604,6 +1629,7 @@ export function MapView({
       const nodes = createNodesLayer(map, {
         onClick: openContactPopup,
         roleColors: roleColorsRef.current,
+        recencyColors: mapColorsRef.current.recency,
       });
       nodes.ensure();
       nodes.setNodeScale(nodeScale);
@@ -1619,6 +1645,7 @@ export function MapView({
       neon.setNodeScale(nodeScale);
       neon.setEqualSizes(equalNodeSizes);
       neon.setRoleColors(roleColorsRef.current);
+      neon.setRecencyColors(mapColorsRef.current.recency);
       neon.setData(mappableContacts, nowSec);
       neon.setVisible(neonNodes);
       neonOverlayRef.current = neon;
@@ -2400,6 +2427,7 @@ export function MapView({
         }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
+        onBasemapTone={setBasemapTone}
         tilt3D={tilt3D}
         onToggleTilt={(on) => {
           setTilt3D(on);
@@ -2457,7 +2485,11 @@ export function MapView({
         onExportGpx={handleExportGpx}
         extraFabs={extraFabs}
         legendContent={
-          showPackets ? <MapLegend roleColors={roleColors} extra={<PacketLegend />} /> : undefined
+          <MapLegend
+            roleColors={drawnRoleColors}
+            recencyColors={mapColors.recency}
+            extra={showPackets ? <PacketLegend signalColors={mapColors.signal} /> : undefined}
+          />
         }
       >
         {showPackets && (

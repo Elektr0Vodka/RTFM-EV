@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   clampZoom,
+  renderRadar,
   radarRange,
   defaultView,
   zoomAt,
@@ -102,5 +103,48 @@ describe('radarTooltipLines', () => {
     }).map((l) => l.text);
     expect(lines.some((t) => t.includes('dB'))).toBe(false);
     expect(lines.some((t) => t.includes('1 reception') && !t.includes('receptions'))).toBe(true);
+  });
+});
+
+describe('renderRadar colourblind stops', () => {
+  function recordingCanvas() {
+    const fills: string[] = [];
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, prop) => {
+          if (prop === 'measureText') return () => ({ width: 10 });
+          return () => {};
+        },
+        set: (_t, prop, value) => {
+          if (prop === 'fillStyle') fills.push(String(value));
+          return true;
+        },
+      }
+    );
+    const canvas = document.createElement('canvas');
+    Object.defineProperty(canvas, 'getContext', { value: () => ctx });
+    return { canvas, fills };
+  }
+
+  const data = {
+    center: { lat: 52, lon: 5 },
+    nodes: [{ name: 'A', lat: 52.01, lon: 5.01, snr: 12, receptions: 3 }],
+  } as unknown as Parameters<typeof renderRadar>[1];
+
+  it('draws today’s hue ramp without stops', () => {
+    const { canvas, fills } = recordingCanvas();
+    renderRadar(canvas, data);
+    expect(fills).toContain('hsl(120, 70%, 50%)');
+  });
+
+  it('draws nodes and the legend with the given stops', () => {
+    const { canvas, fills } = recordingCanvas();
+    renderRadar(canvas, data, {
+      signalColors: { bad: '#010203', mid: '#040506', good: '#0a0b0c' },
+    });
+    expect(fills).toContain('rgb(10, 11, 12)');
+    expect(fills).toContain('rgb(1, 2, 3)');
+    expect(fills.some((f) => f.startsWith('hsl(') && f.includes('70%, 50%'))).toBe(false);
   });
 });

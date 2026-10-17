@@ -29,3 +29,19 @@ describe('snrColor', () => {
     expect(snrColor(null)).toBe('hsl(0, 70%, 50%)');
   });
 });
+
+describe('snrColor with colourblind stops', () => {
+  const signal = { bad: '#010203', mid: '#040506', good: '#0a0b0c' };
+
+  it('is unchanged without stops', () => {
+    expect(snrColor(-20)).toBe('hsl(0, 70%, 50%)');
+    expect(snrColor(-5)).toBe('hsl(60, 70%, 50%)');
+    expect(snrColor(10)).toBe('hsl(120, 70%, 50%)');
+  });
+
+  it('uses the stops at the ends and the middle', () => {
+    expect(snrColor(-25, signal)).toBe('rgb(1, 2, 3)');
+    expect(snrColor(-5, signal)).toBe('rgb(4, 5, 6)');
+    expect(snrColor(12, signal)).toBe('rgb(10, 11, 12)');
+  });
+});

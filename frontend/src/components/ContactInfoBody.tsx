@@ -2123,7 +2123,7 @@ function ContactTelemetrySection({
                 className={`text-xs px-2 py-1 rounded border transition-colors w-full ${
                   isTracked
                     ? 'border-destructive/50 text-destructive hover:bg-destructive/10'
-                    : 'border-green-600/50 text-green-600 hover:bg-green-600/10'
+                    : 'border-green-600/50 text-green-600 hover:bg-green-600/10 cvd:border-success/50 cvd:text-success cvd:hover:bg-success/10'
                 } disabled:opacity-50`}
               >
                 {toggling

@@ -439,6 +439,14 @@ Customisation heading and the branding block below it.
   these themes: sender and time on top, the text, then hop count, region and
   delivery mark as a row of chips. Pages open with a larger title without a
   rule under it, and bordered panels and stat tiles are raised cards.
+- **Accessibility**: two per-browser settings that work on top of every theme.
+  **Colourblind mode** (Off, protan, deutan, tritan) swaps the status colours,
+  the map's SNR ramp, node recency and role colours, hop and route colours and
+  the colours that tell chart series apart for a palette that type of colour
+  vision can tell apart; role colours you picked yourself are kept, and Off
+  looks exactly as before. **Reading font** (Theme default, OpenDyslexic,
+  Atkinson Hyperlegible, Lexend) replaces the theme's text font; code and
+  packet data keep their fixed-width font.
 - **CRT screen effects**: scanline, phosphor-glow, screen-curvature, and flicker
   toggles that sit beneath the theme grid. They are a universal overlay: they
   work on top of any theme, not only the CRT ones. They default on when a CRT

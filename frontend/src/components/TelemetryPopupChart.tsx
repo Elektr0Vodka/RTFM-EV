@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import {
   AreaChart,
   Area,
@@ -24,6 +25,7 @@ const CHART_COLORS = ['#22c55e', '#8b5cf6', '#0ea5e9', '#ef4444', '#f59e0b', '#e
  *  imperatively into the MapLibre popup via createRoot. */
 export function TelemetryPopupChart({ publicKey }: { publicKey: string }) {
   const t = useT();
+  const seriesColor = useSeriesColor();
   const [history, setHistory] = useState<TelemetryHistoryEntry[] | null>(null);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -55,10 +57,10 @@ export function TelemetryPopupChart({ publicKey }: { publicKey: string }) {
     return Array.from(seen.entries()).map(([key, info], i) => ({
       key,
       label: formatLppLabel(info.type_name),
-      color: CHART_COLORS[i % CHART_COLORS.length],
+      color: seriesColor(i, CHART_COLORS[i % CHART_COLORS.length]),
       ...info,
     }));
-  }, [history]);
+  }, [history, seriesColor]);
 
   const active = selected ?? series[0]?.key ?? null;
   const activeSeries = series.find((s) => s.key === active);

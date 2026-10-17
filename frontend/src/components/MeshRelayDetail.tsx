@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import {
   Bar,
   BarChart,
@@ -63,6 +64,8 @@ function fmtTs(ts: number, span: number): string {
 
 export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
   const t = useT();
+  // Series and payload types are told apart by colour.
+  const seriesColor = useSeriesColor();
   const [data, setData] = useState<RelayDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hexKey = relayHexes.join(',');
@@ -175,13 +178,13 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
                   <Bar
                     dataKey="receptions"
                     name={t('relay_detail_series_copies')}
-                    fill="#3b82f6"
+                    fill={seriesColor(0, '#3b82f6')}
                     isAnimationActive={false}
                   />
                   <Bar
                     dataKey="first_arrivals"
                     name={t('relay_detail_series_first')}
-                    fill="#10b981"
+                    fill={seriesColor(1, '#10b981')}
                     isAnimationActive={false}
                   />
                 </BarChart>
@@ -219,7 +222,7 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
                     yAxisId="snr"
                     dataKey="avg_snr"
                     name={t('relay_detail_series_snr')}
-                    stroke="#3b82f6"
+                    stroke={seriesColor(0, '#3b82f6')}
                     dot={false}
                     isAnimationActive={false}
                   />
@@ -227,7 +230,7 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
                     yAxisId="rssi"
                     dataKey="avg_rssi"
                     name={t('relay_detail_series_rssi')}
-                    stroke="#f59e0b"
+                    stroke={seriesColor(1, '#f59e0b')}
                     dot={false}
                     isAnimationActive={false}
                   />
@@ -245,7 +248,7 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
             items={data.payload_types.map((c, i) => ({
               label: c.key,
               count: c.count,
-              color: TYPE_COLORS[i % TYPE_COLORS.length],
+              color: seriesColor(i, TYPE_COLORS[i % TYPE_COLORS.length]),
             }))}
           />
         </section>
@@ -306,7 +309,7 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
                       {r.payload_type}
                       {r.first && (
                         <span
-                          className="ml-1 rounded bg-emerald-500/15 px-1 text-[10px] text-emerald-600 dark:text-emerald-400"
+                          className="ml-1 rounded bg-emerald-500/15 px-1 text-[10px] text-emerald-600 dark:text-emerald-400 cvd:bg-success/15 cvd:text-success"
                           title={t('relay_detail_first_badge_title')}
                         >
                           {t('relay_detail_first_badge')}

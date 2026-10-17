@@ -96,7 +96,7 @@ function getRouteTypeColor(routeType: string): string {
     case 'TransportFlood':
       return 'bg-purple-500/20 text-purple-400';
     case 'TransportDirect':
-      return 'bg-orange-500/20 text-orange-400';
+      return 'bg-orange-500/20 text-orange-400'; // cvd-decorative: labelled route-type badge
     default:
       return 'bg-muted text-muted-foreground';
   }

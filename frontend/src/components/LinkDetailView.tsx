@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import {
   Bar,
   BarChart,
@@ -81,6 +82,8 @@ const axisTick = { fontSize: 10, fill: 'hsl(var(--muted-foreground))' };
  *  signal trend (own-node links only) and the packets that used it. */
 export function LinkDetailView({ a, b, channels, onBack, onOpenContactInfo }: LinkDetailViewProps) {
   const t = useT();
+  // Packet types and the SNR/RSSI pair are told apart by colour.
+  const seriesColor = useSeriesColor();
   const [rangeId, setRangeId] = useState<string>(ALL_TIME_RANGE.id);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -325,7 +328,7 @@ export function LinkDetailView({ a, b, channels, onBack, onOpenContactInfo }: Li
                         key={ty}
                         dataKey={ty}
                         stackId="t"
-                        fill={TYPE_COLORS[i % TYPE_COLORS.length]}
+                        fill={seriesColor(i, TYPE_COLORS[i % TYPE_COLORS.length])}
                         isAnimationActive={false}
                       />
                     ))}
@@ -375,7 +378,7 @@ export function LinkDetailView({ a, b, channels, onBack, onOpenContactInfo }: Li
                       yAxisId="snr"
                       dataKey="snr_avg"
                       name={t('link_detail_col_snr')}
-                      stroke="#3b82f6"
+                      stroke={seriesColor(0, '#3b82f6')}
                       dot={false}
                       isAnimationActive={false}
                     />
@@ -383,7 +386,7 @@ export function LinkDetailView({ a, b, channels, onBack, onOpenContactInfo }: Li
                       yAxisId="rssi"
                       dataKey="rssi_avg"
                       name={t('link_detail_col_rssi')}
-                      stroke="#f59e0b"
+                      stroke={seriesColor(1, '#f59e0b')}
                       dot={false}
                       isAnimationActive={false}
                     />

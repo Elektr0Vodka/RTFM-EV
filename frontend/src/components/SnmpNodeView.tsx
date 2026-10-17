@@ -6,6 +6,7 @@
  * contact poll endpoint (UDP on the LAN). Nothing here uses the radio.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { api, isAbortError } from '../api';
 import { useT, type TFn } from '../i18n';
@@ -271,7 +272,8 @@ function buildChart(
   def: ChartDef,
   history: SnmpHistoryEntry[],
   mode: CounterMode,
-  t: TFn
+  t: TFn,
+  seriesColor: (i: number, offColor: string) => string
 ): BuiltChart | null {
   let fields = def.keys.flatMap((key) => FIELD_BY_KEY.get(key) ?? []);
   if (def.optional) fields = fields.filter((field) => hasData(history, field));
@@ -295,7 +297,7 @@ function buildChart(
   const series = fields.map((field, index) => ({
     key: field.key,
     label: t(field.labelKey),
-    color: SERIES_COLORS[index % SERIES_COLORS.length],
+    color: seriesColor(index, SERIES_COLORS[index % SERIES_COLORS.length]),
     points: asRate
       ? ratePoints(history, field.key, scale)
       : toChartPoints(history, field.key, field.sentinel),
@@ -532,9 +534,11 @@ export function SnmpNodeView({
   };
 
   const rows = useMemo(() => history ?? [], [history]);
+  // Several series per chart: colourblind palette when a mode is on.
+  const seriesColor = useSeriesColor();
   const charts = useMemo(
-    () => CHARTS.flatMap((def) => buildChart(def, rows, counterMode, t) ?? []),
-    [rows, counterMode, t]
+    () => CHARTS.flatMap((def) => buildChart(def, rows, counterMode, t, seriesColor) ?? []),
+    [rows, counterMode, t, seriesColor]
   );
   // One time extent for every chart, so they line up under each other.
   const full: ChartWindow =

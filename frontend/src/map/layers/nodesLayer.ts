@@ -102,12 +102,12 @@ export function nodeLabelLayout(): NonNullable<SymbolLayerSpecification['layout'
   };
 }
 
-export function circleColorExpr(): ExpressionSpecification {
+export function circleColorExpr(
+  colors: Record<RecencyTier, string> = NODE_RECENCY_COLORS
+): ExpressionSpecification {
   const out: unknown[] = ['match', ['get', 'tier']];
-  (Object.keys(NODE_RECENCY_COLORS) as RecencyTier[]).forEach((k) =>
-    out.push(k, NODE_RECENCY_COLORS[k])
-  );
-  out.push(NODE_RECENCY_COLORS.old);
+  (Object.keys(colors) as RecencyTier[]).forEach((k) => out.push(k, colors[k]));
+  out.push(colors.old);
   return out as unknown as ExpressionSpecification;
 }
 
@@ -153,6 +153,8 @@ export interface NodesLayerOptions {
   onClick?: (id: string) => void;
   /** Per-role stroke colours (type encoding). Defaults to NODE_TYPE_STROKE. */
   roleColors?: Record<number, string>;
+  /** Fill colour per recency tier. Defaults to NODE_RECENCY_COLORS. */
+  recencyColors?: Record<RecencyTier, string>;
 }
 
 export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
@@ -162,6 +164,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   // "Equal node sizes": every node uses the repeater radius.
   let equalSizes = false;
   let roleColors: Record<number, string> = opts.roleColors ?? NODE_TYPE_STROKE;
+  let recencyColors: Record<RecencyTier, string> = opts.recencyColors ?? NODE_RECENCY_COLORS;
   let labelMode: NodeLabelMode = 'off';
   // The flat circle layer is hidden when the neon node overlay takes over; the
   // label layer stays visible either way. Preserved across style re-attaches.
@@ -187,7 +190,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
       // rather than hidden, so node clicks still open the info pane. See #132.
       layout: { visibility: 'visible' },
       paint: {
-        'circle-color': circleColorExpr(),
+        'circle-color': circleColorExpr(recencyColors),
         'circle-radius': radiusExpr(),
         'circle-opacity': circlesVisible ? 0.9 : 0,
         'circle-stroke-color': strokeColorExpr(roleColors),
@@ -260,6 +263,13 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     }
   }
 
+  function setRecencyColors(colors: Record<RecencyTier, string>) {
+    recencyColors = colors;
+    if (m.getLayer('rt-nodes')) {
+      m.setPaintProperty('rt-nodes', 'circle-color', circleColorExpr(recencyColors));
+    }
+  }
+
   function setCirclesVisible(v: boolean) {
     circlesVisible = v;
     if (m.getLayer('rt-nodes')) {
@@ -286,6 +296,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     setNodeScale,
     setEqualSizes,
     setRoleColors,
+    setRecencyColors,
     setLabelMode,
     setCirclesVisible,
   };

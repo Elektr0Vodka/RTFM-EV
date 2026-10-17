@@ -296,7 +296,10 @@ describe('ContactInfoPane', () => {
       <ContactInfoPane {...baseProps} contactKey={companion.public_key} />
     );
     await screen.findByLabelText('Notes');
-    expect(api.contactRouteSuggestions).toHaveBeenCalledWith(companion.public_key);
+    // The section fetches from its own mount effect, which can flush after Notes appears.
+    await waitFor(() =>
+      expect(api.contactRouteSuggestions).toHaveBeenCalledWith(companion.public_key)
+    );
     unmount();
 
     vi.mocked(api.contactRouteSuggestions).mockClear();

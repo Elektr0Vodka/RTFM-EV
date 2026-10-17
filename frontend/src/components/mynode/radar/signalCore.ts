@@ -27,13 +27,23 @@ export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: numb
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-// snrColor maps an SNR (dB) to a green(high) to red(low) CSS colour. LoRa SNR
-// spans roughly -20 (weak) to +10 (strong); values are clamped. null is treated
-// as the low endpoint.
-export function snrColor(snr: number | null): string {
+// snrColor maps an SNR (dB) to a green(high) to red(low) CSS colour, or along
+// the given colourblind stops (bad / mid / good). LoRa SNR spans roughly -20
+// (weak) to +10 (strong); values are clamped. null is treated as the low endpoint.
+export function snrColor(
+  snr: number | null,
+  colors?: { bad: string; mid: string; good: string }
+): string {
   const lo = -20;
   const hi = 10;
   const t = Math.max(0, Math.min(1, ((snr == null ? lo : snr) - lo) / (hi - lo)));
+  if (colors) {
+    const [from, to, f] =
+      t <= 0.5 ? [colors.bad, colors.mid, t * 2] : [colors.mid, colors.good, t * 2 - 1];
+    const c = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+    const mix = (i: number) => Math.round(c(from, i) + (c(to, i) - c(from, i)) * f);
+    return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
+  }
   const hue = Math.round(120 * t);
   return `hsl(${hue}, 70%, 50%)`;
 }

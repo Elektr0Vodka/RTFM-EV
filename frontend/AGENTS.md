@@ -40,6 +40,7 @@ frontend/src/
 ├── index.css               # Global styles/utilities
 ├── styles.css              # Additional global app styles
 ├── themes.css              # Color theme definitions
+├── accessibility.css       # Reading-font overrides (data-reading-font on <html>)
 ├── contexts/
 │   ├── DistanceUnitContext.tsx # Browser-local distance-unit context/provider
 │   ├── PathHopWidthContext.tsx # Browser-local path hop-width display preference
@@ -126,6 +127,9 @@ frontend/src/
 │   ├── radioPresets.ts            # LoRa radio preset configurations
 │   ├── publicChannel.ts           # Public-channel resolution helpers for routing/hash defaults
 │   ├── fontScale.ts               # Browser-local relative font scale persistence/application
+│   ├── accessibility.ts           # Colourblind mode + reading font (localStorage), data-cvd/data-reading-font/data-tone on <html>, status tokens as inline custom properties
+│   ├── cvd/colorMath.ts           # CVD simulation (Machado 2009), CIEDE2000, WCAG contrast, HSL triplets
+│   ├── cvd/palettes.ts            # Colourblind palettes per mode x tone (status + map/chart data colours); Off = today's colours
 │   ├── theme.ts                   # Theme switching helpers
 │   ├── autoFocusInput.ts          # Auto-focus input helper
 │   ├── batteryDisplay.ts          # Battery level display helpers

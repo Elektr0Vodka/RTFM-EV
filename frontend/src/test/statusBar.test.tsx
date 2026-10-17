@@ -215,3 +215,31 @@ describe('StatusBar', () => {
     expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('MeshHQ');
   });
 });
+
+describe('StatusBar radio state without colour', () => {
+  function stateIcon(health: HealthStatus) {
+    const { unmount } = render(
+      <StatusBar health={health} config={null} onSettingsClick={vi.fn()} />
+    );
+    const icon = document.querySelector('[data-radio-icon]');
+    const out = { state: icon?.getAttribute('data-radio-icon'), svg: icon?.outerHTML };
+    unmount();
+    return out;
+  }
+
+  it('shows a different icon for connected, connecting and disconnected', () => {
+    const connected = stateIcon({ ...baseHealth, status: 'ok', radio_connected: true });
+    const connecting = stateIcon({
+      ...baseHealth,
+      radio_connected: true,
+      radio_initializing: true,
+    });
+    const disconnected = stateIcon(baseHealth);
+    expect([connected.state, connecting.state, disconnected.state]).toEqual([
+      'connected',
+      'connecting',
+      'disconnected',
+    ]);
+    expect(new Set([connected.svg, connecting.svg, disconnected.svg]).size).toBe(3);
+  });
+});
