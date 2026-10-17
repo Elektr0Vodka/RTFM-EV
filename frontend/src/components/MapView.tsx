@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import {
   Zap,
@@ -48,8 +49,8 @@ import { setBuildings3D } from '../map/engine/buildings3D';
 import { createBuildingHeights, type BuildingHeights } from '../map/engine/buildingHeights';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
-import { createTelemetryLayer, telemetryPopupParts } from '../map/layers/telemetryLayer';
-import { TelemetryPopupChart } from './TelemetryPopupChart';
+import { createTelemetryLayer } from '../map/layers/telemetryLayer';
+import { NodeMapPopup } from '../map/NodeMapPopup';
 import { DateTimeField } from './DateTimeField';
 import {
   effectiveRoleColors,
@@ -1301,139 +1302,82 @@ export function MapView({
     }
   }, [showPackets, setDiscoveryMode]);
 
-  // Build a themed popup DOM node for a contact.
+  // Neighbour count per node on the links layer currently drawn (advert or
+  // traffic mode, same filter as paintLinks); null when no such layer is shown.
+  const linkCounts = useMemo<Map<string, number> | null>(() => {
+    if (!linksOn || linkMode === 'liveness') return null;
+    const edges = linkMode === 'advert' ? advertEdges : trafficEdges;
+    const neighbours = new Map<string, Set<string>>();
+    const add = (a: string, b: string) => {
+      let set = neighbours.get(a);
+      if (!set) neighbours.set(a, (set = new Set()));
+      set.add(b);
+    };
+    for (const e of edges) {
+      const a = e.a.pubkey.toLowerCase();
+      const b = e.b.pubkey.toLowerCase();
+      if (e.hop_width < linkConfidence || wrongLocationKeys.has(a) || wrongLocationKeys.has(b))
+        continue;
+      add(a, b);
+      add(b, a);
+    }
+    return new Map([...neighbours].map(([k, v]) => [k, v.size]));
+  }, [linksOn, linkMode, advertEdges, trafficEdges, linkConfidence, wrongLocationKeys]);
+  const linkCountsRef = useRef(linkCounts);
+  linkCountsRef.current = linkCounts;
+  // The colours actually drawn (picked or colourblind palette), so the popup's
+  // icon ring and recency dot match the marker.
+  const popupEnvRef = useRef({
+    myLatLon,
+    distanceUnit,
+    roleColors: drawnRoleColors,
+    recencyColors: mapColors.recency,
+  });
+  popupEnvRef.current = {
+    myLatLon,
+    distanceUnit,
+    roleColors: drawnRoleColors,
+    recencyColors: mapColors.recency,
+  };
+
+  // Build the per-type popup (map/NodeMapPopup) for a contact. It renders
+  // synchronously so MapLibre measures real content when it places the popup;
+  // the root is unmounted when the popup closes (popupChartRootsRef).
   const buildContactPopup = useCallback(
     (contact: Contact): HTMLElement => {
-      const root = document.createElement('div');
-      root.className = 'text-sm';
-      const nameRow = document.createElement('div');
-      nameRow.className = 'font-medium';
-      if (onSelectContact) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'p-0 bg-transparent border-0 text-primary underline cursor-pointer';
-        btn.textContent = contact.name || contact.public_key.slice(0, 12);
-        btn.title = t('map_open_conversation_title', {
-          name: contact.name || contact.public_key.slice(0, 12),
-        });
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          onSelectContact(contact);
-        });
-        nameRow.appendChild(btn);
-      } else {
-        nameRow.textContent = contact.name || contact.public_key.slice(0, 12);
-      }
-      const heard = document.createElement('div');
-      heard.className = 'text-xs text-muted-foreground mt-1';
-      heard.textContent = t('map_last_heard', {
-        label: contact.last_seen != null ? formatTime(contact.last_seen) : t('map_never_heard'),
-      });
-      const loc = getEffectiveLocation(contact);
-      const coords = document.createElement('div');
-      coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
-      coords.textContent = loc
-        ? formatCoordinates(loc.lat, loc.lon, coordinateFormatRef.current, 5)
-        : '';
-      root.append(nameRow, heard, coords);
-
-      // Latest known battery/temperature as a small block, only when a reading
-      // exists for this node. Battery and temperature stack on their own lines;
-      // a toggle reveals the telemetry history line chart.
-      const latest = latestTelemetryRef.current[contact.public_key];
-      if (latest && (latest.battery_volts != null || latest.temperature != null)) {
-        const parts = telemetryPopupParts(latest, Date.now() / 1000, contact.battery_chemistry);
-        const block = document.createElement('div');
-        block.className = 'mt-2 rounded border border-border/60 bg-muted/30 px-2 py-1.5 text-xs';
-        if (parts.stale) block.className += ' opacity-70';
-        if (parts.battery) {
-          const row = document.createElement('div');
-          row.textContent = t('map_telemetry_battery', { value: parts.battery });
-          block.appendChild(row);
-        }
-        if (parts.temperature) {
-          const row = document.createElement('div');
-          row.textContent = t('map_telemetry_temperature', { value: parts.temperature });
-          block.appendChild(row);
-        }
-        const age = document.createElement('div');
-        age.className = 'text-muted-foreground';
-        age.textContent = t('map_telemetry_age', { age: parts.age });
-        block.appendChild(age);
-
-        // History toggle: lazily mounts the telemetry history chart on first open.
-        const chartHost = document.createElement('div');
-        chartHost.style.display = 'none';
-        let chartRoot: Root | null = null;
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className =
-          'mt-1 text-primary underline bg-transparent border-0 p-0 cursor-pointer block';
-        toggle.textContent = t('map_telemetry_show_history');
-        toggle.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const willShow = chartHost.style.display === 'none';
-          chartHost.style.display = willShow ? '' : 'none';
-          toggle.textContent = willShow
-            ? t('map_telemetry_hide_history')
-            : t('map_telemetry_show_history');
-          if (willShow && !chartRoot) {
-            chartRoot = createRoot(chartHost);
-            chartRoot.render(<TelemetryPopupChart publicKey={contact.public_key} />);
-            popupChartRootsRef.current.push(chartRoot);
-          }
-        });
-        block.append(toggle, chartHost);
-        root.appendChild(block);
-      }
-
-      if (contact.notes) {
-        const notes = document.createElement('div');
-        notes.className = 'text-xs mt-1 whitespace-pre-wrap wrap-break-word';
-        notes.textContent =
-          contact.notes.length > 140 ? contact.notes.slice(0, 140) + '…' : contact.notes;
-        root.appendChild(notes);
-      }
-      if (contact.owner_key && onSelectContact) {
-        const ownerLink = document.createElement('button');
-        ownerLink.type = 'button';
-        ownerLink.className =
-          'text-xs text-primary underline mt-1 block bg-transparent border-0 p-0 cursor-pointer';
-        ownerLink.textContent = t('map_owner_link');
-        ownerLink.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const owner = contactByKey.get(contact.owner_key!);
-          if (owner) onSelectContact(owner);
-        });
-        root.appendChild(ownerLink);
-      }
-      if (onOpenContactInfo) {
-        const details = document.createElement('button');
-        details.type = 'button';
-        details.className =
-          'text-xs text-primary underline mt-1 block bg-transparent border-0 p-0 cursor-pointer';
-        details.textContent = t('map_node_details');
-        details.addEventListener('click', (e) => {
-          e.stopPropagation();
-          onOpenContactInfo(contact.public_key);
-        });
-        root.appendChild(details);
-      }
-      // Plan [13] triangulation: a link-out to the DMC triangulator with this
-      // node's path-hash prefix (the site does the estimating from public feeds).
-      const triangulateUrl = buildTriangulatorUrl(contact.public_key);
-      if (triangulateUrl) {
-        const link = document.createElement('a');
-        link.href = triangulateUrl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'text-xs text-primary underline mt-1 block';
-        link.textContent = t('map_triangulate_link');
-        link.title = t('contact_triangulate_title');
-        link.addEventListener('click', (e) => e.stopPropagation());
-        root.appendChild(link);
-      }
-      return root;
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      popupChartRootsRef.current.push(root);
+      const env = popupEnvRef.current;
+      const owner = contact.owner_key ? contactByKey.get(contact.owner_key) : undefined;
+      flushSync(() =>
+        root.render(
+          <NodeMapPopup
+            t={t}
+            contact={contact}
+            nowSec={Date.now() / 1000}
+            roleColor={env.roleColors[contact.type] ?? env.roleColors[CONTACT_TYPE_CLIENT]}
+            recencyColors={env.recencyColors}
+            selfLatLon={env.myLatLon}
+            distanceUnit={env.distanceUnit}
+            coordinateFormat={coordinateFormatRef.current}
+            telemetry={latestTelemetryRef.current[contact.public_key]}
+            linkCount={linkCountsRef.current?.get(contact.public_key.toLowerCase()) ?? null}
+            triangulateUrl={buildTriangulatorUrl(contact.public_key)}
+            onOpenChat={onSelectContact ? () => onSelectContact(contact) : undefined}
+            onOpenDetails={
+              onOpenContactInfo ? () => onOpenContactInfo(contact.public_key) : undefined
+            }
+            onOpenOwner={owner && onSelectContact ? () => onSelectContact(owner) : undefined}
+            loadAdvertRate={(signal) =>
+              api
+                .getContactAnalytics({ publicKey: contact.public_key }, signal)
+                .then((a) => a.advert_frequency)
+            }
+          />
+        )
+      );
+      return host;
     },
     [onSelectContact, onOpenContactInfo, contactByKey, t]
   );

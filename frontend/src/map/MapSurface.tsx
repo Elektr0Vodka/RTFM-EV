@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Map as MlMap, setWorkerUrl, type StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './maplibreTheme.css';
 // MapLibre 6 loads its worker from a file beside its own module, which does not
 // exist once Vite has bundled it into a hashed chunk (no tiles or GeoJSON ever
 // load, the map stays blank). Let Vite bundle the worker and point MapLibre at it.

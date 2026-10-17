@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-17 (map node popups: theme fix and per-type layout, fix/map-popup-theme)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### Map
+- **Map popups follow the theme again.** Node and guessed-location popups
+  stayed white with the theme's light text on dark themes (DarkDutch was
+  barely readable). Since Tailwind 4 the popup rules sat in a cascade layer,
+  and MapLibre's own unlayered stylesheet beat them regardless of specificity.
+  They now live in an unlayered `map/maplibreTheme.css` loaded after
+  MapLibre's, and the popup tip takes the popup colour on every anchor side.
+- **Node popup laid out per node type** (`map/NodeMapPopup.tsx`). Every type
+  shows a header (type icon ringed in the role colour, name, a recency dot
+  matching the marker fill, "heard X ago", favourite star), chips for route
+  (direct neighbour / N hops / flood), distance and direction from your radio,
+  and reported vs manual location, and a footer with the actions and
+  coordinates. Repeaters and room servers show power source with a battery
+  bar, temperature and their neighbour count on the drawn advert/traffic
+  links; companions show last DM and a learned/set route; room servers show
+  last visited; sensors show temperature and battery as large readings.
+  The recency dot and icon ring use the colours the map draws, so they
+  follow colourblind mode. Telemetry older than a day is dimmed. An "Adverts heard" rate is fetched
+  once per open from `GET /contacts/analytics` (read-only, aborted on close);
+  it counts advert copies, so the same advert via several paths counts more
+  than once.
+
 ## Update 2026-10-17 (Frontend test flake: route suggestions fetch, CI run 39059119427)
 
 Tests only; the app does not change.

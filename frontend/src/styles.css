@@ -50,7 +50,8 @@ body {
 }
 
 /* MapLibre chrome themed via the app's HSL tokens; keep the canvas below
-   modals/sheets. */
+   modals/sheets. Popup theming lives in map/maplibreTheme.css: it has to be
+   unlayered to beat maplibre-gl.css. */
 .maplibregl-canvas {
   z-index: 0;
 }
@@ -60,15 +61,6 @@ body {
 }
 .maplibregl-ctrl-group button + button {
   border-top: 1px solid hsl(var(--border));
-}
-.maplibregl-popup-content {
-  background: hsl(var(--popover));
-  color: hsl(var(--popover-foreground));
-  border: 1px solid hsl(var(--border));
-}
-.maplibregl-popup-tip {
-  border-top-color: hsl(var(--popover));
-  border-bottom-color: hsl(var(--popover));
 }
 .maplibregl-ctrl-attrib {
   background: hsl(var(--muted));
