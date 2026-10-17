@@ -5868,6 +5868,7 @@
   "spam_reset_settings_confirm": "Alle Einstellungen von Spam Guard auf den Standard zurücksetzen? Geschützte Kanäle, geänderte Einstellungen und Ausnahmen gehen verloren. Das lässt sich nicht rückgängig machen.",
   "spam_activity_reset_learned": "Du hast alles Gelernte vergessen lassen",
   "spam_activity_known_seeded": "{count} bekannte Personen aus dem Chat des letzten Tages gelernt",
+  "spam_activity_campaign_corrected": "Eine Kampagnensperre beendet: sie hielt {count} Stammnutzer zurück, es sieht also nach normalem Chat aus",
   "gateway_switch_radio": "Funkgerät wechseln",
   "gateway_current_radio": "Aktuelles Funkgerät",
   "gateway_manage_radios": "Funkgeräte verwalten",

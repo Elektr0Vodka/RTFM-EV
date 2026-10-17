@@ -108,6 +108,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   cleared_auto: 'spam_activity_cleared_auto',
   reset_learned: 'spam_activity_reset_learned',
   known_seeded: 'spam_activity_known_seeded',
+  campaign_corrected: 'spam_activity_campaign_corrected',
 };
 
 function str(value: unknown): string {

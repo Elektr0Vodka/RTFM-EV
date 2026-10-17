@@ -1451,6 +1451,65 @@ class TestAutoLockdown:
         assert LOCKDOWN_KEY not in det.blocks
 
 
+class TestCampaignsCorrectThemselves:
+    REGULARS = [("Carol", "C7"), ("Dave", "C8"), ("Erik", "C9"), ("Fien", "CA")]
+
+    def setup(self, regulars=4):
+        det, clock = make(overrides={"dedupe_enabled": False, "enable_hop_rules": False})
+        for index in range(3):
+            for name, hop in self.REGULARS[:regulars]:
+                say(det, clock, name, f"{name} chatting about topic {index}", path=(hop, "B1"))
+        settle(det, clock)
+        for name in GENERATED:
+            say(det, clock, name, SPAM, path=("27", "B1"))
+        det.decide()
+        key = next(k for k, b in det.blocks.items() if b.source == "campaign" and b.kind == "text")
+        return det, clock, key
+
+    def quote(self, det, clock, regulars, home=True):
+        for name, hop in regulars:
+            event = say(det, clock, name, SPAM, path=(hop if home else "EE", "B1"))
+            assert event.matched is not None
+        det.decide()
+
+    def test_a_campaign_block_that_catches_three_regulars_at_home_stops(self):
+        det, clock, key = self.setup()
+        self.quote(det, clock, self.REGULARS[:3])
+        assert key not in det.blocks
+        assert det.suppressed[key] >= clock.now + 86000
+        (entry,) = [a for a in det.activity if a["event"] == "campaign_corrected"]
+        assert entry["count"] == 3
+
+    def test_two_regulars_are_not_enough(self):
+        det, clock, key = self.setup()
+        self.quote(det, clock, self.REGULARS[:2])
+        assert key in det.blocks
+
+    def test_names_heard_from_elsewhere_do_not_count(self):
+        det, clock, key = self.setup()
+        self.quote(det, clock, self.REGULARS[:3], home=False)
+        assert key in det.blocks
+
+
+class TestKnownPeopleAreNotNew:
+    NAMES = ["Anouk", "Bram", "Daan", "Femke", "Gert", "Hanna"]
+
+    def test_known_people_do_not_count_as_brand_new_names(self):
+        det, clock = make(overrides={"dedupe_enabled": False})
+        det.seed_known([(name, 5, clock.now - 7200, clock.now - 600) for name in self.NAMES])
+        for name in self.NAMES:
+            say(det, clock, name, f"{name} says hello to everyone", path=("44", "B1"))
+        det.decide()
+        assert "hop:44" not in det.blocks
+
+    def test_brand_new_names_still_do(self):
+        det, clock = make(overrides={"dedupe_enabled": False})
+        for name in self.NAMES:
+            say(det, clock, name, f"{name} says hello to everyone", path=("44", "B1"))
+        det.decide()
+        assert det.blocks["hop:44"].reason == "hop_new"
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

@@ -123,6 +123,9 @@ AUTO_LOCKDOWN_WINDOW = 120.0
 AUTO_LOCKDOWN_NAMES = 12
 AUTO_LOCKDOWN_HOPS = 6
 AUTO_LOCKDOWN_SECONDS = 900
+# A campaign block that caught this many known people, each heard from home,
+# is ordinary chat: it stops.
+CAMPAIGN_REGULARS = 3
 # Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
 # was 1) genuine messages; older state keeps the people it already knew.
 STATE_VERSION = 2
@@ -984,6 +987,27 @@ class SpamDetector:
                             from_ts=last,
                         )
 
+    def _correct_campaigns(self, long_window: list[Event], now: float) -> None:
+        """Stop a campaign block that keeps catching regulars.
+
+        People Spam Guard knows, each heard from where they usually are, saying
+        the same thing is ordinary chat. A spammer copying a regular's name
+        usually comes from somewhere else, so such a copy does not count. The
+        key is held off for a day so the same messages do not bring it back.
+        """
+        for key, block in list(self.blocks.items()):
+            if block.source != "campaign" or block.kind not in ("text", "words"):
+                continue
+            caught = {
+                e.sender
+                for e in long_window
+                if e.matched == key and self.is_known(e.sender) and self._at_home(e)
+            }
+            if len(caught) >= CAMPAIGN_REGULARS:
+                self._drop_block(key)
+                self.suppressed[key] = now + SUPPRESS_SECONDS
+                self._note("campaign_corrected", key=key, count=len(caught))
+
     def _stopped(self, event: Event) -> bool:
         """Already held back by an enforced block that is not duplicate suppression.
 
@@ -1138,7 +1162,7 @@ class SpamDetector:
                 history is not None
                 and history.count <= 2
                 and history.first >= now - tun.window_seconds
-                and event.sender not in self.allow_senders
+                and not self._familiar(event.sender)
             ):
                 hop.new.add(event.sender)
             campaign = self.campaigns.get(event.campaign) if event.campaign is not None else None
@@ -1393,6 +1417,7 @@ class SpamDetector:
 
         if tun.enable_text_rules:
             self._block_campaigns()
+        self._correct_campaigns(long_window, now)
         if tun.dedupe_enabled:
             self._block_duplicates(
                 [e for e in long_window if e.ts >= now - tun.dedupe_seconds],

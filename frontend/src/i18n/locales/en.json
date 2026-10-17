@@ -5867,6 +5867,7 @@
   "spam_reset_settings_confirm": "Put all Spam Guard settings back to their defaults? Protected channels, changed settings and exceptions are lost. This cannot be undone.",
   "spam_activity_reset_learned": "You had everything it learnt forgotten",
   "spam_activity_known_seeded": "Learnt {count} known people from the chat of the last day",
+  "spam_activity_campaign_corrected": "Stopped a campaign block: it was catching {count} regulars, so it looks like ordinary chat",
   "gateway_switch_radio": "Switch radio",
   "gateway_current_radio": "Current radio",
   "gateway_manage_radios": "Manage radios",
