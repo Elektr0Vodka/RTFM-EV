@@ -297,6 +297,47 @@ def test_plain_flood_stays_plain_and_can_be_denied():
     assert decide(engine(unscoped_flood_allow=False), raw).reason == "unscoped_denied"
 
 
+def zero_code(n: int = 0, hops: int = 1, code1: int = 0) -> bytes:
+    """A transport flood with transport code 0, which firmware 1.18 treats as un-scoped."""
+    path = bytes([0x11]) * hops
+    codes = b"\x00\x00" + code1.to_bytes(2, "little")
+    return frame(TFLOOD, GRP_TXT, hops, path, grp_payload(n), codes)
+
+
+def test_zero_code_flood_follows_the_wildcard():
+    # RegionMap::findMatch (#3568, DMC MeshCore #22): code 0 is the wildcard.
+    d = decide(engine(), zero_code(1))
+    assert d.forward
+    assert d.forwarded == frame(TFLOOD, GRP_TXT, 0x02, b"\x11\xab", grp_payload(1), bytes(4))
+    assert decide(engine(), zero_code(2, code1=0x1234)).forward
+    # A listed region does not change that; '*' is what decides.
+    assert decide(engine(regions=[region("nl")]), zero_code(3)).forward
+
+
+def test_zero_code_flood_obeys_denied_wildcard():
+    raw = zero_code(1)
+    assert decide(engine(unscoped_flood_allow=False), raw).reason == "unscoped_denied"
+    # A real code still matches its region while '*' is denied.
+    eng = engine(regions=[region("nl")], unscoped_flood_allow=False)
+    assert decide(eng, scoped("nl", 2)).forward
+
+
+def test_zero_code_flood_obeys_the_wildcard_gate():
+    eng = gated_engine()
+    eng.add_own_tx(NOW, 280_000)
+    assert eng.gate_snapshot(NOW + 10)["wildcard_gated"]
+    assert decide(eng, zero_code(1), now=NOW + 10).reason == "region_gated"
+    assert decide(eng, scoped("nl", 2), now=NOW + 10).forward
+
+
+def test_zero_code_flood_obeys_flood_max_unscoped():
+    raw = zero_code(1, hops=2)
+    assert decide(engine(flood_max_unscoped=2), raw).reason == "flood_max"
+    assert decide(engine(flood_max_unscoped=3), raw).forward
+    # Scoped floods are not held to flood.max.unscoped.
+    assert decide(engine(regions=[region("nl")], flood_max_unscoped=0), scoped("nl", 2)).forward
+
+
 def test_duplicate_is_dropped_even_with_a_different_path():
     eng = engine()
     assert decide(eng, frame(FLOOD, GRP_TXT, 0x01, b"\x11", grp_payload())).forward

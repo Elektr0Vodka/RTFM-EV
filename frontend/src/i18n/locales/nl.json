@@ -4497,7 +4497,7 @@
   "settings_host_repeater_loop_moderate": "Gemiddeld",
   "settings_host_repeater_loop_strict": "Strikt",
   "settings_host_repeater_unscoped_allow": "Floods zonder regio doorsturen",
-  "settings_host_repeater_unscoped_allow_desc": "Regio-wildcard (*). Uit dropt elke gewone flood.",
+  "settings_host_repeater_unscoped_allow_desc": "Regio-wildcard (*). Uit dropt elke flood zonder regio (gewoon, of transportcode 0).",
   "settings_host_repeater_regions_heading": "Regio's en regio-gating",
   "settings_host_repeater_regions_desc": "Net als de repeaterfirmware worden alleen floods met een regio uit deze lijst doorgestuurd. Een regio die niet in de lijst staat, wordt nooit doorgestuurd. Ouders tellen alleen voor regio-gating.",
   "settings_host_repeater_regions_empty": "Nog geen regio's: floods met een regio worden niet doorgestuurd.",

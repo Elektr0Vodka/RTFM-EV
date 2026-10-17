@@ -54,7 +54,7 @@ from Crypto.Cipher import AES
 
 from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.decoder import verify_advert_signature
-from app.path_utils import MAX_PATH_SIZE, ParsedPacketEnvelope, parse_packet_envelope
+from app.path_utils import MAX_PATH_SIZE, ParsedPacketEnvelope, is_scoped, parse_packet_envelope
 from app.region_resolver import compute_transport_code
 from app.services.host_repeater_policy import PolicyDecision, PolicyState, evaluate_layers
 from app.services.host_repeater_settings import (
@@ -1212,7 +1212,10 @@ class ForwardingEngine:
             return "for_us"
 
         # Region map / unscoped (simple_repeater onRecvPacket + allowPacketForward).
-        if env.route_type == ROUTE_FLOOD:
+        # Transport code 0 is the wildcard (RegionMap::findMatch, #3568) and obeys its
+        # flags and gate like a plain flood (DMC MeshCore #22).
+        unscoped = not is_scoped(env.transport_codes)
+        if unscoped:
             if not self.settings.unscoped_flood_allow:
                 return "unscoped_denied"
             if self._wildcard_gated():
@@ -1226,7 +1229,7 @@ class ForwardingEngine:
         s = self.settings
         if (
             hops >= s.flood_max
-            or (env.route_type == ROUTE_FLOOD and hops >= s.flood_max_unscoped)
+            or (unscoped and hops >= s.flood_max_unscoped)
             or (ptype == PT_ADVERT and hops >= s.flood_max_advert)
         ):
             return "flood_max"
@@ -1455,7 +1458,7 @@ class ForwardingEngine:
         is_flood = env.route_type in (ROUTE_FLOOD, ROUTE_TRANSPORT_FLOOD)
         if not is_flood:
             region = None
-        elif env.route_type == ROUTE_FLOOD:
+        elif not is_scoped(codes):
             region = "unscoped"
         else:
             region = facts.region
