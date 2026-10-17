@@ -75,6 +75,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Set when a send starts; the cursor goes back to the box once it ends.
+  const refocusAfterSendRef = useRef(false);
   const emojiRef = useRef<HTMLDivElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +102,15 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       textareaRef.current?.focus();
     },
   }));
+
+  // Put the cursor back in the box when a send ends, sent or failed, so the next
+  // message can be typed straight away (the Send button takes focus when clicked).
+  // Runs after the commit that clears `sending`, so the box is usable again.
+  useEffect(() => {
+    if (sending || !refocusAfterSendRef.current) return;
+    refocusAfterSendRef.current = false;
+    textareaRef.current?.focus();
+  }, [sending]);
 
   // Re-measure height whenever text changes (covers programmatic updates like appendText)
   useEffect(() => {
@@ -205,6 +216,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       // Declined: nothing is sent and the text stays in the box.
       if (confirmSend && !confirmSend(trimmed)) return;
 
+      refocusAfterSendRef.current = true;
       setSending(true);
       try {
         await onSend(trimmed);
@@ -222,8 +234,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       } finally {
         setSending(false);
       }
-      // Refocus after React re-enables the textarea
-      setTimeout(() => textareaRef.current?.focus(), 0);
     },
     [text, sending, disabled, overHardLimit, onSend, confirmSend, t]
   );
@@ -297,12 +307,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder || t('chat_placeholder_type_message')}
-            disabled={disabled || sending}
+            // Read-only, not disabled, while sending: a disabled box loses focus
+            // (and closes a phone's keyboard), a read-only one keeps it.
+            disabled={disabled}
+            readOnly={sending}
+            aria-busy={sending}
             className={cn(
               'w-full resize-none overflow-y-auto',
               'rounded-md border border-input bg-background pl-3 pr-11 py-2 text-base ring-offset-background',
               'placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              'disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
+              'disabled:cursor-not-allowed disabled:opacity-50 read-only:opacity-50 md:text-sm'
             )}
             style={{ minHeight: '40px', maxHeight: '160px' }}
           />
