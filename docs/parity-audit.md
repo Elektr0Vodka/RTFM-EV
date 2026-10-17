@@ -330,7 +330,7 @@ Source: release notes https://blog.meshcore.io/2026/10/15/release-1-18-0 and the
 | Remote CLI permission, contact flags 0x10 | Present: per-contact switch, re-applied on sync |
 | Incoming txt_type 3 queued to the app | Present: stored as a marked DM line, silenced |
 | Sensor telemetry push, REQ 0x08 / 0x09 (#3402, #3497) | Present: sensor dashboard and live push with renewal |
-| Transport code 0 un-scoped (#3568) | Present: `path_utils.is_scoped` |
+| Transport code 0 un-scoped (#3568) | Present: `path_utils.is_scoped`; the host repeater engine applies the `*` rules and `flood.max.unscoped` to it (Dutch-MeshCore/MeshCore#22) |
 | Repeater `power`, `gps diag` (#3200, #3202) | Present: node-info power row, console suggestions |
 | Repeater `radio.fem.*` moved to board level | Present: unsupported reply already read as unsupported |
 | Configurable companion CAD, int.thresh, tx delays, agc (now prefs) | Present through the companion command line |

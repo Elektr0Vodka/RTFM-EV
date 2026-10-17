@@ -4496,7 +4496,7 @@
   "settings_host_repeater_loop_moderate": "Moderate",
   "settings_host_repeater_loop_strict": "Strict",
   "settings_host_repeater_unscoped_allow": "Forward floods without a region",
-  "settings_host_repeater_unscoped_allow_desc": "Region wildcard (*). Off drops every plain flood.",
+  "settings_host_repeater_unscoped_allow_desc": "Region wildcard (*). Off drops every unscoped flood (plain, or transport code 0).",
   "settings_host_repeater_regions_heading": "Regions and region gating",
   "settings_host_repeater_regions_desc": "Like the repeater firmware, only region-scoped floods for a region in this list are forwarded. A region that is not listed is never forwarded. Parents only matter for region gating.",
   "settings_host_repeater_regions_empty": "No regions yet: region-scoped floods are not forwarded.",

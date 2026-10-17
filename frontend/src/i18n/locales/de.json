@@ -4497,7 +4497,7 @@
   "settings_host_repeater_loop_moderate": "Mittel",
   "settings_host_repeater_loop_strict": "Streng",
   "settings_host_repeater_unscoped_allow": "Floods ohne Region weiterleiten",
-  "settings_host_repeater_unscoped_allow_desc": "Regions-Wildcard (*). Aus verwirft jeden normalen Flood.",
+  "settings_host_repeater_unscoped_allow_desc": "Regions-Wildcard (*). Aus verwirft jeden Flood ohne Region (normal oder Transportcode 0).",
   "settings_host_repeater_regions_heading": "Regionen und Regions-Gating",
   "settings_host_repeater_regions_desc": "Wie in der Repeater-Firmware werden nur Floods mit einer Region aus dieser Liste weitergeleitet. Eine Region, die nicht in der Liste steht, wird nie weitergeleitet. Eltern zählen nur für das Regions-Gating.",
   "settings_host_repeater_regions_empty": "Noch keine Regionen: Floods mit Region werden nicht weitergeleitet.",
