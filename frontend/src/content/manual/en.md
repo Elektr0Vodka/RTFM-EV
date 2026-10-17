@@ -89,7 +89,7 @@ Two shorter tours show what your radio's firmware adds. Their buttons appear in 
 
 ### Top bar
 
-From left to right the top bar shows the app name, the connection status dot, a **Repeating** badge while the host repeater is armed, and the radio battery when you enable it in **Settings > Local Configuration**. On wide screens it also shows a live packet rate graph, the connection status text, and the radio name with its short public key (click the key to copy the full key). When the radio is disconnected or paused, a **Reconnect** or **Connect** button appears. Then come the **Chat window** button (opens the chat-only window, see below), the **Settings** button (a dot on it means a newer build is available), the language menu and the theme button.
+From left to right the top bar shows the app name, the connection status dot, a **Repeating** badge while the host repeater is armed, and the radio battery when you enable it in **Settings > Local Configuration**. On wide screens it also shows a live packet rate graph, the connection status text, and the radio name with its short public key (click the key to copy the full key). When the radio is disconnected or paused, a **Reconnect** or **Connect** button appears. Then come the **Chat window** button (opens the chat-only window, see below), the **Settings** button (a dot on it means a newer build is available), the language menu and the theme button. The theme button opens a dialog with collapsible sections for the color theme, CRT screen effects, **Accessibility** (colourblind mode and reading font) and the desktop buddy; the sections you open stay open the next time.
 
 On narrow screens a menu button at the far left opens the sidebar.
 
