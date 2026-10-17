@@ -21,6 +21,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
+import { AccessibilitySettings } from './AccessibilitySettings';
 import { cn } from '../../lib/utils';
 import { ContactAvatar } from '../ContactAvatar';
 import {
@@ -1157,6 +1158,10 @@ export function SettingsLocalSection({
 
       <Separator />
 
+      <AccessibilitySettings />
+
+      <Separator />
+
       <PushDeviceManagement contacts={contacts} channels={channels} />
     </div>
   );
@@ -1389,7 +1394,7 @@ function ThemePreview({ className }: { className?: string }) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-green-600/50 text-green-600 hover:bg-green-600/10"
+                    className="border-green-600/50 text-green-600 hover:bg-green-600/10 cvd:border-success/50 cvd:text-success cvd:hover:bg-success/10"
                   >
                     Success
                   </Button>

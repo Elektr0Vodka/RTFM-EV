@@ -62,6 +62,8 @@ export interface TimelineDeps {
   state: PacketNetworkState;
   selfName?: string;
   maxEntries?: number;
+  /** Colourblind SNR stops, read at ingest (past arcs keep their colour). */
+  getSignalColors?: () => { bad: string; mid: string; good: string } | undefined;
 }
 
 export interface StateAsOfOptions {
@@ -180,7 +182,7 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
         const { segments, glowPos } = buildSegments(result.canonicalPath);
         entries.push({
           heardMs: result.activityAtMs,
-          snrCol: snrColor(pkt.snr),
+          snrCol: snrColor(pkt.snr, deps.getSignalColors?.()),
           typeCol: hexToRgb(PARTICLE_COLOR_MAP[result.label] ?? '#ffffff'),
           segments,
           glowPos,

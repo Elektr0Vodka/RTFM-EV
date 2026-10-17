@@ -45,6 +45,8 @@ export interface RadarOpts {
   text?: Partial<RadarText>;
   zoom?: number;
   view?: RadarView;
+  /** Colourblind SNR stops; today's red-to-green hue ramp when unset. */
+  signalColors?: { bad: string; mid: string; good: string };
 }
 
 export interface RadarHit {
@@ -64,6 +66,7 @@ interface RadarPalette {
   axis: string;
   outline: string;
   noSnr: string;
+  signal?: { bad: string; mid: string; good: string };
 }
 
 interface RadarCanvas extends HTMLCanvasElement {
@@ -83,8 +86,15 @@ export const RADAR_MAX_ZOOM = 8;
 export const VIEW_MIN_SCALE = 1;
 export const VIEW_MAX_SCALE = 12;
 
-const FONT = '12px system-ui, sans-serif';
-const FONT_SMALL = '11px system-ui, sans-serif';
+// Canvas text uses the reading font when one is picked; otherwise the system font,
+// as before (themes' own fonts never reached the radar).
+export function radarFont(size: number): string {
+  const family =
+    typeof document === 'undefined' || !document.documentElement.dataset.readingFont
+      ? ''
+      : getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim();
+  return `${size}px ${family || 'system-ui, sans-serif'}`;
+}
 
 const FALLBACK: RadarPalette = {
   text: '#c9d1d9',
@@ -233,7 +243,7 @@ function drawEmpty(
   msg: string,
   pal: RadarPalette
 ): void {
-  ctx.font = FONT;
+  ctx.font = radarFont(12);
   ctx.fillStyle = pal.muted;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -340,7 +350,7 @@ function drawLegend(
 ): void {
   const x = 10;
   let y = cssH - 10;
-  ctx.font = FONT_SMALL;
+  ctx.font = radarFont(11);
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   ctx.fillStyle = pal.muted;
@@ -349,7 +359,7 @@ function drawLegend(
   const bw = 90;
   const bh = 7;
   for (let i = 0; i < bw; i++) {
-    ctx.fillStyle = snrColor(-20 + (30 * i) / (bw - 1));
+    ctx.fillStyle = snrColor(-20 + (30 * i) / (bw - 1), pal.signal);
     ctx.fillRect(x + i, y - bh, 1, bh);
   }
   ctx.fillStyle = pal.muted;
@@ -394,7 +404,7 @@ function drawSymbolKey(ctx: CanvasRenderingContext2D, text: RadarText, pal: Rada
     { kind: 'nosnr', label: text.noSnrLabel },
     { kind: 'size', label: text.sizeLabel },
   ];
-  ctx.font = FONT_SMALL;
+  ctx.font = radarFont(11);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   const gx = 16;
@@ -420,7 +430,7 @@ export function renderRadar(
   const rc = canvas as RadarCanvas;
   const text: RadarText = { ...DEFAULT_TEXT, ...(opts.text || {}) };
   const view = opts.view || defaultView();
-  const pal = resolvePalette();
+  const pal = { ...resolvePalette(), signal: opts.signalColors };
   const { ctx, cssW, cssH } = setupCanvas(rc);
   bindHover(rc);
   rc._radarHits = [];
@@ -470,7 +480,7 @@ export function renderRadar(
   ctx.lineTo(cx, cy + outerR);
   ctx.stroke();
 
-  ctx.font = FONT_SMALL;
+  ctx.font = radarFont(11);
   const ringLabels: string[] = [];
   for (let k = 1; k <= 4; k++) {
     const d = dOuter * Math.pow(2, k - 4);
@@ -488,7 +498,7 @@ export function renderRadar(
   }
 
   ctx.fillStyle = pal.text;
-  ctx.font = FONT;
+  ctx.font = radarFont(12);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const compass: [string, number, number][] = [
@@ -520,7 +530,7 @@ export function renderRadar(
     const x = cx + r * Math.sin(a);
     const y = cy - r * Math.cos(a);
     const dotR = Math.min(9, 3 + Math.sqrt(n.receptions || 1));
-    ctx.fillStyle = n.snr == null ? pal.noSnr : snrColor(n.snr);
+    ctx.fillStyle = n.snr == null ? pal.noSnr : snrColor(n.snr, pal.signal);
     ctx.beginPath();
     ctx.arc(x, y, dotR, 0, 2 * Math.PI);
     ctx.fill();

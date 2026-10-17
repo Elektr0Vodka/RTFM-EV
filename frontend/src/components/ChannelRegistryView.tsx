@@ -114,9 +114,9 @@ function sourceBadge(source: RegistryChannel['source'], t: TFn) {
 
 function statusBadge(status: RegistryChannel['status'], t: TFn) {
   const styles: Record<RegistryChannel['status'], string> = {
-    active: 'bg-green-500/10 text-green-600',
+    active: 'bg-green-500/10 text-green-600 cvd:bg-success/10 cvd:text-success',
     inactive: 'bg-muted text-muted-foreground',
-    dormant: 'bg-yellow-500/10 text-yellow-600',
+    dormant: 'bg-yellow-500/10 text-yellow-600 cvd:bg-warning/10 cvd:text-warning',
     experimental: 'bg-blue-500/10 text-blue-600',
   };
   return (
@@ -378,6 +378,7 @@ function EditChannelModal({
                   {' - '}
                   <span className="font-medium text-foreground">{geoFill.region}</span>
                   {', '}
+                  {/* cvd-decorative: highlight next to a text label */}
                   <span className="text-orange-600 dark:text-orange-400 font-medium">
                     {t('channel_registry_geo_vr_label')} {geoMatch?.veiligheidsregio}
                   </span>
@@ -526,7 +527,7 @@ function EditChannelModal({
                     className={cn(
                       'inline-flex items-center rounded px-1.5 py-0.5 text-[0.625rem] font-medium',
                       isVeiligheidsregio(s)
-                        ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400 ring-1 ring-orange-500/30'
+                        ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400 ring-1 ring-orange-500/30' // cvd-decorative: labelled region chip
                         : 'bg-muted text-muted-foreground'
                     )}
                   >
@@ -1183,7 +1184,7 @@ export default function ChannelRegistryView({
           className={cn(
             'mx-4 mt-3 rounded-md border px-3 py-2 text-sm shrink-0 registry-toast',
             toast.variant === 'ok'
-              ? 'border-green-500/30 bg-green-500/10 text-green-600 registry-toast-ok'
+              ? 'border-green-500/30 bg-green-500/10 text-green-600 cvd:border-success/30 cvd:bg-success/10 cvd:text-success registry-toast-ok'
               : toast.variant === 'err'
                 ? 'border-destructive/30 bg-destructive/10 text-destructive'
                 : 'border-border/70 bg-muted/30 text-muted-foreground'

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 
 vi.mock('maplibre-gl', async () => {
   const { mockMaplibreModule } = await import('./mocks/maplibre');
@@ -12,6 +12,8 @@ import { api } from '../api';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { MapView } from '../components/MapView';
 import { writeLastView } from '../map/homeView';
+import { getBasemap, getSavedBasemapId } from '../map/engine/basemaps';
+import { getDataColors } from '../utils/cvd/palettes';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
@@ -265,5 +267,29 @@ describe('MapView (MapLibre)', () => {
       // it always runs inside the test (on a slow runner it used to fire late).
       await waitFor(() => expect((maplibre as any).Popup).toHaveBeenCalled());
     });
+  });
+});
+
+describe('MapView colourblind legend', () => {
+  it('shows the palette recency colours in the legend while packets are off', async () => {
+    localStorage.setItem('remoteterm-cvd-mode', 'deutan');
+    const { getByRole } = render(
+      <I18nProvider>
+        <MapView contacts={[contact({ public_key: 'a' })]} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    fireEvent.click(getByRole('button', { name: 'Display' }));
+    const group = await waitFor(() => getByRole('group', { name: 'Marker recency legend' }));
+    const swatch = group.querySelector('span[aria-hidden]') as HTMLElement;
+    const tone = getBasemap(getSavedBasemapId()).tone ?? 'dark';
+    const expected = getDataColors('deutan', tone).recency.recent;
+    const hex = (c: string) =>
+      '#' +
+      (c.match(/\d+/g) ?? [])
+        .slice(0, 3)
+        .map((n) => Number(n).toString(16).padStart(2, '0'))
+        .join('');
+    expect(hex(swatch.style.backgroundColor)).toBe(expected);
   });
 });

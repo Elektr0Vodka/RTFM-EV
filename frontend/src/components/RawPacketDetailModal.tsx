@@ -92,16 +92,16 @@ const FIELD_PALETTE: FieldPaletteEntry[] = [
     hexActive: 'bg-sky-500/40 ring-1 ring-inset ring-sky-600/70',
   },
   {
-    box: 'border-emerald-500/30 bg-emerald-500/10',
-    boxActive: 'border-emerald-600 bg-emerald-500/20 shadow-xs shadow-emerald-500/20',
-    hex: 'bg-emerald-500/20 ring-1 ring-inset ring-emerald-500/35',
-    hexActive: 'bg-emerald-500/40 ring-1 ring-inset ring-emerald-600/70',
+    box: 'border-emerald-500/30 bg-emerald-500/10', // cvd-decorative: field colours are labelled + hover-linked
+    boxActive: 'border-emerald-600 bg-emerald-500/20 shadow-xs shadow-emerald-500/20', // cvd-decorative: field colours are labelled + hover-linked
+    hex: 'bg-emerald-500/20 ring-1 ring-inset ring-emerald-500/35', // cvd-decorative: field colours are labelled + hover-linked
+    hexActive: 'bg-emerald-500/40 ring-1 ring-inset ring-emerald-600/70', // cvd-decorative: field colours are labelled + hover-linked
   },
   {
-    box: 'border-amber-500/30 bg-amber-500/10',
-    boxActive: 'border-amber-600 bg-amber-500/20 shadow-xs shadow-amber-500/20',
-    hex: 'bg-amber-500/20 ring-1 ring-inset ring-amber-500/35',
-    hexActive: 'bg-amber-500/40 ring-1 ring-inset ring-amber-600/70',
+    box: 'border-amber-500/30 bg-amber-500/10', // cvd-decorative: field colours are labelled + hover-linked
+    boxActive: 'border-amber-600 bg-amber-500/20 shadow-xs shadow-amber-500/20', // cvd-decorative: field colours are labelled + hover-linked
+    hex: 'bg-amber-500/20 ring-1 ring-inset ring-amber-500/35', // cvd-decorative: field colours are labelled + hover-linked
+    hexActive: 'bg-amber-500/40 ring-1 ring-inset ring-amber-600/70', // cvd-decorative: field colours are labelled + hover-linked
   },
   {
     box: 'border-rose-500/30 bg-rose-500/10',
@@ -122,10 +122,10 @@ const FIELD_PALETTE: FieldPaletteEntry[] = [
     hexActive: 'bg-cyan-500/40 ring-1 ring-inset ring-cyan-600/70',
   },
   {
-    box: 'border-lime-500/30 bg-lime-500/10',
-    boxActive: 'border-lime-600 bg-lime-500/20 shadow-xs shadow-lime-500/20',
-    hex: 'bg-lime-500/20 ring-1 ring-inset ring-lime-500/35',
-    hexActive: 'bg-lime-500/40 ring-1 ring-inset ring-lime-600/70',
+    box: 'border-lime-500/30 bg-lime-500/10', // cvd-decorative: field colours are labelled + hover-linked
+    boxActive: 'border-lime-600 bg-lime-500/20 shadow-xs shadow-lime-500/20', // cvd-decorative: field colours are labelled + hover-linked
+    hex: 'bg-lime-500/20 ring-1 ring-inset ring-lime-500/35', // cvd-decorative: field colours are labelled + hover-linked
+    hexActive: 'bg-lime-500/40 ring-1 ring-inset ring-lime-600/70', // cvd-decorative: field colours are labelled + hover-linked
   },
   {
     box: 'border-fuchsia-500/30 bg-fuchsia-500/10',

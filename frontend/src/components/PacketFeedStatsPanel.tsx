@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useCvdColors, useCvdMode } from '../hooks/useCvdColors';
 import {
   BarChart,
   Bar,
@@ -48,10 +49,13 @@ const TIMELINE_FILL_COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#f43f5e', '#8b5c
  * Build a stable name→color mapping so the same type always gets the same
  * color regardless of sort order or appearance order.
  */
-function buildColorMap(names: readonly string[]): Map<string, string> {
+function buildColorMap(
+  names: readonly string[],
+  colors: readonly string[] = TIMELINE_FILL_COLORS
+): Map<string, string> {
   const map = new Map<string, string>();
   for (let i = 0; i < names.length; i++) {
-    map.set(names[i], TIMELINE_FILL_COLORS[i % TIMELINE_FILL_COLORS.length]);
+    map.set(names[i], colors[i % colors.length]);
   }
   return map;
 }
@@ -519,6 +523,17 @@ function TimelineChart({
 
 export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
   const t = useT();
+  // Packet types are told apart by colour in the stacked timeline: use the
+  // colourblind palette when a mode is on.
+  const cvdMode = useCvdMode();
+  const cvdColors = useCvdColors();
+  const payloadColorMap = useMemo(
+    () =>
+      cvdMode === 'off'
+        ? PAYLOAD_TYPE_COLOR_MAP
+        : buildColorMap(KNOWN_PAYLOAD_TYPES, cvdColors.series),
+    [cvdMode, cvdColors]
+  );
   const rawPacketStatsSession = useRawPacketStatsSession();
   const [selectedWindow, setSelectedWindow] = useState<string>(
     () => loadStoredTimeRange(RAW_FEED_WINDOW_KEY, DEFAULT_RAW_FEED_ID).id
@@ -737,7 +752,7 @@ export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
       </div>
 
       <div className="mt-4">
-        <TimelineChart bins={stats.timeline} colorMap={PAYLOAD_TYPE_COLOR_MAP} />
+        <TimelineChart bins={stats.timeline} colorMap={payloadColorMap} />
       </div>
 
       <div className="md:columns-2 md:gap-4">
@@ -745,7 +760,7 @@ export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
           title={t('packet_types_title')}
           items={stats.payloadBreakdown}
           emptyLabel={t('packet_empty_no_packets_window')}
-          colorMap={PAYLOAD_TYPE_COLOR_MAP}
+          colorMap={payloadColorMap}
         />
 
         <RankedBars

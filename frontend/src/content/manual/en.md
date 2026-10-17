@@ -479,7 +479,7 @@ RTFM-EV can judge every received packet the way a repeater would. **Shadow mode*
 
 ### Local Configuration
 
-Settings for this browser or device: language, color theme (including four CRT phosphor themes) and CRT screen effects, the **Desktop buddy** (after you have used the Windows 95 theme), branding (app name and icon, shared by all devices), a local label banner, **Distance Units**, **Coordinate format**, **Date & Time Format**, relative font size, UI tweaks (such as reopen last conversation, battery display and **Replace as you Type**), the mention and DM sound, new node notifications, **Chat parsing** and **Web Push Notifications**. **Sign-in Redirect** is for an instance behind a reverse proxy that handles sign-in: when the session has run out, the app goes to the address you enter, or reloads the page when the field is empty.
+Settings for this browser or device: language, color theme (including four CRT phosphor themes) and CRT screen effects, the **Desktop buddy** (after you have used the Windows 95 theme), branding (app name and icon, shared by all devices), a local label banner, **Distance Units**, **Coordinate format**, **Date & Time Format**, relative font size, **Accessibility** (a colourblind mode and a reading font for dyslexia, on top of any theme), UI tweaks (such as reopen last conversation, battery display and **Replace as you Type**), the mention and DM sound, new node notifications, **Chat parsing** and **Web Push Notifications**. **Sign-in Redirect** is for an instance behind a reverse proxy that handles sign-in: when the session has run out, the app goes to the address you enter, or reloads the page when the field is empty.
 
 ### Bot lists
 

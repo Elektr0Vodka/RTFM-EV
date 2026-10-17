@@ -25,6 +25,34 @@ Tests only; the app does not change.
 - The test now waits for the call with `waitFor`. The negative (repeater) check
   is unchanged.
 
+## Update 2026-10-17 (Accessibility: colourblind mode and reading font: feat/accessibility-colour-reading-font)
+
+Two per-browser settings that work on top of every theme. Frontend only: no
+migration, no new npm dependency or environment variable. Not yet checked by
+people with colour vision deficiency or dyslexia.
+
+### Accessibility (Settings > Local > Accessibility)
+- **Colourblind mode**: Off, red-weak or red-blind (protan), green-weak or
+  green-blind (deutan) or blue-yellow (tritan). Each type has its own palette,
+  in a light and a dark variant picked from the surface it sits on (the theme's
+  cards; for map marks, the basemap). It swaps the status colours (success,
+  warning, error, info, connected/disconnected), the map's SNR ramp, node
+  recency and role colours, hop and route colours, and the colours that tell
+  chart series apart. Role colours you picked yourself are kept. Off looks
+  exactly as before. The palettes are tested: every pair that must differ stays
+  apart under a CVD simulation (Machado et al. 2009, CIEDE2000 of at least 10),
+  and status colours pass WCAG contrast on every theme's cards.
+- Monochrome and the CRT themes get real status colour while a mode is on (an
+  experiment; easy to switch off per theme).
+- **Reading font**: Theme default, OpenDyslexic, Atkinson Hyperlegible or
+  Lexend. Replaces the theme's text font, including the DarkDutch and MCEU
+  heading fonts and the mIRC chat pane; code and packet data keep their
+  fixed-width font. The fonts are served by the app itself (SIL Open Font
+  License 1.1, from Fontsource 5.3.0).
+- **Not by colour alone**: the radio status in the top bar shows a tick, a
+  spinner ring or a cross on narrow screens, where its text is hidden.
+- Node role colours are now saved only when they differ from the defaults.
+
 ## Update 2026-10-17 (shared dependency folder for worktrees: feat/shared-deps-folder)
 
 Developer tooling only; the app does not change. Windows (PowerShell).

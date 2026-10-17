@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Popup as MlPopup, type Map as MlMap } from 'maplibre-gl';
 import { MiniMap } from '../map/MiniMap';
+import { useCvdColors, useCvdMode } from '../hooks/useCvdColors';
+import type { Tone } from '../utils/accessibility';
 
 interface Neighbor {
   lat: number | null;
@@ -19,12 +21,28 @@ interface Props {
 
 type ValidNeighbor = Neighbor & { lat: number; lon: number };
 
-// snr < 0 red, 0..6 yellow, >= 6 green.
-const SNR_COLOR = ['step', ['get', 'snr'], '#ef4444', 0, '#eab308', 6, '#22c55e'];
+/** snr < 0 bad, 0..6 mid, >= 6 good: red / yellow / green, or the given
+ *  colourblind stops. */
+export function snrStepExpr(
+  colors: { bad: string; mid: string; good: string } = {
+    bad: '#ef4444',
+    mid: '#eab308',
+    good: '#22c55e',
+  }
+): unknown[] {
+  return ['step', ['get', 'snr'], colors.bad, 0, colors.mid, 6, colors.good];
+}
 
 export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: Props) {
   const mapRef = useRef<MlMap | null>(null);
   const popupRef = useRef<MlPopup | null>(null);
+  // Colourblind mode: SNR circles take the palette's signal stops for the basemap's tone.
+  const [basemapTone, setBasemapTone] = useState<Tone>('dark');
+  const cvdMode = useCvdMode();
+  const cvdColors = useCvdColors(basemapTone);
+  const snrExpr = cvdMode === 'off' ? snrStepExpr() : snrStepExpr(cvdColors.signal);
+  const snrExprRef = useRef(snrExpr);
+  snrExprRef.current = snrExpr;
 
   const valid = neighbors.filter((n): n is ValidNeighbor => n.lat != null && n.lon != null);
   const hasRadio = radioLat != null && radioLon != null && !(radioLat === 0 && radioLon === 0);
@@ -100,7 +118,7 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
           source: 'nm-neighbors',
           paint: {
             'circle-radius': 6,
-            'circle-color': SNR_COLOR,
+            'circle-color': snrExprRef.current,
             'circle-opacity': 0.85,
             'circle-stroke-color': '#000',
             'circle-stroke-width': 1,
@@ -161,6 +179,13 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
   useEffect(() => {
     if (mapRef.current) setData(mapRef.current);
   }, [setData]);
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m = mapRef.current as any;
+    if (m?.getLayer?.('nm-neighbors')) m.setPaintProperty('nm-neighbors', 'circle-color', snrExpr);
+    // snrExpr is rebuilt each render; its inputs are the dependencies.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cvdMode, cvdColors]);
   useEffect(
     () => () => {
       popupRef.current?.remove();
@@ -184,6 +209,7 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
         fitPoints={fitPoints}
         zoom={10}
         onReady={handleReady}
+        onBasemapTone={setBasemapTone}
         onBasemapReapply={() => {
           if (mapRef.current) ensureLayers(mapRef.current);
         }}

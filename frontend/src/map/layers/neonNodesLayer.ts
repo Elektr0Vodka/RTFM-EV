@@ -24,12 +24,16 @@ export function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
 }
 
-const TIER_RGB: Record<RecencyTier, [number, number, number]> = {
-  recent: hexToRgb(NODE_RECENCY_COLORS.recent),
-  today: hexToRgb(NODE_RECENCY_COLORS.today),
-  stale: hexToRgb(NODE_RECENCY_COLORS.stale),
-  old: hexToRgb(NODE_RECENCY_COLORS.old),
-};
+function tierRgb(
+  colors: Record<RecencyTier, string>
+): Record<RecencyTier, [number, number, number]> {
+  return {
+    recent: hexToRgb(colors.recent),
+    today: hexToRgb(colors.today),
+    stale: hexToRgb(colors.stale),
+    old: hexToRgb(colors.old),
+  };
+}
 
 export interface NeonNodeDatum {
   pos: [number, number];
@@ -70,8 +74,10 @@ export function buildNeonNodeLayers(
   nodeScale = 1,
   roleColors: Record<number, string> = NODE_TYPE_STROKE,
   heights: NodeHeights = GROUND_HEIGHTS,
-  equalSizes = false
+  equalSizes = false,
+  recencyColors: Record<RecencyTier, string> = NODE_RECENCY_COLORS
 ): unknown[] {
+  const TIER_RGB = tierRgb(recencyColors);
   const ScatterplotLayer = deck.ScatterplotLayer as unknown as new (
     p: Record<string, unknown>
   ) => unknown;
@@ -103,7 +109,11 @@ export function buildNeonNodeLayers(
     },
     stroked: false,
     billboard: true,
-    updateTriggers: { getRadius: [nodeScale, equalSizes], getPosition: heights.version },
+    updateTriggers: {
+      getRadius: [nodeScale, equalSizes],
+      getFillColor: recencyColors,
+      getPosition: heights.version,
+    },
     // Always on top: 3D buildings never hide a node (deck.gl 9 parameter names;
     // the legacy depthTest/depthMask are ignored). No depth writes, so
     // overlapping halos read as additive glow, not occlusion.
@@ -129,6 +139,7 @@ export function buildNeonNodeLayers(
     updateTriggers: {
       getRadius: [nodeScale, equalSizes],
       getLineColor: roleColors,
+      getFillColor: recencyColors,
       getPosition: heights.version,
     },
     parameters: { depthCompare: 'always', depthWriteEnabled: false },
@@ -142,6 +153,7 @@ export interface NeonNodesOverlay {
   setNodeScale(scale: number): void;
   setEqualSizes(on: boolean): void;
   setRoleColors(colors: Record<number, string>): void;
+  setRecencyColors(colors: Record<RecencyTier, string>): void;
   setVisible(visible: boolean): void;
   setHeights(heights: NodeHeights): void;
   destroy(): void;
@@ -153,6 +165,7 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
   let nodeScale = 1;
   let equalSizes = false;
   let roleColors: Record<number, string> = NODE_TYPE_STROKE;
+  let recencyColors: Record<RecencyTier, string> = NODE_RECENCY_COLORS;
   let heights: NodeHeights = GROUND_HEIGHTS;
   let visible = false;
   let destroyed = false;
@@ -166,7 +179,17 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
       .then((deck) => {
         if (destroyed) return;
         slot = acquireDeckSlot(map, 'neon', deck, () =>
-          visible ? buildNeonNodeLayers(deck, data, nodeScale, roleColors, heights, equalSizes) : []
+          visible
+            ? buildNeonNodeLayers(
+                deck,
+                data,
+                nodeScale,
+                roleColors,
+                heights,
+                equalSizes,
+                recencyColors
+              )
+            : []
         );
       })
       .catch(() => {
@@ -190,6 +213,10 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
     },
     setRoleColors(colors: Record<number, string>): void {
       roleColors = colors;
+      if (slot) apply();
+    },
+    setRecencyColors(colors: Record<RecencyTier, string>): void {
+      recencyColors = colors;
       if (slot) apply();
     },
     setHeights(next: NodeHeights): void {

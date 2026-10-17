@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import {
   BarChart,
   Bar,
@@ -304,6 +305,7 @@ function NoiseFloorChart({
 
 export function MeshTrendsHistoricalPanel({ className }: { className?: string }) {
   const t = useT();
+  const seriesColor = useSeriesColor();
   const [stats, setStats] = useState<StatisticsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(false);
@@ -615,9 +617,9 @@ export function MeshTrendsHistoricalPanel({ className }: { className?: string })
                     ]}
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                    <Cell fill="#0ea5e9" />
-                    <Cell fill="#10b981" />
-                    <Cell fill="#f59e0b" />
+                    <Cell fill={seriesColor(0, '#0ea5e9')} />
+                    <Cell fill={seriesColor(1, '#10b981')} />
+                    <Cell fill={seriesColor(2, '#f59e0b')} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -675,7 +677,10 @@ export function MeshTrendsHistoricalPanel({ className }: { className?: string })
                     />
                     <Bar dataKey="messages" radius={[0, 4, 4, 0]} maxBarSize={16}>
                       {stats.busiest_channels_24h.map((_, i) => (
-                        <Cell key={i} fill={CHANNEL_BAR_COLORS[i % CHANNEL_BAR_COLORS.length]} />
+                        <Cell
+                          key={i}
+                          fill={seriesColor(i, CHANNEL_BAR_COLORS[i % CHANNEL_BAR_COLORS.length])}
+                        />
                       ))}
                     </Bar>
                   </BarChart>
