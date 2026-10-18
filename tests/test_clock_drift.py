@@ -228,6 +228,16 @@ class TestClockSyncSetting:
 class TestTelemetryCycleClockSync:
     """Which repeaters of a telemetry cycle reach the clock step."""
 
+    @pytest.fixture(autouse=True)
+    def _no_snmp_marked(self):
+        # These tests run without a database; no repeater uses SNMP as telemetry.
+        with patch(
+            "app.radio_sync.ContactSnmpRepository.list_telemetry_marked",
+            new_callable=AsyncMock,
+            return_value={},
+        ):
+            yield
+
     @staticmethod
     async def _run(collect_result: bool, clock_sync: list[str]) -> list[str]:
         from app.models import AppSettings

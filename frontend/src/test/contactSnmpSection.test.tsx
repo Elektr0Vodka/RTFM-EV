@@ -211,6 +211,7 @@ describe('ContactSnmpSection', () => {
       community: 's3cret',
       poll_enabled: false,
       poll_interval_minutes: 5,
+      use_as_telemetry: false,
     });
     expect(await screen.findByRole('button', { name: 'Poll now' })).toBeInTheDocument();
     expect(screen.getByText('192.168.50.95:161')).toBeInTheDocument();
@@ -237,6 +238,7 @@ describe('ContactSnmpSection', () => {
       community: null,
       poll_enabled: true,
       poll_interval_minutes: 5,
+      use_as_telemetry: false,
     });
   });
 
@@ -376,8 +378,76 @@ describe('ContactSnmpSection schedule and history', () => {
       community: null,
       poll_enabled: true,
       poll_interval_minutes: 15,
+      use_as_telemetry: false,
     });
     expect(await screen.findByTestId('snmp-status')).toHaveTextContent('Scheduled every 15 min.');
+  });
+
+  it('marks the node as a telemetry source', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(config({ poll_enabled: true }));
+    mocks.saveSnmpConfig.mockResolvedValue(config({ poll_enabled: true, use_as_telemetry: true }));
+    await renderSection();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    const box = screen.getByLabelText('Use as telemetry');
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mocks.saveSnmpConfig).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSnmpConfig.mock.calls[0][1]).toMatchObject({ use_as_telemetry: true });
+    expect(await screen.findByTestId('snmp-telemetry-note')).toHaveTextContent(
+      'RF telemetry for this node runs only when SNMP stops answering.'
+    );
+  });
+
+  it('says scheduled polling is needed when marked without it', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(config({ use_as_telemetry: true }));
+    await renderSection();
+    expect(await screen.findByTestId('snmp-telemetry-note')).toHaveTextContent(
+      'Turn on scheduled polling for this to work.'
+    );
+  });
+
+  it('shows the clock state from the newest poll', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(
+      config({ use_as_telemetry: true, poll_enabled: true, ntp_synced: true })
+    );
+    await renderSection();
+    expect(await screen.findByTestId('snmp-clock')).toHaveTextContent('Clock: NTP synced');
+  });
+
+  it('warns when the clock is not synced', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(
+      config({ use_as_telemetry: true, poll_enabled: true, ntp_synced: false })
+    );
+    await renderSection();
+    const clock = await screen.findByTestId('snmp-clock');
+    expect(clock).toHaveTextContent('Clock: not synced');
+    expect(clock).toHaveAttribute('role', 'alert');
+  });
+
+  it('shows no clock line when the node does not report it', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(config({ use_as_telemetry: true, ntp_synced: null }));
+    await renderSection();
+    await screen.findByTestId('snmp-status');
+    expect(screen.queryByTestId('snmp-clock')).toBeNull();
+  });
+
+  it('shows no clock line for a node not used as telemetry', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(config({ ntp_synced: false }));
+    await renderSection();
+    await screen.findByTestId('snmp-status');
+    expect(screen.queryByTestId('snmp-clock')).toBeNull();
+  });
+
+  it('says RF clock sync is paused for a marked node on the clock sync list', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(
+      config({ poll_enabled: true, use_as_telemetry: true, clock_sync_listed: true })
+    );
+    await renderSection();
+    expect(await screen.findByTestId('snmp-clock-sync-paused')).toHaveTextContent(
+      'RF clock sync is paused while SNMP answers.'
+    );
   });
 
   it.each(['0', '1441', 'x'])('refuses interval %s', async (interval) => {

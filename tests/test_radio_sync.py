@@ -2381,6 +2381,16 @@ class TestCollectRepeaterTelemetryLpp:
 class TestRunTelemetryCycleRoutedOnly:
     """Verify that _run_telemetry_cycle(routed_only=True) skips flood repeaters."""
 
+    @pytest.fixture(autouse=True)
+    def _no_snmp_marked(self):
+        # These tests run without a database; no repeater uses SNMP as telemetry.
+        with patch(
+            "app.radio_sync.ContactSnmpRepository.list_telemetry_marked",
+            new_callable=AsyncMock,
+            return_value={},
+        ):
+            yield
+
     @pytest.mark.asyncio
     async def test_routed_only_skips_flood_contacts(self):
         from unittest.mock import AsyncMock, MagicMock, patch

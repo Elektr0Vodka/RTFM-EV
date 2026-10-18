@@ -47,6 +47,7 @@ from app.models import (
     PathDiscoveryResponse,
     PathDiscoveryRoute,
     TelemetryHistoryEntry,
+    TelemetrySource,
     TraceResponse,
     apply_remote_cli,
     apply_telemetry_perms,
@@ -1458,35 +1459,98 @@ def _latest_battery_volts(data: dict) -> float | None:
     return _extract_voltage(data)
 
 
+# (timestamp, value, source) of one candidate reading in get_latest_telemetry.
+_TelemetryReading = tuple[int, float, TelemetrySource]
+
+
 @router.get("/telemetry/latest", response_model=dict[str, LatestTelemetryEntry])
 async def get_latest_telemetry() -> dict[str, LatestTelemetryEntry]:
     """Latest stored telemetry per node (read-only): battery + temperature at a glance.
 
-    Merges the repeater and contact history tables; on a key collision the newer
-    reading wins. Used by the map telemetry overlay.
+    Merges the repeater and contact history tables and, for nodes marked
+    ``use_as_telemetry``, their newest SNMP poll. Each field comes from the
+    newest reading that has it, so a fresh SNMP battery does not hide an older
+    LPP outside temperature. Used by the map telemetry overlay, the node popup
+    and Fleet health.
     """
+    from app.repository.contact_snmp import SnmpHistoryRepository
     from app.repository.contact_telemetry import ContactTelemetryRepository
     from app.repository.repeater_telemetry import RepeaterTelemetryRepository
+    from app.services.snmp_telemetry import (
+        SNMP_SOURCE,
+        snmp_battery_volts,
+        snmp_mcu_temperature,
+    )
 
     rep = await RepeaterTelemetryRepository.get_latest_all()
+    rep_battery = await RepeaterTelemetryRepository.get_latest_battery_all()
+    rep_lpp = await RepeaterTelemetryRepository.get_latest_lpp_all()
     con = await ContactTelemetryRepository.get_latest_all()
-    out: dict[str, LatestTelemetryEntry] = {}
+    snmp = await SnmpHistoryRepository.get_latest_marked_all()
+
+    battery: dict[str, list[_TelemetryReading]] = {}
+    temperature: dict[str, list[_TelemetryReading]] = {}
+    chip: dict[str, _TelemetryReading] = {}
+    # Newest row per key regardless of fields, for a node that has rows but no values.
+    newest_row: dict[str, tuple[int, TelemetrySource]] = {}
+
+    def _add(
+        bucket: dict[str, list[_TelemetryReading]], pk: str, reading: _TelemetryReading
+    ) -> None:
+        bucket.setdefault(pk, []).append(reading)
+
+    def _note_row(pk: str, ts: int, source: TelemetrySource) -> None:
+        if pk not in newest_row or ts > newest_row[pk][0]:
+            newest_row[pk] = (ts, source)
+
     for pk, row in rep.items():
-        out[pk] = LatestTelemetryEntry(
-            timestamp=row["timestamp"],
-            battery_volts=_latest_battery_volts(row["data"]),
-            temperature=_extract_temperature(row["data"]),
-            source="repeater",
-        )
+        source: TelemetrySource = "snmp" if row["data"].get("source") == SNMP_SOURCE else "repeater"
+        _note_row(pk, row["timestamp"], source)
+        volts = _latest_battery_volts(row["data"])
+        if volts is not None:
+            _add(battery, pk, (row["timestamp"], volts, source))
+    # The newest row may carry no battery (an SNMP row from older firmware);
+    # the newest row that does still counts.
+    for pk, row in rep_battery.items():
+        volts = _latest_battery_volts(row["data"])
+        if volts is not None:
+            source = "snmp" if row["data"].get("source") == SNMP_SOURCE else "repeater"
+            _add(battery, pk, (row["timestamp"], volts, source))
+    for pk, row in rep_lpp.items():
+        temp = _extract_temperature(row["data"])
+        if temp is not None:
+            _add(temperature, pk, (row["timestamp"], temp, "repeater"))
     for pk, row in con.items():
-        existing = out.get(pk)
-        if existing is not None and existing.timestamp >= row["timestamp"]:
-            continue
+        _note_row(pk, row["timestamp"], "contact")
+        volts = _latest_battery_volts(row["data"])
+        if volts is not None:
+            _add(battery, pk, (row["timestamp"], volts, "contact"))
+        temp = _extract_temperature(row["data"])
+        if temp is not None:
+            _add(temperature, pk, (row["timestamp"], temp, "contact"))
+    for pk, row in snmp.items():
+        volts = snmp_battery_volts(row["values"])
+        if volts is not None:
+            _add(battery, pk, (row["timestamp"], volts, "snmp"))
+        mcu = snmp_mcu_temperature(row["values"])
+        if mcu is not None:
+            chip[pk] = (row["timestamp"], mcu, "snmp")
+
+    out: dict[str, LatestTelemetryEntry] = {}
+    for pk in set(battery) | set(temperature) | set(chip) | set(newest_row):
+        best_battery = max(battery[pk], key=lambda r: r[0]) if pk in battery else None
+        best_temp = max(temperature[pk], key=lambda r: r[0]) if pk in temperature else None
+        best_chip = chip.get(pk)
+        lead = best_battery or best_temp or best_chip
+        timestamp, source = (lead[0], lead[2]) if lead else newest_row[pk]
         out[pk] = LatestTelemetryEntry(
-            timestamp=row["timestamp"],
-            battery_volts=_latest_battery_volts(row["data"]),
-            temperature=_extract_temperature(row["data"]),
-            source="contact",
+            timestamp=timestamp,
+            source=source,
+            battery_volts=best_battery[1] if best_battery else None,
+            temperature=best_temp[1] if best_temp else None,
+            temperature_at=best_temp[0] if best_temp else None,
+            mcu_temperature=best_chip[1] if best_chip else None,
+            mcu_temperature_at=best_chip[0] if best_chip else None,
         )
     return out
 

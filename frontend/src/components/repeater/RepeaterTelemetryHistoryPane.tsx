@@ -110,6 +110,11 @@ function formatUptime(seconds: number): string {
 }
 
 /** Collect all numeric values for the given keys across a set of chart points. */
+/** Where a stored telemetry row came from: read over SNMP, or an RF request. */
+export function telemetryPointSource(data: Record<string, unknown>): 'snmp' | 'rf' {
+  return data.source === 'snmp' ? 'snmp' : 'rf';
+}
+
 function collectValues(data: Array<Record<string, number | undefined>>, keys: string[]): number[] {
   const out: number[] = [];
   for (const d of data) {
@@ -384,6 +389,8 @@ export function TelemetryHistoryPane({
         uptime_seconds: d.uptime_seconds,
         neighbor_count: d.neighbor_count,
         region_count: d.region_count,
+        // 1 for a row read over SNMP (shown in the tooltip); not a chart series.
+        from_snmp: telemetryPointSource(d as Record<string, unknown>) === 'snmp' ? 1 : undefined,
       };
       // Flatten LPP sensors into the point, converting units as needed
       for (const { sensor: s, key } of assignLppKeys(d.lpp_sensors ?? [])) {
@@ -582,11 +589,17 @@ export function TelemetryHistoryPane({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = (payload as any[]).filter((p) => p.value != null);
     if (rows.length === 0) return null;
+    const fromSnmp = payload[0]?.payload?.from_snmp === 1;
     return (
       <div style={{ ...TOOLTIP_STYLE.contentStyle, padding: '6px 9px' }}>
         <div style={{ ...TOOLTIP_STYLE.labelStyle, marginBottom: 4 }}>
           {formatTime(Number(label))}
         </div>
+        {fromSnmp && (
+          <div style={{ ...TOOLTIP_STYLE.labelStyle, marginBottom: 4 }}>
+            {t('repeater_telemetry_source_snmp')}
+          </div>
+        )}
         {rows.map((p) => {
           const key = String(p.dataKey ?? p.name);
           const s = series.find((x) => x.key === key);

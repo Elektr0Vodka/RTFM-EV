@@ -119,6 +119,9 @@ class MqttCommunityModule(FanoutModule):
             return
         if not self.config.get("publish_telemetry", False):
             return
+        # Readings taken over SNMP on the LAN are a separate opt-in.
+        if data.get("source") == "snmp" and not self.config.get("publish_snmp_telemetry", False):
+            return
         await _publish_node_report(
             self._publisher,
             self.config,

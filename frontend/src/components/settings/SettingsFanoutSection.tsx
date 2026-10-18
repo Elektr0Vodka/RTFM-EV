@@ -67,6 +67,7 @@ function createCommunityConfigDefaults(
     publish_config: false,
     publish_filter: false,
     publish_own_neighbors: false,
+    publish_snmp_telemetry: false,
     filter_interval_ms: 60000,
     status_interval_ms: 300000,
     ...overrides,
@@ -293,6 +294,7 @@ function normalizeIntegrationConfigForSave(
     normalized.publish_config = normalized.publish_config === true;
     normalized.publish_filter = normalized.publish_filter === true;
     normalized.publish_own_neighbors = normalized.publish_own_neighbors === true;
+    normalized.publish_snmp_telemetry = normalized.publish_snmp_telemetry === true;
     const filterInterval = Number(normalized.filter_interval_ms);
     normalized.filter_interval_ms =
       Number.isInteger(filterInterval) && filterInterval >= 60000 && filterInterval <= 600000
@@ -1473,6 +1475,18 @@ function CommunityTopicControls({
       </label>
       <p className="text-xs text-muted-foreground">
         {t('settings_fanout_publish_own_neighbors_desc')}
+      </p>
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.publish_snmp_telemetry === true}
+          onChange={(e) => onChange({ ...config, publish_snmp_telemetry: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_publish_snmp_telemetry')}</span>
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {t('settings_fanout_publish_snmp_telemetry_desc')}
       </p>
       <div className="space-y-2">
         <Label htmlFor="fanout-comm-interval">{t('settings_fanout_status_interval_min')}</Label>

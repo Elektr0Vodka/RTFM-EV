@@ -11,6 +11,38 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-18 (SNMP as a telemetry source, feat/snmp-telemetry-source)
+
+Migration `_153` (`contact_snmp.use_as_telemetry`). No new dependency. Nothing
+new is sent over the radio; the change makes RTFM-EV send fewer RF requests.
+
+### SNMP
+- **Use as telemetry** switch on a contact's SNMP card (repeater, room server
+  or companion, off by default). A marked node's SNMP polls count as its
+  telemetry: battery and chip temperature show in the map node popup and the
+  map telemetry overlay, Fleet health (including the low-battery rule) uses
+  the SNMP battery, and a repeater or room server gets one SNMP row an hour in
+  its telemetry history (charts and the Home Assistant repeater sensors). The
+  latest-telemetry view now picks each value from the newest reading that has
+  it, so a fresh SNMP battery does not hide an older LPP outside temperature
+  (`app/services/snmp_telemetry.py`, `routers/contacts.py`
+  `get_latest_telemetry`).
+- **RF only as a fallback.** A marked repeater on the RF tracked-telemetry list
+  gets no status request (nor neighbour signal, region count or clock sync)
+  while its SNMP polls are healthy: polling on and a good poll within three
+  intervals, at least 10 minutes. When SNMP stops answering, the RF requests
+  run again. The LPP sensor list is not affected, because SNMP has no sensor
+  values yet (`radio_sync._run_telemetry_cycle`).
+- **Clock state** on the SNMP card and node page from the node's `ntp_synced`
+  value, with a warning when the clock is not synced, and a note when RF clock
+  sync is paused for a marked node.
+- Map popup: an **SNMP** tag next to the reading age and a separate **Chip
+  temp** row (the MCU temperature, not an outside reading). The repeater
+  telemetry history tooltip says "Source: SNMP" for SNMP rows.
+- Community MQTT: SNMP-sourced telemetry is only forwarded with the new
+  opt-in **Include telemetry read over SNMP** (`publish_snmp_telemetry`, off by
+  default, on top of `publish_telemetry`).
+
 ## Update 2026-10-18 (SNMP latest values dashboard, snmp-layout-redesign)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.

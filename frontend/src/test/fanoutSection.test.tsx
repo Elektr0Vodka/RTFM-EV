@@ -922,6 +922,7 @@ describe('SettingsFanoutSection', () => {
           publish_config: false,
           publish_filter: false,
           publish_own_neighbors: false,
+          publish_snmp_telemetry: false,
           filter_interval_ms: 60000,
           status_interval_ms: 300000,
         },
@@ -1739,6 +1740,41 @@ describe('SettingsFanoutSection', () => {
             publish_own_neighbors: true,
             filter_interval_ms: 600000,
           }),
+        })
+      )
+    );
+  });
+
+  it('community SNMP telemetry is opt-in', async () => {
+    const created: FanoutConfig = {
+      id: 'comm-snmp',
+      type: 'mqtt_community',
+      name: 'DMC-1',
+      enabled: true,
+      config: {},
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 4000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(created);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
+
+    renderSection();
+    await createCommunityPreset('dutchmeshcore-1');
+
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    const box = screen.getByLabelText('Include telemetry read over SNMP');
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ publish_snmp_telemetry: true }),
         })
       )
     );

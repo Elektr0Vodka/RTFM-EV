@@ -39,6 +39,7 @@ from app.repository import (
     ContactRepository,
     RepeaterTelemetryRepository,
 )
+from app.repository.contact_snmp import ContactSnmpRepository
 from app.repository.contact_telemetry import ContactTelemetryRepository
 from app.repository.link_signal import LinkSignalRepository
 from app.services.clock_drift import (
@@ -54,6 +55,7 @@ from app.services.messages import create_fallback_channel_message
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.room_status import room_status_fields
 from app.services.route_timeout import contact_timeout_seconds
+from app.services.snmp_telemetry import is_snmp_healthy
 from app.telemetry_interval import (
     TELEMETRY_SCHEDULE_MINUTE_AUTO,
     clamp_telemetry_interval,
@@ -2327,6 +2329,9 @@ async def _run_telemetry_cycle(
     if not tracked_repeaters and not tracked_contacts:
         return
     clock_sync_keys = {key.lower() for key in app_settings.clock_sync_repeaters}
+    # Repeaters whose SNMP polls count as telemetry: RF is only a fallback for them.
+    snmp_marked = await ContactSnmpRepository.list_telemetry_marked() if tracked_repeaters else {}
+    now = int(time.time())
 
     # Build repeater candidates
     candidates: list[tuple[str, Contact, bool]] = []  # (key, contact, is_repeater)
@@ -2339,6 +2344,10 @@ async def _run_telemetry_cycle(
             )
             continue
         if routed_only and (not contact.effective_route or contact.effective_route.path_len < 0):
+            continue
+        snmp_config = snmp_marked.get(contact.public_key)
+        if snmp_config is not None and is_snmp_healthy(snmp_config, now):
+            logger.debug("Telemetry collect: %s skipped, SNMP is healthy", pub_key[:12])
             continue
         candidates.append((pub_key, contact, True))
 

@@ -124,3 +124,44 @@ async def test_on_telemetry_skips_when_disconnected():
         await mod.on_telemetry(_telemetry_event())
 
     assert published == []
+
+
+@pytest.mark.asyncio
+async def test_snmp_row_dropped_without_opt_in():
+    mod, published = _module(publish_telemetry=True)
+    p_key, p_rt = _patched_identity()
+    with p_key, p_rt:
+        await mod.on_telemetry(_telemetry_event() | {"source": "snmp"})
+
+    assert published == []
+
+
+@pytest.mark.asyncio
+async def test_snmp_row_published_with_opt_in():
+    mod, published = _module(publish_telemetry=True, publish_snmp_telemetry=True)
+    p_key, p_rt = _patched_identity()
+    with p_key, p_rt:
+        await mod.on_telemetry(_telemetry_event() | {"source": "snmp"})
+
+    assert len(published) == 1
+    assert published[0][0].endswith("/node_telemetry")
+
+
+@pytest.mark.asyncio
+async def test_snmp_opt_in_alone_publishes_nothing():
+    mod, published = _module(publish_snmp_telemetry=True)  # publish_telemetry off
+    p_key, p_rt = _patched_identity()
+    with p_key, p_rt:
+        await mod.on_telemetry(_telemetry_event() | {"source": "snmp"})
+
+    assert published == []
+
+
+@pytest.mark.asyncio
+async def test_rf_row_unaffected_by_snmp_opt_in():
+    mod, published = _module(publish_telemetry=True)
+    p_key, p_rt = _patched_identity()
+    with p_key, p_rt:
+        await mod.on_telemetry(_telemetry_event())
+
+    assert len(published) == 1
