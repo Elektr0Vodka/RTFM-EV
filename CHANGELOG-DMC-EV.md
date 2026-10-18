@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-18 (map screensaver, feat/map-screensaver)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### Map
+- **Map screensaver** (Display panel > Screensaver, off by default, saved per
+  browser). After a set number of idle minutes (1 to 120, default 5) the
+  camera tilts and moves on its own. **Orbit** circles the selected node (the
+  open node popup) or the map centre, a full turn every two minutes.
+  **Flyover** glides between heard nodes (`last_seen` set, with a position)
+  that the map currently shows under its filters, picking one of the nearest
+  unvisited nodes each leg, facing the direction of travel and circling
+  slowly over each node. Any pointer, wheel, key or touch input stops it and
+  restores the exact previous camera; 2D lock is lifted while it runs and put
+  back on wake. The idle clock only runs while the tab is visible, and the
+  waking click is caught so it does not also act on the map. The camera it
+  moves is not stored as the "remember last position" start view
+  (`map/screensaver.ts`, `map/useMapScreensaver.ts`).
+- **Orbit and Flyover buttons in the map node popup.** Orbit circles that
+  node right away; Flyover flies to that node first and tours on from there.
+  Both work with the idle screensaver toggle off. A run started this way
+  ignores mouse movement (moving away from the button would end it at once);
+  a click, scroll, key press or touch stops it and restores the view.
+
 ## Update 2026-10-17 (map node popups: theme fix and per-type layout, fix/map-popup-theme)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.
