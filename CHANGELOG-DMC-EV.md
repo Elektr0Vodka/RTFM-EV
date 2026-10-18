@@ -11,6 +11,15 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-18 (screensaver popup buttons close the popup, fix/screensaver-close-popup)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### Map
+- **Node popup Orbit / Flyover close the popup.** Clicking either button now
+  closes the node popup before the screensaver starts, so it no longer sits
+  over the moving view. Waking restores the camera; the popup stays closed.
+
 ## Update 2026-10-18 (map screensaver, feat/map-screensaver)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.
