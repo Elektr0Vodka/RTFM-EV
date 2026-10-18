@@ -28,6 +28,12 @@ Frontend only. No migration, no new dependency. Nothing is sent over the radio.
   there: the firmware only counts completed transmits in it. Phones keep the
   previous list (`components/snmp/SnmpLatestDashboard.tsx`).
 
+### Layout
+- **No sideways scroll on a 390 px phone.** The top status bar needed about
+  418 px, which widened every page on a narrow phone. The brand name now
+  truncates with an ellipsis when space runs out, and the bar's gaps are
+  tighter below the `sm` breakpoint (`StatusBar.tsx`, `shell/AppBrand.tsx`).
+
 ## Update 2026-10-18 (screensaver popup buttons close the popup, fix/screensaver-close-popup)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.

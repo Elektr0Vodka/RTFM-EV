@@ -41,7 +41,10 @@ export function AppBrand({
           <path d="m356.69 114.91c3.9805-13.652 10.238-26.738 19.344-37.547-38.113-13.652-78.508-21.047-120.04-21.047-59.164 0-115.48 14.789-166.12 42.668-9.1016-6.8281-21.051-10.809-33.562-10.809-31.289-0.57031-56.32 25.027-56.32 55.75 0 31.289 25.031 56.32 56.32 56.32 31.289 0 56.32-25.031 56.32-56.32 0-3.4141-0.57031-6.8281-1.1367-9.6719 44.371-23.895 93.297-36.41 144.5-36.41 34.703 0 68.836 5.6914 100.69 17.066z" />
         </svg>
       )}
-      {!brandHidden && !iconOnly && (brandName?.trim() ? brandName : 'RTFM-EV')}
+      {/* A span so a long name truncates on a narrow header instead of widening the page. */}
+      {!brandHidden && !iconOnly && (
+        <span className="min-w-0 truncate">{brandName?.trim() ? brandName : 'RTFM-EV'}</span>
+      )}
     </>
   );
 }
