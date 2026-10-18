@@ -471,6 +471,7 @@ Behaviour modelled on flackrat/openhop-spamguard v5.11.3, code written from scra
 - `app/spam/replay.py` (pure): `replay(records, config, scrambled=False)` feeds the `msg` records in time order to a fresh detector on a clock driven by their timestamps (a `decide()` first when 30 s have passed, then `decide(rematch=event)`, host timing) and scores against the last label per `message_id`: `caught`, `flagged_later`, `missed`, `passed`, `wrongly_held`, with capped samples, plus `stopped`, `flagged`, `recorded_stopped`, `blocks` by kind. For a scrambled log it passes the recorded `name_score` / `name_disguised` to `SpamDetector.ingest`, because a code says nothing about the name it replaced. Cost is several ms per message (`_shared` results are cached per set of copies, `SHARED_CACHE_SIZE`).
 - `GET /spam-guard/evidence?days=&scramble=` - the log as a JSON Lines download (streamed)
 - `POST /spam-guard/replay` - `{days | evidence, settings}`; runs in a thread, stores nothing; 400 past `MAX_REPLAY_MESSAGES` (20000) records
+- `GET /spam-guard/airtime?start_ts&end_ts` - airtime saved in the hours that start inside the window (all channels: airtime is not kept per channel), with `from_ts` and `partial` when the window reaches past the 8 kept days; read-only, for the filter share card
 - `GET /spam-guard/health` - `state` `off` / `ok` / `warn` / `bad` with `problems` (`not_running`, `rules_failed`, `rules_missing`, `openhop_sync_failed`) and `warnings` (`settings_invalid`, `host_not_armed`, `openhop_spamguard_present`, `openhop_not_configured`, `openhop_key_not_shared`, `no_channels`); on OpenHop also `sync_state` (`idle` / `pending` / `synced` / `unconfigured` / `refused` / `failed`), `repairs` and `last_sync_at`; 503 when `bad`. It carries codes only: exception text (which can quote stored values or the node URL) is logged, never returned
 
 ### Bot lists
@@ -783,6 +784,7 @@ Named groups of channels and contacts loaded onto the radio in one action (plan 
 - `GET /packets/timeseries?start_ts&end_ts&bin_count` - time-binned packet counts, byte totals, signal averages, and type breakdowns for historical chart ranges
 - `GET /packets/historical-stats?start_ts&end_ts` - DB-computed aggregate stats for a window (My Node history)
 - `GET /packets/mesh-health?start_ts&end_ts` - per-contact advert frequency (direct/flood) for Mesh Health; HIGH/MEDIUM alerts are evaluated on the flood count only
+- `GET /packets/mesh-health/heard-bins?start_ts&end_ts&bin_count` - which contacts were heard (by advert, `advert_events`) in each of `bin_count` (1-200) equal bins; read-only, for the mesh summary share card
 - `GET /packets/prefix-collisions` - public-key prefix collisions among full-key local contacts at 1/2/3-byte widths (Mesh Health "Prefix Collisions" tab). Point-in-time over contacts, not window-scoped. See `app/services/prefix_collisions.py`
 - `GET /packets/snr-rssi-scatter`, `GET /packets/hourly-heatmap`, `GET /packets/reachability-rings` - windowed signal scatter, 7x24 UTC packet heatmap, and unique contacts by minimum hop distance
 - `GET /packets/relay-pairs?limit` - most frequent consecutive node pairs across advert paths

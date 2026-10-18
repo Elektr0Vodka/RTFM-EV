@@ -22,6 +22,8 @@ import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { MeshFilterStatsTables } from './MeshFilterStatsTables';
 import { type TimeWindow, StatTile, fmtBucketTime } from './meshHealthShared';
 import { toast } from './ui/sonner';
+import { ShareCardDialog } from '../share/ShareCardDialog';
+import { useRtfmFilterBuild } from '../share/cards/useFilterShare';
 import {
   buildJsonReport,
   buildPolicyRulesText,
@@ -329,6 +331,16 @@ export function MeshFilterStatsPanel({
   const channelLabel =
     channelOptions.find((option) => option.key === channel)?.label ?? t('mesh_filter_channel_all');
 
+  // Share card 5c: what RTFM-EV filtered in this window (as shown, so
+  // scrambled names stay scrambled).
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareBuild = useRtfmFilterBuild({
+    report,
+    channel,
+    channelLabel,
+    windowLabel: selectedWindow.label,
+  });
+
   const copySummary = async () => {
     if (!report) return;
     const text = buildSummaryText(report, t, { windowLabel: selectedWindow.label, channelLabel });
@@ -426,7 +438,27 @@ export function MeshFilterStatsPanel({
           <button type="button" disabled={!hasData} onClick={downloadJson} className={controlClass}>
             {t('mesh_filter_download_json')}
           </button>
+          <button
+            type="button"
+            disabled={!shareBuild}
+            onClick={() => setShareOpen(true)}
+            className={controlClass}
+            title={t('share_filter_button_title')}
+          >
+            {/* Not plain "Share": the trend chart already has a Share (proportion) toggle. */}
+            {t('share_dialog_title')}
+          </button>
         </div>
+        {shareOpen && shareBuild ? (
+          <ShareCardDialog
+            open
+            onClose={() => setShareOpen(false)}
+            title={t('share_dialog_title')}
+            supportsHidePosition={false}
+            toggles={[{ key: 'sources', label: t('share_filter_show_sources'), defaultOn: false }]}
+            build={shareBuild}
+          />
+        ) : null}
       </div>
 
       {error && (

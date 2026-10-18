@@ -439,7 +439,14 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
 - Base maps come from `captureBasemap` (`share/basemapCapture.ts`): a hidden, non-interactive MapLibre map with the saved basemap and `canvasContextAttributes.preserveDrawingBuffer`, fitted to the card's points, copied out, then removed; the projector it returns is plain Mercator maths (`share/geo.ts` `mercatorProjector`). App map markers are DOM elements, so cards paint routes and markers themselves. Without a map (Hide my position, map failed, nothing located) `fitProjector` places points on a plain background.
 - GIFs use `share/gifEncoder.ts` (one palette per clip, unchanged pixels transparent). Frame 1 is the finished picture so a chat preview that only shows frame 1 shows the result.
 - Share and Copy image need a secure context (`share/shareActions.ts`); Download always works. Text on the card goes through `t()` like any UI string.
-- Shipped: card 1, "How a message reached me" (row action in `MessageRowActions`, button in `PathModal`, dialog mounted in `MessageList`). Planned, not built yet: trace route, my node's reach, local mesh summary, filter results.
+- Shared pieces: `renderCard.ts` (PNG + abortable GIF from any `draw(ctx, progress)`), `cardView.ts` (`prepareMapView`: basemap, plain fit or diagram; `drawCardBackground`), `marks.ts` (markers, labels that skip when they would overlap, segments, `snrColor`), `bars.ts` (bar list, sparkline), `shareBrand.ts`, `filename.ts`.
+- Cards and where their Share button lives:
+  - 1 message route: `MessageRowActions`, `PathModal` (dialog in `MessageList`).
+  - 2 trace route: `TracePane` result header (`resultAt` is stored when a result arrives: the response has no time).
+  - 3 my node's reach: `MyNodeView` radar card (`historical-stats` `neighbors_by_count`, at most 50).
+  - 4 mesh summary: `MeshHealthView` header, on the tabs with a time window except Spam & bots (`GET /packets/mesh-health/heard-bins` drives the animation).
+  - 5 filter results (`cards/filterResult*.ts`, `useFilterShare.ts`): 5a/5b `SnmpNodeView` filter and companion filter group headers; 5b own radio `CompanionFilterSettings` history; 5c `MeshFilterStatsPanel` ("Share as image": the panel already has a "Share" trend toggle; Spam Guard airtime from `GET /spam-guard/airtime`, only without a channel filter); 5d `HostRepeaterStatsPane` lifetime block (PNG only).
+- Hide my position (cards 1-3) draws a diagram: route from fixed start to end (1), a loop out and back (2), a ring by signal (3).
 
 ### Live packet map (`map/packets/`)
 

@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSeriesColor } from '../hooks/useCvdColors';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Share2 } from 'lucide-react';
 import { api, isAbortError } from '../api';
 import { useT, type TFn } from '../i18n';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,9 @@ import { SnmpSeriesChart, type SnmpChartSeries } from './snmp/SnmpSeriesChart';
 import { SnmpLatestDashboard } from './snmp/SnmpLatestDashboard';
 import { SnmpValueGroups } from './snmp/SnmpValueGroups';
 import { useIsMobile } from '../map/controls/breakpoints';
+import { ShareCardDialog } from '../share/ShareCardDialog';
+import { useSnmpFilterBuild } from '../share/cards/useFilterShare';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import {
   COMPANION_FILTER_KEYS,
   FILTER_DROP_KEYS,
@@ -554,6 +557,30 @@ export function SnmpNodeView({
   const latestValues = node?.latest?.values ?? {};
   const isMobile = useIsMobile();
 
+  // Share cards 5a (repeater filter) and 5b (another companion's filter).
+  const shareName = node ? snmpNodeName(node) : '';
+  const shareWindow =
+    isCustom && appliedCustom
+      ? t('share_window_range', {
+          from: formatDateTime(appliedCustom.start * 1000, { day: 'numeric', month: 'short' }),
+          to: formatDateTime(appliedCustom.end * 1000, { day: 'numeric', month: 'short' }),
+        })
+      : windowId;
+  const filterShare = useSnmpFilterBuild({
+    name: shareName,
+    history: rows,
+    group: 'filter',
+    windowLabel: shareWindow,
+  });
+  const cfilterShare = useSnmpFilterBuild({
+    name: shareName,
+    history: rows,
+    group: 'companion_filter',
+    windowLabel: shareWindow,
+  });
+  const [shareGroup, setShareGroup] = useState<'filter' | 'companion_filter' | null>(null);
+  const shareBuild = shareGroup === 'filter' ? filterShare : shareGroup ? cfilterShare : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div
@@ -735,7 +762,21 @@ export function SnmpNodeView({
                 if (groupCharts.length === 0) return null;
                 return (
                   <section key={group}>
-                    <h3 className="mb-2 text-xs font-semibold text-foreground">{t(labelKey)}</h3>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <h3 className="text-xs font-semibold text-foreground">{t(labelKey)}</h3>
+                      {(group === 'filter' && filterShare) ||
+                      (group === 'companion_filter' && cfilterShare) ? (
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                          title={t('share_filter_button_title')}
+                          onClick={() => setShareGroup(group)}
+                        >
+                          <Share2 className="h-3 w-3" aria-hidden="true" />
+                          {t('share_action')}
+                        </button>
+                      ) : null}
+                    </div>
                     <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
                       {groupCharts.map((chart) => (
                         <ChartCard key={chart.def.id} chart={chart} full={full} />
@@ -744,6 +785,16 @@ export function SnmpNodeView({
                   </section>
                 );
               })}
+            {shareGroup && shareBuild ? (
+              <ShareCardDialog
+                key={shareGroup}
+                open
+                onClose={() => setShareGroup(null)}
+                title={t('share_dialog_title')}
+                supportsHidePosition={false}
+                build={shareBuild}
+              />
+            ) : null}
 
             <section>
               <h3 className="mb-1 text-xs font-semibold text-foreground">

@@ -264,11 +264,11 @@ describe('renderMessageRouteCard', () => {
       tone: 'dark',
     });
     const one = await renderMessageRouteCard(modelWithRoutes(1), text, brand, opts);
-    await one.gif();
+    await one.gif!();
     const a = addFrame.mock.calls.length;
     addFrame.mockClear();
     const many = await renderMessageRouteCard(modelWithRoutes(25), text, brand, opts);
-    const gif = await many.gif();
+    const gif = await many.gif!();
     expect(addFrame.mock.calls.length).toBe(a);
     expect(a).toBe(frameProgressList().length);
     expect(gif.type).toBe('image/gif');
@@ -283,7 +283,7 @@ describe('renderMessageRouteCard', () => {
     addFrame.mockImplementation(() => {
       if (addFrame.mock.calls.length === 3) ctrl.abort();
     });
-    await expect(res.gif(ctrl.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(res.gif!(ctrl.signal)).rejects.toMatchObject({ name: 'AbortError' });
     expect(addFrame.mock.calls.length).toBe(3);
     addFrame.mockReset();
   });
@@ -293,7 +293,7 @@ describe('renderMessageRouteCard', () => {
       ...opts,
       noMap: true,
     });
-    await res.gif();
+    await res.gif!();
     const delays = addFrame.mock.calls.map((c) => c[1] as number);
     expect(delays[0]).toBe(ANIM.firstMs / 10);
     expect(delays[delays.length - 1]).toBe(ANIM.holdMs / 10);

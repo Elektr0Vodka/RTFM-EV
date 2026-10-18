@@ -44,6 +44,9 @@ import { CompanionCliConsole } from './CompanionCliConsole';
 import { toRadarData } from './mynode/radar/radarData';
 import { typeColor } from './mynode/packetTypeColors';
 import { LiveSignalCard } from './mynode/LiveSignalCard';
+import { Share2 } from 'lucide-react';
+import { ShareCardDialog } from '../share/ShareCardDialog';
+import { useNodeReachBuild } from '../share/cards/useNodeReachShare';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -84,6 +87,7 @@ interface HistoricalNeighbor {
   lon: number | null;
   min_path_len: number | null;
   best_rssi?: number | null;
+  best_snr?: number | null;
 }
 
 interface HistoricalBusiestChannel {
@@ -1833,10 +1837,25 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch DB historical stats whenever the time window changes (uses nowSec which ticks every 30s)
+  // Fetch DB historical stats whenever the time window changes. A preset window
+  // follows nowSec (ticks every 30s); a custom range is fixed, so it does not.
+  const isCustomWindow = selectedWindow.key === 'custom';
+  const historicalTick = isCustomWindow ? 0 : nowSec;
   useEffect(() => {
-    const endTs = nowSec;
-    const startTs = selectedWindow.seconds !== null ? endTs - selectedWindow.seconds : 0;
+    let startTs: number;
+    let endTs: number;
+    if (isCustomWindow) {
+      startTs = Math.floor(new Date(customStart).getTime() / 1000);
+      endTs = Math.floor(new Date(customEnd).getTime() / 1000);
+      if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs <= startTs) {
+        // No usable range yet: show nothing rather than the previous window's data.
+        setHistoricalStats(null);
+        return;
+      }
+    } else {
+      endTs = historicalTick;
+      startTs = endTs - (selectedWindow.seconds ?? 0);
+    }
 
     setHistoricalStatsLoading(true);
     setHistoricalStatsError(null);
@@ -1851,7 +1870,14 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
         setHistoricalStatsError(err instanceof Error ? err.message : 'Failed to load');
         setHistoricalStatsLoading(false);
       });
-  }, [selectedWindowId, selectedWindow.seconds, nowSec]);
+  }, [
+    selectedWindowId,
+    selectedWindow.seconds,
+    historicalTick,
+    isCustomWindow,
+    customStart,
+    customEnd,
+  ]);
 
   // Battery: filter live samples for the selected window; fetch from DB for historical windows
   useEffect(() => {
@@ -1946,6 +1972,15 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const sessionSnapshot = useMemo(
     () => buildRawPacketStatsSnapshot(rawPacketStatsSession, 'session', nowSec),
     [rawPacketStatsSession, nowSec]
+  );
+
+  // Share card 3: who this radio hears directly, for the window on screen.
+  const [reachShareOpen, setReachShareOpen] = useState(false);
+  const reachShareBuild = useNodeReachBuild(
+    historicalStats?.neighbors_by_count ?? [],
+    config,
+    contacts,
+    liveStats.windowLabel
   );
 
   // Direct (0-hop) neighbours only: nodes heard with no relay in the path.
@@ -2770,10 +2805,30 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                 <span className="text-sm font-semibold text-foreground">
                   {t('node_radar_title')}
                 </span>
+                {reachShareBuild ? (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                    title={t('share_reach_button_title')}
+                    onClick={() => setReachShareOpen(true)}
+                  >
+                    <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t('share_action')}
+                  </button>
+                ) : null}
               </div>
               <div className="p-3">
                 <DirectRadar data={radarData} />
               </div>
+              {reachShareOpen && reachShareBuild ? (
+                <ShareCardDialog
+                  open
+                  onClose={() => setReachShareOpen(false)}
+                  title={t('share_dialog_title')}
+                  supportsHidePosition
+                  build={reachShareBuild}
+                />
+              ) : null}
             </div>
 
             {/* ── Neighbors ── */}

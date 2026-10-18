@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { api } from '../../api';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { useCvdMode } from '../../hooks/useCvdColors';
 import { useT } from '../../i18n';
@@ -7,7 +6,8 @@ import type { Contact, Message, MessagePath, RadioConfig } from '../../types';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { parseSenderFromText } from '../../utils/messageParser';
 import { formatDistance, resolvePath, type SenderInfo } from '../../utils/pathUtils';
-import { loadCardBrand } from '../brand';
+import { shareFilename } from '../filename';
+import { loadShareBrand } from '../shareBrand';
 import type { CardFigure, CardText } from '../cardChrome';
 import type { ShareBuildOptions, ShareCardResult } from '../ShareCardDialog';
 import { buildMessageRouteModel } from './messageRoute';
@@ -21,16 +21,6 @@ export interface MessageShareTarget {
   /** Channel name for a channel message, the other party's name for a DM. */
   conversationLabel: string;
   isChannel: boolean;
-}
-
-const pad = (n: number) => String(n).padStart(2, '0');
-
-function filenameBase(receivedAt: number): string {
-  const d = new Date(receivedAt * 1000);
-  return (
-    `rtfm-ev-message-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-` +
-    `${pad(d.getHours())}${pad(d.getMinutes())}`
-  );
 }
 
 /** Card 1: turns a message and its paths into the share dialog's `build`. */
@@ -78,7 +68,7 @@ export function useMessageRouteBuild(
             model.hopsMin === model.hopsMax
               ? String(model.hopsMin)
               : t('share_fig_range', { min: model.hopsMin, max: model.hopsMax }),
-          label: t('share_fig_hops'),
+          label: t('share_fig_hops', { count: model.hopsMax }),
         },
       ];
       if (model.straightKm != null) {
@@ -106,13 +96,12 @@ export function useMessageRouteBuild(
         figures,
       };
 
-      const settings = await api.getSettings().catch(() => null);
-      const brand = await loadCardBrand(settings);
+      const brand = await loadShareBrand();
       const { png, gif } = await renderMessageRouteCard(model, text, brand, { ...opts, cvd });
       return {
         png,
         gif,
-        filenameBase: filenameBase(message.received_at),
+        filenameBase: shareFilename('message', new Date(message.received_at * 1000)),
         alt: outgoing ? t('share_msg_alt_outgoing') : t('share_msg_alt', { name: senderName }),
         shareTitle: title,
       };

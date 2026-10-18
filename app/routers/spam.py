@@ -98,6 +98,16 @@ async def get_spam_guard_metrics(
     return spam_guard.detector.metrics(channel=channel)
 
 
+@router.get("/airtime")
+async def get_spam_guard_airtime(start_ts: int, end_ts: int) -> dict[str, Any]:
+    """Airtime Spam Guard saved in a window (all channels; kept hourly for
+    8 days). Read-only; used by the share card on the Spam & bots tab."""
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    await spam_guard.ensure_loaded()
+    return spam_guard.detector.airtime_window(start_ts, end_ts)
+
+
 @router.get("/known")
 async def get_spam_guard_known(
     q: str = Query(default="", max_length=64, description="Part of a name, any case"),

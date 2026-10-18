@@ -150,6 +150,24 @@ class AdvertEventRepository:
         ]
 
     @staticmethod
+    async def heard_bins(start_ts: int, end_ts: int, bin_seconds: int) -> list[tuple[int, str]]:
+        """(bin_start, public_key) for every contact heard in each bin of [start_ts, end_ts)."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT DISTINCT
+                    :start_ts + ((first_seen - :start_ts) / :bin) * :bin AS bin_start,
+                    public_key
+                FROM advert_events
+                WHERE first_seen >= :start_ts AND first_seen < :end_ts
+                ORDER BY bin_start, public_key
+                """,
+                {"start_ts": start_ts, "end_ts": end_ts, "bin": bin_seconds},
+            ) as cur:
+                rows = await cur.fetchall()
+        return [(int(r["bin_start"]), r["public_key"]) for r in rows]
+
+    @staticmethod
     async def prune_older_than(cutoff_ts: int) -> int:
         """Delete events with first_seen < cutoff_ts. Returns rows deleted."""
         async with db.tx() as conn:

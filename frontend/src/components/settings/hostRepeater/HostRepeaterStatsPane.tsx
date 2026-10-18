@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { Button } from '../../ui/button';
+import { ShareCardDialog } from '../../../share/ShareCardDialog';
+import { useHostRepeaterFilterBuild } from '../../../share/cards/useFilterShare';
 import { useT } from '../../../i18n';
 import type { HostRepeaterPercentiles, HostRepeaterStats } from '../../../types';
 import { formatDateTime } from '../../../utils/dateTimeFormat';
@@ -177,6 +180,9 @@ function Percentiles({ label, p }: { label: string; p: HostRepeaterPercentiles }
 /** Shadow-mode statistics: what RTFM-EV would have forwarded, how fast, at what airtime. */
 export function HostRepeaterStatsPane({ stats, onReset }: Props) {
   const t = useT();
+  // Share card 5d: the lifetime totals (a PNG; no history is kept to animate).
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareBuild = useHostRepeaterFilterBuild({ stats });
   if (!stats) {
     return (
       <p className="text-sm text-muted-foreground">{t('settings_host_repeater_stats_loading')}</p>
@@ -373,15 +379,36 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
                 runs: life.runs,
               })}
             </span>
+            {shareBuild ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                title={t('share_filter_button_title')}
+                onClick={() => setShareOpen(true)}
+              >
+                {t('share_action')}
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="ml-auto"
+              className={shareBuild ? undefined : 'ml-auto'}
               onClick={() => onReset(true)}
             >
               {t('settings_host_repeater_stats_reset_lifetime')}
             </Button>
+            {shareOpen && shareBuild ? (
+              <ShareCardDialog
+                open
+                onClose={() => setShareOpen(false)}
+                title={t('share_dialog_title')}
+                supportsHidePosition={false}
+                build={shareBuild}
+              />
+            ) : null}
           </div>
           <span>
             {t('settings_host_repeater_stats_lifetime_totals', {
