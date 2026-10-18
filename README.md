@@ -42,7 +42,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Mention ticker, a mention and DM sound, browser and Web Push notifications, and optional notifications for newly heard nodes.
 - Optional chat parsing: clickable links with previews, public key detection, and GPS or MGRS coordinates as map cards.
 - Full-text message search with `user:`, `channel:` and `region:` filters.
-- Share how a message reached your radio as an image (PNG) and an animation (GIF) for Discord and other chats: a map of its routes, the text and the key figures, with a **Hide my position** option. Made in the browser; nothing is sent over the radio.
+- Share cards for Discord and other chats: an image (PNG) and, where there is something to play, an animation (GIF) of how a message reached your radio, a trace route result, who your node hears directly, a summary of the mesh around you, and filter results (a repeater's or companion's filter, RTFM-EV's Spam & bots filtering, the host repeater totals). Message, trace and reach cards have a **Hide my position** option. Made in the browser; nothing is sent over the radio.
 
 ### Contacts and nodes
 

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, ChevronsUp, RefreshCw } from 'lucide-react';
+import { Activity, ChevronsUp, RefreshCw, Share2 } from 'lucide-react';
 import type { Contact, RadioConfig } from '../types';
 import { useT } from '../i18n';
 import { type TimeWindow } from './meshHealthShared';
@@ -26,6 +26,8 @@ import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
 import { MeshRelayReceptionPanel } from './MeshRelayReceptionPanel';
 import { MeshPowerOutagePanel } from './MeshPowerOutagePanel';
 import { MeshFilterStatsPanel } from './MeshFilterStatsPanel';
+import { ShareCardDialog } from '../share/ShareCardDialog';
+import { useMeshSummaryBuild } from '../share/cards/useMeshSummaryShare';
 
 type MeshHealthTab =
   'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions' | 'power-outage' | 'spam-bots';
@@ -148,6 +150,16 @@ export function MeshHealthView({
     { key: 'spam-bots', label: t('mesh_health_tab_spam_bots') },
   ];
 
+  // Share card 4 (mesh summary): on the tabs that have a time window. The
+  // Spam & bots tab has its own card.
+  const [summaryShareOpen, setSummaryShareOpen] = useState(false);
+  const summaryBuild = useMeshSummaryBuild(
+    { hours: selectedWindow.hours, label: selectedWindow.label },
+    config?.name ?? ''
+  );
+  const canShareSummary =
+    activeTab !== 'prefix-collisions' && activeTab !== 'power-outage' && activeTab !== 'spam-bots';
+
   return (
     <div className="flex h-full flex-col overflow-hidden mesh-health">
       {/* Page header */}
@@ -184,6 +196,17 @@ export function MeshHealthView({
               {t('mesh_health_manual_refresh_label')}
             </span>
           )}
+          {canShareSummary ? (
+            <button
+              type="button"
+              onClick={() => setSummaryShareOpen(true)}
+              title={t('share_summary_button_title')}
+              className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              <Share2 className="h-3 w-3" aria-hidden="true" />
+              {t('share_action')}
+            </button>
+          ) : null}
           <button
             onClick={() => setRefreshKey((k) => k + 1)}
             disabled={loading}
@@ -286,6 +309,15 @@ export function MeshHealthView({
           </button>
         )}
       </div>
+      {summaryShareOpen && canShareSummary ? (
+        <ShareCardDialog
+          open
+          onClose={() => setSummaryShareOpen(false)}
+          title={t('share_dialog_title')}
+          supportsHidePosition={false}
+          build={summaryBuild}
+        />
+      ) : null}
     </div>
   );
 }

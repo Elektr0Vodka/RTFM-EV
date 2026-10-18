@@ -444,3 +444,19 @@ describe('Mesh Health Spam & bots tab, details', () => {
     }
   });
 });
+
+describe('Mesh Health Spam & bots tab, share as image', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockFetch(REPORT);
+    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:x', revokeObjectURL: () => {} });
+  });
+
+  it('opens the share dialog with a Show top sources option, off by default', async () => {
+    await openTab();
+    fireEvent.click(screen.getByRole('button', { name: 'Share as image' }));
+    const option = await screen.findByRole('checkbox', { name: 'Show top sources' });
+    expect(option).not.toBeChecked();
+    vi.unstubAllGlobals();
+  });
+});

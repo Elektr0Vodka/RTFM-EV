@@ -11,6 +11,59 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-18 (share cards 2-5: trace, reach, mesh summary, filters, feat/share-cards-more)
+
+No migration, no new dependency. Nothing is sent over the radio. Every card
+uses the same 1200 x 630 layout and share dialog as the message card.
+
+### Share cards
+- **Trace route** (Share in the trace result header): every hop on the map
+  with the SNR received there (one value per hop, coloured by strength), the
+  route out and back to your radio, hops, weakest SNR and path length over
+  the legs with known positions. The title names the turnaround hop (the
+  middle of A,B,A, else the last hop). No round-trip time: the trace reply
+  carries only the wait budget. The card shows when the result came in.
+- **My node's reach** (Share on the Directly heard radar in My Node): a line
+  from your radio to every node heard directly, coloured by signal,
+  appearing in the order first heard; nodes heard directly ("50+" at the
+  list's cap), furthest, repeaters, median SNR. Without your own position it
+  is a diagram.
+- **Mesh summary** (Share in the Mesh Health header, on tabs with a time
+  window, not Spam & bots): the heard nodes on the map lighting up bin by
+  bin with a packets-per-bin strip; nodes heard advertising, packets heard,
+  airtime used, flood adverts (each left out when its data is missing).
+- **Filter results**: a repeater's filter (SNMP node page, filter group;
+  dropped per reason, airtime saved, every label in "would have" form in
+  dry run), a
+  companion's filter (SNMP companion filter group, or your own radio's
+  receive filter history; hidden per reason), RTFM-EV's own filtering
+  (Spam & bots tab, **Share as image** because that tab already has a
+  "Share" trend toggle; spam, bots, malformed, duplicates, Spam Guard
+  airtime saved when no channel filter is set, optional **Show top
+  sources**, off by default) and the host repeater lifetime totals (judged
+  to drop / forward, neutral wording because the totals mix shadow and armed
+  runs; the kicker says off, shadow or armed; an image only). Counters that reset count the new value after a
+  reset.
+- **Hide my position** on the message, trace and reach cards draws a diagram
+  (a loop out and back for a trace, a ring by signal for the reach card); the
+  trace and reach titles then name no node ("Trace route", "Who my radio
+  hears directly"). A trace with no located hop gets no map.
+- The message card's hop figure now says "1 hop" for one hop.
+
+### My Node
+- **Custom range fix.** The directly heard neighbours (radar and lists) of a
+  custom range were fetched from the start of time and refetched every 30
+  seconds; they now use the custom start and end, and show nothing until the
+  range is valid.
+
+### API (read-only)
+- `GET /api/packets/mesh-health/heard-bins?start_ts&end_ts&bin_count`: which
+  contacts were heard (by advert) in each time bin.
+- `GET /api/spam-guard/airtime?start_ts&end_ts`: airtime Spam Guard saved in
+  a window. Kept hourly for all channels only (not per channel), 8 days;
+  `partial` says when the window reaches back further, and nothing before
+  `from_ts` is counted.
+
 ## Update 2026-10-18 (share a message's route as an image, feat/share-cards)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.

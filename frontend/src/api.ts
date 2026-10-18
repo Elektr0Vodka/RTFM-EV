@@ -445,6 +445,11 @@ export const api = {
   /** Overview numbers with the graphs for one channel. */
   getSpamGuardMetrics: (channel: string) =>
     fetchJson<SpamGuardMetrics>(`/spam-guard/metrics?channel=${encodeURIComponent(channel)}`),
+  /** Airtime Spam Guard saved in a window (all channels, kept 8 days; share card 5c). */
+  getSpamGuardAirtime: (startTs: number, endTs: number) =>
+    fetchJson<{ airtime_ms: number; from_ts: number; to_ts: number; partial: boolean }>(
+      `/spam-guard/airtime?start_ts=${startTs}&end_ts=${endTs}`
+    ),
   /** Known people, newest heard first; `query` is part of a name. */
   getSpamGuardKnown: (query: string, limit: number, offset = 0) =>
     fetchJson<SpamKnownList>(
@@ -1519,6 +1524,14 @@ export const api = {
     fetchJson<AirtimeSample[]>(
       `/statistics/airtime/range?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}${radioStatQuery(radio)}`
     ),
+  /** Which contacts were heard (by advert) in each bin of the window (share card 4). */
+  getMeshHealthHeardBins: (startTs: number, endTs: number, binCount: number) =>
+    fetchJson<{
+      start_ts: number;
+      end_ts: number;
+      bin_seconds: number;
+      bins: { start_ts: number; keys: string[] }[];
+    }>(`/packets/mesh-health/heard-bins?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}`),
 
   // Radio identities (plan 18)
   getRadioIdentities: () => fetchJson<RadioIdentityList>('/radio-identities'),

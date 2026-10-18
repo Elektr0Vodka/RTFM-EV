@@ -945,6 +945,47 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
     )
 
 
+class HeardBin(BaseModel):
+    start_ts: int
+    keys: list[str]
+
+
+class HeardBinsResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    bin_seconds: int
+    bins: list[HeardBin]
+
+
+@router.get("/mesh-health/heard-bins", response_model=HeardBinsResponse)
+async def get_mesh_health_heard_bins(
+    start_ts: int,
+    end_ts: int,
+    bin_count: Annotated[int, Query(ge=1, le=200)] = 40,
+) -> HeardBinsResponse:
+    """Which contacts were heard (by advert) in each time bin of the window.
+
+    Read-only; the same advert events ``/mesh-health`` counts. Used by the
+    mesh summary share card to light nodes up hour by hour.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    # Never more bins than seconds; the remainder of an uneven split belongs to
+    # the last bin, so no advert in the window is dropped.
+    count = min(bin_count, end_ts - start_ts)
+    bin_seconds = (end_ts - start_ts) // count
+    rows = await AdvertEventRepository.heard_bins(start_ts, end_ts, bin_seconds)
+    keys_by_bin: list[list[str]] = [[] for _ in range(count)]
+    for bin_start, public_key in rows:
+        idx = min(count - 1, (bin_start - start_ts) // bin_seconds)
+        if public_key not in keys_by_bin[idx]:
+            keys_by_bin[idx].append(public_key)
+    bins = [
+        HeardBin(start_ts=start_ts + i * bin_seconds, keys=keys_by_bin[i]) for i in range(count)
+    ]
+    return HeardBinsResponse(start_ts=start_ts, end_ts=end_ts, bin_seconds=bin_seconds, bins=bins)
+
+
 class PrefixCollisionNode(BaseModel):
     name: str | None
     public_key: str

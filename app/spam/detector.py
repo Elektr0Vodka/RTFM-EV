@@ -1576,6 +1576,29 @@ class SpamDetector:
         hour = self.hours.setdefault(int(ts // 3600) * 3600, _empty_hour())
         hour["airtime_ms"] = round(hour["airtime_ms"] + airtime_ms, 1)
 
+    def airtime_window(self, start_ts: int, end_ts: int) -> dict[str, Any]:
+        """Airtime saved in the hours that start inside [start_ts, end_ts).
+
+        Hourly and for all channels only: airtime is not split per channel.
+        ``partial`` says the window reaches back past the kept history
+        (``HISTORY_HOURS``); ``from_ts`` is then where the sum really starts.
+        """
+        kept_from = int(self._clock()) - HISTORY_HOURS * 3600
+        # Pruning keeps the last HISTORY_HOURS entries, which on a quiet node
+        # can be older than kept_from: never count before from_ts.
+        from_ts = max(start_ts, kept_from)
+        total = sum(
+            hour.get("airtime_ms", 0.0)
+            for start, hour in self.hours.items()
+            if from_ts <= start < end_ts
+        )
+        return {
+            "airtime_ms": round(total, 1),
+            "from_ts": from_ts,
+            "to_ts": end_ts,
+            "partial": start_ts < kept_from,
+        }
+
     def auto_protect_status(self) -> dict[str, Any] | None:
         """Whether and when Spam Guard switches itself from Monitor to Protect.
 

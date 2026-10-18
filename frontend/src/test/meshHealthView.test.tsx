@@ -570,3 +570,22 @@ describe('MeshHealthView Prefix Collisions tab', () => {
     expect(within(pivot).queryByText(/more/)).not.toBeInTheDocument();
   });
 });
+
+describe('MeshHealthView share summary', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('mesh-health')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESPONSE) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+    }) as unknown as typeof fetch;
+  });
+
+  it('offers Share on the windowed tabs and not on Prefix Collisions', async () => {
+    render(<MeshHealthView config={null} />);
+    expect(await screen.findByTitle('Share a summary of the mesh as an image')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Prefix Collisions' }));
+    expect(screen.queryByTitle('Share a summary of the mesh as an image')).toBeNull();
+  });
+});

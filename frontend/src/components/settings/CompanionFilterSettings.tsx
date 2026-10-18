@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { Share2, X } from 'lucide-react';
 import { api } from '../../api';
 import { BUDDY_ANCHORS } from '../../buddy/buddyAnchors';
 import type {
@@ -20,6 +20,8 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
+import { ShareCardDialog } from '../../share/ShareCardDialog';
+import { useCompanionFilterBuild } from '../../share/cards/useFilterShare';
 
 // meshcomod companion receive filter. Every read and change runs `filter ...` on
 // the radio's own command line, which never transmits.
@@ -337,6 +339,15 @@ export function CompanionFilterSettings({ health }: Props) {
     };
   }, [supported, range, state]);
 
+  // Share card 5b for this radio: what its filter hid over the chosen range.
+  const [shareOpen, setShareOpen] = useState(false);
+  const rangeLabelKey = RANGES.find((r) => r.id === range)?.labelKey ?? 'time_range_24h';
+  const shareBuild = useCompanionFilterBuild({
+    name: t('share_my_radio_name'),
+    history: history && history.bins.length > 0 ? history : null,
+    windowLabel: t(rangeLabelKey),
+  });
+
   if (!supported) return null;
 
   const cfg = state?.config;
@@ -471,6 +482,28 @@ export function CompanionFilterSettings({ health }: Props) {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-medium">{t('cfilter_history_heading')}</h4>
+              {shareBuild &&
+              history &&
+              history.bins.some((b) => COUNTERS.some((c) => b[c.key] > 0)) ? (
+                <button
+                  type="button"
+                  className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  title={t('share_filter_button_title')}
+                  onClick={() => setShareOpen(true)}
+                >
+                  <Share2 className="h-3 w-3" aria-hidden="true" />
+                  {t('share_action')}
+                </button>
+              ) : null}
+              {shareOpen && shareBuild ? (
+                <ShareCardDialog
+                  open
+                  onClose={() => setShareOpen(false)}
+                  title={t('share_dialog_title')}
+                  supportsHidePosition={false}
+                  build={shareBuild}
+                />
+              ) : null}
               <div className="flex gap-1">
                 {RANGES.map((r) => (
                   <button

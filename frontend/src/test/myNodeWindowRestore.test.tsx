@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BatterySample, NoiseFloorSample, StatisticsResponse } from '../types';
@@ -190,5 +190,62 @@ describe('My Node restored time window', () => {
 
     await waitFor(() => expect(noiseFloorChart().getByText(/-111 dBm/)).toBeInTheDocument());
     expect(screen.getByText(/4\.10V/)).toBeInTheDocument();
+  });
+
+  it('offers Share on the radar card once neighbours are known', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === './api/radio/config') return json(config);
+      if (url.startsWith('./api/packets/historical-stats'))
+        return json({
+          ...historicalStats,
+          neighbors_by_count: [
+            {
+              public_key: 'cd'.repeat(32),
+              name: 'Alpha',
+              heard_count: 3,
+              first_seen: NOW - 50,
+              last_seen: NOW,
+              lat: 52,
+              lon: 5,
+              min_path_len: 0,
+              best_snr: 6,
+            },
+          ],
+        });
+      if (url.startsWith('./api/packets/timeseries')) return json({ bins: timeseriesBins });
+      if (url === './api/statistics') return json(stats);
+      return json({}, false);
+    });
+    localStorage.setItem(WINDOW_KEY, JSON.stringify({ id: '7d', customStart: '', customEnd: '' }));
+    render(<MyNodeView contacts={[]} />);
+    expect(
+      await screen.findByTitle('Share who my node hears directly as an image')
+    ).toBeInTheDocument();
+    // Switching to Custom with no range yet must not keep the 7d neighbours
+    // under the new label (the card would show them as "Custom").
+    fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
+    await waitFor(() =>
+      expect(screen.queryByTitle('Share who my node hears directly as an image')).toBeNull()
+    );
+  });
+
+  it('asks for the directly heard neighbours of the custom range, not all time', async () => {
+    const customStart = '2026-10-01T00:00';
+    const customEnd = '2026-10-02T00:00';
+    const s = Math.floor(new Date(customStart).getTime() / 1000);
+    const e = Math.floor(new Date(customEnd).getTime() / 1000);
+    localStorage.setItem(WINDOW_KEY, JSON.stringify({ id: 'custom', customStart, customEnd }));
+    render(<MyNodeView contacts={[]} />);
+    releaseConfig();
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `./api/packets/historical-stats?start_ts=${s}&end_ts=${e}`
+      )
+    );
+    const calls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.startsWith('./api/packets/historical-stats?start_ts=0&'))).toBe(
+      false
+    );
   });
 });

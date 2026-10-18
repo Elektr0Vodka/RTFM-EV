@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Share2, X } from 'lucide-react';
 
 import type {
   Contact,
@@ -27,6 +27,8 @@ import { Input } from './ui/input';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 import { radioKey } from '../gateway/context';
+import { ShareCardDialog } from '../share/ShareCardDialog';
+import { useTraceShareBuild } from '../share/cards/useTraceShare';
 
 const TraceRouteMap = lazy(() =>
   import('./TraceRouteMap').then((m) => ({ default: m.TraceRouteMap }))
@@ -253,6 +255,9 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RadioTraceResponse | null>(null);
+  // When the result came in: the response carries no time, the share card shows it.
+  const [resultAt, setResultAt] = useState(0);
+  const [shareOpen, setShareOpen] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [customHopBytesDraft, setCustomHopBytesDraft] = useState<CustomHopBytes>(1);
   const [customHopHexDraft, setCustomHopHexDraft] = useState('');
@@ -471,6 +476,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
       );
       if (activeRunTokenRef.current !== runToken) return;
       setResult(traceResult);
+      setResultAt(Date.now());
 
       // Re-save to bump this trace and its nodes to the top of recents
       recordTraceRun(trace.hops);
@@ -502,6 +508,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
         return;
       }
       setResult(traceResult);
+      setResultAt(Date.now());
 
       // Persist to recent traces
       const savedHops: SavedTraceHop[] = draftHops.map((hop) => {
@@ -545,6 +552,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
         ...result.nodes,
       ]
     : [];
+  const shareBuild = useTraceShareBuild(resultNodes, resultAt, repeaters, config, localRadioName);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:overflow-hidden">
@@ -882,6 +890,19 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       })
                     : ''}
                 </h3>
+                {result ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto shrink-0 gap-1.5 text-muted-foreground"
+                    title={t('share_trace_button_title')}
+                    onClick={() => setShareOpen(true)}
+                  >
+                    <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t('share_action')}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -1039,6 +1060,16 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {shareOpen && shareBuild ? (
+        <ShareCardDialog
+          key={resultAt}
+          open
+          onClose={() => setShareOpen(false)}
+          title={t('share_dialog_title')}
+          supportsHidePosition
+          build={shareBuild}
+        />
+      ) : null}
     </div>
   );
 }
