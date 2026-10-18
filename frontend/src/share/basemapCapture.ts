@@ -29,15 +29,60 @@ export interface BasemapCapture {
 /**
  * Renders the user's saved basemap in a hidden, non-interactive map sized like
  * the card's visual area, fitted to `points`, and copies the pixels out.
- * The drawing buffer is preserved (maplibre 6: `canvasContextAttributes`) so
- * the WebGL canvas can be read after it rendered. Routes and markers are not
- * on this map: the card paints them itself, since the app's markers are DOM.
+ * Routes and markers are not on this map: the card paints them itself, since
+ * the app's markers are DOM.
+ *
+ * The copy is taken inside the `render` of a frame drawn after the map
+ * settled, while that frame's pixels are certain to be in the buffer, and the
+ * buffer is preserved as well (maplibre 6: `canvasContextAttributes`). A copy
+ * that still comes out (almost) fully transparent has been seen in a
+ * long-open Firefox tab; it is retried once with a fresh map, then reported
+ * as a map that did not load, so a card never silently loses its map.
  */
-export function captureBasemap(
+export async function captureBasemap(
   points: LatLon[],
   size: { w: number; h: number },
   paddingPx: number,
   timeoutMs = VECTOR_LOAD_TIMEOUT_MS
+): Promise<BasemapCapture> {
+  try {
+    return await captureOnce(points, size, paddingPx, timeoutMs);
+  } catch (err) {
+    if (!(err instanceof EmptyCopyError)) throw err;
+  }
+  try {
+    return await captureOnce(points, size, paddingPx, timeoutMs);
+  } catch (err) {
+    if (!(err instanceof EmptyCopyError)) throw err;
+    console.warn('Share card: the base map copy came out empty twice', err.details);
+    throw new BasemapLoadError('basemap copy empty');
+  }
+}
+
+/** The map drew, but the pixels read back were (almost) all transparent. */
+class EmptyCopyError extends Error {
+  constructor(readonly details: Record<string, unknown>) {
+    super('basemap copy empty');
+  }
+}
+
+/** True when more than 90 % of sampled pixels are fully transparent. */
+function mostlyTransparent(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {
+  const data = ctx.getImageData(0, 0, w, h).data;
+  let seen = 0;
+  let clear = 0;
+  for (let i = 3; i < data.length; i += 4 * 97) {
+    seen++;
+    if (data[i] === 0) clear++;
+  }
+  return seen > 0 && clear / seen > 0.9;
+}
+
+function captureOnce(
+  points: LatLon[],
+  size: { w: number; h: number },
+  paddingPx: number,
+  timeoutMs: number
 ): Promise<BasemapCapture> {
   const entry = resolveBasemapEntry(getSavedBasemapId());
   const container = document.createElement('div');
@@ -97,6 +142,19 @@ export function captureBasemap(
         const ctx = image.getContext('2d');
         if (!ctx) throw new Error('no 2d context');
         ctx.drawImage(map.getCanvas(), 0, 0, size.w, size.h);
+        if (mostlyTransparent(ctx, size.w, size.h)) {
+          const gl = map.getCanvas().getContext('webgl2') ?? map.getCanvas().getContext('webgl');
+          const details = {
+            basemap: entry.id,
+            contextLost: gl?.isContextLost?.() ?? null,
+            styleLoaded: map.isStyleLoaded?.() ?? null,
+            tilesLoaded: map.areTilesLoaded?.() ?? null,
+          };
+          settled = true;
+          cleanup();
+          reject(new EmptyCopyError(details));
+          return;
+        }
         const c = map.getCenter();
         const project = mercatorProjector({ lat: c.lat, lon: c.lng }, map.getZoom(), size);
         settled = true;
@@ -110,6 +168,14 @@ export function captureBasemap(
       } catch {
         fail();
       }
+    };
+
+    // Copy in the render of a fresh frame after the map settled: the pixels
+    // are in the drawing buffer then, whatever the browser does with it later.
+    const afterIdle = () => {
+      if (settled) return;
+      map.once('render', capture);
+      map.triggerRepaint();
     };
 
     const frame = () => {
@@ -141,12 +207,12 @@ export function captureBasemap(
         markBasemapApplied(map, rasterFallbackFor(entry));
         map.once('style.load', () => {
           frame();
-          map.once('idle', capture);
+          map.once('idle', afterIdle);
         });
         applyBasemap(map, entry, { theme: entry.tone ?? 'dark' });
       } else {
         frame();
-        map.once('idle', capture);
+        map.once('idle', afterIdle);
       }
     });
   });
