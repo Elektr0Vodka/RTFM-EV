@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-18 (share a message's route as an image, feat/share-cards)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### Messages
+- **Share how a message travelled.** Messages with a path get a share
+  action in the row, and the path view gets a **Share** button. It makes a
+  1200 x 630 card: the user's saved basemap with every route coloured in the
+  order it was heard (unknown or ambiguous hops drawn dashed), the message
+  text, and up to four figures (routes, hops, straight-line distance, best
+  SNR at my radio; a figure without a value is left out). Echoes of your own
+  channel message get "How my message came back". The card carries the app
+  brand (custom name and icon when set) and the basemap credit, and no URL.
+- **Animation.** A GIF made in the browser when the dialog opens: the first
+  frame is the finished picture, then the routes draw hop by hop and the
+  last frame holds. Own encoder (`share/gifEncoder.ts`).
+- **Dialog.** Share (system share sheet, when the browser can share files),
+  Copy image (PNG), Download image and Download animation. Share and Copy
+  need https or localhost; on a plain-http LAN address only the downloads
+  show, with a note. **Hide my position** (remembered per browser) draws the
+  routes as a diagram instead of on a map: no basemap, no credit, no node
+  names, and no real directions or distances in the drawing. The title (with
+  the sender's name), the text and the figures stay, so the straight-line
+  distance is still on the card. When the basemap does not load, or WebGL is
+  not available, the dialog offers **Make it without the map**; a single
+  missing tile does not count as a failed map.
+- **Straight line** is only shown when both the sender and your radio have a
+  position (an unset position of 0,0 gives no figure).
+- **Code.** New `frontend/src/share/` (engine: geometry, basemap capture,
+  card layout, GIF encoder, share actions, dialog) and `share/cards/` (card 1
+  model, render and wiring). Route line colours moved from `PathRouteMap` to
+  `map/routeMapVisuals.ts`; `initialStyleFor` and `resolveBasemapEntry` are
+  now exported from `map/MapSurface.tsx`. Behaviour of both is unchanged.
+
 ## Update 2026-10-18 (SNMP as a telemetry source, feat/snmp-telemetry-source)
 
 Migration `_153` (`contact_snmp.use_as_telemetry`). No new dependency. Nothing

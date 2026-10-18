@@ -5,7 +5,7 @@ import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
 import { useT } from '../i18n';
 import { MiniMap } from '../map/MiniMap';
 import { getBasemap, getSavedBasemapId } from '../map/engine/basemaps';
-import { getHopColor, markerEl, readableLabelColor } from '../map/routeMapVisuals';
+import { getHopColor, getRouteColor, markerEl, readableLabelColor } from '../map/routeMapVisuals';
 import { useCvdColors, useCvdMode } from '../hooks/useCvdColors';
 
 interface PathRouteMapProps {
@@ -21,22 +21,6 @@ interface PathRouteMapProps {
   height?: number;
   /** When true, the map fills its parent's height instead of using `height`. */
   fill?: boolean;
-}
-
-// Distinct line colours per overlaid route (indexed by route number - 1).
-const ROUTE_LINE_COLORS = [
-  '#3b82f6', // blue
-  '#f97316', // orange
-  '#22c55e', // green
-  '#ec4899', // pink
-  '#a855f7', // purple
-  '#14b8a6', // teal
-  '#eab308', // yellow
-  '#ef4444', // red
-];
-
-function getRouteColor(routeIndex: number): string {
-  return ROUTE_LINE_COLORS[routeIndex % ROUTE_LINE_COLORS.length];
 }
 
 interface MarkerSpec {

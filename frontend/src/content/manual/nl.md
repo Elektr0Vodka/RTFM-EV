@@ -179,6 +179,7 @@ Beweeg over een bericht voor **Reageren**, **Antwoorden**, **Markeren als ongele
 
 - Reacties en antwoorden gebruiken de platte-tekstnotatie die andere MeshCore-clients begrijpen. Een ontvangen reactie laat zien bij welk bericht hij hoort.
 - **Verwijderen** haalt het bericht alleen uit je lokale geschiedenis. Er wordt niets verstuurd en andere clients houden hun kopie.
+- **Deel hoe dit bericht reisde** (bij berichten met een pad, en als **Delen** in de padweergave) maakt een afbeelding van de routes waarlangs het bericht je radio bereikte: een kaart met de afzender, de hops en je radio, de berichttekst en tot vier cijfers (routes, hops, hemelsbrede afstand, beste SNR bij je radio). Daarna volgt een animatie (GIF) die de routes hop voor hop tekent. **Delen** opent het deelmenu van je apparaat, **Afbeelding kopiëren** kopieert de afbeelding; beide werken alleen via HTTPS of localhost. **Afbeelding downloaden** en **Animatie downloaden** werken altijd. **Mijn positie verbergen** tekent de routes als schema in plaats van op een kaart, zonder nodenamen of echte richtingen, en wordt in deze browser onthouden; de titel, de tekst en de cijfers (ook de hemelsbrede afstand) blijven op de afbeelding. Er wordt niets via de radio verstuurd.
 
 ### Vermeldingen
 

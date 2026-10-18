@@ -5,6 +5,7 @@ import {
   Reply,
   RotateCcw,
   ShieldAlert,
+  Share2,
   ShieldCheck,
   SmilePlus,
   Trash2,
@@ -29,6 +30,7 @@ export function MessageRowActions({
   onNotSpam,
   onAddToBotList,
   onNotABot,
+  onShare,
   onDelete,
 }: {
   onReact?: (emoji: string) => void;
@@ -44,6 +46,8 @@ export function MessageRowActions({
   onAddToBotList?: () => void;
   /** Bot lists: never treat this sender name as a bot. */
   onNotABot?: () => void;
+  /** Share an image of how the message travelled (only for messages with paths). */
+  onShare?: () => void;
   onDelete?: () => void;
 }) {
   const t = useT();
@@ -59,6 +63,7 @@ export function MessageRowActions({
     !onNotSpam &&
     !onAddToBotList &&
     !onNotABot &&
+    !onShare &&
     !onDelete
   )
     return null;
@@ -163,6 +168,17 @@ export function MessageRowActions({
           onClick={onNotABot}
         >
           <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {onShare && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('share_message_title')}
+          title={t('share_message_title')}
+          onClick={onShare}
+        >
+          <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
       {onDelete && (

@@ -179,6 +179,7 @@ Fahre mit der Maus über eine Nachricht für **Reagieren**, **Antworten**, **Ab 
 
 - Reaktionen und Antworten nutzen das Klartextformat, das andere MeshCore-Clients verstehen. Eine empfangene Reaktion zeigt, zu welcher Nachricht sie gehört.
 - **Löschen** entfernt die Nachricht nur aus deinem lokalen Verlauf. Es wird nichts gesendet, und andere Clients behalten ihre Kopie.
+- **Teilen, wie diese Nachricht gereist ist** (bei Nachrichten mit einem Pfad, und als **Teilen** in der Pfadansicht) erstellt ein Bild der Wege, auf denen die Nachricht dein Funkgerät erreichte: eine Karte mit Absender, Hops und deinem Funkgerät, den Nachrichtentext und bis zu vier Zahlen (Routen, Hops, Luftlinie, bestes SNR an deinem Funkgerät). Danach folgt eine Animation (GIF), die die Routen Hop für Hop zeichnet. **Teilen** öffnet das Teilen-Menü deines Geräts, **Bild kopieren** kopiert das Bild; beides braucht HTTPS oder localhost. **Bild herunterladen** und **Animation herunterladen** funktionieren immer. **Meine Position verbergen** zeichnet die Routen als Schema statt auf einer Karte, ohne Knotennamen oder echte Richtungen, und wird in diesem Browser gespeichert; Titel, Text und Zahlen (auch die Luftlinie) bleiben auf dem Bild. Über das Funkgerät wird nichts gesendet.
 
 ### Erwähnungen
 

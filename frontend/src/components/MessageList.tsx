@@ -74,6 +74,8 @@ import { getSavedHideUnscoped, setSavedHideUnscoped } from '../utils/messageHopF
 import { ContactAvatar } from './ContactAvatar';
 import { hashString } from '../utils/contactAvatar';
 import { PathModal } from './PathModal';
+import { ShareCardDialog } from '../share/ShareCardDialog';
+import { useMessageRouteBuild, type MessageShareTarget } from '../share/cards/useMessageRouteShare';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { MessageRowActions } from './MessageRowActions';
 import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
@@ -1103,6 +1105,7 @@ export function MessageList({
     packetId?: number | null;
     isOutgoingChan?: boolean;
   } | null>(null);
+  const [shareTarget, setShareTarget] = useState<MessageShareTarget | null>(null);
   const [resendableIds, setResendableIds] = useState<Set<number>>(new Set());
   const resendTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const packetCacheRef = useRef<Map<number, RawPacket>>(new Map());
@@ -1828,6 +1831,13 @@ export function MessageList({
     return contacts.find((c) => c.public_key === conversationKey) || null;
   };
 
+  // The channel name, or the other party's name for a DM, for a share card.
+  const shareLabelFor = (msg: Message): string =>
+    msg.type === 'CHAN'
+      ? (channels.find((c) => c.key === msg.conversation_key)?.name ?? msg.channel_name ?? '')
+      : (getContact(msg.conversation_key)?.name ?? msg.conversation_key.slice(0, 12));
+  const shareBuild = useMessageRouteBuild(shareTarget, contacts, config ?? null);
+
   // Look up contact by name (for channel messages where we parse sender from text)
   const getContactByName = (name: string): Contact | null => {
     return contacts.find((c) => c.name === name) || null;
@@ -2253,6 +2263,20 @@ export function MessageList({
                 messageId: msg.id,
                 packetId: msg.packet_id,
               });
+            // Same messages the hop badge and the ack mark open the path view for.
+            const openShare =
+              msg.paths && msg.paths.length > 0 && (!msg.outgoing || msg.acked > 0)
+                ? () =>
+                    setShareTarget({
+                      message: msg,
+                      paths: msg.paths!,
+                      senderInfo: msg.outgoing
+                        ? selfSenderInfo
+                        : getSenderInfo(msg, contact, directSenderName || sender),
+                      conversationLabel: shareLabelFor(msg),
+                      isChannel: msg.type === 'CHAN',
+                    })
+                : undefined;
             const openSenderInfo = () =>
               onOpenContactInfo?.(
                 avatarKey,
@@ -2444,6 +2468,7 @@ export function MessageList({
                     ? () => void markNotABot(msg)
                     : undefined
                 }
+                onShare={openShare}
                 onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
               />
             );
@@ -2787,6 +2812,33 @@ export function MessageList({
                 }
               : undefined
           }
+          onShare={
+            selectedPath.paths.length > 0 && selectedPath.messageId != null
+              ? () => {
+                  const message = messages.find((entry) => entry.id === selectedPath.messageId);
+                  if (!message) return;
+                  // One modal at a time: the share dialog replaces the path view.
+                  setSelectedPath(null);
+                  setShareTarget({
+                    message,
+                    paths: selectedPath.paths,
+                    senderInfo: selectedPath.senderInfo,
+                    conversationLabel: shareLabelFor(message),
+                    isChannel: message.type === 'CHAN',
+                  });
+                }
+              : undefined
+          }
+        />
+      )}
+      {shareTarget && shareBuild && (
+        <ShareCardDialog
+          key={shareTarget.message.id}
+          open
+          onClose={() => setShareTarget(null)}
+          title={t('share_dialog_title')}
+          supportsHidePosition
+          build={shareBuild}
         />
       )}
       {packetInspectorSource && (
