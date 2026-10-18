@@ -100,7 +100,7 @@ export interface MapSurfaceProps {
  *  instead of a second OpenFreeMap style avoids the double vector fetch that
  *  could race and leave the basemap blank under OpenFreeMap rate-limiting, and
  *  guarantees a visible map even if the vector upgrade never completes. */
-function initialStyleFor(entry: BasemapEntry): string | StyleSpecification {
+export function initialStyleFor(entry: BasemapEntry): string | StyleSpecification {
   if (entry.kind === 'raster') return rasterStyle(entry);
   if (entry.kind === 'vector') return String(entry.styleUrl);
   return rasterStyle(rasterFallbackFor(entry));
@@ -116,7 +116,7 @@ function novaTintFromPrefs(): NovaTint | undefined {
 }
 
 /** Resolve a basemap id to an entry, applying the CRT tint to Nova Dark only. */
-function resolveBasemapEntry(id: string): BasemapEntry {
+export function resolveBasemapEntry(id: string): BasemapEntry {
   const entry = getBasemap(id);
   if (entry.id === 'nova') {
     const tint = novaTintFromPrefs();

@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
+import { Share2 } from 'lucide-react';
 import type { Contact, RadioConfig, MessagePath, PartialNodeResolution } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
@@ -37,6 +38,8 @@ interface PathModalProps {
   isResendable?: boolean;
   onResend?: (messageId: number, newTimestamp?: boolean) => void;
   onAnalyzePacket?: () => void;
+  /** Opens the share-as-image dialog for this message. */
+  onShare?: () => void;
 }
 
 export function PathModal({
@@ -52,6 +55,7 @@ export function PathModal({
   isResendable,
   onResend,
   onAnalyzePacket,
+  onShare,
 }: PathModalProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
@@ -101,6 +105,12 @@ export function PathModal({
 
         {hasPaths && (
           <div className="flex-1 overflow-y-auto py-2 space-y-4">
+            {onShare ? (
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={onShare}>
+                <Share2 className="h-4 w-4" aria-hidden="true" />
+                {t('share_action')}
+              </Button>
+            ) : null}
             {showAnalyzePacket ? (
               <Button type="button" variant="outline" className="w-full" onClick={onAnalyzePacket}>
                 {t('chat_analyze_packet_title')}

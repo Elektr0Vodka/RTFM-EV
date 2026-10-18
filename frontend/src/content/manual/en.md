@@ -179,6 +179,7 @@ Hover a message for **React**, **Reply**, **Mark unread from here** (stored on t
 
 - Reactions and replies use the plain text format other MeshCore clients understand. A received reaction shows which message it belongs to.
 - **Delete** removes the message from your local history only. Nothing is sent, and other clients keep their copy.
+- **Share how this message travelled** (on messages with a path, and as **Share** in the path view) makes an image of the routes the message took to your radio: a map with the sender, the hops and your radio, the message text and up to four figures (routes, hops, straight-line distance, best SNR at your radio). An animation (GIF) that draws the routes hop by hop follows. **Share** opens your device's share sheet, **Copy image** copies the picture; both need HTTPS or localhost. **Download image** and **Download animation** always work. **Hide my position** draws the routes as a diagram instead of on a map, without node names or real directions, and is remembered in this browser; the title, text and figures (including the straight-line distance) stay on the card. Nothing is sent over the radio.
 
 ### Mentions
 

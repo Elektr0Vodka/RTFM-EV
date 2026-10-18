@@ -20,6 +20,22 @@ export const HOP_COLORS = [
 export const SENDER_COLOR = '#3b82f6'; // blue
 export const RECEIVER_COLOR = '#8b5cf6'; // violet
 
+// Distinct line colours per overlaid route (indexed by route number - 1).
+export const ROUTE_LINE_COLORS = [
+  '#3b82f6', // blue
+  '#f97316', // orange
+  '#22c55e', // green
+  '#ec4899', // pink
+  '#a855f7', // purple
+  '#14b8a6', // teal
+  '#eab308', // yellow
+  '#ef4444', // red
+];
+
+export function getRouteColor(routeIndex: number): string {
+  return ROUTE_LINE_COLORS[routeIndex % ROUTE_LINE_COLORS.length];
+}
+
 export function getHopColor(hopIndex: number, colors: readonly string[] = HOP_COLORS): string {
   return colors[hopIndex % colors.length];
 }

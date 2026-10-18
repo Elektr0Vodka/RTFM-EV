@@ -42,6 +42,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Mention ticker, a mention and DM sound, browser and Web Push notifications, and optional notifications for newly heard nodes.
 - Optional chat parsing: clickable links with previews, public key detection, and GPS or MGRS coordinates as map cards.
 - Full-text message search with `user:`, `channel:` and `region:` filters.
+- Share how a message reached your radio as an image (PNG) and an animation (GIF) for Discord and other chats: a map of its routes, the text and the key figures, with a **Hide my position** option. Made in the browser; nothing is sent over the radio.
 
 ### Contacts and nodes
 

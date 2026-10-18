@@ -432,6 +432,15 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
 - Packet feed/visualizer render keys and dedup logic should use `observation_id` (fallback to `id` only for older payloads).
 - The frontend-only packet stats live on the Mesh Trends "Live" tab (`PacketFeedStatsPanel`), not the raw packet feed. They track a separate lightweight per-observation session history (`rawPacketStore`) for charts/rankings, so windows are not limited by the visible packet list cap. Coverage messaging should stay honest when detailed in-memory stats history has been trimmed or the selected window predates the current browser session.
 
+### Share cards (`share/`)
+
+- Images and GIFs of a view for posting in public chats, drawn on a 2D canvas at 1200 x 630 (`share/cardChrome.ts` `CARD_W`/`CARD_H`). Visual on the left (`VISUAL_RECT`), text on the right (`SIDE_RECT`, drawn by `drawCardChrome`: kicker, title, quote, up to 4 figures, brand + basemap credit).
+- A card is three parts: a pure model (`share/cards/<card>.ts`, unit-tested), a frame renderer that draws the whole card for a `progress` from 0 to 1 (`<card>Render.ts`; PNG = progress 1, GIF frames = `frameProgressList()`), and a hook that turns app data into the dialog's `build(opts)` (`use<Card>Share.ts`). Every card uses the one `ShareCardDialog`; its preview is exactly the file that is shared.
+- Base maps come from `captureBasemap` (`share/basemapCapture.ts`): a hidden, non-interactive MapLibre map with the saved basemap and `canvasContextAttributes.preserveDrawingBuffer`, fitted to the card's points, copied out, then removed; the projector it returns is plain Mercator maths (`share/geo.ts` `mercatorProjector`). App map markers are DOM elements, so cards paint routes and markers themselves. Without a map (Hide my position, map failed, nothing located) `fitProjector` places points on a plain background.
+- GIFs use `share/gifEncoder.ts` (one palette per clip, unchanged pixels transparent). Frame 1 is the finished picture so a chat preview that only shows frame 1 shows the result.
+- Share and Copy image need a secure context (`share/shareActions.ts`); Download always works. Text on the card goes through `t()` like any UI string.
+- Shipped: card 1, "How a message reached me" (row action in `MessageRowActions`, button in `PathModal`, dialog mounted in `MessageList`). Planned, not built yet: trace route, my node's reach, local mesh summary, filter results.
+
 ### Live packet map (`map/packets/`)
 
 - The map's "Visualize packets" feature renders with a single deck.gl overlay (`map/layers/packetDeckOverlay.ts`: one `MapLibreOverlay`, arcs + pulses + glow) in both flat 2D and tilted 3D. It replaces the former 2D canvas `particleOverlay` and the 3D-only `tracesDeck` arc path.
