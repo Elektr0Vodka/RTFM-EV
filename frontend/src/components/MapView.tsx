@@ -1397,6 +1397,14 @@ export function MapView({
       popupChartRootsRef.current.push(root);
       const env = popupEnvRef.current;
       const owner = contact.owner_key ? contactByKey.get(contact.owner_key) : undefined;
+      // Popup Orbit/Flyover: close the popup so it does not sit over the view,
+      // then start the screensaver from this node.
+      const startFromNode = (mode: ScreensaverMode) => {
+        const loc = getEffectiveLocation(contact);
+        if (!loc) return;
+        popupRef.current?.remove();
+        startScreensaverAt(mode, [loc.lon, loc.lat]);
+      };
       flushSync(() =>
         root.render(
           <NodeMapPopup
@@ -1416,14 +1424,8 @@ export function MapView({
               onOpenContactInfo ? () => onOpenContactInfo(contact.public_key) : undefined
             }
             onOpenOwner={owner && onSelectContact ? () => onSelectContact(owner) : undefined}
-            onOrbit={() => {
-              const loc = getEffectiveLocation(contact);
-              if (loc) startScreensaverAt('orbit', [loc.lon, loc.lat]);
-            }}
-            onFlyover={() => {
-              const loc = getEffectiveLocation(contact);
-              if (loc) startScreensaverAt('flyover', [loc.lon, loc.lat]);
-            }}
+            onOrbit={() => startFromNode('orbit')}
+            onFlyover={() => startFromNode('flyover')}
             loadAdvertRate={(signal) =>
               api
                 .getContactAnalytics({ publicKey: contact.public_key }, signal)
