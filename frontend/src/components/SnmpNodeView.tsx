@@ -22,7 +22,9 @@ import { StatTile } from './meshHealthShared';
 import { Button } from './ui/button';
 import { SnmpRefreshSelect, useSnmpRefreshSeconds } from './snmp/SnmpRefreshSelect';
 import { SnmpSeriesChart, type SnmpChartSeries } from './snmp/SnmpSeriesChart';
+import { SnmpLatestDashboard } from './snmp/SnmpLatestDashboard';
 import { SnmpValueGroups } from './snmp/SnmpValueGroups';
+import { useIsMobile } from '../map/controls/breakpoints';
 import {
   COMPANION_FILTER_KEYS,
   FILTER_DROP_KEYS,
@@ -549,6 +551,7 @@ export function SnmpNodeView({
   const status = node ? snmpNodeStatus(node) : null;
   const failing = status === 'failing';
   const latestValues = node?.latest?.values ?? {};
+  const isMobile = useIsMobile();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -748,14 +751,17 @@ export function SnmpNodeView({
                   : t('snmp_page_no_values', { button: t('snmp_poll_now') })}
                 {failing && node.latest ? ` ${t('snmp_page_stale_values')}` : ''}
               </p>
-              {node.latest && (
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <SnmpValueGroups
-                    values={node.latest.values}
-                    className="grid gap-x-8 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
-                  />
-                </div>
-              )}
+              {node.latest &&
+                (isMobile ? (
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <SnmpValueGroups
+                      values={node.latest.values}
+                      className="grid gap-x-8 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
+                    />
+                  </div>
+                ) : (
+                  <SnmpLatestDashboard values={node.latest.values} />
+                ))}
             </section>
           </>
         )}

@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-18 (SNMP latest values dashboard, snmp-layout-redesign)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### SNMP
+- **Latest values as a dashboard on desktop.** The "Latest values" block on an
+  SNMP node page is no longer one long list per group in uneven columns.
+  Radio traffic is a received/sent by flood/direct/total table (duplicates as
+  a third row), with receive errors, TX queue and TX duty as figures and set
+  error flags as a warning chip. Signal & air time holds RSSI, SNR, noise
+  floor, WiFi RSSI, TX and RX air time and the neighbour count. Packet filter
+  and companion receive filter drops are bars sorted high to low, with the
+  rules at 0 behind a "+N at 0" toggle. Yes/no settings (filter on, dry run,
+  NTP clock, gating on) are chips. "Total air time" now reads "TX air time"
+  there: the firmware only counts completed transmits in it. Phones keep the
+  previous list (`components/snmp/SnmpLatestDashboard.tsx`).
+
 ## Update 2026-10-18 (screensaver popup buttons close the popup, fix/screensaver-close-popup)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.
