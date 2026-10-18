@@ -46,6 +46,19 @@ def _broadcast(public_key: str, timestamp: int, values: dict[str, Any]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
+async def _record_as_telemetry(config: dict[str, Any], now: int, values: dict[str, Any]) -> None:
+    """Feed a marked node's good poll into the telemetry history. A failure is
+    logged and never fails the poll itself."""
+    from app.repository import ContactRepository
+    from app.services.snmp_telemetry import record_snmp_telemetry
+
+    try:
+        contact = await ContactRepository.get_by_key(config["public_key"])
+        await record_snmp_telemetry(config, contact.type if contact else None, now, values)
+    except Exception:
+        logger.exception("SNMP telemetry record failed for %s", config["public_key"][:12])
+
+
 async def poll_contact(config: dict[str, Any]) -> SnmpPollResponse:
     """Poll the agent described by a ``contact_snmp`` row. Never raises for a
     failed poll: the failure is recorded on the row and returned."""
@@ -69,6 +82,8 @@ async def poll_contact(config: dict[str, Any]) -> SnmpPollResponse:
         await ContactSnmpRepository.record_ok(public_key, now)
         await SnmpHistoryRepository.record(public_key, now, values)
         _broadcast(public_key, now, values)
+        if config.get("use_as_telemetry"):
+            await _record_as_telemetry(config, now, values)
     else:
         logger.info("SNMP poll of %s (%s:%d) failed: %s", public_key[:12], host, port, error)
         await ContactSnmpRepository.record_error(public_key, now, error or "unknown error")

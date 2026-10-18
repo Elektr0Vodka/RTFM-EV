@@ -191,6 +191,38 @@ class TestConfigEndpoints:
         assert (await ContactSnmpRepository.get(KEY_A))["community"] == "s3cret"
 
     @pytest.mark.asyncio
+    async def test_put_config_stores_use_as_telemetry(self, test_db):
+        await _insert_contact()
+        saved = await put_snmp_config(
+            KEY_A, ContactSnmpConfigUpdate(host="10.0.0.1", use_as_telemetry=True)
+        )
+        assert saved.use_as_telemetry is True
+        assert (await get_snmp_config(KEY_A)).use_as_telemetry is True
+        assert (await ContactSnmpRepository.get(KEY_A))["use_as_telemetry"] is True
+
+        saved = await put_snmp_config(KEY_A, ContactSnmpConfigUpdate(host="10.0.0.1"))
+        assert saved.use_as_telemetry is False
+
+    @pytest.mark.asyncio
+    async def test_config_reports_ntp_synced_and_clock_sync_listed(self, test_db):
+        from app.repository import AppSettingsRepository
+
+        await _insert_contact()
+        await put_snmp_config(KEY_A, ContactSnmpConfigUpdate(host="10.0.0.1"))
+        fetched = await get_snmp_config(KEY_A)
+        assert fetched.ntp_synced is None
+        assert fetched.clock_sync_listed is False
+
+        await SnmpHistoryRepository.record(KEY_A, int(time.time()), {"ntp_synced": 1})
+        await AppSettingsRepository.update(clock_sync_repeaters=[KEY_A.upper()])
+        fetched = await get_snmp_config(KEY_A)
+        assert fetched.ntp_synced is True
+        assert fetched.clock_sync_listed is True
+
+        await SnmpHistoryRepository.record(KEY_A, int(time.time()) + 1, {"ntp_synced": 0})
+        assert (await get_snmp_config(KEY_A)).ntp_synced is False
+
+    @pytest.mark.asyncio
     async def test_put_keeps_the_last_poll_outcome(self, test_db):
         await _insert_contact()
         await put_snmp_config(KEY_A, ContactSnmpConfigUpdate(host="10.0.0.1"))

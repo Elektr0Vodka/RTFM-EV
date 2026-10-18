@@ -2022,9 +2022,15 @@ export interface ContactSnmpConfig {
   community_is_default: boolean;
   poll_enabled: boolean;
   poll_interval_minutes: number;
+  /** SNMP polls count as telemetry; RF telemetry only runs while SNMP fails. */
+  use_as_telemetry?: boolean;
   last_ok_at: number | null;
   last_error: string | null;
   last_error_at: number | null;
+  /** Newest stored poll's ntp_synced (config endpoint only); null when not served. */
+  ntp_synced?: boolean | null;
+  /** The node is on the RF clock sync list (config endpoint only). */
+  clock_sync_listed?: boolean;
 }
 
 export interface ContactSnmpConfigUpdate {
@@ -2034,6 +2040,7 @@ export interface ContactSnmpConfigUpdate {
   community: string | null;
   poll_enabled: boolean;
   poll_interval_minutes: number;
+  use_as_telemetry: boolean;
 }
 
 export type SnmpValues = Record<string, number | string | null>;
@@ -2454,10 +2461,16 @@ export interface ContactTelemetryResponse {
 
 /** Compact latest-telemetry snapshot per node for the map overlay. */
 export interface LatestTelemetry {
+  /** Time of the reading `source` describes (the battery one when there is one). */
   timestamp: number;
   battery_volts?: number | null;
+  /** LPP (outside) temperature and when it was read. */
   temperature?: number | null;
-  source: 'repeater' | 'contact';
+  temperature_at?: number | null;
+  /** Chip temperature from SNMP; not an outside reading. */
+  mcu_temperature?: number | null;
+  mcu_temperature_at?: number | null;
+  source: 'repeater' | 'contact' | 'snmp';
 }
 
 export interface TrackedTelemetryContactsResponse {

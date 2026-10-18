@@ -57,6 +57,19 @@ class TestNodesOverview:
         assert (zulu.poll_enabled, zulu.poll_interval_minutes) == (True, 15)
 
     @pytest.mark.asyncio
+    async def test_overview_includes_use_as_telemetry(self, test_db):
+        await _insert_contact(KEY_A, "Marked")
+        await _insert_contact(KEY_B, "Plain")
+        await put_snmp_config(
+            KEY_A, ContactSnmpConfigUpdate(host="10.0.0.1", use_as_telemetry=True)
+        )
+        await put_snmp_config(KEY_B, ContactSnmpConfigUpdate(host="10.0.0.2"))
+
+        marked, plain = await get_snmp_nodes()
+        assert (marked.public_key, marked.use_as_telemetry) == (KEY_A, True)
+        assert (plain.public_key, plain.use_as_telemetry) == (KEY_B, False)
+
+    @pytest.mark.asyncio
     async def test_carries_the_poll_outcome_and_the_newest_stored_values(self, test_db):
         await _insert_contact(KEY_A, "Good")
         await _insert_contact(KEY_B, "Failing")

@@ -147,6 +147,33 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('SnmpNodeView clock state', () => {
+  it('warns when the newest poll says the clock is not NTP synced', async () => {
+    const latest = { timestamp: NOW, values: values({ ntp_synced: 0 }) };
+    await renderNode([node({ latest, use_as_telemetry: true })]);
+    expect(await screen.findByTestId('snmp-clock')).toHaveTextContent('Clock: not synced');
+  });
+
+  it('shows synced when the newest poll says so', async () => {
+    const latest = { timestamp: NOW, values: values({ ntp_synced: 1 }) };
+    await renderNode([node({ latest, use_as_telemetry: true })]);
+    expect(await screen.findByTestId('snmp-clock')).toHaveTextContent('Clock: NTP synced');
+  });
+
+  it('shows no clock line when the node does not serve it', async () => {
+    await renderNode();
+    await screen.findByRole('heading', { name: 'Alpha' });
+    expect(screen.queryByTestId('snmp-clock')).toBeNull();
+  });
+
+  it('shows no clock line for a node not used as telemetry', async () => {
+    const latest = { timestamp: NOW, values: values({ ntp_synced: 0 }) };
+    await renderNode([node({ latest })]);
+    await screen.findByRole('heading', { name: 'Alpha' });
+    expect(screen.queryByTestId('snmp-clock')).toBeNull();
+  });
+});
+
 describe('SnmpNodeView', () => {
   it('shows the node, its state and the stored history of the last 24 hours', async () => {
     await renderNode();

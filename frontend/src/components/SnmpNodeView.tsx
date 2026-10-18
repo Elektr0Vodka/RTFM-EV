@@ -20,6 +20,7 @@ import { formatDuration } from './repeater/repeaterPaneShared';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { StatTile } from './meshHealthShared';
 import { Button } from './ui/button';
+import { SnmpClockState, ntpSyncedFromValues } from './snmp/SnmpClockState';
 import { SnmpRefreshSelect, useSnmpRefreshSeconds } from './snmp/SnmpRefreshSelect';
 import { SnmpSeriesChart, type SnmpChartSeries } from './snmp/SnmpSeriesChart';
 import { SnmpLatestDashboard } from './snmp/SnmpLatestDashboard';
@@ -607,6 +608,9 @@ export function SnmpNodeView({
               : t('snmp_schedule_off')}
             {node.community_is_default ? ` ${t('snmp_community_is_default')}` : ''}
           </p>
+        )}
+        {node?.use_as_telemetry && (
+          <SnmpClockState synced={ntpSyncedFromValues(node.latest?.values)} />
         )}
         {node?.last_error && (
           <p className="wrap-break-word text-xs text-destructive" data-testid="snmp-node-error">

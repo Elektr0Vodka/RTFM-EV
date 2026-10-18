@@ -249,6 +249,7 @@ describe('LanScanView', () => {
       community: null,
       poll_enabled: false,
       poll_interval_minutes: 5,
+      use_as_telemetry: false,
     });
   });
 

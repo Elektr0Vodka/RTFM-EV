@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 _COLUMNS = (
     "public_key, host, port, community, poll_enabled, poll_interval_minutes, "
-    "last_ok_at, last_error, last_error_at, updated_at"
+    "use_as_telemetry, last_ok_at, last_error, last_error_at, updated_at"
 )
 
 
@@ -20,6 +20,7 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         "community": row["community"],
         "poll_enabled": bool(row["poll_enabled"]),
         "poll_interval_minutes": int(row["poll_interval_minutes"]),
+        "use_as_telemetry": bool(row["use_as_telemetry"]),
         "last_ok_at": row["last_ok_at"],
         "last_error": row["last_error"],
         "last_error_at": row["last_error_at"],
@@ -53,6 +54,7 @@ class ContactSnmpRepository:
         poll_enabled: bool,
         poll_interval_minutes: int,
         now: int,
+        use_as_telemetry: bool = False,
     ) -> None:
         """Insert or replace the settings. Poll outcome columns are kept."""
         async with db.tx() as conn:
@@ -60,14 +62,15 @@ class ContactSnmpRepository:
                 """
                 INSERT INTO contact_snmp
                     (public_key, host, port, community, poll_enabled,
-                     poll_interval_minutes, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                     poll_interval_minutes, use_as_telemetry, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(public_key) DO UPDATE SET
                     host = excluded.host,
                     port = excluded.port,
                     community = excluded.community,
                     poll_enabled = excluded.poll_enabled,
                     poll_interval_minutes = excluded.poll_interval_minutes,
+                    use_as_telemetry = excluded.use_as_telemetry,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -77,6 +80,7 @@ class ContactSnmpRepository:
                     community,
                     int(poll_enabled),
                     poll_interval_minutes,
+                    int(use_as_telemetry),
                     now,
                 ),
             ):
@@ -122,6 +126,16 @@ class ContactSnmpRepository:
         return [_row_to_dict(row) for row in rows]
 
     @staticmethod
+    async def list_telemetry_marked() -> dict[str, dict[str, Any]]:
+        """Rows marked ``use_as_telemetry``, by public key."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                f"SELECT {_COLUMNS} FROM contact_snmp WHERE use_as_telemetry = 1"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return {row["public_key"]: _row_to_dict(row) for row in rows}
+
+    @staticmethod
     async def list_overview(*, default_community: str) -> list[dict[str, Any]]:
         """Every contact with SNMP settings, with its name and type, by name.
 
@@ -133,7 +147,7 @@ class ContactSnmpRepository:
                 """
                 SELECT s.public_key, c.name, c.type, s.host, s.port,
                        s.community = ? AS community_is_default,
-                       s.poll_enabled, s.poll_interval_minutes,
+                       s.poll_enabled, s.poll_interval_minutes, s.use_as_telemetry,
                        s.last_ok_at, s.last_error, s.last_error_at
                   FROM contact_snmp s
                   LEFT JOIN contacts c ON c.public_key = s.public_key
@@ -152,6 +166,7 @@ class ContactSnmpRepository:
                 "community_is_default": bool(row["community_is_default"]),
                 "poll_enabled": bool(row["poll_enabled"]),
                 "poll_interval_minutes": int(row["poll_interval_minutes"]),
+                "use_as_telemetry": bool(row["use_as_telemetry"]),
                 "last_ok_at": row["last_ok_at"],
                 "last_error": row["last_error"],
                 "last_error_at": row["last_error_at"],
@@ -199,6 +214,33 @@ class SnmpHistoryRepository:
         if not isinstance(values, dict):
             return None
         return {"timestamp": row["timestamp"], "values": values}
+
+    @staticmethod
+    async def get_latest_marked_all() -> dict[str, dict[str, Any]]:
+        """Newest stored poll of every node marked ``use_as_telemetry`` with
+        scheduled polling on: {pk: {timestamp, values}}. One query."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT h.public_key AS public_key, h.timestamp AS timestamp, h.data AS data
+                  FROM contact_snmp s
+                  JOIN snmp_history h ON h.public_key = s.public_key
+                 WHERE s.use_as_telemetry = 1 AND s.poll_enabled = 1
+                   AND h.id = (SELECT n.id FROM snmp_history n
+                                WHERE n.public_key = s.public_key
+                                ORDER BY n.timestamp DESC, n.id DESC LIMIT 1)
+                """
+            ) as cursor:
+                rows = await cursor.fetchall()
+        out: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                values = json.loads(row["data"])
+            except (TypeError, ValueError):
+                continue
+            if isinstance(values, dict):
+                out[row["public_key"]] = {"timestamp": row["timestamp"], "values": values}
+        return out
 
     @staticmethod
     async def get_history(

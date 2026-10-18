@@ -178,6 +178,7 @@ export function LanScanView({
         community: community.trim() || null,
         poll_enabled: false,
         poll_interval_minutes: 5,
+        use_as_telemetry: false,
       });
       await refresh();
     } catch (err) {

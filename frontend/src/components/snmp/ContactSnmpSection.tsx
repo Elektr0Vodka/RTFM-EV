@@ -7,6 +7,7 @@ import type { Contact, ContactSnmpConfig, SnmpPollResponse } from '../../types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { SnmpClockState } from './SnmpClockState';
 import { SnmpHistoryChart } from './SnmpHistoryChart';
 import { SnmpValueGroups } from './SnmpValueGroups';
 import { formatSnmpTime } from './snmpFields';
@@ -26,6 +27,7 @@ interface FormState {
   community: string;
   pollEnabled: boolean;
   interval: string;
+  useAsTelemetry: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -34,6 +36,7 @@ const EMPTY_FORM: FormState = {
   community: '',
   pollEnabled: false,
   interval: DEFAULT_INTERVAL,
+  useAsTelemetry: false,
 };
 
 function errorMessage(err: unknown): string {
@@ -99,6 +102,7 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
       community: '',
       pollEnabled: config?.poll_enabled ?? false,
       interval: config ? String(config.poll_interval_minutes) : DEFAULT_INTERVAL,
+      useAsTelemetry: config?.use_as_telemetry ?? false,
     });
     setFormError(null);
     setAskNote(null);
@@ -136,6 +140,7 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
         community: form.community === '' ? null : form.community,
         poll_enabled: form.pollEnabled,
         poll_interval_minutes: interval,
+        use_as_telemetry: form.useAsTelemetry,
       });
       setConfig(saved);
       setEditing(false);
@@ -344,6 +349,20 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
             )}
             <p className="text-[0.6875rem] text-muted-foreground">{t('snmp_schedule_note')}</p>
           </div>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-sm" htmlFor="snmp-use-as-telemetry">
+              <input
+                id="snmp-use-as-telemetry"
+                type="checkbox"
+                checked={form.useAsTelemetry}
+                onChange={(e) => setForm({ ...form, useAsTelemetry: e.target.checked })}
+              />
+              {t('snmp_use_as_telemetry')}
+            </label>
+            <p className="text-[0.6875rem] text-muted-foreground">
+              {t('snmp_use_as_telemetry_note')}
+            </p>
+          </div>
           {formError && (
             <p className="text-xs text-destructive" role="alert">
               {formError}
@@ -393,6 +412,29 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
               ? t('snmp_schedule_on', { minutes: config.poll_interval_minutes })
               : t('snmp_schedule_off')}
           </p>
+          {config.use_as_telemetry && (
+            <p
+              className={
+                config.poll_enabled
+                  ? 'text-[0.6875rem] text-muted-foreground'
+                  : 'text-xs text-warning'
+              }
+              data-testid="snmp-telemetry-note"
+            >
+              {config.poll_enabled
+                ? t('snmp_use_as_telemetry_note')
+                : t('snmp_use_as_telemetry_needs_schedule')}
+            </p>
+          )}
+          {config.use_as_telemetry && <SnmpClockState synced={config.ntp_synced} />}
+          {config.use_as_telemetry && config.poll_enabled && config.clock_sync_listed && (
+            <p
+              className="text-[0.6875rem] text-muted-foreground"
+              data-testid="snmp-clock-sync-paused"
+            >
+              {t('snmp_clock_sync_paused')}
+            </p>
+          )}
           {config.last_error && (
             <p className="text-xs text-destructive" role="alert" data-testid="snmp-last-error">
               {t('snmp_last_error', {

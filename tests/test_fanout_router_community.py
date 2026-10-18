@@ -85,3 +85,13 @@ def test_filter_and_own_neighbor_topics_default_off_and_interval_clamped():
         cfg = _base() | {"filter_interval_ms": bad}
         _validate_mqtt_community_config(cfg)
         assert cfg["filter_interval_ms"] == 60000
+
+
+def test_publish_snmp_telemetry_defaults_off_and_coerces():
+    """SNMP-sourced telemetry on the community broker is opt-in."""
+    cfg = _base()
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_snmp_telemetry"] is False
+    cfg = _base() | {"publish_snmp_telemetry": 1}
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_snmp_telemetry"] is True

@@ -252,11 +252,19 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
   const volts = telemetry?.battery_volts ?? null;
   const batteryPct = volts != null ? mvToPercent(volts * 1000, contact.battery_chemistry) : null;
   const temperature = telemetry?.temperature ?? null;
-  const hasTelemetry = volts != null || temperature != null;
+  const mcuTemperature = telemetry?.mcu_temperature ?? null;
+  const hasTelemetry = volts != null || temperature != null || mcuTemperature != null;
   const telemetryAgeSec = telemetry ? nowSec - telemetry.timestamp : null;
   const telemetryStale = telemetryAgeSec != null && telemetryAgeSec > STALE_SEC;
   // Readings older than a day are dimmed, as the map's telemetry badges are.
   const staleCls = telemetryStale ? 'opacity-60' : undefined;
+  // Each reading keeps its own age: an SNMP battery can be fresh while the
+  // outside temperature comes from an older RF reading.
+  const staleFor = (at: number | null | undefined) =>
+    at != null && nowSec - at > STALE_SEC ? 'opacity-60' : undefined;
+  const temperatureStaleCls =
+    telemetry?.temperature_at != null ? staleFor(telemetry.temperature_at) : staleCls;
+  const fromSnmp = telemetry?.source === 'snmp';
   const batteryText =
     batteryPct != null && volts != null
       ? t('map_popup_battery_value', { pct: batteryPct, volts: volts.toFixed(2) })
@@ -299,6 +307,15 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
       <div className="mt-1 text-[11px] text-muted-foreground">
         {telemetryAgeSec != null &&
           t('map_popup_reading_age', { age: relativeAge(telemetryAgeSec, t) })}
+        {fromSnmp && (
+          <span
+            className="ml-1 rounded border border-border px-1 text-[10px] uppercase"
+            title={t('map_popup_source_snmp_title')}
+            data-testid="popup-source-snmp"
+          >
+            {t('map_popup_source_snmp')}
+          </span>
+        )}
         {' · '}
         <button
           type="button"
@@ -436,8 +453,16 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
             </Row>
           )}
           {temperatureText && (
-            <Row label={t('map_popup_temperature')} valueClassName={staleCls}>
+            <Row label={t('map_popup_temperature')} valueClassName={temperatureStaleCls}>
               {temperatureText}
+            </Row>
+          )}
+          {mcuTemperature != null && (
+            <Row
+              label={t('map_popup_chip_temperature')}
+              valueClassName={staleFor(telemetry?.mcu_temperature_at)}
+            >
+              {t('map_popup_temperature_value', { value: mcuTemperature.toFixed(1) })}
             </Row>
           )}
           {linksRow}

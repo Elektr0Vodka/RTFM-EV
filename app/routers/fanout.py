@@ -179,6 +179,9 @@ def _validate_mqtt_community_config(config: dict) -> None:
     # each publishes a new observer-feed kind the analyzer drops until it adds a
     # path, so defaulting off keeps existing configs behaviour-identical.
     config["publish_telemetry"] = bool(config.get("publish_telemetry", False))
+    # Telemetry read over SNMP on the LAN (contact_snmp.use_as_telemetry) goes out
+    # only on top of publish_telemetry, and only when asked for.
+    config["publish_snmp_telemetry"] = bool(config.get("publish_snmp_telemetry", False))
     config["publish_neighbors"] = bool(config.get("publish_neighbors", False))
     config["publish_regions"] = bool(config.get("publish_regions", False))
     # DMC ``config`` topic (node config snapshot): opt-in like the firmware's ``set mqtt.config 1``.

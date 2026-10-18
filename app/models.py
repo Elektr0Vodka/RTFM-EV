@@ -1283,6 +1283,10 @@ class ContactSnmpConfigUpdate(BaseModel):
     poll_interval_minutes: int = Field(
         default=5, ge=1, le=1440, description="Minutes between scheduled polls"
     )
+    use_as_telemetry: bool = Field(
+        default=False,
+        description="Count this node's SNMP polls as telemetry; RF telemetry becomes a fallback",
+    )
 
     @field_validator("host")
     @classmethod
@@ -1310,9 +1314,19 @@ class ContactSnmpConfig(BaseModel):
     )
     poll_enabled: bool
     poll_interval_minutes: int = Field(description="Minutes between scheduled polls")
+    use_as_telemetry: bool = Field(
+        default=False, description="SNMP polls count as telemetry (RF only as fallback)"
+    )
     last_ok_at: int | None = Field(default=None, description="Unix time of the last good poll")
     last_error: str | None = Field(default=None, description="Error of the last failed poll")
     last_error_at: int | None = Field(default=None, description="Unix time of that failure")
+    ntp_synced: bool | None = Field(
+        default=None,
+        description="Newest stored poll's ntp_synced (node clock set by NTP); null when not served",
+    )
+    clock_sync_listed: bool = Field(
+        default=False, description="The node is on the RF clock sync list"
+    )
 
 
 class SnmpPollResponse(BaseModel):
@@ -1352,6 +1366,9 @@ class SnmpNodeOverview(BaseModel):
     )
     poll_enabled: bool
     poll_interval_minutes: int = Field(description="Minutes between scheduled polls")
+    use_as_telemetry: bool = Field(
+        default=False, description="SNMP polls count as telemetry (RF only as fallback)"
+    )
     last_ok_at: int | None = Field(default=None, description="Unix time of the last good poll")
     last_error: str | None = Field(default=None, description="Error of the last failed poll")
     last_error_at: int | None = Field(default=None, description="Unix time of that failure")
@@ -2962,15 +2979,30 @@ class DeviceConfigHistoryEntry(BaseModel):
     data: dict
 
 
-class LatestTelemetryEntry(BaseModel):
-    """Compact latest-telemetry snapshot for the map overlay (battery + temperature)."""
+TelemetrySource = Literal["repeater", "contact", "snmp"]
 
-    timestamp: int = Field(description="Unix timestamp of the newest stored reading")
+
+class LatestTelemetryEntry(BaseModel):
+    """Compact latest-telemetry snapshot for the map overlay (battery + temperature).
+
+    Each field comes from the newest reading that has it. ``timestamp`` and
+    ``source`` describe the battery reading when there is one, else the
+    temperature reading, else the chip temperature.
+    """
+
+    timestamp: int = Field(description="Unix timestamp of the reading described by source")
     battery_volts: float | None = Field(default=None, description="Battery voltage in volts")
     temperature: float | None = Field(
         default=None, description="Temperature in degrees C from the LPP sensors, if present"
     )
-    source: str = Field(description="Which history table the reading came from: repeater | contact")
+    temperature_at: int | None = Field(default=None, description="Time of that LPP temperature")
+    mcu_temperature: float | None = Field(
+        default=None, description="Chip temperature in degrees C from SNMP (not an outside sensor)"
+    )
+    mcu_temperature_at: int | None = Field(default=None, description="Time of that chip reading")
+    source: TelemetrySource = Field(
+        description="Where that reading came from: RF repeater status, contact LPP, or SNMP"
+    )
 
 
 RadioIdentityStatus = Literal["pending", "confirmed"]

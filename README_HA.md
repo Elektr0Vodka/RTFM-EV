@@ -122,6 +122,8 @@ Newer DMC observer firmware serves more values. A sensor is only created once th
 
 With **Poll on a schedule** on, these sensors go unavailable after three missed polls (at least 10 minutes). A node you only poll by hand keeps its last values. The counters reset when the node reboots (the newer filter and duplicate counters also on `clear stats`). The node's address and SNMP community are never published.
 
+With **Use as telemetry** ticked on the contact's SNMP card, the repeater's regular telemetry sensors (above) are also fed from SNMP, at most once an hour, so they keep updating while RTFM-EV skips the RF status request. Values SNMP does not have (for example `full_events`, region count, LPP sensors) are left out of those updates, not set to empty.
+
 ### Contact Devices
 
 One HA device per tracked contact, which can expose two kinds of entities.

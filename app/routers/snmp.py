@@ -27,6 +27,7 @@ from app.models import (
     SnmpNodeOverview,
     SnmpPollResponse,
 )
+from app.repository import AppSettingsRepository
 from app.repository.contact_snmp import ContactSnmpRepository, SnmpHistoryRepository
 from app.routers.contacts import _resolve_contact_or_404
 from app.routers.server_control import batch_cli_fetch, require_server_capable_contact
@@ -48,7 +49,12 @@ SNMP_CONTACT_TYPES = (CONTACT_TYPE_CLIENT, CONTACT_TYPE_REPEATER, CONTACT_TYPE_R
 HISTORY_MAX_POINTS = 1500
 
 
-def _to_model(row: dict) -> ContactSnmpConfig:
+async def _to_model(row: dict) -> ContactSnmpConfig:
+    """Browser shape of a settings row, with the clock state from the newest poll."""
+    latest = await SnmpHistoryRepository.get_latest(row["public_key"])
+    ntp = latest["values"].get("ntp_synced") if latest else None
+    app_settings = await AppSettingsRepository.get()
+    clock_sync_keys = {key.lower() for key in app_settings.clock_sync_repeaters}
     return ContactSnmpConfig(
         public_key=row["public_key"],
         host=row["host"],
@@ -56,9 +62,12 @@ def _to_model(row: dict) -> ContactSnmpConfig:
         community_is_default=row["community"] == DEFAULT_COMMUNITY,
         poll_enabled=row["poll_enabled"],
         poll_interval_minutes=row["poll_interval_minutes"],
+        use_as_telemetry=row["use_as_telemetry"],
         last_ok_at=row["last_ok_at"],
         last_error=row["last_error"],
         last_error_at=row["last_error_at"],
+        ntp_synced=bool(ntp) if isinstance(ntp, int) else None,
+        clock_sync_listed=row["public_key"].lower() in clock_sync_keys,
     )
 
 
@@ -79,7 +88,7 @@ async def get_snmp_config(public_key: str) -> ContactSnmpConfig | None:
     """Stored SNMP settings for a contact, or null when none are set."""
     contact = await _resolve_contact_or_404(public_key)
     row = await ContactSnmpRepository.get(contact.public_key)
-    return _to_model(row) if row else None
+    return await _to_model(row) if row else None
 
 
 @router.put("/{public_key}/snmp/config", response_model=ContactSnmpConfig)
@@ -98,11 +107,12 @@ async def put_snmp_config(public_key: str, request: ContactSnmpConfigUpdate) -> 
         poll_enabled=request.poll_enabled,
         poll_interval_minutes=request.poll_interval_minutes,
         now=int(time.time()),
+        use_as_telemetry=request.use_as_telemetry,
     )
     row = await ContactSnmpRepository.get(contact.public_key)
     if row is None:
         raise HTTPException(status_code=500, detail="SNMP settings were not stored")
-    return _to_model(row)
+    return await _to_model(row)
 
 
 @router.delete("/{public_key}/snmp/config")

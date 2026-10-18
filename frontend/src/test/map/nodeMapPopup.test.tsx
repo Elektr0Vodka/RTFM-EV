@@ -176,6 +176,32 @@ describe('NodeMapPopup', () => {
     expect(screen.getByText('Flood route')).toBeInTheDocument();
   });
 
+  it('repeater with SNMP telemetry: SNMP tag and chip temperature', () => {
+    renderPopup({
+      contact: contact({ type: CONTACT_TYPE_REPEATER, name: 'NL-DHR-TDP-EV' }),
+      telemetry: {
+        timestamp: NOW - 30,
+        battery_volts: 4.349,
+        source: 'snmp',
+        mcu_temperature: 42,
+        mcu_temperature_at: NOW - 30,
+      },
+    });
+    expect(screen.getByText(/4\.35 V$/)).toBeInTheDocument();
+    expect(screen.getByTestId('popup-source-snmp')).toHaveTextContent('SNMP');
+    expect(screen.getByText('Chip temp')).toBeInTheDocument();
+    expect(screen.getByText('42.0 °C')).toBeInTheDocument();
+  });
+
+  it('RF telemetry has no SNMP tag and no chip row', () => {
+    renderPopup({
+      contact: contact({ type: CONTACT_TYPE_REPEATER, name: 'RF only' }),
+      telemetry: { timestamp: NOW - 600, battery_volts: 4.0, source: 'repeater' },
+    });
+    expect(screen.queryByTestId('popup-source-snmp')).toBeNull();
+    expect(screen.queryByText('Chip temp')).toBeNull();
+  });
+
   it('sensor: reading tiles and a history toggle', () => {
     renderPopup({
       contact: contact({ type: CONTACT_TYPE_SENSOR, public_key: 'feed' }),
