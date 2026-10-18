@@ -653,7 +653,7 @@ export function MapControls(props: MapControlsProps) {
       id: 'display',
       label: t('map_group_display'),
       icon: <Layers size={20} aria-hidden />,
-      memberIds: ['layers', 'labelMode', 'legend'],
+      memberIds: ['layers', 'labelMode', 'legend', 'screensaver'],
     },
     {
       id: 'style',

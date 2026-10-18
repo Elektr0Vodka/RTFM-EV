@@ -244,4 +244,18 @@ describe('NodeMapPopup', () => {
       'https://example.test/x'
     );
   });
+
+  it('orbit and flyover buttons call their handlers, and hide when omitted', () => {
+    const onOrbit = vi.fn();
+    const onFlyover = vi.fn();
+    const { unmount } = renderPopup({ onOrbit, onFlyover });
+    fireEvent.click(screen.getByRole('button', { name: 'Orbit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Flyover' }));
+    expect(onOrbit).toHaveBeenCalledTimes(1);
+    expect(onFlyover).toHaveBeenCalledTimes(1);
+    unmount();
+    renderPopup({});
+    expect(screen.queryByRole('button', { name: 'Orbit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Flyover' })).toBeNull();
+  });
 });

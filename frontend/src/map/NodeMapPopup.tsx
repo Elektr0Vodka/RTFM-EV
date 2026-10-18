@@ -124,6 +124,10 @@ export interface NodeMapPopupProps {
   onOpenChat?: () => void;
   onOpenDetails?: () => void;
   onOpenOwner?: () => void;
+  /** Start the map screensaver circling this node; omitted hides the button. */
+  onOrbit?: () => void;
+  /** Start the map screensaver flyover from this node; omitted hides the button. */
+  onFlyover?: () => void;
   /** Advert copies heard per hour (contact analytics); omitted = row hidden. */
   loadAdvertRate?: (signal: AbortSignal) => Promise<number | null>;
 }
@@ -184,6 +188,8 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
     onOpenChat,
     onOpenDetails,
     onOpenOwner,
+    onOrbit,
+    onFlyover,
     loadAdvertRate,
   } = props;
   const [advertRate, setAdvertRate] = useState<number | null>(null);
@@ -456,6 +462,12 @@ export function NodeMapPopup(props: NodeMapPopupProps) {
           <ActionButton onClick={onOpenDetails}>{t('map_node_details')}</ActionButton>
         )}
         {onOpenOwner && <ActionButton onClick={onOpenOwner}>{t('map_owner_link')}</ActionButton>}
+        {onOrbit && (
+          <ActionButton onClick={onOrbit}>{t('map_screensaver_mode_orbit')}</ActionButton>
+        )}
+        {onFlyover && (
+          <ActionButton onClick={onFlyover}>{t('map_screensaver_mode_flyover')}</ActionButton>
+        )}
         {triangulateUrl && (
           <a
             href={triangulateUrl}

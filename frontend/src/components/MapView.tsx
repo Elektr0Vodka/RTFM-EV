@@ -14,6 +14,7 @@ import {
   Signal,
   BatteryCharging,
   Navigation,
+  Orbit,
 } from 'lucide-react';
 import type {
   AdvertLinkEdge,
@@ -68,6 +69,15 @@ import {
 } from '../map/packets/playbackController';
 import { LOOKBACK_OPTIONS, PlaybackBar } from '../map/controls/PlaybackBar';
 import { isBool, isNumberIn, isOneOf, usePersistedMapSetting } from '../map/usePersistedMapSetting';
+import {
+  SCREENSAVER_DEFAULT_MINUTES,
+  SCREENSAVER_MAX_MINUTES,
+  SCREENSAVER_MIN_MINUTES,
+  SCREENSAVER_MODES,
+  flyoverPoints,
+  type ScreensaverMode,
+} from '../map/screensaver';
+import { useMapScreensaver } from '../map/useMapScreensaver';
 import {
   LINK_MAX_KM_STORAGE_KEY,
   LINK_MAX_KM_UPPER,
@@ -460,6 +470,21 @@ export function MapView({
     maxMs: 0,
   });
   const [tilt3D, setTilt3D] = usePersistedMapSetting('remoteterm-map-tilt-3d', false, isBool);
+  const [screensaverOn, setScreensaverOn] = usePersistedMapSetting(
+    'remoteterm-map-screensaver',
+    false,
+    isBool
+  );
+  const [screensaverMode, setScreensaverMode] = usePersistedMapSetting<ScreensaverMode>(
+    'remoteterm-map-screensaver-mode',
+    'orbit',
+    isOneOf(SCREENSAVER_MODES)
+  );
+  const [screensaverMinutes, setScreensaverMinutes] = usePersistedMapSetting(
+    'remoteterm-map-screensaver-minutes',
+    SCREENSAVER_DEFAULT_MINUTES,
+    isNumberIn(SCREENSAVER_MIN_MINUTES, SCREENSAVER_MAX_MINUTES)
+  );
   const [buildings, setBuildings] = usePersistedMapSetting(
     'remoteterm-map-buildings',
     false,
@@ -1340,6 +1365,28 @@ export function MapView({
     recencyColors: mapColors.recency,
   };
 
+  const [mapReady, setMapReady] = useState(false);
+
+  // Screensaver: orbit the selected node (open popup) or the map centre, or fly
+  // between heard nodes the map currently shows, after the idle time.
+  const screensaver = useMapScreensaver({
+    mapRef,
+    mapReady,
+    enabled: screensaverOn,
+    mode: screensaverMode,
+    idleMinutes: screensaverMinutes,
+    tilt3D,
+    getSelectedCenter: () => {
+      const popup = popupRef.current;
+      if (!popup || !popup.isOpen()) return null;
+      const at = popup.getLngLat();
+      return [at.lng, at.lat];
+    },
+    getFlyoverPoints: () => flyoverPoints(mappableContactsRef.current),
+  });
+  const screensaverActiveRef = screensaver.activeRef;
+  const startScreensaverAt = screensaver.startAt;
+
   // Build the per-type popup (map/NodeMapPopup) for a contact. It renders
   // synchronously so MapLibre measures real content when it places the popup;
   // the root is unmounted when the popup closes (popupChartRootsRef).
@@ -1369,6 +1416,14 @@ export function MapView({
               onOpenContactInfo ? () => onOpenContactInfo(contact.public_key) : undefined
             }
             onOpenOwner={owner && onSelectContact ? () => onSelectContact(owner) : undefined}
+            onOrbit={() => {
+              const loc = getEffectiveLocation(contact);
+              if (loc) startScreensaverAt('orbit', [loc.lon, loc.lat]);
+            }}
+            onFlyover={() => {
+              const loc = getEffectiveLocation(contact);
+              if (loc) startScreensaverAt('flyover', [loc.lon, loc.lat]);
+            }}
             loadAdvertRate={(signal) =>
               api
                 .getContactAnalytics({ publicKey: contact.public_key }, signal)
@@ -1379,7 +1434,7 @@ export function MapView({
       );
       return host;
     },
-    [onSelectContact, onOpenContactInfo, contactByKey, t]
+    [onSelectContact, onOpenContactInfo, contactByKey, startScreensaverAt, t]
   );
 
   const openContactPopup = useCallback(
@@ -1494,7 +1549,6 @@ export function MapView({
   // once the node is known. Centring once per focus key keeps later contact
   // updates from yanking the camera back after the user pans away.
   const centeredFocusKeyRef = useRef<string | null>(null);
-  const [mapReady, setMapReady] = useState(false);
 
   // Initial camera fit / geolocate / focus (port of MapBoundsHandler).
   const fitInitialView = useCallback(
@@ -1686,6 +1740,8 @@ export function MapView({
         // Remember the camera for the "remember last position" startup mode.
         // moveend fires once per gesture (not continuously), so a direct write
         // is cheap and needs no debounce.
+        // The screensaver's camera is not the user's; wake restores theirs.
+        if (screensaverActiveRef.current) return;
         const c = map.getCenter();
         writeLastView({ center: [c.lng, c.lat], zoom: map.getZoom() });
       });
@@ -2372,6 +2428,65 @@ export function MapView({
           </div>
         ),
       },
+      {
+        id: 'screensaver',
+        label: t('map_screensaver_label'),
+        icon: <Orbit size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={screensaverOn}
+                onChange={(e) => setScreensaverOn(e.target.checked)}
+              />
+              {t('map_screensaver_enable')}
+            </label>
+            <div
+              role="group"
+              aria-label={t('map_screensaver_mode')}
+              className="flex flex-wrap gap-1"
+            >
+              {SCREENSAVER_MODES.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={screensaverMode === m}
+                  className={
+                    'rounded px-2 py-1 text-xs ' +
+                    (screensaverMode === m
+                      ? 'bg-accent text-accent-foreground'
+                      : 'bg-muted text-muted-foreground')
+                  }
+                  onClick={() => setScreensaverMode(m)}
+                >
+                  {t(m === 'orbit' ? 'map_screensaver_mode_orbit' : 'map_screensaver_mode_flyover')}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="number"
+                min={SCREENSAVER_MIN_MINUTES}
+                max={SCREENSAVER_MAX_MINUTES}
+                step={1}
+                value={screensaverMinutes}
+                onChange={(e) => {
+                  const v = Math.round(Number(e.target.value));
+                  if (Number.isFinite(v)) {
+                    setScreensaverMinutes(
+                      Math.min(SCREENSAVER_MAX_MINUTES, Math.max(SCREENSAVER_MIN_MINUTES, v))
+                    );
+                  }
+                }}
+                className="w-16 rounded border border-border bg-background px-2 py-1 text-sm"
+              />
+              {t('map_screensaver_idle_minutes')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_screensaver_help')}</p>
+          </div>
+        ),
+      },
     ];
   }, [
     t,
@@ -2418,6 +2533,12 @@ export function MapView({
     relaySignalPlaced,
     relaySignalUnplaced,
     setShowRelaySignal,
+    screensaverOn,
+    screensaverMode,
+    screensaverMinutes,
+    setScreensaverOn,
+    setScreensaverMode,
+    setScreensaverMinutes,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
@@ -2549,6 +2670,19 @@ export function MapView({
               }}
             />
           </div>
+        )}
+        {screensaver.active && (
+          // Catches the waking click/wheel so it does not also act on the map.
+          <div
+            data-testid="map-screensaver-overlay"
+            aria-hidden
+            className="fixed inset-0 z-5000 cursor-none"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              screensaver.wake();
+            }}
+          />
         )}
       </MapSurface>
     </div>
