@@ -391,6 +391,32 @@ describe('SnmpNodeView', () => {
     expect(screen.queryByTestId('snmp-chart-filter_drops')).toBeNull();
   });
 
+  it('shows the latest values as a dashboard on a wide screen', async () => {
+    await renderNode();
+    await screen.findByTestId('snmp-values');
+
+    expect(screen.getByText('Radio traffic')).toBeInTheDocument();
+    expect(within(screen.getByTestId('snmp-group-radio')).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('keeps the plain value list on a phone', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      ...original(query),
+      matches: query === '(max-width: 768px)',
+    })) as typeof window.matchMedia;
+    try {
+      await renderNode();
+      await screen.findByTestId('snmp-values');
+
+      expect(screen.queryByText('Radio traffic')).toBeNull();
+      expect(screen.queryByRole('table')).toBeNull();
+      expect(screen.getAllByTestId(/^snmp-row-/)).toHaveLength(22);
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it('says the reason was not reported on older firmware', async () => {
     await renderNode();
 

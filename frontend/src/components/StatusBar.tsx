@@ -245,7 +245,7 @@ export function StatusBar({
   return (
     <header
       className={cn(
-        'app-statusbar flex items-center gap-3 text-xs',
+        'app-statusbar flex items-center gap-2 text-xs sm:gap-3',
         topbar ? 'app-topbar h-14 px-6' : 'px-4 py-2.5 bg-card border-b border-border'
       )}
     >
@@ -262,7 +262,7 @@ export function StatusBar({
       )}
 
       {!topbar && (
-        <h1 className="text-base font-semibold tracking-tight mr-auto text-foreground flex items-center gap-1.5">
+        <h1 className="text-base font-semibold tracking-tight mr-auto min-w-0 text-foreground flex items-center gap-1.5">
           <AppBrand brandName={brandName} brandHidden={brandHidden} brandIcon={brandIcon} />
         </h1>
       )}
