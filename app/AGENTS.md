@@ -155,14 +155,20 @@ group), so features are merged on ID (`collect_site_feature`) before
 `AntennaRegisterTransmitter` (sector count, bearings, highest mount, strongest
 power). The service only serves EPSG:28992; `app/rd_new.py` converts to WGS84
 (published polynomial, ~0.3 m off PDOK's own pairs). Cache table
-`antenna_register_sites` (migration `_154`, transmitters as JSON), replaced in
-full by `AntennaRegisterRepository.replace_all_rows`; an empty result raises
-and keeps the old cache. No periodic sync: `POST /sync` (202) starts a
-background task (a few minutes, ~100 pages) and is a no-op while one runs;
-`GET /status` (`count`, `last_synced_at`, `running`, `phase`, `fetched`,
-`error`); `GET /sites?west&south&east&north&limit` (summaries, strongest
-first, `truncated`; limit up to 50000; the map asks for everything, ~26k
-rows); `GET /sites/{id}`
+`antenna_register_sites` (migration `_154`, transmitters as JSON;
+`max_height_m`, the site's highest antenna above ground level, from `_156`
+with a backfill from that JSON), replaced in full by
+`AntennaRegisterRepository.replace_all_rows`; an empty result raises and keeps
+the old cache. No periodic sync: `POST /sync` (202) starts a background task (a
+few minutes, ~100 pages) and is a no-op while one runs; `GET /status`
+(`count`, `last_synced_at`, `running`, `phase`, `fetched`, `error`);
+`GET /sites/all` (what the map loads: every site as compact rows
+`[id, lat, lon, bands, max_power_dbw, max_height_m]` plus `synced_at`, built
+from plain tuples and kept encoded in memory until count or last sync changes,
+because pydantic models for ~26k sites took 0.5-1.2 s); `GET /sites?west&south&
+east&north&limit` (summaries, strongest first, `truncated`, limit up to 50000);
+`GET /sites/full?west&south&east&north&limit` (full sites with transmitters,
+limit up to 5000, for the zoomed-in radiation patterns); `GET /sites/{id}`
 (full site, 404 when unknown).
 
 ## Core Runtime Flows

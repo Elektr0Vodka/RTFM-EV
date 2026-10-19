@@ -1550,6 +1550,8 @@ export interface AntennaRegisterSiteSummary {
   /** MHz band labels present on the site: "700", "800", "900". */
   bands: string[];
   max_power_dbw: number | null;
+  /** Highest antenna, metres from ground level to its centre. */
+  max_height_m: number | null;
 }
 
 /** One system + frequency on an antenna site, all sectors folded in. */

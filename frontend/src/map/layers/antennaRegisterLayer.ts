@@ -10,6 +10,10 @@ import type { AntennaRegisterSiteSummary } from '../../types';
 // Drawn UNDER every node layer, so they never hide or steal clicks from mesh
 // nodes. Dot size follows the site's strongest antenna (dBW as registered) and
 // grows with zoom.
+//
+// Speed: the source gets every cached site once. Switching the band is a
+// filter + paint change and toggling is a visibility change, so neither sends
+// data to the GeoJSON worker again.
 
 const SOURCE_ID = 'rt-antenna-register';
 const LAYER_ID = 'rt-antenna-register';
@@ -42,8 +46,13 @@ export interface AntennaSiteProps {
   id: number;
 }
 
-/** Point features for sites already filtered with {@link sitesForBand}. */
-export function buildAntennaFeatures(sites: AntennaRegisterSiteSummary[], band: AntennaBand) {
+/**
+ * Point features for every cached site, band-independent. `b868` marks a site
+ * on the 868 view; `k433` is "pamr" (has 400-470 MHz data), "amateur" (amateur
+ * station only) or "" (not on the 433 view).
+ */
+export function buildAntennaFeatures(sites: AntennaRegisterSiteSummary[]) {
+  const g868 = ANTENNA_BAND_GROUPS['868'];
   return {
     type: 'FeatureCollection' as const,
     features: sites.map((s) => ({
@@ -52,10 +61,44 @@ export function buildAntennaFeatures(sites: AntennaRegisterSiteSummary[], band: 
       properties: {
         id: s.id,
         power: s.max_power_dbw ?? 20,
-        // An amateur-only site on the 433 view has no registered antenna data.
-        kind: band === '433' && !s.bands.includes('450') ? 'amateur' : band,
+        b868: s.bands.some((b) => g868.includes(b)),
+        k433: s.bands.includes('450') ? 'pamr' : s.bands.includes('amateur') ? 'amateur' : '',
       },
     })),
+  };
+}
+
+/** MapLibre filter showing the chosen band's sites. */
+export function antennaBandFilter(band: AntennaBand): unknown[] {
+  return band === '868' ? ['==', ['get', 'b868'], true] : ['!=', ['get', 'k433'], ''];
+}
+
+// Power-scaled radius: ~15 dBW small cell -> small dot, ~37 dBW macro -> large.
+const powerRadius = (min: number, max: number) => [
+  'interpolate',
+  ['linear'],
+  ['get', 'power'],
+  15,
+  min,
+  37,
+  max,
+];
+
+/** Paint for the chosen band. Amateur-only sites (no power) get a fixed mid size. */
+export function antennaBandPaint(band: AntennaBand): Record<string, unknown> {
+  const amateur = ['==', ['get', 'k433'], 'amateur'];
+  const radiusAt = (min: number, max: number) =>
+    band === '433'
+      ? ['case', amateur, (min + max) / 2, powerRadius(min, max)]
+      : powerRadius(min, max);
+  return {
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, radiusAt(1.5, 3), 12, radiusAt(3, 7)],
+    'circle-color':
+      band === '433' ? ['case', amateur, 'rgba(0,0,0,0)', ANTENNA_433_FILL] : ANTENNA_868_FILL,
+    'circle-opacity': 0.6,
+    'circle-stroke-color':
+      band === '433' ? ['case', amateur, ANTENNA_AMATEUR_STROKE, '#7c2d12'] : '#7f1d1d',
+    'circle-stroke-width': band === '433' ? ['case', amateur, 1.5, 1] : 1,
   };
 }
 
@@ -68,23 +111,16 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
   const m = map as any;
   let listenersBound = false;
   let visible = false;
+  let band: AntennaBand = '868';
   let lastData: ReturnType<typeof buildAntennaFeatures> = {
     type: 'FeatureCollection',
     features: [],
   };
 
-  // Power-scaled radius: ~15 dBW small cell -> small dot, ~37 dBW macro -> large.
-  // Amateur sites have no power, so they get a fixed mid size.
-  const radiusAt = (min: number, max: number) => [
-    'case',
-    ['==', ['get', 'kind'], 'amateur'],
-    (min + max) / 2,
-    ['interpolate', ['linear'], ['get', 'power'], 15, min, 37, max],
-  ];
-
   function addSourceAndLayer() {
     if (m.getSource(SOURCE_ID)) return;
-    m.addSource(SOURCE_ID, { type: 'geojson', data: lastData });
+    // Points need no deep tiles: z12 tiles overzoom fine and index much faster.
+    m.addSource(SOURCE_ID, { type: 'geojson', data: lastData, maxzoom: 12, buffer: 32 });
     const before = BELOW_LAYER_IDS.find((id) => m.getLayer(id));
     m.addLayer(
       {
@@ -92,37 +128,8 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
         type: 'circle',
         source: SOURCE_ID,
         layout: { visibility: visible ? 'visible' : 'none' },
-        paint: {
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            6,
-            radiusAt(1.5, 3),
-            12,
-            radiusAt(3, 7),
-          ],
-          'circle-color': [
-            'match',
-            ['get', 'kind'],
-            '433',
-            ANTENNA_433_FILL,
-            'amateur',
-            'rgba(0,0,0,0)',
-            ANTENNA_868_FILL,
-          ],
-          'circle-opacity': 0.6,
-          'circle-stroke-color': [
-            'match',
-            ['get', 'kind'],
-            '433',
-            '#7c2d12',
-            'amateur',
-            ANTENNA_AMATEUR_STROKE,
-            '#7f1d1d',
-          ],
-          'circle-stroke-width': ['match', ['get', 'kind'], 'amateur', 1.5, 1],
-        },
+        filter: antennaBandFilter(band),
+        paint: antennaBandPaint(band),
       },
       before
     );
@@ -147,9 +154,19 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
     });
   }
 
-  function setData(sites: AntennaRegisterSiteSummary[], band: AntennaBand) {
-    lastData = buildAntennaFeatures(sites, band);
+  /** Replace the whole site set (only after a fetch). */
+  function setData(sites: AntennaRegisterSiteSummary[]) {
+    lastData = buildAntennaFeatures(sites);
     m.getSource(SOURCE_ID)?.setData(lastData);
+  }
+
+  function setBand(next: AntennaBand) {
+    band = next;
+    if (!m.getLayer(LAYER_ID)) return;
+    m.setFilter(LAYER_ID, antennaBandFilter(band));
+    for (const [prop, value] of Object.entries(antennaBandPaint(band))) {
+      m.setPaintProperty(LAYER_ID, prop, value);
+    }
   }
 
   function setVisible(on: boolean) {
@@ -166,5 +183,5 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
     addSourceAndLayer();
   }
 
-  return { ensure, reattach, setData, setVisible };
+  return { ensure, reattach, setData, setBand, setVisible };
 }

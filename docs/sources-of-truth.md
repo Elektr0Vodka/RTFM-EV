@@ -173,7 +173,11 @@ machine this was authored on and may differ elsewhere.
   `Antennes_Groepen`, EPSG:28992 only; capabilities state `Fees: none`,
   `AccessConstraints: none`). Fetched only on a manual sync
   (`app/services/antenna_register.py`). Its viewer's own JS shows the field
-  meanings (power is labelled "Vermogen (dBW)"). Amateur sites
+  meanings (power is labelled "Vermogen (dBW)"). The register's fields are
+  defined in Frequentiebesluit art. 20c lid 1 (Stb. 2009, 560): height from
+  ground level to the geometric centre of the antenna, power in dB watt ERP in
+  the main beam direction; no beamwidth, gain or tilt, so the map's radiation
+  patterns (`frontend/src/map/antennaPatterns.ts`) assume them. Amateur sites
   (`HOOFDSOORT` `ZENDAMATEURS`) have no antenna rows: no band, no power. RD New
   to WGS84 is
   `app/rd_new.py`, checked against PDOK locatieserver `centroide_rd` /

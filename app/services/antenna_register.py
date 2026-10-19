@@ -279,6 +279,7 @@ def build_site(feature: dict, sectors: dict[int, list[Sector]]) -> AntennaRegist
         kinds=str(props.get("HOOFDSOORT") or ""),
         bands=bands,
         max_power_dbw=_max([t.power_dbw for t in transmitters]),
+        max_height_m=_max([t.height_m for t in transmitters]),
         transmitters=transmitters,
     )
 
