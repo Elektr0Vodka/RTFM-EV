@@ -80,6 +80,44 @@ describe('MapControls', () => {
     expect(screen.getByRole('button', { name: /keep legend on screen/i })).toBeInTheDocument();
   });
 
+  it('collapses and expands a section from its header', () => {
+    renderControls({ fabs: { layers: true, legend: true } });
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    const header = screen.getByRole('button', { name: 'Basemap' });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Basemap')).not.toBeInTheDocument();
+    // Other sections stay open.
+    expect(screen.getByRole('button', { name: /keep legend on screen/i })).toBeInTheDocument();
+    fireEvent.click(header);
+    expect(screen.getByLabelText('Basemap')).toBeInTheDocument();
+  });
+
+  it('remembers collapsed sections across remounts', () => {
+    const first = renderControls({ fabs: { layers: true, legend: true } });
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }));
+    first.unmount();
+    renderControls({ fabs: { layers: true, legend: true } });
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    expect(screen.getByRole('button', { name: 'Legend' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    expect(
+      screen.queryByRole('button', { name: /keep legend on screen/i })
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Basemap')).toBeInTheDocument();
+  });
+
+  it('ignores an invalid stored collapsed-sections value', () => {
+    localStorage.setItem('remoteterm-map-collapsed-sections', '{"layers":true}');
+    renderControls({ fabs: { layers: true } });
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    expect(screen.getByLabelText('Basemap')).toBeInTheDocument();
+  });
+
   it('houses the size and colour settings in their own cogwheel FAB, not Display', () => {
     renderControls({ fabs: { layers: true, nodeSize: true }, onRoleColorChange: vi.fn() });
     fireEvent.click(screen.getByRole('button', { name: 'Display' }));

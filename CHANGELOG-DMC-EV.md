@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (collapsible map panel sections, feat/collapsible-map-panel-sections)
+
+No migration, no new dependency.
+
+### Map
+- Every section inside the map's group panels (Display, Size & colors, Filters,
+  Overlays) can be folded shut with a click on its header. The choice is kept
+  per browser, so a folded section stays folded after a reload. All sections
+  start open.
+
 ## Update 2026-10-19 (MeshCoreNG trackers, feat/meshcoreng-trackers)
 
 No migration, no new dependency. Nothing is sent over the radio. Builds on

@@ -18,6 +18,7 @@ import {
   Minimize,
   Download,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { useT } from '../../i18n';
 import { BUDDY_ANCHORS } from '../../buddy/buddyAnchors';
@@ -134,6 +135,8 @@ const isPanelPos = (v: unknown): v is PanelPos =>
   v !== null &&
   Number.isFinite((v as PanelPos).x) &&
   Number.isFinite((v as PanelPos).y);
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((s) => typeof s === 'string');
 
 interface PanelDef {
   id: string;
@@ -253,6 +256,16 @@ export function MapControls(props: MapControlsProps) {
     DEFAULT_LEGEND_POS,
     isPanelPos
   );
+  // Section ids the user folded shut inside the group panels; all start open.
+  const [collapsedSections, setCollapsedSections] = usePersistedMapSetting<string[]>(
+    'remoteterm-map-collapsed-sections',
+    [],
+    isStringArray
+  );
+  const toggleSection = (id: string) =>
+    setCollapsedSections((cur) =>
+      cur.includes(id) ? cur.filter((s) => s !== id) : [...cur, id].sort()
+    );
 
   const {
     fabs,
@@ -695,14 +708,29 @@ export function MapControls(props: MapControlsProps) {
       icon: g.icon,
       body: (
         <div className="flex flex-col gap-4">
-          {sections.map((s) => (
-            <div key={s.id} className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {s.title}
-              </span>
-              {s.body}
-            </div>
-          ))}
+          {sections.map((s) => {
+            const open = !collapsedSections.includes(s.id);
+            const bodyId = `map-section-${s.id}`;
+            return (
+              <div key={s.id} className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={bodyId}
+                  className="flex w-full items-center justify-between gap-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleSection(s.id)}
+                >
+                  <span>{s.title}</span>
+                  <ChevronDown
+                    size={14}
+                    aria-hidden
+                    className={'shrink-0 transition-transform' + (open ? '' : ' -rotate-90')}
+                  />
+                </button>
+                {open && <div id={bodyId}>{s.body}</div>}
+              </div>
+            );
+          })}
         </div>
       ),
     });
