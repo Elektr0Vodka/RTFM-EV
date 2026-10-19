@@ -2674,7 +2674,17 @@ class AppSettings(BaseModel):
         default="https://meshcore-analyzer.eu/api/nodes",
         description=(
             "URL of an external analyzer node directory (bare JSON array of nodes "
-            "with ID/Name/Role/Lat/Lon) to sync into the external-map overlay"
+            "with ID/Name/Role/Lat/Lon). Synced into the overlay when "
+            "external_map_source is 'analyzer'; its host is also the analyzer for "
+            "route checks and who-heard lookups"
+        ),
+    )
+    external_map_source: Literal["meshcore_map", "analyzer"] = Field(
+        default="meshcore_map",
+        description=(
+            "Where the external-map overlay gets its nodes: 'meshcore_map' "
+            "(map.meshcore.io /api/v1/nodes, default) or 'analyzer' "
+            "(external_map_sync_url)"
         ),
     )
     external_map_sync_interval_hours: int = Field(
@@ -2782,6 +2792,7 @@ class AntennaRegisterSiteSummary(BaseModel):
     lon: float
     bands: list[str] = Field(default_factory=list)
     max_power_dbw: float | None = None
+    max_height_m: float | None = None  # Highest antenna, metres above ground level
 
 
 class AntennaRegisterSite(AntennaRegisterSiteSummary):

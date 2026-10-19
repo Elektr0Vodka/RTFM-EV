@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import aiosqlite
 
@@ -78,7 +78,7 @@ class AppSettingsRepository:
                    registry_sync_url, region_sync_url,
                    wordlist_sync_url, analyzer_sites, handy_info, team_beacon,
                    external_map_enabled, external_map_sync_url,
-                   external_map_sync_interval_hours,
+                   external_map_sync_interval_hours, external_map_source,
                    backup_to_path_enabled, backup_destination_path,
                    backup_schedule_enabled, backup_schedule_interval_hours,
                    backup_schedule_keep,
@@ -473,6 +473,14 @@ class AppSettingsRepository:
             external_map_sync_interval_hours = row["external_map_sync_interval_hours"] or 0
         except (KeyError, TypeError):
             external_map_sync_interval_hours = 0
+        # Node source for the overlay (migration _155 adds the column).
+        try:
+            raw_external_map_source = row["external_map_source"]
+        except (KeyError, TypeError):
+            raw_external_map_source = None
+        external_map_source: Literal["meshcore_map", "analyzer"] = (
+            "analyzer" if raw_external_map_source == "analyzer" else "meshcore_map"
+        )
 
         # Server-side backup settings (migration _084 adds the columns).
         try:
@@ -624,6 +632,7 @@ class AppSettingsRepository:
             external_map_enabled=external_map_enabled,
             external_map_sync_url=external_map_sync_url,
             external_map_sync_interval_hours=external_map_sync_interval_hours,
+            external_map_source=external_map_source,
             backup_to_path_enabled=backup_to_path_enabled,
             backup_destination_path=backup_destination_path,
             backup_schedule_enabled=backup_schedule_enabled,
@@ -715,6 +724,7 @@ class AppSettingsRepository:
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
+        external_map_source: str | None = None,
         backup_to_path_enabled: bool | None = None,
         backup_destination_path: str | None = None,
         backup_schedule_enabled: bool | None = None,
@@ -1000,6 +1010,10 @@ class AppSettingsRepository:
             updates.append("external_map_sync_interval_hours = ?")
             params.append(external_map_sync_interval_hours)
 
+        if external_map_source is not None:
+            updates.append("external_map_source = ?")
+            params.append(external_map_source)
+
         if backup_to_path_enabled is not None:
             updates.append("backup_to_path_enabled = ?")
             params.append(1 if backup_to_path_enabled else 0)
@@ -1123,6 +1137,7 @@ class AppSettingsRepository:
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
+        external_map_source: str | None = None,
         backup_to_path_enabled: bool | None = None,
         backup_destination_path: str | None = None,
         backup_schedule_enabled: bool | None = None,
@@ -1212,6 +1227,7 @@ class AppSettingsRepository:
                 external_map_enabled=external_map_enabled,
                 external_map_sync_url=external_map_sync_url,
                 external_map_sync_interval_hours=external_map_sync_interval_hours,
+                external_map_source=external_map_source,
                 backup_to_path_enabled=backup_to_path_enabled,
                 backup_destination_path=backup_destination_path,
                 backup_schedule_enabled=backup_schedule_enabled,

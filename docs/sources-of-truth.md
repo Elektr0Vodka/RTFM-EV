@@ -153,20 +153,31 @@ machine this was authored on and may differ elsewhere.
 - EU MeshCore Analyzer (map / mobile layout reference): https://github.com/EU-Meshcore-Analyzer/EU-Meshcore-Analyzer
   (local `G:\Github\repositories\Elektr0Vodka\EU-Meshcore-Analyzer`).
   Its public API is also a runtime data source: `https://meshcore-analyzer.eu/api/nodes`
-  is the default `external_map_sync_url` (external node overlay on the map, and the
-  candidate source for partial-node resolution; `app/services/external_map.py`), and
+  is the default `external_map_sync_url` (external node overlay on the map when
+  `external_map_source` is `analyzer`, and the candidate source for partial-node
+  resolution; `app/services/external_map.py`), and
   `https://meshcore-analyzer.eu/api/regions/scopes` is the example
   `region_sync_url` (default empty; `app/routers/regions.py`).
   On request only (contact pane, "Check with analyzer"), `GET /api/nodes/{pubkey}/reach`
   and `POST /api/paths/inspect` on the host of `external_map_sync_url` validate
   suggested DM routes (`app/services/analyzer_path_check.py`).
+- MeshCore map: https://map.meshcore.io. Runtime data source for the external node
+  overlay ("Analyzer nodes") when `external_map_source` is `meshcore_map`, the default
+  since migration `_155`: `GET https://map.meshcore.io/api/v1/nodes`, a bare JSON array
+  of every node uploaded to the map (`public_key`, `type`, `adv_name`, `adv_lat`,
+  `adv_lon`, `updated_date` = last seen, ...; ~67k nodes / ~50 MB uncompressed, ~17 MB gzip on
+  2026-10-19). Fetched server-side by `app/services/external_map.py`.
 - Dutch Antenneregister (Antennebureau, part of the RDI): https://antenneregister.nl.
   Runtime data source for the map's antenna layer: the public WFS
   `https://antenneregister.nl/mapserver/wfs/` (feature types `Antennes` and
   `Antennes_Groepen`, EPSG:28992 only; capabilities state `Fees: none`,
   `AccessConstraints: none`). Fetched only on a manual sync
   (`app/services/antenna_register.py`). Its viewer's own JS shows the field
-  meanings (power is labelled "Vermogen (dBW)"). Amateur sites
+  meanings (power is labelled "Vermogen (dBW)"). The register's fields are
+  defined in Frequentiebesluit art. 20c lid 1 (Stb. 2009, 560): height from
+  ground level to the geometric centre of the antenna, power in dB watt ERP in
+  the main beam direction; no beamwidth, gain or tilt, so the map's radiation
+  patterns (`frontend/src/map/antennaPatterns.ts`) assume them. Amateur sites
   (`HOOFDSOORT` `ZENDAMATEURS`) have no antenna rows: no band, no power. RD New
   to WGS84 is
   `app/rd_new.py`, checked against PDOK locatieserver `centroide_rd` /

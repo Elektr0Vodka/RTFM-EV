@@ -38,6 +38,7 @@ import httpx
 from app.models import AntennaRegisterSite, AntennaRegisterTransmitter
 from app.rd_new import rd_to_wgs84
 from app.repository.antenna_register import AntennaRegisterRepository, SiteRow
+from app.version_info import user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,6 @@ PAGE_SIZE = 2000  # The server caps a page at 2000 features.
 # match the frequency filter, ~38k sites in total).
 MAX_PAGES = 400
 _FETCH_TIMEOUT = 120.0
-_USER_AGENT = "RTFM-EV antenna-register sync"
 
 # (label, low MHz, high MHz): registered bands next to the mesh bands. An antenna
 # is kept when its registered frequency (or range) overlaps one of these. The
@@ -279,6 +279,7 @@ def build_site(feature: dict, sectors: dict[int, list[Sector]]) -> AntennaRegist
         kinds=str(props.get("HOOFDSOORT") or ""),
         bands=bands,
         max_power_dbw=_max([t.power_dbw for t in transmitters]),
+        max_height_m=_max([t.height_m for t in transmitters]),
         transmitters=transmitters,
     )
 
@@ -333,7 +334,7 @@ async def _fetch_all(client: httpx.AsyncClient, typename: str, flt: str | None =
 async def sync_antenna_register() -> tuple[int, int]:
     """Fetch, filter and cache the register. Returns ``(site_count, synced_at)``."""
     async with httpx.AsyncClient(
-        timeout=_FETCH_TIMEOUT, headers={"User-Agent": _USER_AGENT}
+        timeout=_FETCH_TIMEOUT, headers={"User-Agent": user_agent()}
     ) as client:
         sectors: dict[int, list[Sector]] = {}
         _state.phase, _state.fetched = "antennas", 0

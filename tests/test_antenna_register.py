@@ -10,6 +10,14 @@ import app.services.antenna_register as svc
 from app.models import AntennaRegisterSite, AntennaRegisterTransmitter
 from app.rd_new import rd_to_wgs84
 from app.repository.antenna_register import AntennaRegisterRepository
+from app.routers.antenna_register import reset_all_sites_cache
+
+
+@pytest.fixture(autouse=True)
+def _fresh_all_sites_cache():
+    reset_all_sites_cache()
+    yield
+    reset_all_sites_cache()
 
 
 def _metres(lat1, lon1, lat2, lon2):
@@ -130,6 +138,7 @@ class TestBuildSite:
         assert lte816.bearings_deg == [0.0, 120.0, 240.0]
         assert lte816.height_m == 30.0
         assert lte816.power_dbw == 31.4
+        assert site.max_height_m == 30.0
         assert [t.frequency for t in site.transmitters] == ["806 MHz", "816 MHz", "925-934.8 MHz"]
 
     def test_omni_antenna(self):
@@ -328,3 +337,43 @@ class TestRouter:
         assert detail.status_code == 200
         assert detail.json()["transmitters"][0]["sectors"] == 3
         assert (await client.get("/api/antenna-register/sites/999")).status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_all_sites_is_compact_and_follows_syncs(self, test_db, client):
+        empty = (await client.get("/api/antenna-register/sites/all")).json()
+        assert empty == {
+            "synced_at": None,
+            "fields": ["id", "lat", "lon", "bands", "max_power_dbw", "max_height_m"],
+            "rows": [],
+        }
+        tall = _site(1, 52.0, 4.0, 20.0)
+        tall.max_height_m = 42.0
+        await AntennaRegisterRepository.replace_all([tall], synced_at=7)
+        body = (await client.get("/api/antenna-register/sites/all")).json()
+        assert body["synced_at"] == 7
+        assert body["rows"] == [[1, 52.0, 4.0, "800", 20.0, 42.0]]
+        # A new sync replaces the cached body.
+        await AntennaRegisterRepository.replace_all(
+            [_site(2, 51.0, 5.0, 30.0), _site(3, 51.5, 5.5, 31.0)], synced_at=8
+        )
+        body = (await client.get("/api/antenna-register/sites/all")).json()
+        assert body["synced_at"] == 8
+        assert [r[0] for r in body["rows"]] == [2, 3]
+
+    @pytest.mark.asyncio
+    async def test_full_sites_endpoint_returns_transmitters_in_box(self, test_db, client):
+        tall = _site(1, 52.0, 4.0, 20.0)
+        tall.max_height_m = 42.0
+        await AntennaRegisterRepository.replace_all(
+            [tall, _site(2, 52.1, 4.1, 30.0), _site(3, 10.0, 10.0, 30.0)], synced_at=1
+        )
+        box = {"west": 3, "south": 51, "east": 5, "north": 53}
+        body = (await client.get("/api/antenna-register/sites/full", params=box)).json()
+        assert [s["id"] for s in body["sites"]] == [2, 1]  # strongest first
+        assert body["sites"][1]["transmitters"][0]["frequency"] == "816 MHz"
+        assert body["sites"][1]["max_height_m"] == 42.0
+        assert body["truncated"] is False
+        capped = await client.get("/api/antenna-register/sites/full", params={**box, "limit": 1})
+        assert capped.json()["truncated"] is True
+        summary = (await client.get("/api/antenna-register/sites", params=box)).json()
+        assert summary["sites"][1]["max_height_m"] == 42.0

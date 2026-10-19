@@ -279,7 +279,7 @@ Die Kartenbedienung ist in **Anzeige**, **Größe & Farben**, **Filter** und **O
 - **Geschätzte Standorte:** geschätzte Positionen für Knoten ohne Standort, als hohle Markierungen auf jeder Zoomstufe, beschriftet gemäß der Karteneinstellung Beschriftungen. Werden nie gespeichert oder gesendet.
 - **Relay-Signal:** Ringe um Relays, die Flood-Pakete an dein Funkgerät weitergegeben haben, eingefärbt nach durchschnittlichem SNR.
 
-**Analyzer-Knoten** zeigt Knoten aus dem Knotenverzeichnis eines externen Analyzers. Dieses Verzeichnis wird nur gefüllt, wenn **Externe Analyzer-Knotenebene** in Einstellungen > Radio eingeschaltet und synchronisiert ist.
+**Analyzer-Knoten** zeigt Knoten aus einem externen Knotenverzeichnis. Dieses Verzeichnis wird nur gefüllt, wenn **Externe Analyzer-Knotenebene** in Einstellungen > Radio eingeschaltet und synchronisiert ist. **Knotenquelle** legt fest, woher es kommt: **map.meshcore.io** (der Standard, Knoten weltweit, etwa 50 MB pro Synchronisierung) oder **Analyzer**, das von der Analyzer-URL synchronisiert.
 
 ### Pakete visualisieren
 
@@ -425,7 +425,7 @@ Füge ein Rohpaket als Hex ein, um es Byte für Byte entschlüsselt zu sehen.
 
 Jede Paketaufschlüsselung (aus dem Paket-Feed, dem Paketverlauf, einer Nachricht oder Paket analysieren) hat einen Abschnitt **Wer hat das gehört**. Er zeigt den Paket-Hash, der für jede weitergeleitete Kopie eines Pakets gleich ist, und einen Link zur Seite des Pakets auf jeder Analyzer-Seite, die du mit einer Paketadresse eingerichtet hast (Einstellungen > Datenbank).
 
-**Fragen** sendet diesen Hash an den Analyzer, der als externe Kartenquelle eingestellt ist (standardmäßig meshcore-analyzer.eu), und listet die Observer dort auf, die das Paket empfangen haben, mit Region, Zeit, RSSI und SNR. So vergleichst du deinen eigenen Empfang mit dem Rest des Netzes. Es wird nichts gesendet, bis du die Schaltfläche drückst, und der Analyzer erhält den Hash, nicht das Paket. Er kennt nur, was seine eigenen Observer gehört haben; eine leere Antwort heißt also nicht, dass niemand das Paket gehört hat.
+**Fragen** sendet diesen Hash an den Analyzer unter der Analyzer-URL der externen Knotenebene (standardmäßig meshcore-analyzer.eu, unabhängig von der Knotenquelle), und listet die Observer dort auf, die das Paket empfangen haben, mit Region, Zeit, RSSI und SNR. So vergleichst du deinen eigenen Empfang mit dem Rest des Netzes. Es wird nichts gesendet, bis du die Schaltfläche drückst, und der Analyzer erhält den Hash, nicht das Paket. Er kennt nur, was seine eigenen Observer gehört haben; eine leere Antwort heißt also nicht, dass niemand das Paket gehört hat.
 
 ### Mesh-Visualisierung
 

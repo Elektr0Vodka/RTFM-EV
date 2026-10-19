@@ -279,7 +279,7 @@ De kaartbediening is verdeeld over **Weergave**, **Grootte & kleuren**, **Filter
 - **Geraden locaties:** geschatte posities voor nodes zonder locatie, als holle markeringen op elk zoomniveau, met labels volgens de kaartinstelling Labels. Worden nooit opgeslagen of verstuurd.
 - **Relay-signaal:** ringen rond relays die flood-pakketten aan je radio doorgaven, gekleurd naar gemiddelde SNR.
 
-**Analyzer-nodes** toont nodes uit de nodelijst van een externe analyzer. Die lijst wordt alleen gevuld als **Externe analyzer-node-laag** is aangezet en gesynchroniseerd in Instellingen > Radio.
+**Analyzer-nodes** toont nodes uit een externe nodelijst. Die lijst wordt alleen gevuld als **Externe analyzer-node-laag** is aangezet en gesynchroniseerd in Instellingen > Radio. **Nodebron** kiest waar die vandaan komt: **map.meshcore.io** (de standaard, nodes wereldwijd, ongeveer 50 MB per sync) of **Analyzer**, dat synchroniseert vanaf de Analyzer-URL.
 
 ### Pakketten visualiseren
 
@@ -425,7 +425,7 @@ Plak een ruw pakket als hex om het byte voor byte gedecodeerd te zien.
 
 Elke pakketuitsplitsing (vanuit de Pakketfeed, de Pakketgeschiedenis, een bericht of Pakket analyseren) heeft een onderdeel **Wie hoorde dit**. Het toont de pakkethash, die voor elke doorgestuurde kopie van één pakket gelijk is, en een link naar de pagina van het pakket op elke analyzersite die je met een pakketadres hebt ingesteld (Instellingen > Database).
 
-**Vraag** stuurt die hash naar de analyzer die als externe kaartbron is ingesteld (standaard meshcore-analyzer.eu) en toont de observers daar die het pakket ontvingen, met regio, tijd, RSSI en SNR. Zo vergelijk je je eigen ontvangst met de rest van het netwerk. Er wordt niets verstuurd tot je op de knop drukt, en de analyzer krijgt de hash, niet het pakket. De analyzer kent alleen wat zijn eigen observers hoorden; een leeg antwoord betekent dus niet dat niemand het pakket hoorde.
+**Vraag** stuurt die hash naar de analyzer op de Analyzer-URL van de externe node-laag (standaard meshcore-analyzer.eu, ongeacht de nodebron) en toont de observers daar die het pakket ontvingen, met regio, tijd, RSSI en SNR. Zo vergelijk je je eigen ontvangst met de rest van het netwerk. Er wordt niets verstuurd tot je op de knop drukt, en de analyzer krijgt de hash, niet het pakket. De analyzer kent alleen wat zijn eigen observers hoorden; een leeg antwoord betekent dus niet dat niemand het pakket hoorde.
 
 ### Mesh-visualisatie
 

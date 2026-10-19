@@ -1155,17 +1155,36 @@ export const api = {
   syncAntennaRegister: () =>
     fetchJson<AntennaRegisterStatus>('/antenna-register/sync', { method: 'POST' }),
   getAntennaRegisterStatus: () => fetchJson<AntennaRegisterStatus>('/antenna-register/status'),
-  getAntennaRegisterSites: (signal?: AbortSignal) => {
-    // The whole cache (~26k sites) in one go; MapLibre handles the rest.
+  /** Every cached site (compact rows, decoded here) and the sync they come from. */
+  getAntennaRegisterAllSites: async (signal?: AbortSignal) => {
+    const body = await fetchJson<{
+      synced_at: number | null;
+      rows: [number, number, number, string, number | null, number | null][];
+    }>('/antenna-register/sites/all', { signal });
+    const sites: AntennaRegisterSiteSummary[] = body.rows.map(
+      ([id, lat, lon, bands, power, height]) => ({
+        id,
+        lat,
+        lon,
+        bands: bands ? bands.split(',') : [],
+        max_power_dbw: power,
+        max_height_m: height,
+      })
+    );
+    return { syncedAt: body.synced_at, sites };
+  },
+  getAntennaRegisterFullSites: (
+    bbox: { west: number; south: number; east: number; north: number },
+    signal?: AbortSignal
+  ) => {
     const qs = new URLSearchParams({
-      west: '-180',
-      south: '-90',
-      east: '180',
-      north: '90',
-      limit: '50000',
+      west: String(bbox.west),
+      south: String(bbox.south),
+      east: String(bbox.east),
+      north: String(bbox.north),
     });
-    return fetchJson<{ sites: AntennaRegisterSiteSummary[]; truncated: boolean }>(
-      `/antenna-register/sites?${qs.toString()}`,
+    return fetchJson<{ sites: AntennaRegisterSite[]; truncated: boolean }>(
+      `/antenna-register/sites/full?${qs.toString()}`,
       { signal }
     );
   },
