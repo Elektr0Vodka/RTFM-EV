@@ -4,6 +4,7 @@ import { parseWsEvent, type NewNodePayload } from './wsEvents';
 import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
 import { emitSpamGuardEvent } from './utils/spamGuardEvents';
 import { emitTrackerEvent } from './utils/trackerEvents';
+import { recordDamagedFrame } from './stores/damagedFrameStore';
 import { setBotListsState } from './utils/botLists';
 import { probeAuthSession } from './utils/authRedirect';
 
@@ -199,6 +200,9 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             break;
           case 'tracker':
             emitTrackerEvent(msg.data);
+            break;
+          case 'rx_bad_frame':
+            recordDamagedFrame(msg.data);
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);

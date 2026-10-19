@@ -28,6 +28,7 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     # ATAK / SAR trackers (migration 157), same retention knob as device history.
     "tracker_positions": ("tracker_positions", "received_at"),
     "tracker_objects": ("tracker_objects", "received_at"),
+    "rx_bad_frames": ("rx_bad_frames", "timestamp"),
 }
 
 # Tables that also get a per-node row cap (newest kept).

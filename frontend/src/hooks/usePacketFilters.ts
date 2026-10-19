@@ -30,6 +30,11 @@ export interface PacketFilters {
    */
   hideMalformed: boolean;
   /**
+   * Show Full capture damaged frames (CRC or header error) in the live feed.
+   * Off by default; remembered in this browser.
+   */
+  showDamaged: boolean;
+  /**
    * Only packets with an OpenHop policy verdict (a rule, or the default action,
    * decided them). Session-only. Packet History filters on the server.
    */
@@ -54,19 +59,33 @@ export interface PacketFilters {
   setHexFilter: (value: string) => void;
   setGroupByHash: (value: boolean) => void;
   setHideMalformed: (value: boolean) => void;
+  setShowDamaged: (value: boolean) => void;
   setPolicyOnly: (value: boolean) => void;
   setSearchQuery: (value: string) => void;
   reset: () => void;
 }
 
 const HIDE_MALFORMED_KEY = 'remoteterm-packet-feed-hide-malformed';
+const SHOW_DAMAGED_KEY = 'remoteterm-packet-feed-show-damaged';
 
-function getSavedHideMalformed(): boolean {
+function getSavedFlag(key: string): boolean {
   try {
-    return localStorage.getItem(HIDE_MALFORMED_KEY) === 'true';
+    return localStorage.getItem(key) === 'true';
   } catch {
     return false;
   }
+}
+
+function saveFlag(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // Storage unavailable: the choice lasts for this page only.
+  }
+}
+
+function getSavedHideMalformed(): boolean {
+  return getSavedFlag(HIDE_MALFORMED_KEY);
 }
 
 export interface UsePacketFiltersOptions {
@@ -89,6 +108,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
   const [hexFilter, setHexFilter] = useState('');
   const [groupByHash, setGroupByHashState] = useState(initialGroupByHash);
   const [hideMalformed, setHideMalformedState] = useState(getSavedHideMalformed);
+  const [showDamaged, setShowDamagedState] = useState(() => getSavedFlag(SHOW_DAMAGED_KEY));
   const [policyOnly, setPolicyOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -115,6 +135,11 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     }
   }, []);
 
+  const setShowDamaged = useCallback((value: boolean) => {
+    setShowDamagedState(value);
+    saveFlag(SHOW_DAMAGED_KEY, value);
+  }, []);
+
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
   const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
 
@@ -132,6 +157,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     (hexFilter.trim() !== '' ? 1 : 0) +
     (groupByHash ? 1 : 0) +
     (hideMalformed ? 1 : 0) +
+    (showDamaged ? 1 : 0) +
     (policyOnly ? 1 : 0);
 
   const toggleAll = useCallback(() => {
@@ -174,9 +200,10 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     setHexFilter('');
     setGroupByHash(false);
     setHideMalformed(false);
+    setShowDamaged(false);
     setPolicyOnly(false);
     setSearchQuery('');
-  }, [setGroupByHash, setHideMalformed]);
+  }, [setGroupByHash, setHideMalformed, setShowDamaged]);
 
   return {
     enabledTypes,
@@ -184,6 +211,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     hexFilter,
     groupByHash,
     hideMalformed,
+    showDamaged,
     policyOnly,
     searchQuery,
     allTypesEnabled,
@@ -201,6 +229,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     setHexFilter,
     setGroupByHash,
     setHideMalformed,
+    setShowDamaged,
     setPolicyOnly,
     setSearchQuery,
     reset,

@@ -43,6 +43,10 @@ async def _run_step(result: dict[str, int], key: str, step: Callable[[], Awaitab
     result[key] = result.get(key, 0) + deleted
 
 
+# Full capture damaged frames: a fixed week, they only help debug a link.
+RX_BAD_FRAME_RETENTION_DAYS = 7
+
+
 async def prune_once(now: int | None = None) -> dict[str, int]:
     """Apply every retention setting once and return rows deleted per class.
 
@@ -83,6 +87,7 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "contact_locations": s.device_history_retention_days,
             "tracker_positions": s.device_history_retention_days,
             "tracker_objects": s.device_history_retention_days,
+            "rx_bad_frames": RX_BAD_FRAME_RETENTION_DAYS,
         }
         for key, days in age_settings.items():
             if days > 0:

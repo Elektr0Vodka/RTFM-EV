@@ -187,3 +187,18 @@ async def test_prunes_old_link_edge_events(test_db):
     async with test_db.readonly() as conn:
         async with conn.execute("SELECT raw_packet_id FROM link_edge_events") as cur:
             assert [r[0] for r in await cur.fetchall()] == [2]
+
+
+@pytest.mark.asyncio
+async def test_prunes_damaged_frames_after_seven_days(test_db):
+    from app.repository.rx_bad_frames import RxBadFrameRepository
+
+    now = 20 * DAY
+    old = await RxBadFrameRepository.create(now - 8 * DAY, 1, b"old", -90, -2.5)
+    new = await RxBadFrameRepository.create(now - 6 * DAY, 1, b"new", -90, -2.5)
+    result = await retention_pruner.prune_once(now)
+    assert result.get("rx_bad_frames") == 1
+    async with test_db.readonly() as conn:
+        async with conn.execute("SELECT id FROM rx_bad_frames") as cur:
+            assert [r[0] for r in await cur.fetchall()] == [new]
+    assert old != new

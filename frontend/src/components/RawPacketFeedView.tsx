@@ -17,7 +17,9 @@ import {
   type HopByteWidthBucket,
 } from '../utils/rawPacketStats';
 import { createDecoderOptions } from '../utils/rawPacketInspector';
+import { useDamagedFrames } from '../stores/damagedFrameStore';
 import { useRawPackets } from '../stores/rawPacketStore';
+import { isDamaged, withDamagedFrames } from '../utils/damagedFrames';
 import { useSignalAudio } from '../hooks/useSignalAudio';
 import type { SignalAudioTheme } from '../lib/signalAudioEngine';
 import {
@@ -41,6 +43,10 @@ function summarizePacketForFeed(
   packet: RawPacket,
   decoderOptions?: ReturnType<typeof createDecoderOptions>
 ): { payloadType: string; hopWidth: HopByteWidthBucket; isDirect: boolean } {
+  if (isDamaged(packet)) {
+    // Never decoded; the "Show damaged frames" switch alone decides.
+    return { payloadType: 'Damaged', hopWidth: 'No path', isDirect: false };
+  }
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, decoderOptions);
     const name = feedPayloadTypeName(decoded);
@@ -80,7 +86,8 @@ export function RawPacketFeedView({
   onSaveAppSettings,
 }: RawPacketFeedViewProps) {
   const t = useT();
-  const packets = useRawPackets();
+  const livePackets = useRawPackets();
+  const damagedFrames = useDamagedFrames();
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   // Payload-type / hop-width / hex filters are session-only; the group-by-content
   // toggle is remembered server-side (last selection).
@@ -88,6 +95,11 @@ export function RawPacketFeedView({
     initialGroupByHash: packetGroupByContent,
     onGroupByHashChange: (value) => onSaveAppSettings?.({ packet_group_by_content: value }),
   });
+  // Full capture damaged frames join the feed only behind their switch.
+  const packets = useMemo(
+    () => withDamagedFrames(livePackets, damagedFrames, filters.showDamaged),
+    [livePackets, damagedFrames, filters.showDamaged]
+  );
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   // Autoscroll defaults on; intentionally not persisted across refreshes.
   const [autoScroll, setAutoScroll] = useState(true);
@@ -165,8 +177,9 @@ export function RawPacketFeedView({
     return packetsWithTypes
       .filter(
         ({ packet, payloadType, hopWidth }) =>
-          (filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
-          (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)) &&
+          (isDamaged(packet) ||
+            ((filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
+              (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)))) &&
           (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery)) &&
           !(filters.hideMalformed && packet.malformed) &&
           !(filters.policyOnly && !packet.policy)
@@ -392,6 +405,8 @@ export function RawPacketFeedView({
         onGroupByHashChange={filters.setGroupByHash}
         hideMalformed={filters.hideMalformed}
         onHideMalformedChange={filters.setHideMalformed}
+        showDamaged={filters.showDamaged}
+        onShowDamagedChange={filters.setShowDamaged}
         policyOnly={filters.policyOnly}
         onPolicyOnlyChange={filters.setPolicyOnly}
         onReset={filters.reset}

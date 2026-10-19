@@ -31,7 +31,10 @@ def fake_manager(monkeypatch):
         yield mc
 
     mgr.radio_operation = _op
+    mgr.full_capture_supported_flags = 0
+    mgr.rx_ring_drops = 0
     monkeypatch.setattr(radio_router, "radio_manager", mgr)
+    monkeypatch.setattr(radio_router.RxBadFrameRepository, "get_flags", AsyncMock(return_value=0))
     return mgr, mc
 
 
@@ -87,3 +90,72 @@ class TestMeshcomodEndpoints:
         resp = await update_meshcomod_config(MeshcomodConfigUpdate(cad_enabled=False))
         apply_mock.assert_awaited_once()
         assert resp.cad_enabled is False
+
+
+_SETTINGS = {
+    "cad_supported": True,
+    "cad_enabled": False,
+    "gps_supported": False,
+    "gps_enabled": None,
+    "gps_interval": None,
+}
+
+
+class TestFullCaptureEndpoints:
+    @pytest.mark.asyncio
+    async def test_get_reports_full_capture_state(self, fake_manager, monkeypatch):
+        mgr, _mc = fake_manager
+        mgr.full_capture_supported_flags = 7
+        mgr.rx_ring_drops = 12
+        monkeypatch.setattr(
+            radio_router, "read_meshcomod_settings", AsyncMock(return_value=_SETTINGS)
+        )
+        monkeypatch.setattr(
+            radio_router.RxBadFrameRepository, "get_flags", AsyncMock(return_value=3)
+        )
+        resp = await get_meshcomod_config()
+        assert (resp.full_capture_supported, resp.full_capture_flags, resp.rx_ring_drops) == (
+            True,
+            3,
+            12,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_without_support(self, fake_manager, monkeypatch):
+        monkeypatch.setattr(
+            radio_router, "read_meshcomod_settings", AsyncMock(return_value=_SETTINGS)
+        )
+        resp = await get_meshcomod_config()
+        assert resp.full_capture_supported is False
+
+    @pytest.mark.asyncio
+    async def test_patch_saves_and_sends_flags(self, fake_manager, monkeypatch):
+        mgr, mc = fake_manager
+        mgr.full_capture_supported_flags = 7
+        monkeypatch.setattr(radio_router, "apply_meshcomod_update", AsyncMock())
+        monkeypatch.setattr(
+            radio_router, "read_meshcomod_settings", AsyncMock(return_value=_SETTINGS)
+        )
+        enable = AsyncMock(return_value=7)
+        monkeypatch.setattr(radio_router, "enable_full_capture", enable)
+        set_flags = AsyncMock()
+        monkeypatch.setattr(radio_router.RxBadFrameRepository, "set_flags", set_flags)
+        await update_meshcomod_config(MeshcomodConfigUpdate(full_capture_flags=3))
+        set_flags.assert_awaited_once_with(3)
+        enable.assert_awaited_once_with(mc, 3)
+
+    @pytest.mark.asyncio
+    async def test_patch_rejected_without_support(self, fake_manager, monkeypatch):
+        monkeypatch.setattr(radio_router, "apply_meshcomod_update", AsyncMock())
+        set_flags = AsyncMock()
+        monkeypatch.setattr(radio_router.RxBadFrameRepository, "set_flags", set_flags)
+        with pytest.raises(HTTPException) as exc:
+            await update_meshcomod_config(MeshcomodConfigUpdate(full_capture_flags=1))
+        assert exc.value.status_code == 422
+        set_flags.assert_not_awaited()
+
+    def test_flags_out_of_range(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            MeshcomodConfigUpdate(full_capture_flags=8)

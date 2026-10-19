@@ -1040,6 +1040,18 @@ class RawPacketPolicyVerdict(BaseModel):
     )
 
 
+class RxBadFrameBroadcast(BaseModel):
+    """A damaged frame from Full capture (meshcomod), WebSocket only."""
+
+    id: int
+    observation_id: int
+    timestamp: int
+    data: str = Field(description="Hex-encoded frame bytes as received")
+    status: int = Field(description="1 CRC error, 2 header damaged, 3 other read error")
+    snr: float | None = None
+    rssi: int | None = None
+
+
 class RawPacketBroadcast(BaseModel):
     """Raw packet payload broadcast via WebSocket.
 

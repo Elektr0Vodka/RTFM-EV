@@ -10,6 +10,7 @@ import type {
   RawPacket,
   SpamGuardSummary,
 } from './types';
+import type { RxBadFrame } from './utils/damagedFrames';
 import type { TrackerEventPayload } from './utils/trackerEvents';
 
 export interface MessageAckedPayload {
@@ -74,6 +75,7 @@ export type KnownWsEvent =
   | { type: 'contact_deleted'; data: ContactDeletedPayload }
   | { type: 'channel_deleted'; data: ChannelDeletedPayload }
   | { type: 'raw_packet'; data: RawPacket }
+  | { type: 'rx_bad_frame'; data: RxBadFrame }
   | { type: 'message_acked'; data: MessageAckedPayload }
   | { type: 'message_failed'; data: MessageFailedPayload }
   | { type: 'message_deleted'; data: MessageDeletedPayload }
@@ -115,6 +117,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'contact_deleted':
     case 'channel_deleted':
     case 'raw_packet':
+    case 'rx_bad_frame':
     case 'message_acked':
     case 'message_failed':
     case 'message_deleted':

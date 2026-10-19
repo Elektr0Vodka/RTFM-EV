@@ -21,6 +21,9 @@ export interface PacketFilterModalProps {
   /** 'Hide malformed' toggle; left out where packets do not carry the flag. */
   hideMalformed?: boolean;
   onHideMalformedChange?: (value: boolean) => void;
+  /** 'Show damaged frames' (Full capture); left out where there are none. */
+  showDamaged?: boolean;
+  onShowDamagedChange?: (value: boolean) => void;
   /** 'Only packets a policy rule decided' toggle. */
   policyOnly?: boolean;
   onPolicyOnlyChange?: (value: boolean) => void;
@@ -46,6 +49,8 @@ export function PacketFilterModal({
   onGroupByHashChange,
   hideMalformed = false,
   onHideMalformedChange,
+  showDamaged = false,
+  onShowDamagedChange,
   policyOnly = false,
   onPolicyOnlyChange,
   onReset,
@@ -93,6 +98,24 @@ export function PacketFilterModal({
               <span className="text-foreground">{t('packet_hide_malformed_label')}</span>
               <span className="block text-xs text-muted-foreground">
                 {t('packet_hide_malformed_description')}
+              </span>
+            </span>
+          </label>
+        )}
+
+        {onShowDamagedChange && (
+          <label className="flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDamaged}
+              onChange={(e) => onShowDamagedChange(e.target.checked)}
+              className="rounded"
+              aria-label={t('packet_show_damaged_label')}
+            />
+            <span>
+              <span className="text-foreground">{t('packet_show_damaged_label')}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t('packet_show_damaged_description')}
               </span>
             </span>
           </label>
