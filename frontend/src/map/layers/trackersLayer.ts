@@ -26,6 +26,7 @@ const TEAM_COLORS: Record<string, string> = {
 };
 export const TRACKER_DEFAULT_FILL = '#0ea5e9';
 export const TRACKER_SAR_FILL = '#e11d48';
+export const TRACKER_MESHCORENG_FILL = '#f59e0b';
 export const TRACKER_OBJECT_FILL = '#a855f7';
 
 const POINT_SOURCE_ID = 'rt-trackers';
@@ -47,13 +48,14 @@ const LAYER_IDS = [
   POINT_LABEL_LAYER_ID,
 ];
 
-/** One tracker: its source plus callsign (ATAK) or key prefix (SAR). */
+/** One tracker: its source plus callsign (ATAK) or key prefix (SAR, MeshCoreNG). */
 export function trackerId(p: TrackerPosition): string {
   return `${p.source}:${p.identity}`;
 }
 
 export function trackerColor(p: TrackerPosition): string {
   if (p.source === 'sar_fast_gps') return TRACKER_SAR_FILL;
+  if (p.source === 'meshcoreng') return TRACKER_MESHCORENG_FILL;
   return (p.team && TEAM_COLORS[p.team.trim().toLowerCase()]) || TRACKER_DEFAULT_FILL;
 }
 

@@ -93,3 +93,21 @@ def test_atlas_rejects(payload, header, path):
 
 def test_other_payload_types_are_not_meshcoreng():
     assert detect_meshcoreng(_raw(mcl1(), 0x11)) is None  # ADVERT
+
+
+def test_decode_mcl1_fields():
+    from app.meshcoreng import decode_mcl1
+
+    r = decode_mcl1(mcl1(b"Tracker"))
+
+    assert r is not None
+    assert r.node_id == "1a2b3c4d"
+    assert (r.lat, r.lon) == (52.37, 4.89)
+    assert r.alt_m == 12
+    assert r.speed_cms == 150
+    assert r.heading_cdeg == 9000
+    assert r.satellites == 7
+    assert r.battery_mv == 3900
+    assert r.timestamp == 1_790_000_000
+    assert r.name == "Tracker"
+    assert decode_mcl1(mcl1(magic=b"MCL2")) is None

@@ -14,11 +14,14 @@ Detection is strict on magic and lengths: both types are otherwise unassigned,
 and corrupt RF captures land in them (see ``path_utils.bucket_region_scope``).
 """
 
+from dataclasses import dataclass
 from typing import Literal
 
 from app.path_utils import ParsedPacketEnvelope, parse_packet_envelope
 
 MESHCORENG_PAYLOAD_TYPE_NAME = "MESHCORENG"
+# GRP_DATA data_type of MeshCoreNG tracker reports (src/helpers/TxtDataHelpers.h).
+DATA_TYPE_MESHCORENG_TRACKER = 0x0200
 ATLAS_PAYLOAD_TYPE = 0x0C
 LOCATION_PAYLOAD_TYPE = 0x0D
 _ROUTE_DIRECT = 0x02
@@ -37,6 +40,40 @@ def _is_mcl1(p: bytes) -> bool:
         return False
     name_len = p[31]
     return name_len <= _MCL1_MAX_NAME and len(p) == _MCL1_HEADER_LEN + name_len
+
+
+@dataclass(frozen=True)
+class Mcl1Report:
+    """One MeshCoreNG compact tracker report."""
+
+    node_id: str  # first 4 bytes of the sender's public key, hex
+    lat: float
+    lon: float
+    alt_m: int
+    speed_cms: int
+    heading_cdeg: int
+    satellites: int
+    battery_mv: int
+    timestamp: int
+    name: str
+
+
+def decode_mcl1(p: bytes) -> Mcl1Report | None:
+    """Decode an MCL1 body (0x0D payload or GRP_DATA 0x0200 blob); None if malformed."""
+    if not _is_mcl1(p):
+        return None
+    return Mcl1Report(
+        node_id=p[6:10].hex(),
+        lat=int.from_bytes(p[10:14], "big", signed=True) / 1e6,
+        lon=int.from_bytes(p[14:18], "big", signed=True) / 1e6,
+        alt_m=int.from_bytes(p[18:20], "big", signed=True),
+        speed_cms=int.from_bytes(p[20:22], "big"),
+        heading_cdeg=int.from_bytes(p[22:24], "big"),
+        satellites=p[24],
+        battery_mv=int.from_bytes(p[25:27], "big"),
+        timestamp=int.from_bytes(p[27:31], "big"),
+        name=p[32:].decode("utf-8", errors="replace"),
+    )
 
 
 def _is_atlas(p: bytes) -> bool:
