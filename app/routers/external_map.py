@@ -26,14 +26,16 @@ class ExternalMapStatus(BaseModel):
 
 @router.post("/sync", response_model=ExternalMapSyncResponse)
 async def trigger_sync() -> ExternalMapSyncResponse:
-    """Manually fetch the configured external analyzer node directory.
+    """Manually fetch the configured external node directory.
 
     Runs regardless of the enable toggle (it is an explicit user action); the
     toggle governs the map overlay and the periodic background sync.
     """
     settings = await AppSettingsRepository.get()
     try:
-        count, synced_at = await sync_external_map(settings.external_map_sync_url)
+        count, synced_at = await sync_external_map(
+            settings.external_map_sync_url, settings.external_map_source
+        )
     except ExternalMapSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ExternalMapSyncResponse(count=count, synced_at=synced_at)

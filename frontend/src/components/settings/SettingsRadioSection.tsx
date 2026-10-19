@@ -34,6 +34,7 @@ import type {
   AppSettings,
   AppSettingsUpdate,
   ChannelSet,
+  ExternalMapSource,
   HealthStatus,
   RadioContactOccupancy,
   RadioAdvertMode,
@@ -688,6 +689,17 @@ export function SettingsRadioSection({
       await onSaveAppSettings({ external_map_sync_interval_hours: value });
     } catch (err) {
       setExternalMapInterval(String(appSettings.external_map_sync_interval_hours ?? 0));
+      toast.error(err instanceof Error ? err.message : t('settings_external_map_save_failed'));
+    }
+  };
+
+  const externalMapSource: ExternalMapSource = appSettings.external_map_source ?? 'meshcore_map';
+
+  const handleSaveExternalMapSource = async (value: ExternalMapSource) => {
+    if (value === externalMapSource) return;
+    try {
+      await onSaveAppSettings({ external_map_source: value });
+    } catch (err) {
       toast.error(err instanceof Error ? err.message : t('settings_external_map_save_failed'));
     }
   };
@@ -1629,7 +1641,9 @@ export function SettingsRadioSection({
               variant="outline"
               size="sm"
               onClick={handleSyncExternalMap}
-              disabled={externalMapSyncing || !externalMapUrl.trim()}
+              disabled={
+                externalMapSyncing || (externalMapSource === 'analyzer' && !externalMapUrl.trim())
+              }
             >
               {externalMapSyncing
                 ? t('settings_external_map_sync_button_loading')
@@ -1646,6 +1660,23 @@ export function SettingsRadioSection({
             />
             <span className="text-[0.8125rem]">{t('settings_external_map_enable_label')}</span>
           </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label htmlFor="external-map-source" className="text-[0.8125rem]">
+              {t('settings_external_map_source_label')}
+            </Label>
+            <select
+              id="external-map-source"
+              value={externalMapSource}
+              onChange={(e) => handleSaveExternalMapSource(e.target.value as ExternalMapSource)}
+              className="h-8 px-2 rounded-md border border-input bg-background text-xs ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="meshcore_map">{t('settings_external_map_source_meshcore_map')}</option>
+              <option value="analyzer">{t('settings_external_map_source_analyzer')}</option>
+            </select>
+          </div>
+          <Label htmlFor="external-map-url" className="text-[0.8125rem]">
+            {t('settings_external_map_url_label')}
+          </Label>
           <Input
             id="external-map-url"
             type="url"

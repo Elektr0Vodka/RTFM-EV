@@ -652,6 +652,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Background sync cadence for the external-map overlay, in hours (0 = manual)",
     )
+    external_map_source: Literal["meshcore_map", "analyzer"] | None = Field(
+        default=None,
+        description="External-map overlay node source: 'meshcore_map' or 'analyzer'",
+    )
     backup_to_path_enabled: bool | None = Field(
         default=None,
         description="Allow writing database backups to a configured server-side directory",
@@ -1089,6 +1093,8 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["external_map_sync_interval_hours"] = max(
             0, min(168, update.external_map_sync_interval_hours)
         )
+    if update.external_map_source is not None:
+        kwargs["external_map_source"] = update.external_map_source
 
     # Server-side backup settings
     if update.backup_to_path_enabled is not None:

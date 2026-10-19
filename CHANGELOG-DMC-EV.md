@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (Analyzer nodes from map.meshcore.io, feat/analyzer-nodes-meshcore-map)
+
+Migration `_155` (`app_settings.external_map_source`). No new dependency.
+Nothing is sent over the radio.
+
+### Map
+- **Analyzer nodes can come from map.meshcore.io, now the default.**
+  Settings > Radio > External analyzer node overlay has a **Node source**:
+  **map.meshcore.io** (`/api/v1/nodes`, nodes worldwide) or **Analyzer**
+  (the URL field, as before). meshcore-analyzer.eu and its sub-analyzers
+  answer many requests with HTTP 403 at the moment.
+- Existing installs on the old default URL (or a blank one) move to
+  map.meshcore.io. An install that set its own URL keeps syncing from it.
+- The URL field stays the analyzer for route checks ("Check with analyzer")
+  and packet who-heard lookups, whichever node source is picked.
+- map.meshcore.io requests carry a `RTFM-EV-NodeSync/<version>` User-Agent.
+  Analyzer requests keep the httpx default User-Agent, as before.
+- The feed is about 50 MB (17 MB compressed). JSON decoding now runs off the
+  event loop, and the node cap went from 50,000 to 200,000 (map.meshcore.io
+  lists about 67,000). The map.meshcore.io feed has no advert count or
+  mobile flag; its advert type (1-4) maps to Companion / Repeater /
+  Roomserver / Sensor. Last seen is the map server's `updated_date`: the
+  node-reported `last_advert` was years in the future for about 3,300 nodes.
+
 ## Update 2026-10-19 (open any graph larger + share it animated, feat/graph-zoom-panel-share)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.
