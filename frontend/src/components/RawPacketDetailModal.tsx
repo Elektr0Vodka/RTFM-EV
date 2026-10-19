@@ -738,7 +738,9 @@ export function RawPacketInspectionPanel({
                 ? t('packet_status_damaged')
                 : packetIsDecrypted
                   ? t('settings_statistics_decrypted_label')
-                  : t('packet_status_encrypted'),
+                  : inspection.summary.notEncrypted
+                    ? t('packet_status_not_encrypted')
+                    : t('packet_status_encrypted'),
             })}
             secondary={
               t('packet_storage_number', { id: packet.id }) +

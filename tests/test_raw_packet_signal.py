@@ -141,6 +141,32 @@ class TestPipelinePersistsSignal:
         assert raw_events[0]["data"]["payload_type"] == "FUOTA"
 
     @pytest.mark.asyncio
+    async def test_process_raw_packet_stores_meshcoreng_location(
+        self, test_db, captured_broadcasts, caplog
+    ):
+        """A MeshCoreNG MCL1 report (type 0x0D, flood, 1 hop) is stored as MESHCORENG."""
+        from tests.test_meshcoreng import mcl1
+
+        packet = bytes([0x35, 0x01, 0xAA]) + mcl1(b"NG")
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.packet_processor"),
+            patch("app.packet_processor.broadcast_event", mock_broadcast),
+        ):
+            result = await process_raw_packet(packet, timestamp=1700000000)
+
+        row = await _row(test_db, result["packet_id"])
+        assert row["payload_type"] == "MESHCORENG"
+        decoded = await _decoded_row(test_db, result["packet_id"])
+        assert decoded["route_type"] == route_label(RouteType.FLOOD)
+        assert decoded["hop_count"] == 1
+        assert decoded["path_signature"] == "aa"
+        assert not [r for r in caplog.records if "Failed to parse" in r.getMessage()]
+        raw_events = [b for b in broadcasts if b["type"] == "raw_packet"]
+        assert raw_events[0]["data"]["payload_type"] == "MESHCORENG"
+
+    @pytest.mark.asyncio
     async def test_fuota_packet_logs_no_parse_warning(self, test_db, captured_broadcasts, caplog):
         _, mock_broadcast = captured_broadcasts
 

@@ -950,15 +950,17 @@ class TeamBeaconsResponse(BaseModel):
     )
 
 
-TrackerSource = Literal["atak", "sar_fast_gps"]
+TrackerSource = Literal["atak", "sar_fast_gps", "meshcoreng"]
 
 
 class TrackerPosition(BaseModel):
-    """A position fix from an ATAK user (TAK-MESHCORE) or a MeshCore SAR fast-GPS beacon."""
+    """A position fix: an ATAK user (TAK-MESHCORE), a SAR fast-GPS beacon or a MeshCoreNG tracker."""
 
     id: int | None = None
     source: TrackerSource
-    identity: str = Field(description="ATAK callsign, or the SAR sender's 6-byte key prefix (hex)")
+    identity: str = Field(
+        description="ATAK callsign, SAR sender's 6-byte key prefix or MeshCoreNG node id (hex)"
+    )
     display_name: str | None = None
     team: str | None = Field(default=None, description="ATAK team colour name")
     lat: float

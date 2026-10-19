@@ -40,6 +40,7 @@ import {
   type ParsedMarker,
 } from '../utils/meshcoreOpenPayloads';
 import { parseSarMarker } from '../utils/sarPayloads';
+import { groupDataOwner } from '../utils/groupDataTypes';
 import {
   parseTeamPayload,
   teamBeaconIcon,
@@ -543,6 +544,7 @@ function renderGroupDataPlaceholder(content: string, t: TFn): ReactNode | null {
   }
   const blob = GROUP_DATA_BLOB_RE.exec(content);
   if (blob) {
+    const owner = groupDataOwner(parseInt(blob[1], 16));
     return (
       <span
         className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/40 px-2 py-1 text-muted-foreground italic"
@@ -550,7 +552,9 @@ function renderGroupDataPlaceholder(content: string, t: TFn): ReactNode | null {
         title={t('chat_group_data_detail', { type: blob[1], len: blob[2] })}
       >
         <FileQuestion className="h-4 w-4 shrink-0" aria-hidden="true" />
-        {t('chat_group_data_placeholder')}
+        {owner
+          ? t('chat_group_data_owner_placeholder', { owner })
+          : t('chat_group_data_placeholder')}
       </span>
     );
   }

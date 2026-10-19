@@ -35,6 +35,7 @@ from app.decoder import (
 from app.fuota import FUOTA_PAYLOAD_TYPE_NAME, detect_fuota
 from app.keystore import get_private_key, get_public_key, has_private_key
 from app.malformed import is_malformed_channel_message
+from app.meshcoreng import MESHCORENG_PAYLOAD_TYPE_NAME, meshcoreng_kind
 from app.models import (
     Contact,
     ContactUpsert,
@@ -42,7 +43,7 @@ from app.models import (
     RawPacketDecryptedInfo,
     RawPacketPolicyVerdict,
 )
-from app.path_utils import calculate_packet_hash, is_scoped
+from app.path_utils import calculate_packet_hash, is_scoped, parse_packet_envelope
 from app.region_resolver import resolve_region
 from app.repository import (
     AdvertEventRepository,
@@ -73,7 +74,11 @@ from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields, route_label
 from app.services.policy_verdict import policy_verdicts
 from app.services.relay_reception import record_packet_reception
-from app.services.trackers import DatagramContext, handle_tracker_datagram
+from app.services.trackers import (
+    DatagramContext,
+    handle_meshcoreng_location,
+    handle_tracker_datagram,
+)
 from app.smaz import decode_message_text
 from app.websocket import broadcast_error, broadcast_event
 
@@ -350,6 +355,22 @@ async def process_raw_packet(
             "hop_byte_width": 0,
             "path_signature": None,
         }
+    # MeshCoreNG's own types 0x0C (Atlas) / 0x0D (Location), strict like FUOTA.
+    meshcoreng = None
+    meshcoreng_location: tuple[bytes, int] | None = None  # (MCL1 body, hop count)
+    if parsed_info is None and fuota is None:
+        envelope = parse_packet_envelope(raw_bytes)
+        meshcoreng = meshcoreng_kind(envelope) if envelope is not None else None
+        if envelope is not None and meshcoreng is not None:
+            payload_type_name = MESHCORENG_PAYLOAD_TYPE_NAME
+            decoded_fields = {
+                "route_type": route_label(RouteType(envelope.route_type)),
+                "hop_count": envelope.hop_count,
+                "hop_byte_width": envelope.hash_size if envelope.hop_count > 0 else 0,
+                "path_signature": envelope.path.hex() if envelope.hop_count > 0 else None,
+            }
+            if meshcoreng == "location":
+                meshcoreng_location = (envelope.payload, envelope.hop_count)
     # On an OpenHop node: the policy rule that decides this packet (an
     # indication). Stored with the packet, so Packet History can show it.
     verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
@@ -372,7 +393,7 @@ async def process_raw_packet(
     relay_capture = await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
     raw_hex = raw_bytes.hex()
 
-    if parsed_info is None and fuota is None and len(raw_bytes) > 2:
+    if parsed_info is None and fuota is None and meshcoreng is None and len(raw_bytes) > 2:
         logger.warning(
             "Failed to parse %d-byte packet (id=%d); stored undecrypted",
             len(raw_bytes),
@@ -432,6 +453,15 @@ async def process_raw_packet(
         except Exception:
             logger.debug("Region resolution failed for packet %d", packet_id, exc_info=True)
         result["region"] = region
+
+    if meshcoreng_location is not None:
+        # Plaintext MeshCoreNG tracker report: a tracker position, no message.
+        await handle_meshcoreng_location(
+            meshcoreng_location[0],
+            packet_id=packet_id,
+            path_len=meshcoreng_location[1],
+            received_at=ts,
+        )
 
     # Process packets based on payload type
     # For GROUP_TEXT, we always try to decrypt even for duplicate packets - the message
@@ -660,7 +690,7 @@ async def _process_group_data(
             len(decrypted.data),
         )
 
-        # ATAK (TAK-MESHCORE) and MeshCore SAR tracker datagrams get decoded
+        # ATAK (TAK-MESHCORE), MeshCore SAR and MeshCoreNG tracker datagrams get decoded
         # instead of stored as a placeholder row.
         tracker_ctx = DatagramContext(
             packet_id=packet_id,

@@ -16,6 +16,7 @@ from collections.abc import Iterable
 from app.database import db
 from app.decoder import OTHER_VERSION_PAYLOAD_TYPE
 from app.fuota import FUOTA_PAYLOAD_TYPE_NAME
+from app.meshcoreng import MESHCORENG_PAYLOAD_TYPE_NAME
 
 # Backend PayloadType.name -> frontend label (Utils.getPayloadTypeName vocabulary).
 _PAYLOAD_LABELS = {
@@ -34,6 +35,7 @@ _PAYLOAD_LABELS = {
     "RAW_CUSTOM": "RawCustom",
     OTHER_VERSION_PAYLOAD_TYPE: "OtherVersion",
     FUOTA_PAYLOAD_TYPE_NAME: "FUOTA",
+    MESHCORENG_PAYLOAD_TYPE_NAME: "MeshCoreNG",
 }
 
 _HOP_BYTE_WIDTH_LABELS = {

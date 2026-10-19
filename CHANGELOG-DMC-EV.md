@@ -38,6 +38,54 @@ unaffected.
   fanout or MQTT.
 - `GET/PATCH /api/radio/meshcomod`: `full_capture_supported`,
   `full_capture_flags`, `rx_ring_drops`.
+## Update 2026-10-19 (MeshCoreNG trackers, feat/meshcoreng-trackers)
+
+No migration, no new dependency. Nothing is sent over the radio. Builds on
+feat/third-party-packet-labels (#364).
+
+### Map
+- **MeshCoreNG GPS trackers** show on the Trackers overlay in their own colour,
+  named after the report's node name (else the contact, else the node id). They
+  come from the tracker channel (data type 0x0200; add the channel by its fixed
+  key, see README_ADVANCED) and from the older plaintext Location packets
+  (0x0D), which need no channel. A flood repeat adds no second fix.
+- The TAK Stream sends them as `RTFM-EV-NG-<node id>`.
+
+### Chat
+- A channel datagram RTFM-EV does not decode names its project when the data
+  type is known, e.g. "MCO Advanced data (not supported)" (MeshCore Open,
+  Ripple, MCO Advanced, StreamSensor, Nelos, MeshCoreNG, TAK-MESHCORE, Trail
+  Mate). 0xFFFF stays unnamed: MeshCore SAR and MeshCore Companion share it.
+
+### API
+- `GET /api/trackers` accepts `source=meshcoreng`.
+
+## Update 2026-10-19 (labels for other firmwares' packets, feat/third-party-packet-labels)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### Packets
+- **MeshCoreNG** packets get their own type instead of Unknown: Location
+  reports (payload type 0x0D, `MCL1` tracker body, decoded with node, position,
+  speed, battery and name) and Atlas packets (0x0C). Detection is strict on
+  magic and lengths, because both types are otherwise unassigned. MeshCoreNG
+  is a filter type in the feed, Packet History and the packet stats, and the
+  header breakdown names the type ("not official").
+- **CubeCell** discovery responses (CONTROL byte 0x81, a layout the decoder
+  read as a discovery request) show as "Discovery response (CubeCell layout)"
+  with their own fields.
+- **RAW_CUSTOM** packets from known apps are labelled with their fields:
+  MeshCore SAR voice/image fragments, fetch requests and swarm requests,
+  SigurdOS ping/pong, and Reticulum (Smart MeshCore Interface) fragments.
+- FUOTA, MeshCoreNG and these RAW_CUSTOM packets show as **Not encrypted**
+  (no lock icon) instead of Encrypted, and the FUOTA header breakdown no
+  longer says "Unknown (0xe)".
+
+### Backend
+- MeshCoreNG Location / Atlas packets are stored as `MESHCORENG` with their
+  route and hop fields and no parse warning. A valid MeshCoreNG packet no
+  longer counts towards the region-scope noise floor, which assumes 0x0C-0x0E
+  are corrupt captures.
 
 ## Update 2026-10-19 (community MQTT publishes other header versions, fix/mqtt-forward-other-version)
 

@@ -2,6 +2,7 @@ import { MeshCoreDecoder, PayloadType, Utils } from '@michaelhart/meshcore-decod
 
 import type { RawFeedHistoricalStats, RawFeedNeighbor, RawPacket } from '../types';
 import { FUOTA_TYPE_NAME, fuotaFromDecoded } from './fuotaPayload';
+import { MESHCORENG_TYPE_NAME, recognizeThirdParty } from './thirdPartyPackets';
 import { getRawPacketObservationKey } from './rawPacketIdentity';
 import { formatDateTime } from './dateTimeFormat';
 
@@ -36,6 +37,7 @@ export const KNOWN_PAYLOAD_TYPES = [
   'Control',
   OTHER_VERSION_TYPE,
   FUOTA_TYPE_NAME,
+  MESHCORENG_TYPE_NAME,
   'Unknown',
 ] as const;
 
@@ -56,6 +58,7 @@ export function feedPayloadTypeName(decoded: {
   if (!decoded.isValid) return 'Unknown';
   if (isOtherVersion(decoded)) return OTHER_VERSION_TYPE;
   if (fuotaFromDecoded(decoded)) return FUOTA_TYPE_NAME;
+  if (recognizeThirdParty(decoded)?.typeName === MESHCORENG_TYPE_NAME) return MESHCORENG_TYPE_NAME;
   return Utils.getPayloadTypeName(decoded.payloadType);
 }
 

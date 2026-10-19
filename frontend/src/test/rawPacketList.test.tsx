@@ -26,6 +26,17 @@ describe('RawPacketList', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('marks plaintext third-party packets as not encrypted', () => {
+    const fuota = createPacket({
+      id: 3,
+      data: '3a0001abdeadbeefc4000038000001000000050000001122334455667788047f',
+    });
+    const groupText = createPacket({ id: 4, data: '1500e69c7a89' });
+    render(<RawPacketList packets={[fuota, groupText]} />);
+    expect(screen.getAllByText('Not encrypted')).toHaveLength(1);
+    expect(screen.getAllByText('Encrypted')).toHaveLength(1);
+  });
+
   it('makes packet cards clickable only when an inspector handler is provided', () => {
     const packet = createPacket({ id: 9, observation_id: 22 });
     const onPacketClick = vi.fn();

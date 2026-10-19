@@ -961,13 +961,13 @@ export interface TeamWaypointPin {
   paths: MessagePath[] | null;
 }
 
-export type TrackerSource = 'atak' | 'sar_fast_gps';
+export type TrackerSource = 'atak' | 'sar_fast_gps' | 'meshcoreng';
 
-/** A position fix from an ATAK user (TAK-MESHCORE) or a MeshCore SAR fast-GPS beacon. */
+/** A position fix from an ATAK user (TAK-MESHCORE), a MeshCore SAR fast-GPS beacon or a MeshCoreNG tracker. */
 export interface TrackerPosition {
   id: number | null;
   source: TrackerSource;
-  /** ATAK callsign, or the SAR sender's 6-byte key prefix (hex). */
+  /** ATAK callsign, the SAR sender's 6-byte key prefix, or the MeshCoreNG 4-byte node id (hex). */
   identity: string;
   display_name: string | null;
   /** ATAK team colour name. */

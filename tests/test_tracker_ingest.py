@@ -344,3 +344,50 @@ async def test_broadcast_failure_does_not_forget_a_stored_frame(test_db, channel
     assert await trackers.handle_tracker_datagram(_datagram(payload), _ctx(packet_id=1))
     assert await trackers.handle_tracker_datagram(_datagram(payload), _ctx(packet_id=2))
     assert await _count(test_db, "tracker_positions") == 1
+
+
+@pytest.mark.asyncio
+async def test_meshcoreng_tracker_datagram_stores_position(test_db, channel, broadcasts):
+    """MeshCoreNG tracker builds send MCL1 as GRP_DATA data_type 0x0200."""
+    from tests.test_meshcoreng import mcl1
+
+    datagram = _datagram(mcl1(b"NG"), data_type=0x0200)
+    assert await trackers.handle_tracker_datagram(datagram, _ctx()) is True
+    # A flood repeat of the same report adds no second fix.
+    assert await trackers.handle_tracker_datagram(datagram, _ctx(packet_id=2)) is True
+
+    rows = await TrackerRepository.positions(None, None, False, None, 10)
+    assert len(rows) == 1
+    p = rows[0]
+    assert p.source == "meshcoreng"
+    assert p.identity == "1a2b3c4d"
+    assert p.display_name == "NG"
+    assert (p.lat, p.lon) == (52.37, 4.89)
+    assert p.alt_m == 12
+    assert p.speed_mps == 1.5
+    assert p.course_deg == 90.0
+    assert p.channel_key == CHAN
+    assert [t for t, _ in broadcasts] == ["tracker"]
+
+
+@pytest.mark.asyncio
+async def test_meshcoreng_location_packet_stores_position(test_db, broadcasts, captured_broadcasts):
+    """Plaintext 0x0D Location packets need no channel key."""
+    from unittest.mock import patch
+
+    from app.packet_processor import process_raw_packet
+    from tests.test_meshcoreng import mcl1
+
+    _, mock_broadcast = captured_broadcasts
+    packet = bytes([0x35, 0x01, 0xAA]) + mcl1(b"")
+    with patch("app.packet_processor.broadcast_event", mock_broadcast):
+        result = await process_raw_packet(packet, timestamp=1_700_000_000, rssi=-70, snr=4.0)
+
+    rows = await TrackerRepository.positions(None, None, False, None, 10)
+    assert len(rows) == 1
+    assert rows[0].source == "meshcoreng"
+    assert rows[0].identity == "1a2b3c4d"
+    assert rows[0].display_name == "1a2b3c4d"
+    assert rows[0].channel_key is None
+    assert rows[0].packet_id == result["packet_id"]
+    assert rows[0].path_len == 1

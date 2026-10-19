@@ -32,6 +32,12 @@ export interface UseTrackersOptions {
   coordinateFormat: CoordinateFormat;
 }
 
+const TRACKER_SOURCE_KEYS: Record<TrackerPosition['source'], string> = {
+  atak: 'tracker_popup_source_atak',
+  sar_fast_gps: 'tracker_popup_source_sar',
+  meshcoreng: 'tracker_popup_source_meshcoreng',
+};
+
 /** DOM body of a tracker popup. `trailCount` is that tracker's fixes on the map. */
 export function buildTrackerPopup(
   p: TrackerPosition,
@@ -41,10 +47,7 @@ export function buildTrackerPopup(
   const el = document.createElement('div');
   el.className = 'text-sm space-y-0.5';
   appendPopupLine(el, p.display_name || p.identity, 'font-medium');
-  appendPopupLine(
-    el,
-    t(p.source === 'atak' ? 'tracker_popup_source_atak' : 'tracker_popup_source_sar')
-  );
+  appendPopupLine(el, t(TRACKER_SOURCE_KEYS[p.source]));
   if (p.team) appendPopupLine(el, t('tracker_popup_team', { team: p.team }));
   if (p.speed_mps != null) {
     appendPopupLine(el, t('tracker_popup_speed', { kmh: (p.speed_mps * 3.6).toFixed(1) }));

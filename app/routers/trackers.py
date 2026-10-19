@@ -22,12 +22,15 @@ async def list_trackers(
     latest_per_identity: bool = Query(
         default=True, description="Keep only the newest fix per tracker; off for trails"
     ),
-    source: Annotated[TrackerSource | None, Query(description="atak or sar_fast_gps")] = None,
+    source: Annotated[
+        TrackerSource | None, Query(description="atak, sar_fast_gps or meshcoreng")
+    ] = None,
     identity: str | None = Query(
-        default=None, description="Only this tracker (callsign or SAR key prefix, any case)"
+        default=None,
+        description="Only this tracker (callsign, SAR key prefix or MeshCoreNG node id, any case)",
     ),
 ) -> TrackersResponse:
-    """ATAK users (TAK-MESHCORE) and MeshCore SAR fast-GPS fixes, plus ATAK map objects.
+    """ATAK users (TAK-MESHCORE), SAR fast-GPS and MeshCoreNG fixes, plus ATAK map objects.
 
     For the local map only; never forwarded to fanout, MQTT or exports.
     Objects past their CoT stale time are left out.
