@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (code scanning alert 26, share card map credit)
+
+Frontend only. No migration, no new dependency. No visible change.
+
+### Share cards
+- **Map credit tag stripping.** CodeQL alert 26
+  (`js/incomplete-multi-character-sanitization`) flagged the tag strip that
+  turns the base map credit HTML into plain text: an unclosed `<tag` at the
+  end survived it. That `<` is now removed too (`share/geo.ts`). Not
+  exploitable before: the credit comes from the built-in basemap list and is
+  only drawn on a canvas.
+
 ## Update 2026-10-19 (FUOTA firmware-update traffic, feat/fuota-traffic)
 
 No migration, no new dependency. Nothing is sent over the radio.
