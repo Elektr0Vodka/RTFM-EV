@@ -1537,6 +1537,45 @@ export interface ExternalMapNode {
   mobile: boolean;
 }
 
+/** Antenna site summary from the Dutch Antenneregister cache (map marker). */
+export interface AntennaRegisterSiteSummary {
+  id: number;
+  lat: number;
+  lon: number;
+  /** MHz band labels present on the site: "700", "800", "900". */
+  bands: string[];
+  max_power_dbw: number | null;
+}
+
+/** One system + frequency on an antenna site, all sectors folded in. */
+export interface AntennaRegisterTransmitter {
+  system: string;
+  band: string;
+  frequency: string;
+  sectors: number;
+  bearings_deg: number[];
+  omni: boolean;
+  height_m: number | null;
+  power_dbw: number | null;
+}
+
+export interface AntennaRegisterSite extends AntennaRegisterSiteSummary {
+  municipality: string;
+  postcode: string;
+  place: string;
+  kinds: string;
+  transmitters: AntennaRegisterTransmitter[];
+}
+
+export interface AntennaRegisterStatus {
+  count: number;
+  last_synced_at: number | null;
+  running: boolean;
+  phase: 'antennas' | 'sites' | null;
+  fetched: number;
+  error: string | null;
+}
+
 export interface AdvertLinkNode {
   pubkey: string;
   lat: number;

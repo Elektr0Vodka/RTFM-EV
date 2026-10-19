@@ -90,6 +90,7 @@ async def test_db():
         advert_links,
         airtime_history,
         analyzer_names,
+        antenna_register,
         battery_history,
         bot_lists,
         channels,
@@ -133,6 +134,7 @@ async def test_db():
 
     submodules = [
         advert_events,
+        antenna_register,
         advert_links,
         analyzer_names,
         packet_receptions,

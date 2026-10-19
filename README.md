@@ -69,7 +69,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 
 - MapLibre GL map with Nova dark, OpenFreeMap, OpenStreetMap, OpenTopoMap and Esri basemaps, 2D or 3D with buildings, labels and neon nodes.
 - Filters by time range, node role, power source (contact override, else the power icon in the node name; DTIS nodes are solar + battery), heard-by-server and wrong-location nodes.
-- Overlays: animated packets with replay and optional sound, links (liveness, advert paths or all traffic) with per-link traffic and signal history, telemetry, shared locations, MeshCore TEAM beacons (positions, trails, waypoints and routes), guessed locations and relay signal.
+- Overlays: animated packets with replay and optional sound, links (liveness, advert paths or all traffic) with per-link traffic and signal history, telemetry, shared locations, MeshCore TEAM beacons (positions, trails, waypoints and routes), guessed locations, relay signal, and mobile-network masts in the 700/800/900 MHz bands next to 868 MHz from the Dutch Antenneregister (Netherlands only, fetched when you press Sync now in Settings > Map).
 - GPX export of the nodes currently shown, a configurable start view, and a server-side tile cache for offline use (off by default).
 - Screensaver (off by default): after a set idle time the map tilts and either orbits the selected node or map centre, or flies between heard nodes. Any input restores your view. A node's map popup has Orbit and Flyover buttons to start it from that node right away.
 

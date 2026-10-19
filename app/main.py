@@ -61,6 +61,7 @@ from app.radio_sync import (
     stop_telemetry_collect,
 )
 from app.routers import (
+    antenna_register,
     backup,
     bot_lists,
     channel_sets,
@@ -110,6 +111,7 @@ from app.security import (
     add_optional_basic_auth_middleware,
     add_optional_worker_token_middleware,
 )
+from app.services.antenna_register import stop_antenna_register_sync
 from app.services.backup_scheduler import start_backup_schedule, stop_backup_schedule
 from app.services.bot_list_refresh import start_bot_list_refresh, stop_bot_list_refresh
 from app.services.db_restore import apply_pending_restore
@@ -257,6 +259,7 @@ async def lifespan(app: FastAPI):
     await stop_message_polling()
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
+    await stop_antenna_register_sync()
     await stop_backup_schedule()
     await stop_bot_list_refresh()
     await stop_snmp_poll_schedule()
@@ -361,6 +364,7 @@ app.include_router(retention.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
+app.include_router(antenna_register.router, prefix="/api")
 app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(spam.router, prefix="/api")
