@@ -18,6 +18,7 @@ import time
 from itertools import count
 
 from app.decoder import (
+    OTHER_VERSION_PAYLOAD_TYPE,
     DecryptedDirectMessage,
     PacketInfo,
     PayloadType,
@@ -319,13 +320,22 @@ async def process_raw_packet(
 
     # Parse packet FIRST so the payload type is known before the row is stored,
     # letting the signal metadata (rssi/snr/payload_type) persist on raw_packets.
-    packet_info = parse_packet(raw_bytes)
+    parsed_info = parse_packet(raw_bytes, any_version=True)
+    # Header version 1-3: firmware drops these, so store and show them but
+    # never process them as the inner payload type (see OTHER_VERSION_PAYLOAD_TYPE).
+    other_version = parsed_info is not None and parsed_info.payload_version != 0
+    packet_info = None if other_version else parsed_info
     payload_type = packet_info.payload_type if packet_info else None
     # `PayloadType.REQUEST` is 0x00, which is falsy: a bare `if payload_type`
     # misclassifies every REQUEST packet as "Unknown". Guard on `is not None`.
-    payload_type_name = payload_type.name if payload_type is not None else "Unknown"
+    if other_version:
+        payload_type_name = OTHER_VERSION_PAYLOAD_TYPE
+    else:
+        payload_type_name = payload_type.name if payload_type is not None else "Unknown"
 
-    decoded_fields = decoded_stat_fields(packet_info)
+    # Route and hop fields come from the header and path byte, which the
+    # version bits leave as they are.
+    decoded_fields = decoded_stat_fields(parsed_info)
     # On an OpenHop node: the policy rule that decides this packet (an
     # indication). Stored with the packet, so Packet History can show it.
     verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
@@ -348,7 +358,7 @@ async def process_raw_packet(
     relay_capture = await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
     raw_hex = raw_bytes.hex()
 
-    if packet_info is None and len(raw_bytes) > 2:
+    if parsed_info is None and len(raw_bytes) > 2:
         logger.warning(
             "Failed to parse %d-byte packet (id=%d); stored undecrypted",
             len(raw_bytes),

@@ -123,6 +123,73 @@ class TestPipelinePersistsSignal:
         assert row["payload_type"] == "REQUEST"
 
 
+def _with_version(packet: bytes, version: int) -> bytes:
+    """Set the header's payload-version bits (bits 6-7) on a raw packet."""
+    return bytes([(packet[0] & 0x3F) | (version << 6)]) + packet[1:]
+
+
+class TestOtherVersionPackets:
+    """Header version 1-3 packets are stored and shown, never processed.
+
+    MeshCore 1.18.0 drops them in ``Dispatcher::tryParsePacket`` ("unsupported
+    packet version"), but ``logRxRaw`` runs first, so the companion still pushes
+    them to us. Trail Mate sends version 1 by default.
+    """
+
+    @pytest.mark.asyncio
+    async def test_version_1_advert_does_not_create_contact(self, test_db, captured_broadcasts):
+        fixture = FIXTURES["advertisement_chat_node"]
+        packet = _with_version(bytes.fromhex(fixture["raw_packet_hex"]), 1)
+        pubkey = fixture["expected_ws_event"]["data"]["public_key"]
+        _, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            await process_raw_packet(packet, timestamp=1700000000, snr=9.0, rssi=-58)
+
+        assert await ContactRepository.get_by_key(pubkey.lower()) is None
+        assert await _path_signal(test_db, pubkey) is None
+
+    @pytest.mark.asyncio
+    async def test_version_1_advert_is_stored_and_broadcast(self, test_db, captured_broadcasts):
+        fixture = FIXTURES["advertisement_chat_node"]
+        original = bytes.fromhex(fixture["raw_packet_hex"])
+        packet = _with_version(original, 1)
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(packet, timestamp=1700000000, snr=9.0, rssi=-58)
+
+        assert result["payload_type"] == "OTHER_VERSION"
+        row = await _row(test_db, result["packet_id"])
+        assert row["payload_type"] == "OTHER_VERSION"
+        assert row["rssi"] == -58
+        assert row["snr"] == 9.0
+        # Route and hop fields come from the header and path byte, which the
+        # version bits do not change, so they match the version-0 packet.
+        expected = decoded_stat_fields(parse_packet(original))
+        decoded = await _decoded_row(test_db, result["packet_id"])
+        assert decoded["route_type"] == expected["route_type"]
+        assert decoded["hop_count"] == expected["hop_count"]
+
+        raw_events = [b for b in broadcasts if b["type"] == "raw_packet"]
+        assert len(raw_events) == 1
+        assert raw_events[0]["data"]["payload_type"] == "OTHER_VERSION"
+        assert raw_events[0]["data"]["data"] == packet.hex()
+        assert not [b for b in broadcasts if b["type"] == "contact"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("version", [2, 3])
+    async def test_versions_2_and_3_are_other_version(self, test_db, captured_broadcasts, version):
+        packet = _with_version(bytes.fromhex("0100aa"), version)
+        _, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(packet, timestamp=1700000000)
+
+        row = await _row(test_db, result["packet_id"])
+        assert row["payload_type"] == "OTHER_VERSION"
+
+
 async def _path_signal(test_db, public_key: str):
     async with test_db.conn.execute(
         "SELECT best_rssi, best_snr FROM contact_advert_paths WHERE public_key = ?",

@@ -14,6 +14,7 @@ where the live windows count every time a packet was heard.
 from collections.abc import Iterable
 
 from app.database import db
+from app.decoder import OTHER_VERSION_PAYLOAD_TYPE
 
 # Backend PayloadType.name -> frontend label (Utils.getPayloadTypeName vocabulary).
 _PAYLOAD_LABELS = {
@@ -30,6 +31,7 @@ _PAYLOAD_LABELS = {
     "MULTIPART": "Multipart",
     "CONTROL": "Control",
     "RAW_CUSTOM": "RawCustom",
+    OTHER_VERSION_PAYLOAD_TYPE: "OtherVersion",
 }
 
 _HOP_BYTE_WIDTH_LABELS = {

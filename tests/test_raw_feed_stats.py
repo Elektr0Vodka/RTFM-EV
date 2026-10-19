@@ -15,6 +15,7 @@ def test_payload_label_mapping():
     assert payload_label("GROUP_TEXT") == "GroupText"
     assert payload_label("TEXT_MESSAGE") == "TextMessage"
     assert payload_label("ADVERT") == "Advert"
+    assert payload_label("OTHER_VERSION") == "OtherVersion"
     assert payload_label(None) == "Unknown"
     assert payload_label("SOMETHING_ELSE") == "Unknown"
 

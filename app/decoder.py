@@ -59,6 +59,12 @@ GROUP_DATA_TYPE_AEIC_IMAGE = 0xAE1C
 # text types occupy 0..3 (two bits), so this value can never collide.
 TXT_TYPE_GROUP_DATA = 0x40
 
+# Stored payload type for packets whose header version bits (6-7) are 1-3.
+# MeshCore 1.18.0 knows only PAYLOAD_VER_1 (0x00) and drops the rest in
+# Dispatcher::tryParsePacket ("unsupported packet version"), after logRxRaw has
+# already pushed them to us. Trail Mate sends version 1 by default.
+OTHER_VERSION_PAYLOAD_TYPE = "OTHER_VERSION"
+
 # Companion firmware 1.18 txt_type for an explicit CLI command sent to a
 # companion (TxtDataHelpers.h TXT_TYPE_CLI_COMMAND). Our radio runs it only
 # when the sender has Remote CLI permission (contact flags 0x10); either way
@@ -182,12 +188,19 @@ def extract_payload(raw_packet: bytes) -> bytes | None:
     return envelope.payload if envelope is not None else None
 
 
-def parse_packet(raw_packet: bytes) -> PacketInfo | None:
-    """Parse a raw packet and extract basic info."""
+def parse_packet(raw_packet: bytes, *, any_version: bool = False) -> PacketInfo | None:
+    """Parse a raw packet and extract basic info.
+
+    Returns None for header versions 1-3 unless ``any_version`` is set, the way
+    firmware drops them (see OTHER_VERSION_PAYLOAD_TYPE), so no caller handles
+    them as their inner payload type.
+    """
     from app.path_utils import parse_packet_envelope
 
     envelope = parse_packet_envelope(raw_packet)
     if envelope is None:
+        return None
+    if envelope.payload_version != 0 and not any_version:
         return None
     try:
         return PacketInfo(
