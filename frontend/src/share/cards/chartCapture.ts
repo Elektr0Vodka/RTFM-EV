@@ -146,6 +146,38 @@ function viewBoxOf(svg: SVGSVGElement, w: number, h: number): [number, number, n
   return [0, 0, w, h];
 }
 
+/** Spare room, in CSS px, kept around content that sticks out of the box. */
+const OVERFLOW_PAD = 2;
+
+/**
+ * The viewBox grown to take in what the chart draws outside it. A chart with
+ * `overflow: visible` (a label centred on the top grid line) shows that part
+ * on screen, but an SVG loaded as an image clips it to the viewBox.
+ */
+function viewBoxWithOverflow(
+  svg: SVGSVGElement,
+  vb: [number, number, number, number],
+  w: number,
+  h: number
+): [number, number, number, number] {
+  if (getComputedStyle(svg).overflow !== 'visible' || typeof svg.getBBox !== 'function') return vb;
+  let bb: { x: number; y: number; width: number; height: number };
+  try {
+    bb = svg.getBBox();
+  } catch {
+    return vb;
+  }
+  if (![bb.x, bb.y, bb.width, bb.height].every(Number.isFinite)) return vb;
+  const [vx, vy, vw, vh] = vb;
+  const px = (OVERFLOW_PAD * vw) / w;
+  const py = (OVERFLOW_PAD * vh) / h;
+  const x0 = bb.x < vx ? bb.x - px : vx;
+  const y0 = bb.y < vy ? bb.y - py : vy;
+  const x1 = bb.x + bb.width > vx + vw ? bb.x + bb.width + px : vx + vw;
+  const y1 = bb.y + bb.height > vy + vh ? bb.y + bb.height + py : vy + vh;
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
 /** The plot area: Recharts clips its series to it; otherwise the caller's hint. */
 function plotBox(svg: SVGSVGElement, w: number, h: number, hint: PlotFrac | undefined): PxBox {
   const [vx, vy, vw, vh] = viewBoxOf(svg, w, h);
@@ -194,15 +226,22 @@ export function captureChart(container: HTMLElement, plotHint?: PlotFrac): Chart
   const svg = largestSvg(container);
   if (!svg) return null;
   const rect = svg.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-  if (width <= 0 || height <= 0) return null;
+  if (rect.width <= 0 || rect.height <= 0) return null;
 
   const clone = svg.cloneNode(true) as SVGSVGElement;
   inlineStyles(svg, clone);
   clone.querySelectorAll(HOVER_SELECTORS).forEach((n) => n.remove());
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  const [vx, vy, vw, vh] = viewBoxOf(svg, width, height);
+  const box = viewBoxOf(svg, rect.width, rect.height);
+  const [vx, vy, vw, vh] = viewBoxWithOverflow(svg, box, rect.width, rect.height);
+  // Same scale as on screen; the size grows with any overflow taken in.
+  const sx = rect.width / box[2];
+  const sy = rect.height / box[3];
+  const width = vw * sx;
+  const height = vh * sy;
+  const plot = plotBox(svg, rect.width, rect.height, plotHint);
+  plot.x += (box[0] - vx) * sx;
+  plot.y += (box[1] - vy) * sy;
   clone.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
   clone.setAttribute('width', String(width));
   clone.setAttribute('height', String(height));
@@ -222,7 +261,7 @@ export function captureChart(container: HTMLElement, plotHint?: PlotFrac): Chart
     height,
     fullSvg,
     baseSvg,
-    plot: plotBox(svg, width, height, plotHint),
+    plot,
     reveal: svg.querySelector('.recharts-pie') ? 'radial' : 'x',
     legend: legendOf(container),
     background,
