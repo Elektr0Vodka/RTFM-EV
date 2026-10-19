@@ -57,7 +57,7 @@ async def get_sites(
     south: float = Query(..., ge=-90.0, le=90.0),
     east: float = Query(..., ge=-180.0, le=180.0),
     north: float = Query(..., ge=-90.0, le=90.0),
-    limit: int = Query(5000, ge=1, le=20000),
+    limit: int = Query(5000, ge=1, le=50000),
 ) -> AntennaRegisterSites:
     """Cached antenna sites inside a lat/lon box (the map viewport)."""
     sites, truncated = await AntennaRegisterRepository.query_bbox(

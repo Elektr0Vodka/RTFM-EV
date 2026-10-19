@@ -1,31 +1,60 @@
 import type { Map as MlMap } from 'maplibre-gl';
 import type { AntennaRegisterSiteSummary } from '../../types';
 
-// Antenna register layer: mobile-network masts from the Dutch Antenneregister
-// that transmit in the 700/800/900 MHz bands either side of the 868 MHz mesh
-// band. Drawn as small red dots UNDER every node layer, so they never hide or
-// steal clicks from mesh nodes. Dot size follows the site's strongest antenna
-// (dBW as registered) and grows with zoom.
+// Antenna register layer: registered transmitters from the Dutch Antenneregister
+// next to one of the two LoRa mesh bands, picked in the map panel:
+//   868 -> mobile-network masts in the 700/800/900 MHz bands (red)
+//   433 -> PAMR / base stations at 400-470 MHz (orange), plus licensed amateur
+//          stations (hollow purple ring: the register lists no band or power
+//          for them, so they are only "a transmitter is here")
+// Drawn UNDER every node layer, so they never hide or steal clicks from mesh
+// nodes. Dot size follows the site's strongest antenna (dBW as registered) and
+// grows with zoom.
 
 const SOURCE_ID = 'rt-antenna-register';
 const LAYER_ID = 'rt-antenna-register';
 // Lowest custom layers it must stay under, in order of preference.
 const BELOW_LAYER_IDS = ['rt-external', 'rt-nodes'];
 
-export const ANTENNA_FILL = '#dc2626';
-export const ANTENNA_STROKE = '#7f1d1d';
+export const ANTENNA_BANDS = ['868', '433'] as const;
+export type AntennaBand = (typeof ANTENNA_BANDS)[number];
+
+/** Backend band labels (`app/services/antenna_register.py` BANDS + AMATEUR) per mesh band. */
+export const ANTENNA_BAND_GROUPS: Record<AntennaBand, readonly string[]> = {
+  '868': ['700', '800', '900'],
+  '433': ['450', 'amateur'],
+};
+
+export const ANTENNA_868_FILL = '#dc2626';
+export const ANTENNA_433_FILL = '#f97316';
+export const ANTENNA_AMATEUR_STROKE = '#9333ea';
+
+/** Sites carrying at least one band of the chosen mesh band's group. */
+export function sitesForBand(
+  sites: AntennaRegisterSiteSummary[],
+  band: AntennaBand
+): AntennaRegisterSiteSummary[] {
+  const group = ANTENNA_BAND_GROUPS[band];
+  return sites.filter((s) => s.bands.some((b) => group.includes(b)));
+}
 
 export interface AntennaSiteProps {
   id: number;
 }
 
-export function buildAntennaFeatures(sites: AntennaRegisterSiteSummary[]) {
+/** Point features for sites already filtered with {@link sitesForBand}. */
+export function buildAntennaFeatures(sites: AntennaRegisterSiteSummary[], band: AntennaBand) {
   return {
     type: 'FeatureCollection' as const,
     features: sites.map((s) => ({
       type: 'Feature' as const,
       geometry: { type: 'Point' as const, coordinates: [s.lon, s.lat] },
-      properties: { id: s.id, power: s.max_power_dbw ?? 20 },
+      properties: {
+        id: s.id,
+        power: s.max_power_dbw ?? 20,
+        // An amateur-only site on the 433 view has no registered antenna data.
+        kind: band === '433' && !s.bands.includes('450') ? 'amateur' : band,
+      },
     })),
   };
 }
@@ -45,14 +74,12 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
   };
 
   // Power-scaled radius: ~15 dBW small cell -> small dot, ~37 dBW macro -> large.
+  // Amateur sites have no power, so they get a fixed mid size.
   const radiusAt = (min: number, max: number) => [
-    'interpolate',
-    ['linear'],
-    ['get', 'power'],
-    15,
-    min,
-    37,
-    max,
+    'case',
+    ['==', ['get', 'kind'], 'amateur'],
+    (min + max) / 2,
+    ['interpolate', ['linear'], ['get', 'power'], 15, min, 37, max],
   ];
 
   function addSourceAndLayer() {
@@ -75,10 +102,26 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
             12,
             radiusAt(3, 7),
           ],
-          'circle-color': ANTENNA_FILL,
+          'circle-color': [
+            'match',
+            ['get', 'kind'],
+            '433',
+            ANTENNA_433_FILL,
+            'amateur',
+            'rgba(0,0,0,0)',
+            ANTENNA_868_FILL,
+          ],
           'circle-opacity': 0.6,
-          'circle-stroke-color': ANTENNA_STROKE,
-          'circle-stroke-width': 1,
+          'circle-stroke-color': [
+            'match',
+            ['get', 'kind'],
+            '433',
+            '#7c2d12',
+            'amateur',
+            ANTENNA_AMATEUR_STROKE,
+            '#7f1d1d',
+          ],
+          'circle-stroke-width': ['match', ['get', 'kind'], 'amateur', 1.5, 1],
         },
       },
       before
@@ -104,8 +147,8 @@ export function createAntennaRegisterLayer(map: MlMap, opts: AntennaRegisterLaye
     });
   }
 
-  function setData(sites: AntennaRegisterSiteSummary[]) {
-    lastData = buildAntennaFeatures(sites);
+  function setData(sites: AntennaRegisterSiteSummary[], band: AntennaBand) {
+    lastData = buildAntennaFeatures(sites, band);
     m.getSource(SOURCE_ID)?.setData(lastData);
   }
 
