@@ -1,6 +1,7 @@
 """Backend map tile cache: allow-list (SSRF), freshness, hit/miss/stale, eviction, pre-download."""
 
 import asyncio
+import re
 from dataclasses import replace
 
 import pytest
@@ -192,7 +193,10 @@ class TestCacheLookup:
         assert len(upstream.calls) == 1
         url, headers = upstream.calls[0]
         assert url == "https://tile.openstreetmap.org/3/1/2.png"
-        assert headers["User-Agent"].startswith("RTFM-EV-TileCache/")
+        assert re.fullmatch(
+            r"RTFM-EV/\S+ \(\+https://github\.com/Elektr0Vodka/RTFM-EV\)",
+            headers["User-Agent"],
+        )
 
     async def test_expired_entry_is_revalidated_conditionally(self, cache, upstream, clock):
         upstream.responses.append(

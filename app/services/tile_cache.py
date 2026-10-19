@@ -74,14 +74,11 @@ _MAGIC = b"RTC1"
 
 
 def _user_agent() -> str:
-    try:
-        from app.version_info import get_app_build_info
+    from app.version_info import user_agent
 
-        version = get_app_build_info().version
-    except Exception:  # noqa: BLE001 - the UA must never break a fetch
-        version = "unknown"
-    # OSM tile policy: proxies must send "a clear, contactable User-Agent".
-    return f"RTFM-EV-TileCache/{version} (+https://github.com/Elektr0Vodka/RTFM-EV)"
+    # OSM tile policy: proxies must send "a clear, contactable User-Agent", so
+    # tiles alone keep the project URL after the shared RTFM-EV/<version>.
+    return f"{user_agent()} (+https://github.com/Elektr0Vodka/RTFM-EV)"
 
 
 # --- Source allow-list -----------------------------------------------------

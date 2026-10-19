@@ -159,6 +159,15 @@ def get_app_build_info() -> AppBuildInfo:
     )
 
 
+def user_agent() -> str:
+    """The User-Agent RTFM-EV sends wherever it sets one: ``RTFM-EV/<version>``."""
+    try:
+        version = get_app_build_info().version
+    except Exception:  # noqa: BLE001 - the UA must never break a fetch
+        version = "unknown"
+    return f"RTFM-EV/{version}"
+
+
 def git_output(*args: str) -> str | None:
     """Shared git helper for debug surfaces that still need live repo state."""
     return _git_output(repo_root(), *args)

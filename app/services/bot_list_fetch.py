@@ -22,6 +22,7 @@ import httpx
 
 from app.bot_lists.format import MAX_FILE_BYTES, BotListFile, BotListFormatError, parse_bot_list
 from app.services.url_safety import UnresolvedHostError, UnsafeUrlError, resolve_public_ip
+from app.version_info import user_agent
 
 # Per network operation (connect, one read). A server that drips bytes stays
 # under it, so FETCH_DEADLINE bounds the fetch as a whole.
@@ -30,7 +31,6 @@ FETCH_DEADLINE = 20.0
 MAX_REDIRECTS = 3
 MAX_URL_LENGTH = 2048
 _MAX_PUBLIC_DETAIL = 200
-_USER_AGENT = "RTFM-EV-BotList/1.0 (+https://github.com/Elektr0Vodka/RTFM-EV)"
 
 _fetching: contextvars.ContextVar[bool] = contextvars.ContextVar("bot_list_fetching", default=False)
 
@@ -104,7 +104,7 @@ async def _get_once(client: httpx.AsyncClient, target: str) -> tuple[int, str | 
         "GET",
         pinned,
         headers={
-            "User-Agent": _USER_AGENT,
+            "User-Agent": user_agent(),
             "Accept": "application/json, text/plain;q=0.9, */*;q=0.1",
             "Accept-Encoding": "identity",
             "Host": parts.netloc,

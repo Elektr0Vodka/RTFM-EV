@@ -26,8 +26,13 @@ Nothing is sent over the radio.
   map.meshcore.io. An install that set its own URL keeps syncing from it.
 - The URL field stays the analyzer for route checks ("Check with analyzer")
   and packet who-heard lookups, whichever node source is picked.
-- map.meshcore.io requests carry a `RTFM-EV-NodeSync/<version>` User-Agent.
-  Analyzer requests keep the httpx default User-Agent, as before.
+- **One User-Agent:** requests that set one now all send
+  `RTFM-EV/<version>`: the map.meshcore.io sync, bot list fetches, link
+  previews and the antenna register sync (were `RTFM-EV-BotList/1.0 (+...)`,
+  `RTFM-EV-LinkPreview/1.0 (+...)` and `RTFM-EV antenna-register sync`).
+  The tile cache sends `RTFM-EV/<version> (+https://github.com/Elektr0Vodka/RTFM-EV)`:
+  the OSM tile policy asks for a contactable User-Agent. Analyzer requests
+  keep the httpx default User-Agent, as before.
 - The feed is about 50 MB (17 MB compressed). JSON decoding now runs off the
   event loop, and the node cap went from 50,000 to 200,000 (map.meshcore.io
   lists about 67,000). The map.meshcore.io feed has no advert count or

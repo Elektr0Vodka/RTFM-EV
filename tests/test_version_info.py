@@ -40,3 +40,25 @@ class TestAppBuildInfo:
         assert info.version_source == "pyproject"
         assert info.commit_hash == "cf1a55e2"
         assert info.commit_source == "build_info"
+
+
+class TestUserAgent:
+    def setup_method(self):
+        version_info.get_app_build_info.cache_clear()
+
+    def teardown_method(self):
+        version_info.get_app_build_info.cache_clear()
+
+    def test_is_name_slash_version(self, monkeypatch):
+        monkeypatch.setattr(version_info, "_package_metadata_version", lambda: "3.4.1")
+        monkeypatch.setattr(version_info, "_git_output", lambda root, *args: None)
+
+        assert version_info.user_agent() == "RTFM-EV/3.4.1" + version_info.FORK_VERSION_SUFFIX
+
+    def test_never_raises(self, monkeypatch):
+        def boom():
+            raise RuntimeError("no version")
+
+        monkeypatch.setattr(version_info, "get_app_build_info", boom)
+
+        assert version_info.user_agent() == "RTFM-EV/unknown"

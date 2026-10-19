@@ -26,6 +26,7 @@ import httpx
 from app.models import ExternalMapNode
 from app.repository.external_map import ExternalMapRepository
 from app.repository.settings import AppSettingsRepository
+from app.version_info import user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -51,16 +52,6 @@ _sync_lock = asyncio.Lock()
 
 class ExternalMapSyncError(Exception):
     """Raised when an external-map sync cannot complete."""
-
-
-def _user_agent() -> str:
-    try:
-        from app.version_info import get_app_build_info
-
-        version = get_app_build_info().version
-    except Exception:  # noqa: BLE001 - the UA must never break a fetch
-        version = "unknown"
-    return f"RTFM-EV-NodeSync/{version} (+https://github.com/Elektr0Vodka/RTFM-EV)"
 
 
 def _parse_last_seen(value: object) -> int | None:
@@ -180,7 +171,7 @@ async def sync_external_map(
     else:
         target = MESHCORE_MAP_NODES_URL
         parse = _parse_meshcore_map_nodes
-        headers = {"User-Agent": _user_agent()}
+        headers = {"User-Agent": user_agent()}
     async with _sync_lock:
         try:
             async with httpx.AsyncClient(

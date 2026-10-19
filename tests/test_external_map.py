@@ -1,5 +1,6 @@
 """Tests for the external analyzer node overlay sync."""
 
+import re
 from unittest.mock import patch
 
 import pytest
@@ -116,7 +117,7 @@ class TestSyncSource:
         assert count == 1
         url, headers = calls[0]
         assert url == MESHCORE_MAP_NODES_URL
-        assert headers["User-Agent"].startswith("RTFM-EV-NodeSync/")
+        assert re.fullmatch(r"RTFM-EV/\S+", headers["User-Agent"])
 
     @pytest.mark.asyncio
     async def test_analyzer_uses_url_and_default_user_agent(self, test_db):
