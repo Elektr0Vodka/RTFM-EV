@@ -473,6 +473,22 @@ class TestRegionScopeStats:
         assert stats["false_positive_floor"] == pytest.approx(1.0)
 
     @pytest.mark.asyncio
+    async def test_real_meshcoreng_location_stays_out_of_the_floor(self, test_db):
+        """A valid MeshCoreNG MCL1 report on 0x0D is traffic, not corrupt noise."""
+        from tests.test_meshcoreng import mcl1
+
+        now = int(time.time())
+        conn = test_db.conn
+        # TRANSPORT_FLOOD (route 0), type 0x0D, scoped transport code, no path.
+        scoped_location = bytes([0x34]) + bytes.fromhex("AABB0000") + b"\x00" + mcl1(b"NG")
+        await self._insert_packet(conn, scoped_location, b"\x55", now)
+        await conn.commit()
+
+        stats = (await StatisticsRepository.get_all())["region_scope_24h"]
+
+        assert stats["false_positive_floor"] == pytest.approx(0.0)
+
+    @pytest.mark.asyncio
     async def test_counts_distinct_senders_who_scoped(self, test_db):
         """Sender adoption is per distinct sender, not per message."""
         now = int(time.time())

@@ -17,6 +17,7 @@ from app.decoder import (
     try_decrypt_packet_with_channel_key,
 )
 from app.fuota import FUOTA_PAYLOAD_TYPE_NAME
+from app.meshcoreng import MESHCORENG_PAYLOAD_TYPE_NAME
 from app.models import (
     AdvertLinkEdge,
     AdvertLinkNode,
@@ -319,6 +320,7 @@ _PAYLOAD_TYPE_TO_ENUM: dict[str, str] = {
     "Control": "CONTROL",
     "OtherVersion": OTHER_VERSION_PAYLOAD_TYPE,
     "FUOTA": FUOTA_PAYLOAD_TYPE_NAME,
+    "MeshCoreNG": MESHCORENG_PAYLOAD_TYPE_NAME,
 }
 
 

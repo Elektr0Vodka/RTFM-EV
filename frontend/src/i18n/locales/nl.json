@@ -3073,6 +3073,7 @@
   "packet_meta_label_scope": "Bereik",
   "packet_bytes_status": "{count} bytes · {status}",
   "packet_status_encrypted": "Versleuteld",
+  "packet_status_not_encrypted": "Niet versleuteld",
   "packet_storage_number": "Opslag #{id}",
   "packet_observation_number_suffix": " · Waarneming #{id}",
   "packet_region_regional_fallback": "Regionaal",

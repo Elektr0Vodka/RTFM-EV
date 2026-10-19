@@ -3073,6 +3073,7 @@
   "packet_meta_label_scope": "Bereich",
   "packet_bytes_status": "{count} Bytes · {status}",
   "packet_status_encrypted": "Verschlüsselt",
+  "packet_status_not_encrypted": "Nicht verschlüsselt",
   "packet_storage_number": "Speicher #{id}",
   "packet_observation_number_suffix": " · Beobachtung #{id}",
   "packet_region_regional_fallback": "Regional",
