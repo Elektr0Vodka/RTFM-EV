@@ -11,6 +11,95 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (wardrive plugin, feat/wardrive-plugin)
+
+Opt-in: nothing changes unless `MESHCORE_WARDRIVE=true`. Migration `_159`. New
+dependencies: `mqtt` (the page's broker client) and `fake-indexeddb` (tests). Nothing is sent over the
+radio and the home radio is never used.
+
+### Wardrive page
+- **Map-first screen** (phases 0 and 1 of the HUD design): a full-screen
+  live map with trail and receptions, top bar with status dots, notes,
+  a live log of what the radio hears (also when not driving), a HUD
+  with signal, SNR, age, speed and backlog, a button rail (3D, follow,
+  sound), a start screen and a menu with the earlier panels. In the
+  RTFM-EV theme: the page now loads the theme styles and ships its own
+  copies of the fonts (offline too). Signal colours follow the RX app's
+  six bands, with a colourblind ramp.
+- **`/wardrive/`**, a separate build served outside the main login. Log in
+  or create an account with the radio connected; add a radio to the account
+  or start a separate account.
+- **The driver's own radio** over Bluetooth (Web Bluetooth; iPhone through
+  Bluefy) or USB (Web Serial). The page only listens and asks the radio to
+  sign; it sends nothing over the air.
+- **Position** from the phone's location or a USB GPS (NMEA); laptops only
+  with a USB GPS. A reception is kept only with a fix better than 100 m and
+  at most 10 s old.
+- **Obs and tracks** built byte for byte like core-hunter's wardrive
+  messages (checked against vectors produced by core-hunter itself),
+  written to the browser first and uploaded in batches; a service worker
+  keeps the page working offline and uploads wait until RTFM-EV is back.
+- **Forward to the DutchMeshCore collectors** (`hunter`, `wardriver`) from
+  the phone over MQTT/WSS, each switched on per radio and starting with
+  what is heard from then on; the radio signs the sign-in token itself.
+  on8ar's EMQX only with the driver's own account. Settings stay in the
+  browser. New dependency: `mqtt` (MQTT over WebSocket in the browser).
+- **Maps**: the page shows the driver's visible data and Settings >
+  Wardrive a coverage map of everything (user, group, radio, 24 h / 7 d /
+  30 d): receptions coloured by RSSI and the track lines.
+- **Start driving sticks**: a drive started right as the page finished
+  loading could end at once (an older cleanup stopped it); only leaving
+  the page ends a drive now.
+- **Driving aids**: a screen wake lock while driving; log out forgets the
+  on8ar password and the collector tokens; uploads retry on 404, 408 and
+  429; a broker switched off while connecting closes the late session.
+- **Smaller page**: Dutch and German load only when picked, and the page
+  no longer pulls in the packet decoder. After an update the service worker
+  drops cached files the new build does not list (`assets.json`), and a
+  browser whose cache storage fails still loads the page from the network.
+  On a stalled link the cached page opens after 4 s instead of waiting,
+  and also when the server answers with an error; a new version replaces
+  the cached one only once all its files are in.
+- **Two drivers, one browser**: uploads to RTFM-EV run per radio, and only
+  for radios on the logged-in account. Another account's receptions wait in
+  the browser for that account (kept 7 days) instead of being refused and
+  set aside. A radio removed from the account (a 403) waits the same way.
+- **Steadier radio and storage**: a late error from a timed-out signing no
+  longer fails the next one; the page asks the browser to keep its stored
+  drive data; a broker switched on again shows Connecting, not its old
+  status.
+
+### Wardrive server side
+- **Module switch.** `MESHCORE_WARDRIVE=true` registers the wardrive API and
+  shows **Settings > Wardrive**. Health reports `wardrive_enabled` and
+  `wardrive_unprotected`. Not available in multi-radio mode.
+- **Own accounts, outside the main login.** `/wardrive/` and
+  `/api/wardrive/` skip the Basic auth gate; the owner admin
+  (`/api/wardrive-admin/`) stays behind it. With the main login off,
+  RTFM-EV logs a warning at startup and Settings > Wardrive shows one,
+  because anyone who can open the wardrive page could then open the app.
+- **Accounts proven by the radio.** An account starts with a paired radio
+  that signs a one-time challenge with its own key; more radios can be
+  added to the account the same way. A radio is on one account at most.
+  Passwords need 10 characters; logins are throttled after 5 failures in
+  15 minutes.
+- **Local copy.** The page uploads receptions and listening intervals
+  in core-hunter's wardrive obs/track shape; a re-sent batch is not stored
+  twice, and every row must belong to the batch's radio.
+- **Who sees what.** Per user, set by the owner: own data only (default),
+  my groups, or all drivers. The owner manages groups and members, can
+  disable or delete a user and remove a radio.
+- **Retention.** New row "Wardrive receptions and tracks" in Data
+  retention (0 = keep forever).
+- **Tighter input checks.** Infinity/NaN, counts above 2^31 and data
+  windows out of range are a 422 (a validation error that echoed Infinity
+  used to come back as a 500, anywhere in the app); one instant written two
+  ways is one row. The login throttle and the radio challenges stay bounded
+  in memory; a radio challenge only works in the browser that asked for it
+  (device cookie), so another device cannot replace or use it.
+- **Owner admin.** A failed action shows its error (the reload after it
+  used to clear it at once); a refused group rename puts the stored name
+  back; the group Delete button names the group for screen readers.
 ## Update 2026-10-19 (collapsible map panel sections, feat/collapsible-map-panel-sections)
 
 No migration, no new dependency.

@@ -88,6 +88,8 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "tracker_positions": s.device_history_retention_days,
             "tracker_objects": s.device_history_retention_days,
             "rx_bad_frames": RX_BAD_FRAME_RETENTION_DAYS,
+            "wardrive_obs": s.wardrive_retention_days,
+            "wardrive_tracks": s.wardrive_retention_days,
         }
         for key, days in age_settings.items():
             if days > 0:

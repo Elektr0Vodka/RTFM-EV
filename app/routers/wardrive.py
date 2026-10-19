@@ -1,0 +1,250 @@
+"""Wardrive driver API (``MESHCORE_WARDRIVE``).
+
+Reached without the main Basic login: wardrive accounts have their own
+sessions, and nothing here touches the home radio. Registered only when the
+module is active.
+"""
+
+import asyncio
+import time
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, Field
+
+from app.repository.wardrive import (
+    RadioTaken,
+    UsernameTaken,
+    WardriveDataRepository,
+    WardriveRadioRepository,
+    WardriveUserRepository,
+)
+from app.wardrive import sessions
+from app.wardrive.crypto import (
+    challenge_message,
+    challenges,
+    hash_password,
+    normalize_key,
+    verify_password,
+)
+from app.wardrive.models import MAX_TS, UploadBody, UploadResult
+from app.wardrive.visibility import visible_user_ids
+
+router = APIRouter(prefix="/wardrive", tags=["wardrive"])
+
+CurrentUser = Annotated[dict[str, Any], Depends(sessions.current_user)]
+
+MIN_PASSWORD_LENGTH = 10
+
+
+class ChallengeRequest(BaseModel):
+    public_key: str
+
+
+class ChallengeResponse(BaseModel):
+    nonce: str
+    message_hex: str = Field(description="The exact bytes the radio signs, as hex")
+
+
+class SignedRadio(BaseModel):
+    public_key: str
+    nonce: str
+    signature: str = Field(description="Ed25519 signature over message_hex, as hex")
+
+
+class RegisterRequest(SignedRadio):
+    username: str = Field(max_length=64)
+    password: str
+    radio_name: str | None = Field(default=None, max_length=64)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AddRadioRequest(SignedRadio):
+    name: str | None = Field(default=None, max_length=64)
+
+
+class RadioOut(BaseModel):
+    public_key: str
+    name: str | None = None
+
+
+class MeResponse(BaseModel):
+    user_id: int
+    username: str
+    visibility: str
+    radios: list[RadioOut]
+
+
+def _key_or_400(public_key: str) -> str:
+    try:
+        return normalize_key(public_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+def _check_signed(body: SignedRadio, request: Request) -> str:
+    key = _key_or_400(body.public_key)
+    if not challenges.consume(body.nonce, key, body.signature, owner=sessions.requester(request)):
+        raise HTTPException(status_code=401, detail="The radio signature did not verify")
+    return key
+
+
+async def _me(user: dict[str, Any]) -> MeResponse:
+    radios = await WardriveRadioRepository.list_for_user(user["id"])
+    return MeResponse(
+        user_id=user["id"],
+        username=user["username"],
+        visibility=user["visibility"],
+        radios=[RadioOut(public_key=r["public_key"], name=r["name"]) for r in radios],
+    )
+
+
+@router.post("/challenge", response_model=ChallengeResponse)
+async def wardrive_challenge(
+    body: ChallengeRequest, request: Request, response: Response
+) -> ChallengeResponse:
+    """A one-time nonce for the radio to sign, proving it holds the key. It
+    can only be spent by the browser that asked for it (device cookie)."""
+    key = _key_or_400(body.public_key)
+    nonce = challenges.issue(key, owner=sessions.challenge_owner(request, response))
+    return ChallengeResponse(nonce=nonce, message_hex=challenge_message(nonce, key).hex())
+
+
+@router.post("/register", response_model=MeResponse)
+async def wardrive_register(
+    body: RegisterRequest, request: Request, response: Response
+) -> MeResponse:
+    """Create an account that starts with the signed radio, and log in."""
+    username = body.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Choose a username")
+    if len(body.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The password needs at least {MIN_PASSWORD_LENGTH} characters",
+        )
+    key = _check_signed(body, request)
+    if await WardriveRadioRepository.owner_of(key) is not None:
+        raise HTTPException(status_code=409, detail="This radio is already on an account")
+    now = int(time.time())
+    try:
+        # scrypt is slow on purpose; keep it off the event loop.
+        password_hash = await asyncio.to_thread(hash_password, body.password)
+        user_id = await WardriveUserRepository.create(username, password_hash, now)
+    except UsernameTaken:
+        raise HTTPException(status_code=409, detail="This username is taken") from None
+    try:
+        await WardriveRadioRepository.add(key, user_id, body.radio_name, now)
+    except RadioTaken:
+        await WardriveUserRepository.delete(user_id)
+        raise HTTPException(status_code=409, detail="This radio is already on an account") from None
+    await sessions.start_session(
+        response, user_id, sessions.request_is_https(request), sessions.cookie_path(request)
+    )
+    user = await WardriveUserRepository.get(user_id)
+    assert user is not None
+    return await _me(user)
+
+
+@router.post("/login", response_model=MeResponse)
+async def wardrive_login(body: LoginRequest, request: Request, response: Response) -> MeResponse:
+    throttle = sessions.login_throttle
+    if throttle.blocked(body.username):
+        raise HTTPException(status_code=429, detail="Too many failed logins, try again later")
+    user = await WardriveUserRepository.get_by_username(body.username.strip())
+    matches = user is not None and await asyncio.to_thread(
+        verify_password, body.password, user["password_hash"]
+    )
+    if user is None or not matches:
+        throttle.record_failure(body.username)
+        raise HTTPException(status_code=401, detail="Wrong username or password")
+    if user["disabled"]:
+        raise HTTPException(status_code=403, detail="Account disabled")
+    throttle.reset(body.username)
+    await sessions.start_session(
+        response, user["id"], sessions.request_is_https(request), sessions.cookie_path(request)
+    )
+    return await _me(user)
+
+
+@router.post("/logout", status_code=204)
+async def wardrive_logout(request: Request, response: Response) -> None:
+    await sessions.end_session(request, response)
+
+
+@router.get("/me", response_model=MeResponse)
+async def wardrive_me(user: CurrentUser) -> MeResponse:
+    return await _me(user)
+
+
+@router.post("/radios", response_model=MeResponse)
+async def wardrive_add_radio(
+    body: AddRadioRequest, request: Request, user: CurrentUser
+) -> MeResponse:
+    """Add the signed radio to the logged-in account."""
+    key = _check_signed(body, request)
+    try:
+        await WardriveRadioRepository.add(key, user["id"], body.name, int(time.time()))
+    except RadioTaken:
+        raise HTTPException(status_code=409, detail="This radio is already on an account") from None
+    return await _me(user)
+
+
+@router.post("/upload", response_model=UploadResult)
+async def wardrive_upload(body: UploadBody, user: CurrentUser) -> UploadResult:
+    """Store a batch of the page's receptions and listening intervals.
+
+    Re-sending a batch is safe: rows already stored count as duplicates. Every
+    row's ``origin_id`` must be the radio the batch is for, as the
+    DutchMeshCore collectors require; one that is not rejects the batch.
+    """
+    key = _key_or_400(body.radio_key)
+    if await WardriveRadioRepository.owner_of(key) != user["id"]:
+        raise HTTPException(status_code=403, detail="This radio is not on your account")
+    for row in [*body.obs, *body.tracks]:
+        try:
+            origin = normalize_key(row.origin_id)
+        except ValueError:
+            origin = None
+        if origin != key:
+            raise HTTPException(
+                status_code=422, detail="Every origin_id must be the radio of the batch"
+            )
+    now = int(time.time())
+    accepted_obs, duplicate_obs = await WardriveDataRepository.insert_obs(
+        user["id"], key, body.obs, now
+    )
+    accepted_tracks, duplicate_tracks = await WardriveDataRepository.insert_tracks(
+        user["id"], key, body.tracks, now
+    )
+    return UploadResult(
+        accepted_obs=accepted_obs,
+        duplicate_obs=duplicate_obs,
+        accepted_tracks=accepted_tracks,
+        duplicate_tracks=duplicate_tracks,
+    )
+
+
+DEFAULT_WINDOW_S = 86400
+
+
+@router.get("/data")
+async def wardrive_data(
+    user: CurrentUser,
+    since: int | None = Query(
+        default=None, ge=0, le=MAX_TS, description="Unix seconds, default 24 h ago"
+    ),
+    until: int | None = Query(
+        default=None, ge=0, le=MAX_TS, description="Unix seconds, default now"
+    ),
+    radio_key: str | None = None,
+) -> dict[str, Any]:
+    """Stored receptions and tracks this user may see under their visibility."""
+    end = until if until is not None else int(time.time())
+    start = since if since is not None else end - DEFAULT_WINDOW_S
+    key = _key_or_400(radio_key) if radio_key else None
+    return await WardriveDataRepository.query(await visible_user_ids(user), start, end, key)

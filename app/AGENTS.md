@@ -432,6 +432,22 @@ With `MESHCORE_MULTI_RADIO=true`, `app.asgi:app` serves the gateway instead of t
 - **Gateway API** (not under `/api`, which belongs to the workers): `GET/POST /gateway/api/radios`, `PATCH/DELETE /gateway/api/radios/{id}` (`delete_data=true` removes only `<data dir>/radios/<id>/`), `POST /gateway/api/radios/{id}/start|stop|restart`, `GET /gateway/api/radios/{id}/log`. The BLE PIN is never returned.
 - Do not import `app.main` or `app.database` from `app/gateway/`: the gateway must not open a radio or a database itself. That also rules out `app.frontend_static` (it reads the brand name from the database); the manifest code lives in `app/web_manifest.py` for that reason.
 
+### Validation errors (`app/validation_errors.py`)
+
+`install_validation_error_handler(app)` (in `main.py`) keeps FastAPI's 422 answer. Python's JSON reader accepts `Infinity`/`NaN`; when a validation error echoes such a value the usual answer cannot be written and the client got a 500, so only then the numbers are echoed as text. Test apps that should behave like the main app call it too (`tests/wardrive_helpers.wardrive_app`).
+
+### Wardrive plugin (`app/wardrive/`, opt-in)
+
+`MESHCORE_WARDRIVE=true` (`Settings.wardrive`). `module.wardrive_active()` is that flag and not multi-radio mode; when it is false neither router is registered (`main.py`) and the Basic auth middleware exempts nothing. `startup_warnings()` is logged in lifespan: main login off (`wardrive_unprotected`), or the flag set in multi-radio mode. Health exposes `wardrive_enabled` and `wardrive_unprotected`.
+
+- **Access.** `BasicAuthMiddleware(exempt_prefixes=("/wardrive", "/api/wardrive/"))`: `/wardrive`, `/wardrive/...` and `/api/wardrive/...` pass without Basic auth; `/api/wardrive-admin/...` does not. Driver endpoints use a wardrive session (`sessions.py`): cookie `rtfm_wardrive`, `Path=/api/wardrive/`, HttpOnly, SameSite=Strict, Secure when the request (or `X-Forwarded-Proto`) is https, 30 days; the SHA-256 of the token is stored in `wardrive_sessions`. `current_user` reads the user fresh on every call (disabled = 403 at once). In-memory login throttle: 5 failures per username in 15 minutes (per username, not per address: behind tailscale serve or a proxy every request has the same address), at most 10000 usernames tracked, expired ones dropped first, then the one with the fewest failures.
+- **Radio ownership.** `crypto.ChallengeStore` issues a nonce per key and requester (5 minutes, single use; the requester is the hash of the `rtfm_wardrive_device` cookie that `/challenge` sets, `sessions.challenge_owner` / `requester`, so another device can neither replace nor spend it; one pending per requester and radio key, a new one replaces it; 1000 pending max, expired ones dropped first); the radio signs `challenge_message()` = `rtfm-ev-wardrive:{nonce}:{PUBKEY}` and `consume()` verifies it with PyNaCl. Keys are stored as 64 upper-case hex; a key is on at most one account. Passwords: `hashlib.scrypt` (`scrypt$n$r$p$salt$hash`), at least 10 characters.
+- **Local copy.** `models.Obs` / `models.Track` are the obs/track messages of core-hunter `app/src/wardrive.js` (`v: 1`). `POST /wardrive/upload` refuses a radio not on the session's account (403) and a batch with any `origin_id` other than its radio (422, nothing stored); rows go in with `INSERT OR IGNORE` on `(radio_key, rx_at, hash)` / `(radio_key, t0)` and the reply counts duplicates; `rx_at`, `t0` and `t1` are rewritten as UTC with milliseconds (`...T10:00:00.000Z`), so one instant in another format is still a duplicate. Max 500 of each per batch. Infinity/NaN are refused (`allow_inf_nan=False`), counts and lengths above 2**31-1 and data windows (`since`/`until`) outside 0..2**40 are a 422.
+- **Visibility.** `visibility.visible_user_ids()`: `own` = the user, `groups` = the user plus everyone sharing a group, `all` = `None` (everyone). Applies to `GET /wardrive/data` only.
+- Tables (migration `_159`): `wardrive_users`, `wardrive_radios`, `wardrive_groups`, `wardrive_group_members`, `wardrive_sessions`, `wardrive_obs`, `wardrive_tracks`; `app_settings.wardrive_retention_days` (retention classes `wardrive_obs` by `rx_ts`, `wardrive_tracks` by `t0_ts`). Deleting a user deletes their radios, sessions, memberships and data; removing a radio keeps its data with the account.
+- **Page.** `static.register_wardrive_page_routes()` serves the separate page build (`frontend/dist/wardrive/` or `prebuilt/wardrive/`): `/wardrive` 307 to `/wardrive/`, `/wardrive/` the page (no-cache), `/wardrive/assets/*` immutable, other files (the service worker) no-cache, anything else the page; 503 when not built. Registered before the SPA catch-all, only when the module is active. Its assets must stay under `/wardrive/`: `/assets/` is behind the Basic login.
+- Never touches the home radio, the packet pipeline, fanout or Mesh Health.
+
 ## API Surface (all under `/api`)
 
 ### Health
@@ -632,6 +648,27 @@ Router `routers/snmp_agent.py`, service `services/snmp_agent.py`, repository `re
 - `PUT /snmp-agent` - save the settings and apply them right away; a bind failure is returned in `error`, not raised
 
 The agent serves the first-release part of the firmware's OID table (`mib.FIRST_RELEASE_ENTRIES`, 22 OIDs) for this host; the OIDs added later answer noSuchObject: `host_values()` reads the latest radio stats sample, the radio name and firmware version, the count of connected MQTT fanout modules and `/proc/meminfo`; `build_table()` turns that into INTEGER / OCTET STRING varbinds sorted by OID (unknown numbers 0, unknown names empty, values clamped to int32, `last_snr` back to dB x 4). `_safe_table()` serves zeros when a source fails, so a request is never dropped for that. `apply_snmp_agent_settings()` closes the old listener and yields to the loop before binding again, with one retry on `EADDRINUSE`, because `transport.close()` only schedules the close. Wrong community, SNMPv1/v3 and malformed datagrams get no reply; SET gets `notWritable`. Lifespan: `start_snmp_agent()` / `stop_snmp_agent()`. It never uses the radio.
+
+### Wardrive (driver API, no Basic auth, wardrive session)
+
+Router `routers/wardrive.py`, registered only when the module is active.
+
+- `POST /wardrive/challenge` `{public_key}` - `{nonce, message_hex}`: the bytes the radio signs
+- `POST /wardrive/register` `{username, password, public_key, nonce, signature, radio_name?}` - new account with that radio, starts a session (400 short password or blank name, 401 signature, 409 name or radio taken)
+- `POST /wardrive/login` `{username, password}` (401, 403 disabled, 429 throttled), `POST /wardrive/logout` (204), `GET /wardrive/me` - `{user_id, username, visibility, radios}`
+- `POST /wardrive/radios` `{public_key, nonce, signature, name?}` - add a radio to the logged-in account (409 taken)
+- `POST /wardrive/upload` `{radio_key, obs[], tracks[]}` - `{accepted_obs, duplicate_obs, accepted_tracks, duplicate_tracks}`
+- `GET /wardrive/data?since&until&radio_key` - `{obs, tracks, truncated}` under the user's visibility, newest first, default last 24 h, 20000 rows per list
+
+### Wardrive admin (owner, behind the main login)
+
+Router `routers/wardrive_admin.py`, registered only when the module is active.
+
+- `GET /wardrive-admin/status` - `{active, unprotected, page_path}`
+- `GET /wardrive-admin/users` (no password hashes; with `radios`, `group_ids`, `obs_count`), `PATCH /wardrive-admin/users/{id}` `{visibility?, disabled?}` (disabling ends their sessions), `DELETE /wardrive-admin/users/{id}`, `DELETE /wardrive-admin/radios/{public_key}`
+- `GET/POST /wardrive-admin/groups`, `PATCH/DELETE /wardrive-admin/groups/{id}`, `PUT /wardrive-admin/groups/{id}/members` `{user_ids}` (409 duplicate name, 422 unknown user)
+- `GET /wardrive-admin/data?since&until&user_id&group_id&radio_key` - everything, same shape as the driver read
+- DELETEs return `{"status": "deleted"}`.
 
 ### LAN discovery (Tools > Network scan)
 
@@ -1026,7 +1063,7 @@ Note: MQTT, community MQTT, and bot configs were migrated to the `fanout_configs
 
 ## Security Posture (intentional)
 
-- No per-user authn/authz model; optionally, operators may enable app-wide HTTP Basic auth for both HTTP and WS entrypoints.
+- No per-user authn/authz model; optionally, operators may enable app-wide HTTP Basic auth for both HTTP and WS entrypoints. Exception: the opt-in wardrive plugin has its own accounts for `/wardrive/` and `/api/wardrive/`, which are exempt from Basic auth while it is on.
 - No CORS restriction (`*`).
 
 These are product decisions for trusted-network deployments; do not flag as accidental vulnerabilities.

@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import APIRouter
@@ -14,6 +15,7 @@ from app.services.radio_identity import health_view as radio_identity_health_vie
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import get_latest_radio_stats
 from app.version_info import get_app_build_info
+from app.wardrive.module import wardrive_active, wardrive_unprotected
 
 router = APIRouter(tags=["health"])
 
@@ -91,6 +93,8 @@ class HealthResponse(BaseModel):
     oldest_undecrypted_timestamp: int | None
     fanout_statuses: dict[str, FanoutStatusResponse] = Field(default_factory=dict)
     basic_auth_enabled: bool = False
+    wardrive_enabled: bool = False
+    wardrive_unprotected: bool = False
     radio_identity: RadioIdentityHealth | None = None
 
 
@@ -99,6 +103,17 @@ def _clean_optional_str(value: object) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def _wardrive_flag(check) -> bool:
+    # Tests patch ``settings`` with stubs that may lack these fields; each is
+    # read on its own, so a missing one counts as off and nothing else is hidden.
+    flags = SimpleNamespace(
+        wardrive=_read_optional_bool_setting("wardrive"),
+        multi_radio=_read_optional_bool_setting("multi_radio"),
+        basic_auth_enabled=_read_optional_bool_setting("basic_auth_enabled"),
+    )
+    return check(flags) is True
 
 
 def _read_optional_bool_setting(name: str) -> bool:
@@ -224,6 +239,8 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
         "oldest_undecrypted_timestamp": oldest_ts,
         "fanout_statuses": fanout_statuses,
         "basic_auth_enabled": _read_optional_bool_setting("basic_auth_enabled"),
+        "wardrive_enabled": _wardrive_flag(wardrive_active),
+        "wardrive_unprotected": _wardrive_flag(wardrive_unprotected),
         "radio_identity": radio_identity,
     }
 

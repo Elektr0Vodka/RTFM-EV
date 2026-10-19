@@ -175,6 +175,12 @@ describe('settings URL hashes', () => {
     expect(parseHashSettingsSection()).toBe('database');
   });
 
+  it('parses the wardrive settings section hash', () => {
+    window.location.hash = '#settings/wardrive';
+
+    expect(parseHashSettingsSection()).toBe('wardrive');
+  });
+
   it('returns null for an invalid settings section hash', () => {
     window.location.hash = '#settings/not-a-section';
 

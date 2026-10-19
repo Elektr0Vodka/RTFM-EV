@@ -29,6 +29,9 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     "tracker_positions": ("tracker_positions", "received_at"),
     "tracker_objects": ("tracker_objects", "received_at"),
     "rx_bad_frames": ("rx_bad_frames", "timestamp"),
+    # Wardrive plugin: the local copy of drivers' receptions and listening intervals.
+    "wardrive_obs": ("wardrive_obs", "rx_ts"),
+    "wardrive_tracks": ("wardrive_tracks", "t0_ts"),
 }
 
 # Tables that also get a per-node row cap (newest kept).

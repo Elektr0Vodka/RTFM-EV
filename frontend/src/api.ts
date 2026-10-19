@@ -191,6 +191,11 @@ import type {
   SnmpNodeOverview,
   SnmpAgentSettings,
   SnmpAgentState,
+  WardriveAdminStatus,
+  WardriveData,
+  WardriveGroup,
+  WardriveUser,
+  WardriveVisibility,
   SnmpDiscoverAddressResponse,
   LanScanRequest,
   LanScanStatus,
@@ -1930,6 +1935,50 @@ export const api = {
     fetchJson<FleetAssetEvent>(`/fleet/configs/${configId}/apply-log`, {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  // Wardrive plugin owner admin (only registered when MESHCORE_WARDRIVE is on)
+  getWardriveAdminStatus: () => fetchJson<WardriveAdminStatus>('/wardrive-admin/status'),
+  getWardriveUsers: () => fetchJson<WardriveUser[]>('/wardrive-admin/users'),
+  patchWardriveUser: (
+    userId: number,
+    update: { visibility?: WardriveVisibility; disabled?: boolean }
+  ) =>
+    fetchJson<WardriveUser>(`/wardrive-admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  deleteWardriveUser: (userId: number) =>
+    fetchJson<{ status: string }>(`/wardrive-admin/users/${userId}`, { method: 'DELETE' }),
+  deleteWardriveRadio: (publicKey: string) =>
+    fetchJson<{ status: string }>(`/wardrive-admin/radios/${publicKey}`, { method: 'DELETE' }),
+  getWardriveGroups: () => fetchJson<WardriveGroup[]>('/wardrive-admin/groups'),
+  createWardriveGroup: (name: string) =>
+    fetchJson<WardriveGroup>('/wardrive-admin/groups', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  renameWardriveGroup: (groupId: number, name: string) =>
+    fetchJson<WardriveGroup>(`/wardrive-admin/groups/${groupId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  deleteWardriveGroup: (groupId: number) =>
+    fetchJson<{ status: string }>(`/wardrive-admin/groups/${groupId}`, { method: 'DELETE' }),
+  getWardriveAdminData: (params: {
+    since: number;
+    until: number;
+    user_id?: number;
+    group_id?: number;
+    radio_key?: string;
+  }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    return fetchJson<WardriveData>(`/wardrive-admin/data?${q.toString()}`);
+  },
+  setWardriveGroupMembers: (groupId: number, userIds: number[]) =>
+    fetchJson<WardriveGroup>(`/wardrive-admin/groups/${groupId}/members`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
     }),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>

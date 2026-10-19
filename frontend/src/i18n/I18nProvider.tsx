@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import en from './locales/en.json';
 import nl from './locales/nl.json';
 import de from './locales/de.json';
@@ -17,8 +9,8 @@ import {
   translate,
   type Catalog,
   type Locale,
-  type Params,
 } from './i18n';
+import { I18nContext, type TFn } from './context';
 
 const CATALOGS: Record<Locale, Catalog> = {
   en: en as Catalog,
@@ -26,13 +18,7 @@ const CATALOGS: Record<Locale, Catalog> = {
   de: de as Catalog,
 };
 
-export type TFn = (key: string, params?: Params) => string;
-
-interface I18nValue {
-  locale: Locale;
-  setLocale: (l: Locale) => void;
-  t: TFn;
-}
+export { useT, useLocale, type TFn } from './context';
 
 function readSaved(): Locale {
   try {
@@ -41,14 +27,6 @@ function readSaved(): Locale {
     return DEFAULT_LOCALE;
   }
 }
-
-const I18nContext = createContext<I18nValue>({
-  locale: DEFAULT_LOCALE,
-  setLocale: () => {},
-  // Outside a provider (e.g. in isolated component tests), still resolve to the
-  // English catalog rather than echoing the raw key, so text stays readable.
-  t: (key, params) => translate(CATALOGS, DEFAULT_LOCALE, key, params),
-});
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(readSaved);
@@ -70,13 +48,4 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
-}
-
-export function useT(): TFn {
-  return useContext(I18nContext).t;
-}
-
-export function useLocale() {
-  const { locale, setLocale } = useContext(I18nContext);
-  return { locale, setLocale };
 }

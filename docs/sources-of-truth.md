@@ -198,6 +198,30 @@ machine this was authored on and may differ elsewhere.
   `packet_hash`).
 - collector-wardrive (wardrive ingest reference): local
   `G:\Github\repositories\Dutch-MeshCore\collector-wardrive`.
+  `docs/observer-feed-contract.md` fixes the topic grammar
+  (`meshcore/{label}/{PUBKEY}/wardriver/obs|track`, labels `hunter` and
+  `wardriver`), that the topic key is the authenticated key, and that the
+  payload `origin_id` matches it. It does not define the obs/track fields.
+- Wardrive obs/track fields and companion-signed broker tokens: core-hunter
+  (https://github.com/Elektr0Vodka/core-hunter, fork of efiten/core-hunter,
+  the mesh-hunter.eu code), `app/src/wardrive.js` (`buildObs`, `buildTrack`,
+  `v: 1`) and `app/src/companionsign.js` (`CMD_SIGN_START/DATA/FINISH`
+  33/34/35, token `header.payload.signature`, username `v1_{PUBKEY}`). The
+  wardrive plugin (`app/wardrive/models.py`) stores exactly those fields.
+- Companion protocol the wardrive page uses (`frontend/src/wardrive/radio/`):
+  core-hunter `app/src/transport.js` (BLE Nordic UART UUIDs), `selfinfo.js`
+  (APP_START 0x01, SELF_INFO 0x05 with the key at bytes 4-35), `frames.js`
+  (RX log push 0x88: SNR int8 / 4, RSSI int8, raw), `companionsign.js`
+  (sign 33/34/35); USB serial framing from the `meshcore` Python package this
+  repo pins (`serial_cx.py`: host 0x3c, radio 0x3e, uint16 LE length, frames
+  over 300 bytes are invalid; 115200 baud).
+- Wardrive brokers (`frontend/src/wardrive/forward/brokers.ts`): the
+  `brokers` list in rx.mesh-hunter.eu's live `config.json` (read
+  2026-10-19): DutchMeshCore `wss://collector1.dutchmeshcore.nl:443` label
+  `hunter`, `wss://collector2.dutchmeshcore.nl:443` label `wardriver`, both
+  companion auth; on8ar `wss://emqx.on8ar.eu:8084/ws` in the `packets`
+  format (core-hunter `publisher.js` `buildPayload`), with the driver's own
+  account.
 - MGRS conversion: the `mgrs` npm package (proj4js, MIT),
   https://github.com/proj4js/mgrs, v2.2.0. The frontend uses it directly;
   `app/mgrs.py` ports its inverse (`decode` + `UTMtoLL` + `toPoint`), and

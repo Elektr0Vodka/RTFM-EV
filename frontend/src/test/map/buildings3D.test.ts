@@ -53,6 +53,22 @@ describe('setBuildings3D', () => {
     );
   });
 
+  it('draws below the wardrive page layers too', async () => {
+    const map = {
+      getSource: vi.fn((id: string) => (id === 'openmaptiles' ? {} : undefined)),
+      getLayer: vi.fn((id: string) => (id === 'wd-trail' ? {} : undefined)),
+      addLayer: vi.fn(),
+      getPitch: vi.fn(() => 45),
+      easeTo: vi.fn(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await setBuildings3D(map, true, 'dark');
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'buildings-3d' }),
+      'wd-trail'
+    );
+  });
+
   it('re-seats an existing extrusion below the overlays', async () => {
     const map = {
       getSource: vi.fn((id: string) => (id === 'openmaptiles' ? {} : undefined)),

@@ -250,6 +250,8 @@ export interface HealthStatus {
   oldest_undecrypted_timestamp: number | null;
   fanout_statuses: Record<string, FanoutStatusEntry>;
   basic_auth_enabled?: boolean;
+  wardrive_enabled?: boolean;
+  wardrive_unprotected?: boolean;
   /** The active radio (plan 18); status "pending" means the connect-time question is open. */
   radio_identity?: RadioIdentityHealth | null;
 }
@@ -1372,6 +1374,7 @@ export interface AppSettings {
   link_edge_retention_days: number;
   packet_reception_retention_days: number;
   device_history_retention_days: number;
+  wardrive_retention_days?: number;
   relay_history_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
@@ -1799,6 +1802,7 @@ export interface AppSettingsUpdate {
   link_edge_retention_days?: number;
   packet_reception_retention_days?: number;
   device_history_retention_days?: number;
+  wardrive_retention_days?: number;
   relay_history_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
@@ -2187,6 +2191,43 @@ export interface SnmpAgentSettings {
   enabled: boolean;
   port: number;
   community: string;
+}
+
+/** Wardrive plugin (MESHCORE_WARDRIVE): owner admin view of a wardrive account. */
+export type WardriveVisibility = 'own' | 'groups' | 'all';
+
+export interface WardriveRadio {
+  public_key: string;
+  name: string | null;
+  added_at: number;
+}
+
+export interface WardriveUser {
+  id: number;
+  username: string;
+  visibility: WardriveVisibility;
+  disabled: boolean;
+  created_at: number;
+  radios: WardriveRadio[];
+  group_ids: number[];
+  obs_count: number;
+}
+
+export interface WardriveGroup {
+  id: number;
+  name: string;
+  created_at: number;
+  member_ids: number[];
+}
+
+/** Stored wardrive receptions and tracks (GET /api/wardrive-admin/data). */
+export type { WardriveData } from './wardrive/api';
+
+export interface WardriveAdminStatus {
+  active: boolean;
+  /** True when the main Basic login is off: wardrive users could open the main app. */
+  unprotected: boolean;
+  page_path: string;
 }
 
 export interface SnmpAgentState {

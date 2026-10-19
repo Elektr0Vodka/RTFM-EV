@@ -100,6 +100,17 @@ async def test_prune_older_than_each_age_table(test_db):
             TrackerObject(uid=f"u-{ts}", cot_type="a-h-G", lat=52.0, lon=5.0, received_at=ts)
         )
         await RxBadFrameRepository.create(ts, 1, b"bad", -90, -2.5)
+        async with test_db.tx() as conn:
+            await conn.execute(
+                "INSERT INTO wardrive_obs (user_id, radio_key, rx_at, rx_ts, hash, raw, lat, lon, "
+                "uploaded_at) VALUES (1, ?, ?, ?, 'h', 'r', 0, 0, ?)",
+                (KEY_A, str(ts), ts, ts),
+            )
+            await conn.execute(
+                "INSERT INTO wardrive_tracks (user_id, radio_key, t0, t1, t0_ts, lat, lon, "
+                "rx_count, listening, uploaded_at) VALUES (1, ?, ?, ?, ?, 0, 0, 0, 1, ?)",
+                (KEY_A, str(ts), str(ts), ts, ts),
+            )
 
     cutoff = now - 30 * DAY
     for key in AGE_TABLES:

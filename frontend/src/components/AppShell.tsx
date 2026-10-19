@@ -359,7 +359,8 @@ export function AppShell({
       <div className="flex-1 min-h-0 overflow-y-auto py-1 contain-[layout_paint]">
         {SETTINGS_SECTION_ORDER.filter(
           (section) =>
-            section !== 'openhop' || statusProps.health?.radio_device_info?.is_openhop === true
+            (section !== 'openhop' || statusProps.health?.radio_device_info?.is_openhop === true) &&
+            (section !== 'wardrive' || statusProps.health?.wardrive_enabled === true)
         ).map((section) => {
           const Icon = SETTINGS_SECTION_ICONS[section];
           const disabled = disabledSettingsSections.includes(section);
@@ -570,6 +571,7 @@ export function AppShell({
         onOpenSettings={handleOpenSettings}
         onRepeaterAutoLogin={onRepeaterAutoLogin}
         isOpenHop={statusProps.health?.radio_device_info?.is_openhop === true}
+        isWardrive={statusProps.health?.wardrive_enabled === true}
       />
       <BuddyHost
         health={statusProps.health}

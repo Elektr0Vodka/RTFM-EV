@@ -24,6 +24,7 @@ import { SettingsLocalSection } from './settings/SettingsLocalSection';
 import { SettingsRadioAppSection } from './settings/SettingsRadioAppSection';
 import { SettingsMapSection } from './settings/SettingsMapSection';
 import { SettingsFanoutSection } from './settings/SettingsFanoutSection';
+import { SettingsWardriveSection } from './settings/SettingsWardriveSection';
 import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
 import { SettingsHandyInfoSection } from './settings/SettingsHandyInfoSection';
@@ -129,6 +130,7 @@ export function SettingsModal(props: SettingsModalProps) {
     'radio-app': false,
     map: false,
     fanout: false,
+    wardrive: false,
     openhop: false,
     database: false,
     'handy-info': false,
@@ -136,6 +138,7 @@ export function SettingsModal(props: SettingsModalProps) {
   });
 
   const isOpenHop = health?.radio_device_info?.is_openhop === true;
+  const isWardrive = health?.wardrive_enabled === true;
 
   // Refresh settings from server when modal opens
   useEffect(() => {
@@ -378,6 +381,15 @@ export function SettingsModal(props: SettingsModalProps) {
               onHealthRefresh={onHealthRefresh}
               className={sectionContentClass}
             />
+          )}
+        </section>
+      )}
+
+      {isWardrive && shouldRenderSection('wardrive') && (
+        <section className={sectionWrapperClass}>
+          {renderSectionHeader('wardrive')}
+          {isSectionVisible('wardrive') && (
+            <SettingsWardriveSection className={sectionContentClass} />
           )}
         </section>
       )}

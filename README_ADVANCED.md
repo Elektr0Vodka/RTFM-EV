@@ -11,6 +11,7 @@ These are intended for diagnosing or working around radios that behave oddly, or
 | `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK` | false | Run aggressive 10-second `get_msg()` fallback polling to check for messages ([docs](#message-poll-fallback)) |
 | `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE` | false | Disable channel-slot reuse and force `set_channel(...)` before every channel send ([docs](#force-channel-slot-reconfigure)) |
 | `MESHCORE_MULTI_RADIO` | false | Run one worker process per radio behind a gateway, one workspace per radio ([docs](#multiple-radios-experimental)) |
+| `MESHCORE_WARDRIVE` | false | Switch on the wardrive plugin: wardrive accounts, the upload API and the owner admin in Settings ([docs](#wardrive-plugin)) |
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | false | Enable autoevict mode for contact loading ([docs](#autoevict-mode)) |
 | `__CLOWNTOWN_DO_CLOCK_WRAPAROUND` | false | Highly experimental: if the radio clock is ahead of system time, try forcing the clock to `0xFFFFFFFF`, wait for uint32 wraparound, and then retry normal time sync before falling back to reboot ([docs](#clock-wraparound)) |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | false | Enable `GET /api/radio/private-key` to return the in-memory private key as hex for backup or migration. Only enable on a trusted network. Import via `PUT /api/radio/private-key` is always available. ([docs](#private-key-export)) |
@@ -367,6 +368,43 @@ services:
 ```
 
 Accept the browser warning, or use [mkcert](https://github.com/FiloSottile/mkcert) for locally-trusted certs.
+
+## Wardrive plugin
+
+Opt-in, off by default. Set `MESHCORE_WARDRIVE=true` and restart. It lets people you allow onto your network or tailnet wardrive with **their own** companion radio, paired in their browser; your own radio and its connection are never used.
+
+**The wardrive page** is at `/wardrive/` (Settings > Wardrive shows the full address). It is built for a phone in a holder, laid out like the mesh-hunter.eu RX app and in your RTFM-EV theme (theme, colourblind mode and reading font as picked in RTFM-EV on that browser):
+
+- **The screen**: a full-screen map (your basemap, 3D buildings) with your trail and this session's receptions coloured by signal; a top bar with status dots (radio, forwarding, upload to RTFM-EV) and the menu; notes under it (no radio, no or rough position, paused in the background, offline, errors); the **live log** of what the radio hears (fold it to three lanes, one lane or away; tap a row to see that reception in the HUD and on the map); the **HUD** at the bottom with the signal (dBm, in its colour), SNR, age, **speed** (in your RTFM-EV distance unit), the upload backlog, Start/Stop and the counters; and round buttons on the right for 3D view, following your position and sound (one cue per reception, your RTFM-EV sound theme).
+- **First time**: a start screen shows the radio and GPS state with one big Connect button, then the position choice; it goes away with the first usable position or when closed.
+- **The menu** holds the account, radio, position, forwarding and upload details (Status), the theme and accessibility settings (Settings), the stored-data map (Map) and About.
+
+- Log in, or create an account once your radio is connected. A radio that is not on your account yet can be **added to this account** or start a **separate account**.
+- Connect the radio over **Bluetooth** (Android Chrome, desktop Chrome or Edge, and on an iPhone the Bluefy browser) or **USB** (desktop Chrome or Edge).
+- Choose the **position**: this device's location on a phone or tablet, or a **USB GPS** (NMEA, 9600 baud). A laptop only offers the USB GPS: its own location comes from Wi-Fi and is not accurate enough.
+- **Start driving.** A reception is kept only with a usable position (better than 100 m, at most 10 s old); the page counts what it heard, kept and dropped for lack of a position. Every 10 s or 25 m a listening interval (track) is recorded too, in the same shape the DutchMeshCore collectors receive.
+- Everything is written to the browser first and uploaded to RTFM-EV in batches. Without a connection (RTFM-EV out of reach mid-drive) the page keeps working, also after a reload, and uploads when RTFM-EV can be reached again. Rows stay in the browser for 7 days after they are uploaded. Only radios on the logged-in account are uploaded: when two drivers share a browser, the other account's receptions wait there for that account to log in, and go after 7 days (the page shows how many wait). The same goes for a radio the owner removed from your account.
+- **Forward to** (shown with a radio connected): switch on, per radio, the DutchMeshCore collectors (`hunter` stream for hunts, `wardriver` for coverage drives) and, with your own on8ar account, on8ar's EMQX. The page signs in to the DutchMeshCore collectors with a token your radio signs (its private key never leaves it) and publishes the same messages the mesh-hunter.eu RX page does. A switch starts with what is heard from then on, not the backlog. Forwarding runs from the phone, so it keeps going when RTFM-EV is out of reach. Switches, tokens and the on8ar account stay in that browser and are never sent to RTFM-EV. on8ar gets the receptions in its `packets` format without sender details (the page does not decode packets); that mapping has not been checked against on8ar's ingest yet.
+- **If the radio disconnects** (Bluetooth drop, cable pulled) the drive pauses: what was captured is kept and the last interval is closed as not listening. Connect the radio again and press Start driving to go on.
+- **Map** (logged in): what you may see under your visibility for the last 24 hours, 7 days or 30 days: receptions coloured by RSSI (red at -80 dBm or stronger down to blue below -110) and your track lines.
+- **While driving** the page keeps the screen on (where the browser supports a screen wake lock), so the phone does not lock and stop listening. On Start driving it also asks the browser to keep its stored drive data, so a browser short on space does not clear receptions that are not uploaded yet.
+- **Log out** also forgets the on8ar password and the radio-signed collector tokens in that browser; the forwarding switches stay. While the radio stays connected, a DutchMeshCore stream that is switched on signs a new token with it (the radio is what proves who publishes).
+- The page opens in the language you picked in RTFM-EV on that browser (English, Dutch or German); a language is only downloaded when it is used. After an update the page drops the files of the previous version from its offline cache. On a slow or stalled connection the page opens from that cache after 4 seconds, and also when the server answers with an error (for example a proxy while RTFM-EV is down). The cache always holds a complete version: a new version replaces it only once all its files are in.
+- The page only listens: it reads what the radio hears, asks for the radio's own key and name, and asks the radio to sign. It never sends anything over the air.
+
+On the server side:
+
+- **Wardrive accounts**, separate from the main login. An account is created with a paired radio: the radio signs a one-time challenge with its own key, so nobody can claim someone else's radio by typing its key. A challenge only works in the browser that asked for it. A user can add more radios to the account. Logins are throttled after 5 failures in 15 minutes.
+- **A local copy** of what drivers' radios hear (receptions and listening intervals, in the same shape the DutchMeshCore collectors receive), uploaded by the page. Re-sent uploads are not stored twice.
+- **Settings > Wardrive** (shown only with the module on): the page address, users with their radios, visibility and groups, a coverage map of everything (filter by user, group, radio and time window), and the groups. Visibility per user: **own data only** (default), **my groups**, or **all drivers**. You always see everything.
+- **Retention**: Settings > Database > Data retention gets a "Wardrive receptions and tracks" row (default 0 = keep forever).
+
+Access:
+
+- `/wardrive/` and `/api/wardrive/` are reachable **without** the main Basic login (they use wardrive accounts). Everything else, including the owner admin under `/api/wardrive-admin/`, stays behind it.
+- **Set the main login** (`MESHCORE_BASIC_AUTH_USERNAME` / `MESHCORE_BASIC_AUTH_PASSWORD`). Without it, anyone who can open the wardrive page can also open this app and your home radio. RTFM-EV still starts, but logs a warning at startup and shows one in Settings > Wardrive.
+- The page needs **HTTPS** for Bluetooth and GPS (see [HTTPS](#https)). Over Tailscale, `tailscale serve --bg 8000` gives the app an HTTPS address on your tailnet (`https://<machine>.<tailnet>.ts.net/`).
+- Not available in multi-radio mode (`MESHCORE_MULTI_RADIO=true`); startup logs a warning if both are set.
 
 ## Systemd Service
 

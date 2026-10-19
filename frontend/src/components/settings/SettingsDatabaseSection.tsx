@@ -353,6 +353,7 @@ export function SettingsDatabaseSection({
         appSettings={appSettings}
         persist={persistAppSettings}
         onAfterPrune={onHealthRefresh}
+        wardriveEnabled={health?.wardrive_enabled === true}
       />
 
       <Separator />
