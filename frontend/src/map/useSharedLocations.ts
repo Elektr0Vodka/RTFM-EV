@@ -30,6 +30,7 @@ const FORMAT_KEYS: Record<SharedLocation['format'], string> = {
   marker: 'map_shared_locations_format_marker',
   mgrs: 'map_shared_locations_format_mgrs',
   decimal: 'map_shared_locations_format_decimal',
+  sar: 'map_shared_locations_format_sar',
 };
 
 export interface UseSharedLocationsOptions {

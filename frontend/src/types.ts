@@ -871,7 +871,7 @@ export interface SharedLocation {
   lat: number;
   lon: number;
   /** marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair. */
-  format: 'marker' | 'mgrs' | 'decimal';
+  format: 'marker' | 'mgrs' | 'decimal' | 'sar';
   /** The matched text. */
   raw: string;
   label: string;
@@ -952,6 +952,63 @@ export interface TeamWaypointPin {
   /** False when a multi-part route is missing parts. */
   route_complete: boolean;
   paths: MessagePath[] | null;
+}
+
+export type TrackerSource = 'atak' | 'sar_fast_gps';
+
+/** A position fix from an ATAK user (TAK-MESHCORE) or a MeshCore SAR fast-GPS beacon. */
+export interface TrackerPosition {
+  id: number | null;
+  source: TrackerSource;
+  /** ATAK callsign, or the SAR sender's 6-byte key prefix (hex). */
+  identity: string;
+  display_name: string | null;
+  /** ATAK team colour name. */
+  team: string | null;
+  lat: number;
+  lon: number;
+  alt_m: number | null;
+  speed_mps: number | null;
+  course_deg: number | null;
+  battery_pct: number | null;
+  /** The uid ATAK knows this user by, when it was heard (full callsign or CoT). */
+  cot_uid: string | null;
+  channel_key: string | null;
+  packet_id: number | null;
+  path_len: number | null;
+  received_at: number;
+}
+
+/** A map object (CoT event) an ATAK user shared, newest version per uid. */
+export interface TrackerObject {
+  uid: string;
+  cot_type: string;
+  callsign: string | null;
+  lat: number;
+  lon: number;
+  remarks: string | null;
+  stale_at: number | null;
+  sender: string | null;
+  channel_key: string | null;
+  received_at: number;
+}
+
+/** GET /tak-stream/status: the env-switched CoT feed for ATAK / WinTAK. */
+export interface TakStreamStatusResponse {
+  enabled: boolean;
+  host: string | null;
+  port: number | null;
+  clients: number;
+}
+
+export interface TrackersResponse {
+  /** Newest first. */
+  positions: TrackerPosition[];
+  /** Not yet stale, newest first. */
+  objects: TrackerObject[];
+  truncated: boolean;
+  /** ATAK frames recognised but not stored since the server started, per kind (e.g. encrypted). */
+  counts: Record<string, number>;
 }
 
 export interface TeamBeaconsResponse {

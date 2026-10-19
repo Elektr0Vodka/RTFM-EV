@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Server switch (env half) for the host repeater: live forwarding (a later
     # phase) needs this AND the admin setting. Shadow mode does not need it.
     host_repeater_enabled: bool = False
+    # TAK Stream: plaintext CoT over TCP for ATAK / WinTAK (no auth, trusted LAN only).
+    tak_stream_enabled: bool = False
+    tak_stream_host: str = "0.0.0.0"
+    tak_stream_port: int = 8088
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":

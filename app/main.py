@@ -101,7 +101,9 @@ from app.routers import (
     snmp_agent,
     spam,
     statistics,
+    tak_stream,
     tiles,
+    trackers,
     unfurl,
     update_status,
     wordlists,
@@ -241,10 +243,23 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Failed to start fanout modules")
 
+    # TAK Stream (env only): plaintext CoT for ATAK / WinTAK on the LAN.
+    from app.tak_stream.server import tak_stream as tak_stream_server
+
+    if server_settings.tak_stream_enabled:
+        try:
+            await tak_stream_server.start(
+                server_settings.tak_stream_host, server_settings.tak_stream_port
+            )
+        except OSError:
+            logger.exception("Could not start the TAK Stream")
+
     startup_radio_task = asyncio.create_task(_startup_radio_connect_and_setup())
     app.state.startup_radio_task = startup_radio_task
 
     yield
+
+    await tak_stream_server.stop()
 
     logger.info("Shutting down")
     if startup_radio_task and not startup_radio_task.done():
@@ -374,6 +389,8 @@ app.include_router(filter_profiles.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
 app.include_router(tiles.router, prefix="/api")
+app.include_router(trackers.router, prefix="/api")
+app.include_router(tak_stream.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")

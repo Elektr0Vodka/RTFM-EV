@@ -103,3 +103,40 @@ def test_marker_wins_over_other_formats() -> None:
     share = parse_location_share("m:52.090700,5.121400|31U FT 45332 73249|poi")
     assert share is not None
     assert share.format == "marker"
+
+
+class TestSarMarker:
+    """MeshCore SAR markers: ``S:<emoji>:<colour 0-7>:<lat>,<lon>[:<notes>]``."""
+
+    def test_sar_marker_new_form(self) -> None:
+        share = parse_location_share("S:🔥:1:52.1,5.2:smoke")
+        assert share is not None
+        assert share.format == "sar"
+        assert (share.lat, share.lon) == (52.1, 5.2)
+        assert share.label == "🔥 smoke"
+        assert share.flags == "color=1"
+
+    def test_sar_marker_old_form(self) -> None:
+        share = parse_location_share("S:🧑:52.1,5.2")
+        assert share is not None
+        assert share.format == "sar"
+        assert (share.lat, share.lon) == (52.1, 5.2)
+        assert share.label == "🧑"
+        assert share.flags == ""
+
+    def test_sar_marker_notes_on_later_lines(self) -> None:
+        share = parse_location_share("S:📦:3:-33.86,151.2\nsecond line")
+        assert share is not None
+        assert share.format == "sar"
+        assert (share.lat, share.lon) == (-33.86, 151.2)
+        assert share.label == "📦"
+
+    def test_sar_custom_map_ignored(self) -> None:
+        assert parse_location_share('S2:{"e":"🔥","m":"x","p":[1,2]}') is None
+
+    def test_sar_out_of_range(self) -> None:
+        assert parse_location_share("S:🔥:1:95.0,5.0") is None
+
+    def test_sar_needs_prefix_at_start(self) -> None:
+        share = parse_location_share("see S:🔥:1:52.1,5.2")
+        assert share is None or share.format != "sar"

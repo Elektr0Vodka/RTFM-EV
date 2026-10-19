@@ -861,8 +861,11 @@ class SharedLocation(BaseModel):
     sender_timestamp: int | None = None
     lat: float
     lon: float
-    format: Literal["marker", "mgrs", "decimal"] = Field(
-        description="marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair"
+    format: Literal["marker", "mgrs", "decimal", "sar"] = Field(
+        description=(
+            "marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair; "
+            "sar: MeshCore SAR S: marker"
+        )
     )
     raw: str = Field(description="The matched text")
     label: str = Field(default="", description="Marker label (marker format only)")
@@ -944,6 +947,61 @@ class TeamBeaconsResponse(BaseModel):
     scanned: int = Field(description="Candidate messages examined in the window")
     truncated: bool = Field(
         description="True when the window held more candidates than the scan limit (oldest skipped)"
+    )
+
+
+TrackerSource = Literal["atak", "sar_fast_gps"]
+
+
+class TrackerPosition(BaseModel):
+    """A position fix from an ATAK user (TAK-MESHCORE) or a MeshCore SAR fast-GPS beacon."""
+
+    id: int | None = None
+    source: TrackerSource
+    identity: str = Field(description="ATAK callsign, or the SAR sender's 6-byte key prefix (hex)")
+    display_name: str | None = None
+    team: str | None = Field(default=None, description="ATAK team colour name")
+    lat: float
+    lon: float
+    alt_m: float | None = None
+    speed_mps: float | None = None
+    course_deg: float | None = None
+    battery_pct: int | None = None
+    cot_uid: str | None = Field(
+        default=None,
+        description="The uid ATAK knows this user by, when it was heard (full callsign or CoT)",
+    )
+    channel_key: str | None = None
+    packet_id: int | None = None
+    path_len: int | None = None
+    received_at: int
+
+
+class TrackerObject(BaseModel):
+    """A map object (CoT event) shared by an ATAK user, newest version per uid."""
+
+    uid: str
+    cot_type: str
+    callsign: str | None = None
+    lat: float
+    lon: float
+    remarks: str | None = None
+    stale_at: int | None = None
+    sender: str | None = None
+    channel_key: str | None = None
+    received_at: int
+
+
+class TrackersResponse(BaseModel):
+    positions: list[TrackerPosition] = Field(description="Newest first")
+    objects: list[TrackerObject] = Field(description="Not yet stale, newest first")
+    truncated: bool = Field(description="True when the window held more positions than the limit")
+    counts: dict[str, int] = Field(
+        default_factory=dict,
+        description=(
+            "ATAK frames recognised but not stored since the server started, per kind "
+            "(encrypted, ping, chat_ack, cot_ack, net_config, raw, unknown)"
+        ),
     )
 
 

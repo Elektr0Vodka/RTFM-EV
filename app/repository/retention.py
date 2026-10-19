@@ -25,6 +25,9 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     # Device history (plan 14): a position ages by when it was last reported.
     "device_config": ("device_config_history", "timestamp"),
     "contact_locations": ("contact_location_history", "last_seen"),
+    # ATAK / SAR trackers (migration 157), same retention knob as device history.
+    "tracker_positions": ("tracker_positions", "received_at"),
+    "tracker_objects": ("tracker_objects", "received_at"),
 }
 
 # Tables that also get a per-node row cap (newest kept).

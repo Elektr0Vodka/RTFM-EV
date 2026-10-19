@@ -165,3 +165,25 @@ async def test_start_of_removed_radio_does_nothing(tmp_path):
         await supervisor.start(99)
         assert supervisor.worker(99).process is None
         assert supervisor.view(99)["state"] == "stopped"
+
+
+def test_worker_env_does_not_inherit_the_tak_stream(tmp_path):
+    reg = RadioRegistry(tmp_path / "radios.json")
+    plain = reg.add(name="a", transport=TcpTransport(host="10.0.0.5"))
+    streaming = reg.add(
+        name="b",
+        transport=TcpTransport(host="10.0.0.6"),
+        env={"MESHCORE_TAK_STREAM_ENABLED": "true", "MESHCORE_TAK_STREAM_PORT": "8090"},
+    )
+    base = {
+        "MESHCORE_TAK_STREAM_ENABLED": "true",
+        "MESHCORE_TAK_STREAM_HOST": "0.0.0.0",
+        "MESHCORE_TAK_STREAM_PORT": "8088",
+    }
+    # One port cannot serve every worker: the gateway's setting is not passed on...
+    env = build_worker_env(plain, "tok", base_env=base)
+    assert not any(key.startswith("MESHCORE_TAK_STREAM_") for key in env)
+    # ...but a radio can run its own stream on its own port.
+    env = build_worker_env(streaming, "tok", base_env=base)
+    assert env["MESHCORE_TAK_STREAM_ENABLED"] == "true"
+    assert env["MESHCORE_TAK_STREAM_PORT"] == "8090"

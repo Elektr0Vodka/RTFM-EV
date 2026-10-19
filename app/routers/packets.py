@@ -54,6 +54,7 @@ from app.services.relay_reception import (
     resolve_relay,
     window_relay_stats,
 )
+from app.services.trackers import DatagramContext, handle_tracker_datagram
 from app.websocket import broadcast_event, broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,24 @@ async def _run_historical_channel_decryption(
             )
 
         if group_data is not None:
+            # ATAK (TAK-MESHCORE) / MeshCore SAR tracker datagrams are decoded,
+            # not stored as placeholders (services/trackers).
+            tracker_ctx = DatagramContext(
+                packet_id=packet_id,
+                channel_key=channel_key_hex.upper(),
+                channel_name=display_name,
+                received_at=packet_timestamp,
+                path=path_hex,
+                path_len=packet_info.path_length if packet_info else None,
+                rssi=None,
+                snr=None,
+                packet_hash=None,
+                transport_code=transport_code,
+                region=region,
+                realtime=False,
+            )
+            if await handle_tracker_datagram(group_data, tracker_ctx):
+                continue
             # GRP_DATA placeholder (chunk metadata only, see services/messages).
             msg_id, _text, _sender = await create_group_data_message(
                 packet_id=packet_id,

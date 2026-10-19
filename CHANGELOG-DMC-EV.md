@@ -21,6 +21,52 @@ the change. Upstream development is on hold; the fork is the active repository.
   charts that show overflow on screen, so Recharts graphs such as Mesh
   Health and Mesh Trends come out as before).
 
+## Update 2026-10-19 (ATAK and MeshCore SAR trackers, TAK Stream)
+
+Migration `_157` (tables `tracker_positions`, `tracker_objects`). No new
+dependency. Nothing is sent over the radio. The decoders were built from the
+source of the two projects; they are not tested against captured air traffic
+yet.
+
+### Messaging
+- **ATAK over MeshCore.** Traffic from the ATAK plugin for MeshCore
+  ([atakmaps/TAK-MESHCORE](https://github.com/atakmaps/TAK-MESHCORE)) is
+  decoded when you have its `ATAK_DATA` channel: positions go to the map,
+  GeoChat lines become ordinary channel messages, and shared map objects
+  (CoT markers) are kept per uid. Pings, receipts and frames encrypted with
+  the plugin's passphrase are only counted; the Trackers overlay says how
+  many ATAK messages could not be read. Before this a datagram showed as
+  a `[data] type=0xFF01` placeholder (`app/atak_payloads.py`,
+  `app/services/trackers.py`). Only a channel line that starts with the
+  plugin's `UVAX1|` envelope is treated as plugin data, so a chat line that
+  quotes one stays chat.
+- **MeshCore SAR.** `S:` markers
+  ([dz0ny/meshcore-sar](https://github.com/dz0ny/meshcore-sar)) show as
+  location cards in chat and as pins on the shared-locations layer, and its
+  16-byte fast-GPS datagrams (data type `0xFFFF`) are decoded as tracker
+  positions. A contact that sent them gets a **MeshCore SAR positions**
+  section in its contact info.
+
+### Map
+- **Trackers overlay** (map controls, Overlays): ATAK users in their team
+  colour and MeshCore SAR beacons, the newest fix per tracker or a trail,
+  plus ATAK map objects, updated live. `GET /api/trackers`.
+
+### Integrations
+- **TAK Stream** (off by default, `MESHCORE_TAK_STREAM_ENABLED=true`): a
+  plaintext CoT feed over TCP (port 8088) that ATAK / WinTAK add as a
+  network input. It sends positioned nodes, ATAK and SAR trackers, TEAM
+  beacons and ATAK map objects; a snapshot on connect and every 30 s, and
+  new trackers as they arrive. No authentication and no TLS: trusted
+  networks only. Status in **Settings > Radio-App Management**
+  (`GET /api/tak-stream/status`). An ATAK user's event uses the plugin's
+  own uid only when the full callsign was heard. In multi-radio mode the
+  gateway's setting is not passed to the radios; a radio can turn it on in
+  its own environment with its own port.
+
+### Data
+- Tracker rows age out with the device-history retention setting.
+
 ## Update 2026-10-19 (packets with another header version, fix/packet-header-version)
 
 No migration, no new dependency. Nothing is sent over the radio.

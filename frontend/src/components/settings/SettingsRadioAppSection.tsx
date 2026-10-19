@@ -1,3 +1,4 @@
+import { TakStreamStatus } from './TakStreamStatus';
 import { TeamBeaconSettings } from './TeamBeaconSettings';
 import { SnmpAgentSettings } from './SnmpAgentSettings';
 import { UnreadSummarySettings } from './UnreadSummarySettings';
@@ -529,6 +530,10 @@ export function SettingsRadioAppSection({
         channels={channels}
         onSaveAppSettings={onSaveAppSettings}
       />
+
+      <Separator />
+
+      <TakStreamStatus />
 
       <Separator />
 

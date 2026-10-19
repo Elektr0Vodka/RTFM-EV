@@ -124,6 +124,7 @@ async def test_db():
         settings,
         snmp_agent,
         spam,
+        trackers,
         wordlists,
     )
     from app.repository import fanout as fanout_repo
@@ -174,6 +175,7 @@ async def test_db():
         relay_history,
         raw_feed_stats,
         sensor_push,
+        trackers,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

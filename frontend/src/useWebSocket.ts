@@ -3,6 +3,7 @@ import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } 
 import { parseWsEvent, type NewNodePayload } from './wsEvents';
 import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
 import { emitSpamGuardEvent } from './utils/spamGuardEvents';
+import { emitTrackerEvent } from './utils/trackerEvents';
 import { setBotListsState } from './utils/botLists';
 import { probeAuthSession } from './utils/authRedirect';
 
@@ -195,6 +196,9 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             break;
           case 'bot_lists':
             setBotListsState(msg.data);
+            break;
+          case 'tracker':
+            emitTrackerEvent(msg.data);
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);
