@@ -90,8 +90,9 @@ const ENTITIES: Record<string, string> = {
 
 /** Basemap attribution HTML as plain text for drawing on a canvas. */
 export function attributionText(html: string): string {
+  // `>?` also drops an unclosed `<tag` at the end, so no `<` survives.
   return html
-    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*>?/g, '')
     .replace(/&[a-z#0-9]+;/gi, (e) => ENTITIES[e.toLowerCase()] ?? e)
     .replace(/\s+/g, ' ')
     .trim();

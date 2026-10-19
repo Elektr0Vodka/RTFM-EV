@@ -62,4 +62,8 @@ describe('attributionText', () => {
   it('decodes dashes and ampersands', () => {
     expect(attributionText('Esri &mdash; A &amp; B&nbsp;C')).toBe('Esri — A & B C');
   });
+
+  it('leaves no tag behind, closed or not', () => {
+    expect(attributionText('A <b>x</b> B <script')).toBe('A x B');
+  });
 });
