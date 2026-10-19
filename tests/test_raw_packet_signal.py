@@ -1,16 +1,17 @@
 """Signal persistence on raw_packets: repository create() and the packet pipeline."""
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from app.decoder import PayloadType, parse_packet
+from app.decoder import PayloadType, RouteType, parse_packet
 from app.packet_processor import process_raw_packet
 from app.repository.contacts import ContactAdvertPathRepository, ContactRepository
 from app.repository.raw_packets import RawPacketRepository
-from app.services.packet_decoded_fields import decoded_stat_fields
+from app.services.packet_decoded_fields import decoded_stat_fields, route_label
 
 FIXTURES_PATH = Path(__file__).parent / "fixtures" / "websocket_events.json"
 with open(FIXTURES_PATH, encoding="utf-8") as f:
@@ -121,6 +122,51 @@ class TestPipelinePersistsSignal:
 
         row = await _row(test_db, result["packet_id"])
         assert row["payload_type"] == "REQUEST"
+
+    @pytest.mark.asyncio
+    async def test_process_raw_packet_stores_fuota_type(self, test_db, captured_broadcasts):
+        """A meshcore_fuota Offer (type 0x0E, DIRECT, 0 hops) is stored as FUOTA."""
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(_FUOTA_OFFER, timestamp=1700000000)
+
+        row = await _row(test_db, result["packet_id"])
+        assert row["payload_type"] == "FUOTA"
+        decoded = await _decoded_row(test_db, result["packet_id"])
+        assert decoded["route_type"] == route_label(RouteType.DIRECT)
+        assert decoded["hop_count"] == 0
+        assert decoded["hop_byte_width"] == 0
+        raw_events = [b for b in broadcasts if b["type"] == "raw_packet"]
+        assert raw_events[0]["data"]["payload_type"] == "FUOTA"
+
+    @pytest.mark.asyncio
+    async def test_fuota_packet_logs_no_parse_warning(self, test_db, captured_broadcasts, caplog):
+        _, mock_broadcast = captured_broadcasts
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.packet_processor"),
+            patch("app.packet_processor.broadcast_event", mock_broadcast),
+        ):
+            await process_raw_packet(_FUOTA_OFFER, timestamp=1700000000)
+
+        assert not [r for r in caplog.records if "Failed to parse" in r.getMessage()]
+
+    @pytest.mark.asyncio
+    async def test_unknown_0x0e_stays_unknown(self, test_db, captured_broadcasts):
+        """Type 0x0E sent as FLOOD is not FUOTA: it stays Unknown, as before."""
+        _, mock_broadcast = captured_broadcasts
+        flood = bytes([0x39]) + _FUOTA_OFFER[1:]
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(flood, timestamp=1700000000)
+
+        row = await _row(test_db, result["packet_id"])
+        assert row["payload_type"] == "Unknown"
+
+
+# meshcore_fuota Offer: header 0x3A (version 0, type 0x0E, DIRECT), path byte 0, 30-byte payload.
+_FUOTA_OFFER = bytes.fromhex("3a0001abdeadbeefc4000038000001000000050000001122334455667788047f")
 
 
 def _with_version(packet: bytes, version: int) -> bytes:

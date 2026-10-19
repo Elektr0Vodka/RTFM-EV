@@ -26,11 +26,18 @@ import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
 import { MeshRelayReceptionPanel } from './MeshRelayReceptionPanel';
 import { MeshPowerOutagePanel } from './MeshPowerOutagePanel';
 import { MeshFilterStatsPanel } from './MeshFilterStatsPanel';
+import { MeshFuotaPanel } from './MeshFuotaPanel';
 import { ShareCardDialog } from '../share/ShareCardDialog';
 import { useMeshSummaryBuild } from '../share/cards/useMeshSummaryShare';
 
 type MeshHealthTab =
-  'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions' | 'power-outage' | 'spam-bots';
+  | 'adverts'
+  | 'requests'
+  | 'relay-reception'
+  | 'prefix-collisions'
+  | 'power-outage'
+  | 'spam-bots'
+  | 'fuota';
 
 // Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
 // panels fetch now-relative ranges from selectedWindow.hours, so a From/To
@@ -56,7 +63,8 @@ function loadStoredTab(): MeshHealthTab {
       v === 'relay-reception' ||
       v === 'prefix-collisions' ||
       v === 'power-outage' ||
-      v === 'spam-bots'
+      v === 'spam-bots' ||
+      v === 'fuota'
     )
       return v;
     return 'adverts';
@@ -148,6 +156,7 @@ export function MeshHealthView({
     { key: 'prefix-collisions', label: t('mesh_health_tab_prefix_collisions') },
     { key: 'power-outage', label: t('mesh_health_tab_power_outage') },
     { key: 'spam-bots', label: t('mesh_health_tab_spam_bots') },
+    { key: 'fuota', label: t('mesh_health_tab_fuota') },
   ];
 
   // Share card 4 (mesh summary): on the tabs that have a time window. The
@@ -293,6 +302,15 @@ export function MeshHealthView({
                 onOpenNode={onOpenNode}
                 onNavigateToMap={onNavigateToMap}
                 pageSize={pageSize}
+              />
+            )}
+            {activeTab === 'fuota' && (
+              <MeshFuotaPanel
+                selectedWindow={selectedWindow}
+                refreshKey={refreshKey}
+                onLoadingChange={handleLoadingChange}
+                contacts={contacts}
+                onOpenNode={onOpenNode}
               />
             )}
           </div>

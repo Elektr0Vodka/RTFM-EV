@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (FUOTA firmware-update traffic, feat/fuota-traffic)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### Packets
+- Firmware-update packets of the meshcore_fuota proof of concept
+  (marcelverdult.github.io/meshcore_fuota, draft 2026-10-18) are recognised:
+  payload type 0x0E, DIRECT, no path, with the fixed Offer / Request / Data /
+  Retract lengths. They are stored as **FUOTA** instead of Unknown, with no
+  "Failed to parse" warning in the log.
+- The packet feed shows them as, for example, "FUOTA Offer · campaign deadbeef ·
+  build 5 · from ab", and the detail view lists every field. The draft states no
+  byte order, so the numbers are read little-endian (marked "assumed"). FUOTA is
+  a filter type in the feed, Packet History and the packet stats.
+
+### Mesh Health
+- New tab **Firmware updates**: offers, requests, data fragments, retracts,
+  sending neighbours and estimated airtime, plus one row per update campaign
+  (build, target, patch size, first and last heard, senders with every contact
+  their 1-byte prefix could be, fragments heard, providers asked). FUOTA is
+  never forwarded, so only direct neighbours show. A stock companion passes at
+  most 173-byte packets to the app, so full Data fragments (186 bytes) do not
+  show up; the tab says so. Counts are unique packets (identical repeats, such
+  as a Retract sent three times, are stored once), so they and the airtime
+  estimate are lower bounds.
+
+### Backend
+- `GET /api/packets/fuota-traffic?start_ts=&end_ts=` groups stored FUOTA
+  packets by campaign.
+
 ## Update 2026-10-19 (packets with another header version, fix/packet-header-version)
 
 No migration, no new dependency. Nothing is sent over the radio.

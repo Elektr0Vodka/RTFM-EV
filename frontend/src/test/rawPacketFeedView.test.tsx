@@ -173,6 +173,26 @@ describe('RawPacketFeedView', () => {
     });
   });
 
+  describe('FUOTA type filter', () => {
+    const FUOTA_OFFER_HEX = '3A0001ABDEADBEEFC4000038000001000000050000001122334455667788047F';
+
+    it('"(only)" FUOTA keeps the FUOTA packet and hides a GroupText packet', () => {
+      renderView({
+        packets: [feedPacket(1, FUOTA_OFFER_HEX), feedPacket(2, GROUP_TEXT_PACKET_HEX)],
+      });
+      expect(screen.getByText(FUOTA_OFFER_HEX)).toBeInTheDocument();
+      expect(screen.getByText(GROUP_TEXT_PACKET_HEX)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /filters/i }));
+      const span = screen.getByLabelText('FUOTA').closest('span');
+      if (!span) throw new Error('FUOTA type control not found');
+      fireEvent.click(within(span).getByRole('button', { name: '(only)' }));
+
+      expect(screen.getByText(FUOTA_OFFER_HEX)).toBeInTheDocument();
+      expect(screen.queryByText(GROUP_TEXT_PACKET_HEX)).not.toBeInTheDocument();
+    });
+  });
+
   describe('hop-width filter', () => {
     const HOP_WIDTH_BUCKETS = [
       'No path',

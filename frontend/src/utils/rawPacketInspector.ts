@@ -10,6 +10,7 @@ import {
 
 import type { Channel, RawPacket } from '../types';
 import { formatDateTime } from './dateTimeFormat';
+import { fuotaFromDecoded, fuotaPayloadFields, fuotaSummary } from './fuotaPayload';
 import { feedPayloadTypeName, isOtherVersion } from './rawPacketStats';
 
 export interface RawPacketSummary {
@@ -187,6 +188,11 @@ export function decodePacketSummary(
       };
     }
 
+    const fuota = fuotaFromDecoded(decoded);
+    if (fuota) {
+      return { summary: fuotaSummary(fuota), routeType, pathTokens };
+    }
+
     let summary = payloadTypeName;
 
     switch (decoded.payloadType) {
@@ -322,8 +328,10 @@ export function inspectRawPacketWithOptions(
         };
       }) ?? [];
 
-  const payloadFields =
-    structure == null
+  const fuota = decoded ? fuotaFromDecoded(decoded) : null;
+  const payloadFields = fuota
+    ? fuotaPayloadFields(fuota)
+    : structure == null
       ? []
       : (structure.payload.segments.length > 0 && !otherVersion
           ? structure.payload.segments

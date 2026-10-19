@@ -302,6 +302,54 @@ describe('MeshHealthView Requests tab', () => {
   });
 });
 
+describe('MeshHealthView Firmware updates tab', () => {
+  beforeEach(() => {
+    // The previous describe leaves its tab persisted; start on Adverts.
+    localStorage.clear();
+    global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('fuota-traffic')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              start_ts: 0,
+              end_ts: 1,
+              visibility_limit_bytes: 173,
+              totals: {
+                offers: 0,
+                requests: 0,
+                data: 0,
+                retracts: 0,
+                senders: 0,
+                airtime_ms: null,
+              },
+              campaigns: [],
+              retracts: [],
+            }),
+        } as Response);
+      }
+      if (String(url).includes('mesh-health')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESPONSE) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+    }) as unknown as typeof fetch;
+  });
+
+  it('switches to the Firmware updates panel', async () => {
+    render(<MeshHealthView config={null} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Firmware updates' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/No firmware-update traffic heard in this window/)
+      ).toBeInTheDocument()
+    );
+    expect(screen.queryByText('Node A')).not.toBeInTheDocument();
+  });
+});
+
 describe('MeshHealthView Prefix Collisions tab', () => {
   const matrixWith = (idx: number, val: number) => {
     const a = new Array(256).fill(0);

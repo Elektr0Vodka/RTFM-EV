@@ -22,6 +22,7 @@ from app.decoder import (
     DecryptedDirectMessage,
     PacketInfo,
     PayloadType,
+    RouteType,
     derive_public_key,
     parse_advertisement,
     parse_packet,
@@ -31,6 +32,7 @@ from app.decoder import (
     try_decrypt_path,
     verify_advert_signature,
 )
+from app.fuota import FUOTA_PAYLOAD_TYPE_NAME, detect_fuota
 from app.keystore import get_private_key, get_public_key, has_private_key
 from app.malformed import is_malformed_channel_message
 from app.models import (
@@ -68,7 +70,7 @@ from app.services.messages import (
     create_message_from_decrypted as _create_message_from_decrypted,
 )
 from app.services.new_node_notify import notify_new_node
-from app.services.packet_decoded_fields import decoded_stat_fields
+from app.services.packet_decoded_fields import decoded_stat_fields, route_label
 from app.services.policy_verdict import policy_verdicts
 from app.services.relay_reception import record_packet_reception
 from app.smaz import decode_message_text
@@ -336,6 +338,17 @@ async def process_raw_packet(
     # Route and hop fields come from the header and path byte, which the
     # version bits leave as they are.
     decoded_fields = decoded_stat_fields(parsed_info)
+    # meshcore_fuota uses the unassigned payload type 0x0E, so parse_packet
+    # returns None; recognise it by its strict header and length rules.
+    fuota = detect_fuota(raw_bytes) if parsed_info is None else None
+    if fuota is not None:
+        payload_type_name = FUOTA_PAYLOAD_TYPE_NAME
+        decoded_fields = {
+            "route_type": route_label(RouteType.DIRECT),
+            "hop_count": 0,
+            "hop_byte_width": 0,
+            "path_signature": None,
+        }
     # On an OpenHop node: the policy rule that decides this packet (an
     # indication). Stored with the packet, so Packet History can show it.
     verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
@@ -358,7 +371,7 @@ async def process_raw_packet(
     relay_capture = await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
     raw_hex = raw_bytes.hex()
 
-    if parsed_info is None and len(raw_bytes) > 2:
+    if parsed_info is None and fuota is None and len(raw_bytes) > 2:
         logger.warning(
             "Failed to parse %d-byte packet (id=%d); stored undecrypted",
             len(raw_bytes),
