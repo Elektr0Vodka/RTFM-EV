@@ -7,11 +7,11 @@ import {
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
 import { ArrowLeft } from 'lucide-react';
 import { api, isAbortError } from '../api';
 import { useT } from '../i18n';
@@ -298,6 +298,7 @@ export function LinkDetailView({ a, b, channels, onBack, onOpenContactInfo }: Li
               full={extent(trafficRows)}
               minSpan={series?.bucket_seconds ?? 3600}
               inset={{ left: 22, right: 8 }}
+              title={t('link_detail_traffic_title')}
             >
               {({ domain, isPanning }) => (
                 <ResponsiveContainer width="100%" height={200}>
@@ -348,6 +349,7 @@ export function LinkDetailView({ a, b, channels, onBack, onOpenContactInfo }: Li
               full={extent(signal)}
               minSpan={series?.bucket_seconds ?? 3600}
               inset={{ left: 22, right: 8 }}
+              title={t('link_detail_signal_title')}
             >
               {({ domain, isPanning }) => (
                 <ResponsiveContainer width="100%" height={180}>

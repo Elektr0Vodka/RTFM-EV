@@ -44,11 +44,13 @@ function clampNum(v: number, lo: number, hi: number): number {
 
 export function useChartZoom(
   full: ChartWindow,
-  opts: { minSpan: number; inset?: PlotInset; disabled?: boolean }
+  opts: { minSpan: number; inset?: PlotInset; disabled?: boolean; initial?: ChartWindow }
 ): UseChartZoomResult {
   const { minSpan, inset, disabled } = opts;
   const containerRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<ChartWindow>(full);
+  // `initial` starts a second instance (the large chart panel) at the zoom the
+  // first one was at.
+  const [view, setView] = useState<ChartWindow>(opts.initial ?? full);
   const [isPanning, setIsPanning] = useState(false);
 
   const fullRef = useRef<ChartWindow>(full);

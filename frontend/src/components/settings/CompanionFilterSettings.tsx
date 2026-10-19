@@ -21,6 +21,7 @@ import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { ShareCardDialog } from '../../share/ShareCardDialog';
+import { ExpandableChart } from '../charts/ChartExpand';
 import { useCompanionFilterBuild } from '../../share/cards/useFilterShare';
 
 // meshcomod companion receive filter. Every read and change runs `filter ...` on
@@ -47,6 +48,9 @@ const TEXT_MAX = 23;
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
+
+/** HistoryChart plot area as fractions of its 360 x 120 SVG, for the share animation. */
+const HISTORY_PLOT_FRAC = { left: 26 / 360, top: 6 / 120, width: 328 / 360, height: 98 / 120 };
 
 function HistoryChart({ bins, label }: { bins: CompanionFilterHistoryBin[]; label: string }) {
   const W = 360;
@@ -524,7 +528,18 @@ export function CompanionFilterSettings({ health }: Props) {
             </div>
             {history && history.bins.some((b) => COUNTERS.some((c) => b[c.key] > 0)) ? (
               <>
-                <HistoryChart bins={history.bins} label={t('cfilter_history_heading')} />
+                <ExpandableChart
+                  title={t('cfilter_history_heading')}
+                  timeRange={
+                    history.bins.length > 1
+                      ? [history.bins[0].timestamp, history.bins[history.bins.length - 1].timestamp]
+                      : null
+                  }
+                  plot={HISTORY_PLOT_FRAC}
+                  legend={COUNTERS.map((c) => ({ label: t(c.labelKey), color: c.color }))}
+                >
+                  <HistoryChart bins={history.bins} label={t('cfilter_history_heading')} />
+                </ExpandableChart>
                 <p className="text-xs text-muted-foreground">
                   {COUNTERS.map((c) => `${t(c.labelKey)}: ${history.totals[c.key]}`).join(' · ')}
                 </p>

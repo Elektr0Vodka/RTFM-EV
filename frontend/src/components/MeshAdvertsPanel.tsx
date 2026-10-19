@@ -15,6 +15,7 @@ import { AlertTriangle, ChevronDown, ChevronUp, ChevronsUpDown, Map } from 'luci
 import type { AppSettingsUpdate, RadioConfig } from '../types';
 import { useT } from '../i18n';
 import { SvgZoomBox } from './charts/SvgZoomBox';
+import { ExpandableChart } from './charts/ChartExpand';
 import type { ChartBox } from '../lib/chartZoom2d';
 import { type TimeWindow, relTime, StatTile, DistBars } from './meshHealthShared';
 
@@ -131,6 +132,14 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 }
 
 // ─── SNR vs RSSI scatter plot ─────────────────────────────────────────────────
+
+/** The scatter plot area as fractions of its SVG, for the share animation (matches ScatterPlot). */
+const SCATTER_PLOT_FRAC = {
+  left: 34 / 360,
+  top: 8 / 180,
+  width: (360 - 34 - 10) / 360,
+  height: (180 - 8 - 28) / 180,
+};
 
 function ScatterPlot({ points }: { points: ScatterPoint[] }) {
   const t = useT();
@@ -819,7 +828,15 @@ export function MeshAdvertsPanel({
                   n: scatter.length.toLocaleString(),
                 })}
               </div>
-              <ScatterPlot points={scatter} />
+              <ExpandableChart
+                title={t('mesh_health_scatter_heading', {
+                  count: scatter.length,
+                  n: scatter.length.toLocaleString(),
+                })}
+                plot={SCATTER_PLOT_FRAC}
+              >
+                <ScatterPlot points={scatter} />
+              </ExpandableChart>
             </div>
           )}
           {heatmapData && heatmapData.total > 0 && (

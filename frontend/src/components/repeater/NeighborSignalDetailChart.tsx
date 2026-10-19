@@ -8,8 +8,8 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   Legend,
-  ResponsiveContainer,
 } from 'recharts';
+import { ResponsiveContainer } from '../charts/ResponsiveContainer';
 import { useT } from '../../i18n';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { ZoomableChart } from '../charts/ZoomableChart';
@@ -65,7 +65,12 @@ export function NeighborSignalDetailChart({ name, repeaterSamples, selfSamples }
       {data.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t('neighbor_signal_no_history')}</p>
       ) : (
-        <ZoomableChart full={full} minSpan={TIME_MIN_SPAN} inset={{ left: 22, right: 8 }}>
+        <ZoomableChart
+          full={full}
+          minSpan={TIME_MIN_SPAN}
+          inset={{ left: 22, right: 8 }}
+          title={t('neighbor_signal_history_title', { name })}
+        >
           {({ domain, isPanning }) => (
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>

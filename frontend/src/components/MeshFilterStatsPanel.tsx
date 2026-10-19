@@ -558,7 +558,12 @@ export function MeshFilterStatsPanel({
               </div>
             </div>
           </div>
-          <ZoomableBinChart items={report.series} plotLeftFrac={28 / 360}>
+          <ZoomableBinChart
+            items={report.series}
+            plotLeftFrac={28 / 360}
+            title={t('mesh_filter_trend_heading')}
+            timeOf={(b) => b.bucket_ts}
+          >
             {(visible) => (
               <TrendChart
                 series={visible}

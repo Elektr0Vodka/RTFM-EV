@@ -17,16 +17,17 @@ import {
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
 import { api, isAbortError } from '../api';
 import { useT } from '../i18n';
 import { formatDateTime } from '../utils/dateTimeFormat';
 import { formatSNR } from '../utils/traceMapUtils';
 import { ZoomableChart } from './charts/ZoomableChart';
+import { ExpandableChart } from './charts/ChartExpand';
 import type { ChartWindow } from '../lib/chartZoom';
 import { DistBars, StatTile } from './meshHealthShared';
 import type { RelayDetailResponse } from './MeshRelayReceptionPanel';
@@ -153,7 +154,12 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="rounded border border-border/70 bg-muted/10 p-2">
           <span className="text-xs font-medium">{t('relay_detail_activity_title')}</span>
-          <ZoomableChart full={full} minSpan={data.bucket_seconds} inset={{ left: 40, right: 8 }}>
+          <ZoomableChart
+            full={full}
+            minSpan={data.bucket_seconds}
+            inset={{ left: 40, right: 8 }}
+            title={t('relay_detail_activity_title')}
+          >
             {({ domain, isPanning }) => (
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={data.series} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -195,7 +201,12 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
 
         <section className="rounded border border-border/70 bg-muted/10 p-2">
           <span className="text-xs font-medium">{t('relay_detail_signal_title')}</span>
-          <ZoomableChart full={full} minSpan={data.bucket_seconds} inset={{ left: 22, right: 8 }}>
+          <ZoomableChart
+            full={full}
+            minSpan={data.bucket_seconds}
+            inset={{ left: 22, right: 8 }}
+            title={t('relay_detail_signal_title')}
+          >
             {({ domain, isPanning }) => (
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={data.series} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
@@ -255,23 +266,25 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
         <section>
           <h4 className="mb-1 text-xs font-medium">{t('relay_detail_hops_title')}</h4>
           {/* Hop counts run up to 60+, so a compact column chart instead of one bar per row. */}
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={data.hop_counts} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="key" tick={axisTick} interval="preserveStartEnd" />
-              <YAxis allowDecimals={false} width={40} tick={axisTick} />
-              <RechartsTooltip
-                contentStyle={tooltipStyle}
-                labelFormatter={(hops) => `${t('relay_detail_col_hops')}: ${hops}`}
-              />
-              <Bar
-                dataKey="count"
-                name={t('relay_detail_series_copies')}
-                fill="#8b5cf6"
-                isAnimationActive={false}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <ExpandableChart title={t('relay_detail_hops_title')}>
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={data.hop_counts} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="key" tick={axisTick} interval="preserveStartEnd" />
+                <YAxis allowDecimals={false} width={40} tick={axisTick} />
+                <RechartsTooltip
+                  contentStyle={tooltipStyle}
+                  labelFormatter={(hops) => `${t('relay_detail_col_hops')}: ${hops}`}
+                />
+                <Bar
+                  dataKey="count"
+                  name={t('relay_detail_series_copies')}
+                  fill="#8b5cf6"
+                  isAnimationActive={false}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </ExpandableChart>
         </section>
       </div>
 

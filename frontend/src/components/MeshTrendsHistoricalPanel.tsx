@@ -7,13 +7,14 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
-  ResponsiveContainer,
   AreaChart,
   Area,
   Cell,
 } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
 import { Separator } from './ui/separator';
 import { ZoomableChart } from './charts/ZoomableChart';
+import { ExpandableChart } from './charts/ChartExpand';
 import { api } from '../api';
 import { useT } from '../i18n';
 import { formatDateTime as formatDateTimePref } from '../utils/dateTimeFormat';
@@ -133,6 +134,13 @@ function formatDateTime(ts: number): string {
   );
 }
 
+/** Unix seconds of the first and last item an index domain shows (share clock). */
+function indexRange(items: { timestamp: number }[], d: [number, number]): [number, number] | null {
+  const a = items[Math.max(0, Math.round(d[0]))];
+  const b = items[Math.min(items.length - 1, Math.round(d[1]))];
+  return a && b ? [a.timestamp, b.timestamp] : null;
+}
+
 function PacketsPerHourChart({ buckets }: { buckets: { timestamp: number; count: number }[] }) {
   const t = useT();
   // Fill gaps so hours with zero packets still appear on the chart
@@ -167,6 +175,8 @@ function PacketsPerHourChart({ buckets }: { buckets: { timestamp: number; count:
       minSpan={INDEX_MIN_SPAN}
       disabled={data.length < 2}
       inset={{ left: 22, right: 4 }}
+      title={t('settings_statistics_packets_per_hour_heading')}
+      timeRange={(d) => indexRange(filled, d)}
     >
       {({ domain, isPanning }) => (
         <ResponsiveContainer width="100%" height={140}>
@@ -250,6 +260,8 @@ function NoiseFloorChart({
       minSpan={INDEX_MIN_SPAN}
       disabled={samples.length < 2}
       inset={{ left: 22, right: 4 }}
+      title={t('settings_statistics_noise_floor_heading')}
+      timeRange={(d) => indexRange(samples, d)}
     >
       {({ domain, isPanning }) => (
         <ResponsiveContainer width="100%" height={120}>
@@ -569,60 +581,62 @@ export function MeshTrendsHistoricalPanel({ className }: { className?: string })
               })}
             </div>
             {stats.path_hash_width_24h.total_packets > 0 ? (
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart
-                  data={[
-                    {
-                      name: t('settings_statistics_path_hash_1byte'),
-                      count: stats.path_hash_width_24h.single_byte,
-                      pct: stats.path_hash_width_24h.single_byte_pct,
-                    },
-                    {
-                      name: t('settings_statistics_path_hash_2byte'),
-                      count: stats.path_hash_width_24h.double_byte,
-                      pct: stats.path_hash_width_24h.double_byte_pct,
-                    },
-                    {
-                      name: t('settings_statistics_path_hash_3byte'),
-                      count: stats.path_hash_width_24h.triple_byte,
-                      pct: stats.path_hash_width_24h.triple_byte_pct,
-                    },
-                  ]}
-                  margin={{ top: 4, right: 4, bottom: 0, left: -16 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <RechartsTooltip
-                    {...TOOLTIP_STYLE}
-                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(value: any, _: any, props: any) => [
-                      `${Number(value).toLocaleString()} (${formatPercent(props.payload.pct)})`,
-                      t('settings_statistics_packets_label'),
+              <ExpandableChart title={t('settings_statistics_path_hash_width_heading')}>
+                <ResponsiveContainer width="100%" height={120}>
+                  <BarChart
+                    data={[
+                      {
+                        name: t('settings_statistics_path_hash_1byte'),
+                        count: stats.path_hash_width_24h.single_byte,
+                        pct: stats.path_hash_width_24h.single_byte_pct,
+                      },
+                      {
+                        name: t('settings_statistics_path_hash_2byte'),
+                        count: stats.path_hash_width_24h.double_byte,
+                        pct: stats.path_hash_width_24h.double_byte_pct,
+                      },
+                      {
+                        name: t('settings_statistics_path_hash_3byte'),
+                        count: stats.path_hash_width_24h.triple_byte,
+                        pct: stats.path_hash_width_24h.triple_byte_pct,
+                      },
                     ]}
-                  />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                    <Cell fill={seriesColor(0, '#0ea5e9')} />
-                    <Cell fill={seriesColor(1, '#10b981')} />
-                    <Cell fill={seriesColor(2, '#f59e0b')} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    margin={{ top: 4, right: 4, bottom: 0, left: -16 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="hsl(var(--border))"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                    />
+                    <RechartsTooltip
+                      {...TOOLTIP_STYLE}
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      formatter={(value: any, _: any, props: any) => [
+                        `${Number(value).toLocaleString()} (${formatPercent(props.payload.pct)})`,
+                        t('settings_statistics_packets_label'),
+                      ]}
+                    />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                      <Cell fill={seriesColor(0, '#0ea5e9')} />
+                      <Cell fill={seriesColor(1, '#10b981')} />
+                      <Cell fill={seriesColor(2, '#f59e0b')} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ExpandableChart>
             ) : (
               <p className="text-sm text-muted-foreground">
                 {t('settings_statistics_path_hash_no_data')}
@@ -643,48 +657,50 @@ export function MeshTrendsHistoricalPanel({ className }: { className?: string })
                 <h3 className="text-base font-semibold tracking-tight mb-2">
                   {t('settings_statistics_busiest_channels_heading')}
                 </h3>
-                <ResponsiveContainer
-                  width="100%"
-                  height={stats.busiest_channels_24h.length * 28 + 8}
-                >
-                  <BarChart
-                    data={stats.busiest_channels_24h.map((ch) => ({
-                      name: ch.channel_name,
-                      messages: ch.message_count,
-                    }))}
-                    layout="vertical"
-                    margin={{ top: 0, right: 4, bottom: 0, left: 0 }}
-                    barCategoryGap="20%"
+                <ExpandableChart title={t('settings_statistics_busiest_channels_heading')}>
+                  <ResponsiveContainer
+                    width="100%"
+                    height={stats.busiest_channels_24h.length * 28 + 8}
                   >
-                    <XAxis type="number" hide />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={100}
-                    />
-                    <RechartsTooltip
-                      {...TOOLTIP_STYLE}
-                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-                      formatter={(value) => [
-                        t('settings_statistics_messages_tooltip_value', {
-                          count: Number(value).toLocaleString(),
-                        }),
-                        null,
-                      ]}
-                    />
-                    <Bar dataKey="messages" radius={[0, 4, 4, 0]} maxBarSize={16}>
-                      {stats.busiest_channels_24h.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={seriesColor(i, CHANNEL_BAR_COLORS[i % CHANNEL_BAR_COLORS.length])}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                    <BarChart
+                      data={stats.busiest_channels_24h.map((ch) => ({
+                        name: ch.channel_name,
+                        messages: ch.message_count,
+                      }))}
+                      layout="vertical"
+                      margin={{ top: 0, right: 4, bottom: 0, left: 0 }}
+                      barCategoryGap="20%"
+                    >
+                      <XAxis type="number" hide />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={100}
+                      />
+                      <RechartsTooltip
+                        {...TOOLTIP_STYLE}
+                        cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+                        formatter={(value) => [
+                          t('settings_statistics_messages_tooltip_value', {
+                            count: Number(value).toLocaleString(),
+                          }),
+                          null,
+                        ]}
+                      />
+                      <Bar dataKey="messages" radius={[0, 4, 4, 0]} maxBarSize={16}>
+                        {stats.busiest_channels_24h.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={seriesColor(i, CHANNEL_BAR_COLORS[i % CHANNEL_BAR_COLORS.length])}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ExpandableChart>
               </div>
             </>
           )}

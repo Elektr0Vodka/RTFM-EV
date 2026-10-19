@@ -446,6 +446,7 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
   - 3 my node's reach: `MyNodeView` radar card (`historical-stats` `neighbors_by_count`, at most 50).
   - 4 mesh summary: `MeshHealthView` header, on the tabs with a time window except Spam & bots (`GET /packets/mesh-health/heard-bins` drives the animation).
   - 5 filter results (`cards/filterResult*.ts`, `useFilterShare.ts`): 5a/5b `SnmpNodeView` filter and companion filter group headers; 5b own radio `CompanionFilterSettings` history; 5c `MeshFilterStatsPanel` ("Share as image": the panel already has a "Share" trend toggle; Spam Guard airtime from `GET /spam-guard/airtime`, only without a channel filter); 5d `HostRepeaterStatsPane` lifetime block (PNG only).
+  - 6 graph: the Share button in every chart's large panel (`ChartPanelDialog`, see Chart zoom/pan). Its own layout (title and brand on top, the chart full width, legend and clock below). `cards/chartCapture.ts` copies the panel's largest SVG with every computed style inline (classes and `hsl(var(--x))` do not resolve in a detached image), drops the hover cursor, and makes an axes-only base layer by removing the Recharts series groups. The plot area is the Recharts `clipPath[id$="-clip"]` rect, else the wrapper's plot hint. `cards/chartCardRender.ts` plays the data in over the plot left to right (a pie sweeps round) in the fixed GIF length, with a clock over the visible time range; a custom SVG chart (no base layer) hides only the part of the plot still to come.
 - Hide my position (cards 1-3) draws a diagram: route from fixed start to end (1), a loop out and back (2), a ring by signal (3).
 
 ### Live packet map (`map/packets/`)
@@ -537,6 +538,22 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Wheel is bound with a native non-passive listener so it can `preventDefault`
   (React `onWheel` is passive). New charts opting in should set
   `isAnimationActive={false}` so zoom/pan re-renders don't animate.
+- **Large panel (`components/charts/ChartExpand.tsx`).** Every chart has a "+"
+  in its top-right corner that opens it in `ChartPanelDialog` with the same
+  controls and a Share button (share card 6). `ZoomableChart` and
+  `ZoomableBinChart` carry the "+" themselves and open a second instance that
+  starts at the inline zoom (`initialView`) and then zooms on its own; pass
+  `title` (and `timeRange` for an index axis, `timeOf` for bins, `legend` for
+  a legend drawn outside the chart). Any other chart is wrapped in
+  `<ExpandableChart title>`, which renders the same element again in the
+  panel: a component that holds its own zoom (the Mesh Health scatter) gets
+  a fresh instance that starts at full view; zoom state held above the
+  element (the repeater telemetry brush, handlers in `BrushZoomWrap`) is
+  shared with the panel. The "+" stops mouse down and double click so it never pans or
+  resets, and the panel stops React events bubbling out of its portal.
+  Recharts charts import `ResponsiveContainer` from `components/charts/`
+  (a drop-in that is taller inside the panel); custom SVG charts scale with
+  their `viewBox`. Sparklines have no "+".
 
 ## WebSocket (`useWebSocket.ts`)
 

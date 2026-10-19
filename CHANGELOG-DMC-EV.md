@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (open any graph larger + share it animated, feat/graph-zoom-panel-share)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### Charts
+- **"+" on every graph.** A small + in the top-right corner of each chart
+  opens it in a large panel. The panel keeps the chart's controls: wheel
+  zoom, drag pan, double-click reset and hover values. It opens at the zoom
+  the chart was at; zooming in the panel leaves the small chart as it is.
+  Clicking the chart itself still pans and resets as before. Exceptions: the
+  Mesh Health signal scatter opens at full view (then zooms on its own), and
+  the repeater telemetry history shares one zoom between the chart and its
+  panel. Sparklines have no +.
+- Covered: My Node charts, Mesh Health (requests, filter trend, scatter),
+  Mesh Trends (all four), packet feed stats, link and relay detail, contact
+  activity and telemetry, channel hop-width pie, repeater telemetry history
+  and neighbour signal, SNMP charts, the map telemetry popup, the live signal
+  card and the companion filter history.
+- **Share a graph** (Share in the panel): the same share dialog as the other
+  cards (Share / Copy image / Download image / Download animation). The
+  image shows what the panel shows (the zoomed slice when zoomed), with the
+  chart's title, the time range, the legend and the app brand, in the
+  current theme's colours. The animation keeps the axes and lets the data
+  flow in from left to right (a pie sweeps round) over 4 seconds, whatever
+  the time range, with a clock running along and a label such as "24 h in
+  4 seconds". A chart that has no time axis (packet type bars, hop counts)
+  plays without the clock.
+- The channel hop-width pie now sizes its rings in percent of its box (same
+  look inline) so it grows in the panel.
+
 ## Update 2026-10-19 (antenna register map layer, feat/antenna-register-layer)
 
 Migration `_154` (`antenna_register_sites`). No new dependency. Nothing is

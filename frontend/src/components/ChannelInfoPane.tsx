@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSeriesColor } from '../hooks/useCvdColors';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
+import { ExpandableChart } from './charts/ChartExpand';
 import { ExternalLink, Library, Star } from 'lucide-react';
 import { api } from '../api';
 import { formatTime } from '../utils/messageParser';
@@ -434,32 +436,39 @@ function HopWidthChart({ stats, ready, t }: { stats: PathHashWidthStats; ready: 
       <div className="shrink-0" style={{ width: 90, height: 90 }}>
         {/* Reserve the box while the pane animates in (see #317). */}
         {ready && (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="value"
-                cx="50%"
-                cy="50%"
-                innerRadius={22}
-                outerRadius={40}
-                strokeWidth={1.5}
-                stroke="hsl(var(--background))"
-              >
-                {data.map((d) => (
-                  <Cell key={d.name} fill={d.color} />
-                ))}
-              </Pie>
-              <RechartsTooltip
-                {...TOOLTIP_STYLE}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={(value: any, name: any) => {
-                  const v = typeof value === 'number' ? value : Number(value);
-                  return [t('channel_pkt_count', { count: v, n: v.toLocaleString() }), name];
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <ExpandableChart
+            title={t('channel_hop_byte_widths_24h')}
+            className="h-full w-full"
+            legend={data.map((d) => ({ label: d.name, color: d.color }))}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  cx="50%"
+                  cy="50%"
+                  // Percent of the 90 px box (22 / 40 px) so the pie grows in the chart panel.
+                  innerRadius="49%"
+                  outerRadius="89%"
+                  strokeWidth={1.5}
+                  stroke="hsl(var(--background))"
+                >
+                  {data.map((d) => (
+                    <Cell key={d.name} fill={d.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  {...TOOLTIP_STYLE}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(value: any, name: any) => {
+                    const v = typeof value === 'number' ? value : Number(value);
+                    return [t('channel_pkt_count', { count: v, n: v.toLocaleString() }), name];
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </ExpandableChart>
         )}
       </div>
 

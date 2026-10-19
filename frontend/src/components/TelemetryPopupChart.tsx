@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSeriesColor } from '../hooks/useCvdColors';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
+import { ExpandableChart } from './charts/ChartExpand';
 import { api } from '../api';
 import { useT } from '../i18n';
 import { formatLppLabel } from './repeater/repeaterPaneShared';
@@ -112,39 +106,44 @@ export function TelemetryPopupChart({ publicKey }: { publicKey: string }) {
           </button>
         ))}
       </div>
-      <ResponsiveContainer width="100%" height={110}>
-        <AreaChart data={data} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-          <XAxis
-            dataKey="time"
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            tickFormatter={(v) => formatTime(Number(v))}
-            tick={{ fontSize: 9 }}
-            stroke="hsl(var(--muted-foreground))"
-          />
-          <YAxis
-            width={32}
-            tick={{ fontSize: 9 }}
-            stroke="hsl(var(--muted-foreground))"
-            domain={['auto', 'auto']}
-          />
-          <RechartsTooltip
-            labelFormatter={(v) => formatTime(Number(v))}
-            contentStyle={{ fontSize: 11 }}
-          />
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke={activeSeries!.color}
-            fill={activeSeries!.color}
-            fillOpacity={0.15}
-            strokeWidth={1.5}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <ExpandableChart
+        title={activeSeries?.label ?? t('chart_panel_untitled')}
+        timeRange={[data[0].time, data[data.length - 1].time]}
+      >
+        <ResponsiveContainer width="100%" height={110}>
+          <AreaChart data={data} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="time"
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={(v) => formatTime(Number(v))}
+              tick={{ fontSize: 9 }}
+              stroke="hsl(var(--muted-foreground))"
+            />
+            <YAxis
+              width={32}
+              tick={{ fontSize: 9 }}
+              stroke="hsl(var(--muted-foreground))"
+              domain={['auto', 'auto']}
+            />
+            <RechartsTooltip
+              labelFormatter={(v) => formatTime(Number(v))}
+              contentStyle={{ fontSize: 11 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={activeSeries!.color}
+              fill={activeSeries!.color}
+              fillOpacity={0.15}
+              strokeWidth={1.5}
+              dot={false}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </ExpandableChart>
     </div>
   );
 }

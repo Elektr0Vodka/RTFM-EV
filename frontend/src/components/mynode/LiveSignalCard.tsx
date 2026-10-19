@@ -14,6 +14,7 @@ import { useT, type TFn } from '../../i18n';
 import { cn } from '@/lib/utils';
 import type { NoiseFloorSample, RawPacket } from '../../types';
 import { typeColor } from './packetTypeColors';
+import { ExpandableChart } from '../charts/ChartExpand';
 
 const WINDOW_MINUTES = [2, 5, 15] as const;
 const DEFAULT_WINDOW_MINUTES = 5;
@@ -30,6 +31,13 @@ const PAD_L = 34;
 const PAD_R = 8;
 const PAD_T = 8;
 const PAD_B = 18;
+/** The plot area as fractions of the SVG, for the share animation. */
+const LIVE_PLOT_FRAC = {
+  left: PAD_L / W,
+  top: PAD_T / H,
+  width: (W - PAD_L - PAD_R) / W,
+  height: (H - PAD_T - PAD_B) / H,
+};
 
 export interface SignalPoint {
   t: number; // unix seconds
@@ -226,81 +234,91 @@ export function LiveSignalCard({ packets }: { packets: RawPacket[] }) {
         {points.length === 0 && noiseInView.length === 0 ? (
           <p className="py-6 text-center text-xs text-muted-foreground">{t('node_signal_empty')}</p>
         ) : (
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="h-auto w-full"
-            role="img"
-            aria-label={t('node_signal_chart_label', { count: points.length })}
+          <ExpandableChart
+            title={t('node_signal_title')}
+            timeRange={[start, start + windowSec]}
+            plot={LIVE_PLOT_FRAC}
+            legend={[
+              ...types.map((type) => ({ label: type, color: typeColor(type) })),
+              { label: t('node_signal_noise_legend'), color: 'hsl(var(--muted-foreground))' },
+            ]}
           >
-            {yTicks.map((v) => (
-              <g key={v}>
-                <line
-                  x1={PAD_L}
-                  x2={W - PAD_R}
-                  y1={y(v)}
-                  y2={y(v)}
-                  stroke="hsl(var(--border))"
-                  strokeWidth={0.5}
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="h-auto w-full"
+              role="img"
+              aria-label={t('node_signal_chart_label', { count: points.length })}
+            >
+              {yTicks.map((v) => (
+                <g key={v}>
+                  <line
+                    x1={PAD_L}
+                    x2={W - PAD_R}
+                    y1={y(v)}
+                    y2={y(v)}
+                    stroke="hsl(var(--border))"
+                    strokeWidth={0.5}
+                  />
+                  <text
+                    x={PAD_L - 4}
+                    y={y(v) + 3}
+                    textAnchor="end"
+                    fontSize={9}
+                    fill="hsl(var(--muted-foreground))"
+                  >
+                    {v}
+                  </text>
+                </g>
+              ))}
+              {noisePath && (
+                <path
+                  d={noisePath}
+                  fill="none"
+                  stroke="hsl(var(--muted-foreground))"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  data-testid="live-signal-noise-line"
                 />
-                <text
-                  x={PAD_L - 4}
-                  y={y(v) + 3}
-                  textAnchor="end"
-                  fontSize={9}
-                  fill="hsl(var(--muted-foreground))"
+              )}
+              {points.map((p, i) => (
+                <circle
+                  key={`${p.t}-${i}`}
+                  cx={x(p.t)}
+                  cy={y(p.rssi)}
+                  r={3}
+                  fill={typeColor(p.type)}
+                  fillOpacity={0.85}
                 >
-                  {v}
-                </text>
-              </g>
-            ))}
-            {noisePath && (
-              <path
-                d={noisePath}
-                fill="none"
-                stroke="hsl(var(--muted-foreground))"
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                data-testid="live-signal-noise-line"
-              />
-            )}
-            {points.map((p, i) => (
-              <circle
-                key={`${p.t}-${i}`}
-                cx={x(p.t)}
-                cy={y(p.rssi)}
-                r={3}
-                fill={typeColor(p.type)}
-                fillOpacity={0.85}
+                  <title>
+                    {t('node_signal_point_title', {
+                      type: p.type,
+                      rssi: p.rssi,
+                      snr: p.snr ?? '-',
+                      age: formatAge(nowSec - p.t, t),
+                    })}
+                  </title>
+                </circle>
+              ))}
+              <text
+                x={PAD_L}
+                y={H - 4}
+                fontSize={9}
+                fill="hsl(var(--muted-foreground))"
+                textAnchor="start"
               >
-                <title>
-                  {t('node_signal_point_title', {
-                    type: p.type,
-                    rssi: p.rssi,
-                    snr: p.snr ?? '-',
-                    age: formatAge(nowSec - p.t, t),
-                  })}
-                </title>
-              </circle>
-            ))}
-            <text
-              x={PAD_L}
-              y={H - 4}
-              fontSize={9}
-              fill="hsl(var(--muted-foreground))"
-              textAnchor="start"
-            >
-              {t('node_signal_window_minutes_ago', { minutes: windowMinutes })}
-            </text>
-            <text
-              x={W - PAD_R}
-              y={H - 4}
-              fontSize={9}
-              fill="hsl(var(--muted-foreground))"
-              textAnchor="end"
-            >
-              {t('node_signal_now')}
-            </text>
-          </svg>
+                {t('node_signal_window_minutes_ago', { minutes: windowMinutes })}
+              </text>
+              <text
+                x={W - PAD_R}
+                y={H - 4}
+                fontSize={9}
+                fill="hsl(var(--muted-foreground))"
+                textAnchor="end"
+              >
+                {t('node_signal_now')}
+              </text>
+            </svg>
+          </ExpandableChart>
         )}
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">

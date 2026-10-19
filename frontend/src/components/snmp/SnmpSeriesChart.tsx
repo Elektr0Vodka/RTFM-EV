@@ -1,13 +1,6 @@
 import { useMemo } from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Area, AreaChart, CartesianGrid, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
+import { ResponsiveContainer } from '../charts/ResponsiveContainer';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import type { ChartWindow } from '../../lib/chartZoom';
 import { ZoomableChart } from '../charts/ZoomableChart';
@@ -77,7 +70,12 @@ export function SnmpSeriesChart({
 
   return (
     <div role="img" aria-label={ariaLabel}>
-      <ZoomableChart full={extent} minSpan={TIME_MIN_SPAN} inset={{ left: 48, right: 4 }}>
+      <ZoomableChart
+        full={extent}
+        minSpan={TIME_MIN_SPAN}
+        inset={{ left: 48, right: 4 }}
+        title={ariaLabel}
+      >
         {({ domain, isPanning }) => (
           <ResponsiveContainer width="100%" height={height}>
             <AreaChart data={rows}>
