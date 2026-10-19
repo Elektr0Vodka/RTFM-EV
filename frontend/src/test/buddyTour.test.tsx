@@ -146,6 +146,16 @@ function panel(): HTMLElement {
   return screen.getByRole('dialog', { name: 'Guided walkthrough' });
 }
 
+/**
+ * The panel is on screen and its effects have run. The buddy loads outside
+ * act(), so React can commit the panel before running its effects (the tour
+ * subscription, opening the stop's page); a test that moves the tour then
+ * would move it unseen. The panel focuses "Next" in one of those effects.
+ */
+async function waitForPanel(): Promise<void> {
+  await waitFor(() => expect(panel().contains(document.activeElement)).toBe(true));
+}
+
 function stored(): { status: string; step?: string } | null {
   return JSON.parse(localStorage.getItem(BUDDY_TOUR_KEY) ?? 'null');
 }
@@ -425,7 +435,7 @@ describe('BuddyHost with the walkthrough', () => {
     render(<BuddyHost {...hostProps()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Start walkthrough' }));
 
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     expect(loadBuddyAgentMock).toHaveBeenCalledWith('clippy');
     expect(within(panel()).getByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
     expect(within(panel()).getByText('Step 1 of 12')).toBeInTheDocument();
@@ -499,7 +509,7 @@ describe('BuddyHost with the walkthrough', () => {
     const props = hostProps();
     render(<BuddyHost {...props} />);
     act(() => startBuddyTour());
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
 
     act(() => {
       for (let i = 0; i < 4; i += 1) moveBuddyTour(ALL_STEPS, 1);
@@ -523,7 +533,7 @@ describe('BuddyHost with the walkthrough', () => {
     loadBuddyAgentMock.mockResolvedValue(fake.agent);
     render(<BuddyHost {...hostProps({ channels: [] })} />);
     act(() => startBuddyTour());
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     expect(within(panel()).getByText('Step 1 of 10')).toBeInTheDocument();
   });
 
@@ -550,7 +560,7 @@ describe('BuddyHost with the walkthrough', () => {
     loadBuddyAgentMock.mockResolvedValue(fake.agent);
     render(<BuddyHost {...hostProps()} />);
     act(() => startBuddyTour());
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
 
     // The User Guide row sits below the fold until it is scrolled to.
     const row = addAnchor('tool-manual', { left: 0, top: 1400, width: 239, height: 40 });
@@ -582,7 +592,7 @@ describe('BuddyHost with the walkthrough', () => {
     loadBuddyAgentMock.mockResolvedValue(fake.agent);
     render(<BuddyHost {...hostProps()} />);
     act(() => startBuddyTour());
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     fireEvent.click(within(panel()).getByRole('button', { name: 'Next' }));
     fireEvent.click(within(panel()).getByRole('button', { name: 'Pause' }));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -592,7 +602,7 @@ describe('BuddyHost with the walkthrough', () => {
     const again = makeFakeAgent();
     loadBuddyAgentMock.mockResolvedValue(again.agent);
     act(() => resumeBuddyTour());
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     expect(within(panel()).getByRole('heading', { name: 'Radio status' })).toBeInTheDocument();
     fireEvent.keyDown(panel(), { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -604,7 +614,7 @@ describe('BuddyHost with the walkthrough', () => {
     loadBuddyAgentMock.mockResolvedValue(fake.agent);
     render(<BuddyHost {...hostProps()} />);
     act(() => startBuddyTour());
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     act(() => {
       for (let i = 0; i < ALL_STEPS.length - 1; i += 1) moveBuddyTour(ALL_STEPS, 1);
     });
@@ -685,7 +695,7 @@ describe('BuddyHost with the walkthrough', () => {
       const again = makeFakeAgent();
       loadBuddyAgentMock.mockResolvedValue(again.agent);
       render(<BuddyHost {...hostProps({ activePage: 'map' })} />);
-      await waitFor(() => expect(panel()).toBeInTheDocument());
+      await waitForPanel();
       expect(fake.spoken).toEqual([]);
       expect(again.spoken).toEqual([]);
     });
