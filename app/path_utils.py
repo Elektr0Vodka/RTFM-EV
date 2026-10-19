@@ -407,7 +407,11 @@ def bucket_region_scope(rows: Iterable) -> dict[str, int | float]:
             and envelope.payload_type in UNDEFINED_PAYLOAD_TYPES
             and is_scoped(envelope.transport_codes)
         ):
-            undefined_scoped += 1
+            # A valid MeshCoreNG report on 0x0C/0x0D is real traffic, not noise.
+            from app.meshcoreng import meshcoreng_kind
+
+            if meshcoreng_kind(envelope) is None:
+                undefined_scoped += 1
             continue
 
         if envelope.payload_type != _PAYLOAD_TYPE_GROUP_TEXT:

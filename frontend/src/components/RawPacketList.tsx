@@ -276,12 +276,15 @@ export function RawPacketList({
               )}
 
               {/* Encryption status */}
-              {!packet.decrypted && (
-                <>
-                  <span aria-hidden="true">🔒</span>
-                  <span className="sr-only">{t('packet_status_encrypted')}</span>
-                </>
-              )}
+              {!packet.decrypted &&
+                (decoded.notEncrypted ? (
+                  <span className="sr-only">{t('packet_status_not_encrypted')}</span>
+                ) : (
+                  <>
+                    <span aria-hidden="true">🔒</span>
+                    <span className="sr-only">{t('packet_status_encrypted')}</span>
+                  </>
+                ))}
 
               {/* Summary */}
               <span

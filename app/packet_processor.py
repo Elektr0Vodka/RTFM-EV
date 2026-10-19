@@ -35,6 +35,7 @@ from app.decoder import (
 from app.fuota import FUOTA_PAYLOAD_TYPE_NAME, detect_fuota
 from app.keystore import get_private_key, get_public_key, has_private_key
 from app.malformed import is_malformed_channel_message
+from app.meshcoreng import MESHCORENG_PAYLOAD_TYPE_NAME, meshcoreng_kind
 from app.models import (
     Contact,
     ContactUpsert,
@@ -42,7 +43,7 @@ from app.models import (
     RawPacketDecryptedInfo,
     RawPacketPolicyVerdict,
 )
-from app.path_utils import calculate_packet_hash, is_scoped
+from app.path_utils import calculate_packet_hash, is_scoped, parse_packet_envelope
 from app.region_resolver import resolve_region
 from app.repository import (
     AdvertEventRepository,
@@ -350,6 +351,19 @@ async def process_raw_packet(
             "hop_byte_width": 0,
             "path_signature": None,
         }
+    # MeshCoreNG's own types 0x0C (Atlas) / 0x0D (Location), strict like FUOTA.
+    meshcoreng = None
+    if parsed_info is None and fuota is None:
+        envelope = parse_packet_envelope(raw_bytes)
+        meshcoreng = meshcoreng_kind(envelope) if envelope is not None else None
+        if envelope is not None and meshcoreng is not None:
+            payload_type_name = MESHCORENG_PAYLOAD_TYPE_NAME
+            decoded_fields = {
+                "route_type": route_label(RouteType(envelope.route_type)),
+                "hop_count": envelope.hop_count,
+                "hop_byte_width": envelope.hash_size if envelope.hop_count > 0 else 0,
+                "path_signature": envelope.path.hex() if envelope.hop_count > 0 else None,
+            }
     # On an OpenHop node: the policy rule that decides this packet (an
     # indication). Stored with the packet, so Packet History can show it.
     verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
@@ -372,7 +386,7 @@ async def process_raw_packet(
     relay_capture = await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
     raw_hex = raw_bytes.hex()
 
-    if parsed_info is None and fuota is None and len(raw_bytes) > 2:
+    if parsed_info is None and fuota is None and meshcoreng is None and len(raw_bytes) > 2:
         logger.warning(
             "Failed to parse %d-byte packet (id=%d); stored undecrypted",
             len(raw_bytes),

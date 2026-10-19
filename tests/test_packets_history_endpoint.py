@@ -65,6 +65,14 @@ class TestHistoryFilters:
         assert "OTHER_VERSION" not in {p["payload_type"] for p in r.json()["packets"]}
 
     @pytest.mark.asyncio
+    async def test_meshcoreng_bucket_is_its_own_type(self, test_db, client):
+        await RawPacketRepository.create(b"\x35\x00\x4d", 100, payload_type="MESHCORENG")
+        await RawPacketRepository.create(b"\x02", 101, payload_type="GROUP_DATA")
+
+        r = await client.get("/api/packets/history", params=[("payload_types", "MeshCoreNG")])
+        assert {p["payload_type"] for p in r.json()["packets"]} == {"MESHCORENG"}
+
+    @pytest.mark.asyncio
     async def test_fuota_bucket_is_its_own_type(self, test_db, client):
         await RawPacketRepository.create(b"\x3a\x00\x04\xab", 100, payload_type="FUOTA")
         await RawPacketRepository.create(b"\x02", 101, payload_type="GROUP_DATA")

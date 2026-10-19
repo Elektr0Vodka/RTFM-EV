@@ -11,6 +11,7 @@ import {
 import type { Channel, RawPacket } from '../types';
 import { formatDateTime } from './dateTimeFormat';
 import { fuotaFromDecoded, fuotaPayloadFields, fuotaSummary } from './fuotaPayload';
+import { recognizeThirdParty } from './thirdPartyPackets';
 import { feedPayloadTypeName, isOtherVersion } from './rawPacketStats';
 
 export interface RawPacketSummary {
@@ -19,6 +20,8 @@ export interface RawPacketSummary {
   details?: string;
   /** Per-hop path tokens (hex prefixes), oldest hop first; empty for 0-hop/invalid. */
   pathTokens?: string[];
+  /** True for formats known to carry no encryption (FUOTA, MeshCoreNG, RAW_CUSTOM apps). */
+  notEncrypted?: boolean;
 }
 
 export interface PacketByteField {
@@ -190,7 +193,16 @@ export function decodePacketSummary(
 
     const fuota = fuotaFromDecoded(decoded);
     if (fuota) {
-      return { summary: fuotaSummary(fuota), routeType, pathTokens };
+      return { summary: fuotaSummary(fuota), routeType, pathTokens, notEncrypted: true };
+    }
+    const thirdParty = recognizeThirdParty(decoded);
+    if (thirdParty) {
+      return {
+        summary: `${thirdParty.summary}${pathStr}`,
+        routeType,
+        pathTokens,
+        notEncrypted: true,
+      };
     }
 
     let summary = payloadTypeName;
@@ -310,10 +322,28 @@ export function inspectRawPacketWithOptions(
     : 'Unknown';
   const pathTokens = decoded?.isValid ? getPathTokens(decoded) : [];
 
+  const fuota = decoded ? fuotaFromDecoded(decoded) : null;
+  const thirdParty = decoded && !fuota ? recognizeThirdParty(decoded) : null;
+  // The decoder library calls 0x0C-0x0E "Unknown"; name what we recognise.
+  const headerTypeLabel = fuota
+    ? 'FUOTA (meshcore_fuota, not official)'
+    : thirdParty?.headerTypeLabel;
+
   const packetFields =
     structure?.segments
       .map((segment, index) => createPacketField('packet', `packet-${index}`, segment, 0))
       .map((field) => {
+        if (headerTypeLabel && field.headerBreakdown) {
+          return {
+            ...field,
+            headerBreakdown: {
+              ...field.headerBreakdown,
+              fields: field.headerBreakdown.fields.map((hf) =>
+                hf.field === 'Payload Type' ? { ...hf, value: headerTypeLabel } : hf
+              ),
+            },
+          };
+        }
         if (field.name !== 'Path Data') {
           return field;
         }
@@ -328,29 +358,30 @@ export function inspectRawPacketWithOptions(
         };
       }) ?? [];
 
-  const fuota = decoded ? fuotaFromDecoded(decoded) : null;
   const payloadFields = fuota
     ? fuotaPayloadFields(fuota)
-    : structure == null
-      ? []
-      : (structure.payload.segments.length > 0 && !otherVersion
-          ? structure.payload.segments
-          : structure.payload.hex.length > 0
-            ? [
-                {
-                  name: 'Payload Bytes',
-                  description: otherVersion
-                    ? `Not decoded: header version ${(decoded?.payloadVersion ?? 0) + 1} is not a version MeshCore firmware reads (1.18.0 drops it).`
-                    : 'Field-level payload breakdown is not available for this packet type.',
-                  startByte: 0,
-                  endByte: Math.max(0, structure.payload.hex.length / 2 - 1),
-                  value: structure.payload.hex,
-                },
-              ]
-            : []
-        ).map((segment, index) =>
-          createPacketField('payload', `payload-${index}`, segment, structure.payload.startByte)
-        );
+    : thirdParty
+      ? thirdParty.fields
+      : structure == null
+        ? []
+        : (structure.payload.segments.length > 0 && !otherVersion
+            ? structure.payload.segments
+            : structure.payload.hex.length > 0
+              ? [
+                  {
+                    name: 'Payload Bytes',
+                    description: otherVersion
+                      ? `Not decoded: header version ${(decoded?.payloadVersion ?? 0) + 1} is not a version MeshCore firmware reads (1.18.0 drops it).`
+                      : 'Field-level payload breakdown is not available for this packet type.',
+                    startByte: 0,
+                    endByte: Math.max(0, structure.payload.hex.length / 2 - 1),
+                    value: structure.payload.hex,
+                  },
+                ]
+              : []
+          ).map((segment, index) =>
+            createPacketField('payload', `payload-${index}`, segment, structure.payload.startByte)
+          );
 
   const enrichedPayloadFields = payloadFields.map((field) => {
     if (!decoded?.isValid || field.name !== 'Ciphertext') {

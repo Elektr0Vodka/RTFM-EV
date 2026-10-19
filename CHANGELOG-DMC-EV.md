@@ -11,6 +11,33 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (labels for other firmwares' packets, feat/third-party-packet-labels)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### Packets
+- **MeshCoreNG** packets get their own type instead of Unknown: Location
+  reports (payload type 0x0D, `MCL1` tracker body, decoded with node, position,
+  speed, battery and name) and Atlas packets (0x0C). Detection is strict on
+  magic and lengths, because both types are otherwise unassigned. MeshCoreNG
+  is a filter type in the feed, Packet History and the packet stats, and the
+  header breakdown names the type ("not official").
+- **CubeCell** discovery responses (CONTROL byte 0x81, a layout the decoder
+  read as a discovery request) show as "Discovery response (CubeCell layout)"
+  with their own fields.
+- **RAW_CUSTOM** packets from known apps are labelled with their fields:
+  MeshCore SAR voice/image fragments, fetch requests and swarm requests,
+  SigurdOS ping/pong, and Reticulum (Smart MeshCore Interface) fragments.
+- FUOTA, MeshCoreNG and these RAW_CUSTOM packets show as **Not encrypted**
+  (no lock icon) instead of Encrypted, and the FUOTA header breakdown no
+  longer says "Unknown (0xe)".
+
+### Backend
+- MeshCoreNG Location / Atlas packets are stored as `MESHCORENG` with their
+  route and hop fields and no parse warning. A valid MeshCoreNG packet no
+  longer counts towards the region-scope noise floor, which assumes 0x0C-0x0E
+  are corrupt captures.
+
 ## Update 2026-10-19 (community MQTT publishes other header versions, fix/mqtt-forward-other-version)
 
 No migration, no new dependency. Nothing is sent over the radio.

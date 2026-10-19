@@ -3072,6 +3072,7 @@
   "packet_meta_label_scope": "Scope",
   "packet_bytes_status": "{count} bytes · {status}",
   "packet_status_encrypted": "Encrypted",
+  "packet_status_not_encrypted": "Not encrypted",
   "packet_storage_number": "Storage #{id}",
   "packet_observation_number_suffix": " · Observation #{id}",
   "packet_region_regional_fallback": "Regional",
