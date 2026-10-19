@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (antenna register map layer, feat/antenna-register-layer)
+
+Migration `_154` (`antenna_register_sites`). No new dependency. Nothing is
+sent over the radio.
+
+### Map
+- **Antenna masts (NL)** overlay (Overlays group): mobile-network masts from
+  the public Dutch Antenneregister with antennas in the 700, 800 or 900 MHz
+  downlink bands, the licensed bands closest to the 868 MHz mesh band. Red
+  dots under the nodes, sized by the site's strongest antenna. A click shows
+  each system and frequency with its sector count, beam directions, highest
+  mount and strongest power (dBW as registered), plus the distance from your
+  node. Nothing in the register sits inside 863-870 MHz: that band is
+  licence-exempt and not registered.
+- **Settings > Map > Antenna register (Netherlands)**: Sync now fetches the
+  register (about 168k antennas on 17.7k sites today, a few minutes)
+  in the background with progress. No automatic sync. A failed or empty sync
+  keeps the previous data.
+
+### Backend
+- `GET/POST /api/antenna-register/*` (status, sync, sites, site). The
+  register's WFS only serves RD New coordinates; `app/rd_new.py` converts
+  them (about 0.3 m off PDOK's own coordinate pairs).
+
 ## Update 2026-10-19 (share card map came out empty, fix/share-card-blank-map)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.

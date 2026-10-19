@@ -4,6 +4,9 @@ import type {
 } from './components/MeshRelayReceptionPanel';
 import type {
   AdvertLinkEdge,
+  AntennaRegisterSite,
+  AntennaRegisterSiteSummary,
+  AntennaRegisterStatus,
   ContactLocationHistoryEntry,
   ContactRouteSuggestions,
   DeviceConfigHistoryEntry,
@@ -1147,6 +1150,27 @@ export const api = {
     });
     return fetchJson<ExternalMapNode[]>(`/external-map/nodes?${qs.toString()}`, { signal });
   },
+
+  // Dutch Antenneregister layer (masts in the bands next to 868 MHz)
+  syncAntennaRegister: () =>
+    fetchJson<AntennaRegisterStatus>('/antenna-register/sync', { method: 'POST' }),
+  getAntennaRegisterStatus: () => fetchJson<AntennaRegisterStatus>('/antenna-register/status'),
+  getAntennaRegisterSites: (signal?: AbortSignal) => {
+    // The whole cache (~18k sites) in one go; MapLibre handles the rest.
+    const qs = new URLSearchParams({
+      west: '-180',
+      south: '-90',
+      east: '180',
+      north: '90',
+      limit: '20000',
+    });
+    return fetchJson<{ sites: AntennaRegisterSiteSummary[]; truncated: boolean }>(
+      `/antenna-register/sites?${qs.toString()}`,
+      { signal }
+    );
+  },
+  getAntennaRegisterSite: (id: number, signal?: AbortSignal) =>
+    fetchJson<AntennaRegisterSite>(`/antenna-register/sites/${id}`, { signal }),
 
   // Partial-node resolution (soft prefix -> full-pubkey links from the external map)
   previewPartialResolutions: () =>

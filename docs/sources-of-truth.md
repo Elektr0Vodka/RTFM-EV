@@ -160,6 +160,15 @@ machine this was authored on and may differ elsewhere.
   On request only (contact pane, "Check with analyzer"), `GET /api/nodes/{pubkey}/reach`
   and `POST /api/paths/inspect` on the host of `external_map_sync_url` validate
   suggested DM routes (`app/services/analyzer_path_check.py`).
+- Dutch Antenneregister (Antennebureau, part of the RDI): https://antenneregister.nl.
+  Runtime data source for the map's antenna layer: the public WFS
+  `https://antenneregister.nl/mapserver/wfs/` (feature types `Antennes` and
+  `Antennes_Groepen`, EPSG:28992 only; capabilities state `Fees: none`,
+  `AccessConstraints: none`). Fetched only on a manual sync
+  (`app/services/antenna_register.py`). Its viewer's own JS shows the field
+  meanings (power is labelled "Vermogen (dBW)"). RD New to WGS84 is
+  `app/rd_new.py`, checked against PDOK locatieserver `centroide_rd` /
+  `centroide_ll` pairs.
 - Cornmeister / Argus analyzer (node/packet lookup reference; Go): https://github.com/Elektr0Vodka/Argus-mesh-analyzer
   (local `G:\Github\repositories\Elektr0Vodka\cornmeister-mesh-analyzer`).
   Public site: https://cornmeister.nl (node URL scheme `#node?id=<64-hex>`).

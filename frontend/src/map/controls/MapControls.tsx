@@ -679,6 +679,7 @@ export function MapControls(props: MapControlsProps) {
         'beacons',
         'relay-signal',
         'guessed-locations',
+        'antenna-register',
       ],
     },
   ];

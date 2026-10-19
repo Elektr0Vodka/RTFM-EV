@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { SettingsTileCacheSection } from './SettingsTileCacheSection';
+import { AntennaRegisterSyncCard } from './AntennaRegisterSyncCard';
 
 /** Fallback centre for the picker when no home location has been set yet. */
 const DEFAULT_PICKER_CENTER: [number, number] = [5.1, 52.1];
@@ -236,6 +237,10 @@ export function SettingsMapSection({
 
       <div className="border-t border-border/60 pt-4">
         <SettingsTileCacheSection />
+      </div>
+
+      <div className="border-t border-border/60 pt-4">
+        <AntennaRegisterSyncCard />
       </div>
     </div>
   );

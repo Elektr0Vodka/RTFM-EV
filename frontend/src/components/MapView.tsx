@@ -15,6 +15,7 @@ import {
   BatteryCharging,
   Navigation,
   Orbit,
+  RadioTower,
 } from 'lucide-react';
 import type {
   AdvertLinkEdge,
@@ -114,6 +115,7 @@ import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
 import { useTeamBeacons } from '../map/useTeamBeacons';
 import { useGuessedLocations } from '../map/useGuessedLocations';
+import { useAntennaRegister } from '../map/useAntennaRegister';
 import { useRelaySignal } from '../map/useRelaySignal';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
@@ -584,6 +586,11 @@ export function MapView({
   );
   const [showGuessedLocations, setShowGuessedLocations] = usePersistedMapSetting(
     'remoteterm-map-guessed-locations',
+    false,
+    isBool
+  );
+  const [showAntennas, setShowAntennas] = usePersistedMapSetting(
+    'remoteterm-map-antenna-register',
     false,
     isBool
   );
@@ -1674,6 +1681,18 @@ export function MapView({
   });
 
   const {
+    attach: attachAntennaRegister,
+    reattach: reattachAntennaRegister,
+    sites: antennaSites,
+    loaded: antennaSitesLoaded,
+  } = useAntennaRegister({
+    enabled: showAntennas,
+    config,
+    distanceUnit,
+    coordinateFormat,
+  });
+
+  const {
     attach: attachRelaySignal,
     reattach: reattachRelaySignal,
     placed: relaySignalPlaced,
@@ -1695,6 +1714,8 @@ export function MapView({
       external.ensure();
       external.setData(visibleExternalRef.current);
       externalRef.current = external;
+      // Antenna register masts go under everything, including the external nodes.
+      attachAntennaRegister(map);
       const nodes = createNodesLayer(map, {
         onClick: openContactPopup,
         roleColors: roleColorsRef.current,
@@ -1816,6 +1837,7 @@ export function MapView({
     paintLinksRef.current();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
+    reattachAntennaRegister();
     reattachSharedLocations();
     reattachTeamBeacons();
     reattachGuessedLocations();
@@ -1831,6 +1853,7 @@ export function MapView({
     reattachTeamBeacons,
     reattachGuessedLocations,
     reattachRelaySignal,
+    reattachAntennaRegister,
   ]);
 
   // Keep node data in sync.
@@ -2431,6 +2454,31 @@ export function MapView({
         ),
       },
       {
+        id: 'antenna-register',
+        label: t('map_antennas_label'),
+        icon: <RadioTower size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showAntennas}
+                onChange={(e) => setShowAntennas(e.target.checked)}
+              />
+              {t('map_antennas_enable')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_antennas_help')}</p>
+            {showAntennas && antennaSitesLoaded && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {antennaSites.length > 0
+                  ? t('map_antennas_count', { count: antennaSites.length })
+                  : t('map_antennas_empty')}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
         id: 'screensaver',
         label: t('map_screensaver_label'),
         icon: <Orbit size={20} aria-hidden />,
@@ -2531,6 +2579,10 @@ export function MapView({
     showGuessedLocations,
     guessedLocations.length,
     setShowGuessedLocations,
+    showAntennas,
+    antennaSites.length,
+    antennaSitesLoaded,
+    setShowAntennas,
     showRelaySignal,
     relaySignalPlaced,
     relaySignalUnplaced,

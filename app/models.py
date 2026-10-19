@@ -2761,6 +2761,39 @@ class ExternalMapNode(BaseModel):
     mobile: bool = False
 
 
+class AntennaRegisterTransmitter(BaseModel):
+    """One system + frequency on an Antenneregister site, all sectors folded in."""
+
+    system: str = ""  # SAT_CODE, e.g. "LTE", "5G NR", "GSM 900"
+    band: str = ""  # "700", "800" or "900" (MHz band label)
+    frequency: str = ""  # As registered, e.g. "816 MHz" or "925-934.8 MHz"
+    sectors: int = 0  # Registered antennas with this system + frequency
+    bearings_deg: list[float] = Field(default_factory=list)  # Main beam, directional only
+    omni: bool = False  # At least one non-directional antenna
+    height_m: float | None = None  # Highest antenna
+    power_dbw: float | None = None  # Strongest antenna, dBW as registered
+
+
+class AntennaRegisterSiteSummary(BaseModel):
+    """Map marker for an antenna site: position, bands and strongest antenna."""
+
+    id: int
+    lat: float
+    lon: float
+    bands: list[str] = Field(default_factory=list)
+    max_power_dbw: float | None = None
+
+
+class AntennaRegisterSite(AntennaRegisterSiteSummary):
+    """An antenna site (mast/rooftop) with antennas near the 868 MHz band."""
+
+    municipality: str = ""
+    postcode: str = ""
+    place: str = ""
+    kinds: str = ""  # HOOFDSOORT, e.g. "LTE, GSM, 5G NR"
+    transmitters: list[AntennaRegisterTransmitter] = Field(default_factory=list)
+
+
 class PartialNodeResolution(BaseModel):
     """A soft, reversible link from a pubkey prefix to a full pubkey.
 

@@ -133,6 +133,34 @@ pre-download, which `check_predownload` refuses unless the source has
 policy verdict in the comment above `SOURCES` first; never set `predownload`
 for a source whose terms forbid bulk downloading.
 
+### Antenna register (`/api/antenna-register`)
+
+Map layer of Dutch mobile-network masts that transmit next to the 868 MHz mesh
+band. Source: the public WFS behind antenneregister.nl
+(`https://antenneregister.nl/mapserver/wfs/`, Antennebureau / RDI; capabilities
+say `Fees: none`, `AccessConstraints: none`). `services/antenna_register.py`
+pages two feature types, 2000 per page (the server cap), sorted by `ID`:
+`Antennes_Groepen` (one row per antenna: `AI_ID`, `SAT_CODE`, `FREQUENTIE` as a
+string such as `"816 MHz"` or `"925-934.8 MHz"`, height, bearing, power in dBW;
+its geometry is a placeholder) with a loose server-side `FREQUENTIE` filter
+(`7##*MHz` / `8##*MHz` / `9##*MHz`), then `Antennes` (one row per site: RD New
+`X`/`Y` and `ANT_IDS`, the `AI_ID`s on it). Only antennas overlapping `BANDS`
+(700: 758-788, 800: 791-821, 900: 925-960 MHz downlink) are kept. The register
+lists some site IDs more than once (same position, one feature per antenna
+group), so features are merged on ID (`collect_site_feature`) before
+`build_site`. Sectors of one system + frequency are folded into one
+`AntennaRegisterTransmitter` (sector count, bearings, highest mount, strongest
+power). The service only serves EPSG:28992; `app/rd_new.py` converts to WGS84
+(published polynomial, ~0.3 m off PDOK's own pairs). Cache table
+`antenna_register_sites` (migration `_154`, transmitters as JSON), replaced in
+full by `AntennaRegisterRepository.replace_all_rows`; an empty result raises
+and keeps the old cache. No periodic sync: `POST /sync` (202) starts a
+background task (a few minutes, ~100 pages) and is a no-op while one runs;
+`GET /status` (`count`, `last_synced_at`, `running`, `phase`, `fetched`,
+`error`); `GET /sites?west&south&east&north&limit` (summaries, strongest
+first, `truncated`; the map asks for everything, ~18k rows); `GET /sites/{id}`
+(full site, 404 when unknown).
+
 ## Core Runtime Flows
 
 ### Incoming data
