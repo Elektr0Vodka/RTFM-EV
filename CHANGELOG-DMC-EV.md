@@ -35,6 +35,28 @@ Nothing is sent over the radio.
   Roomserver / Sensor. Last seen is the map server's `updated_date`: the
   node-reported `last_advert` was years in the future for about 3,300 nodes.
 
+## Update 2026-10-19 (antenna layer 433 MHz band picker, feat/antenna-register-433)
+
+No migration, no new dependency. Nothing is sent over the radio. Run Sync
+now again (Settings > Map) to fetch the 433 MHz data.
+
+### Map
+- **Antenna masts (NL)** gets a band picker: **868 MHz** (as before:
+  mobile-network masts at 700, 800 and 900 MHz, red) or **433 MHz**: PAMR
+  and base stations at 400-470 MHz (orange, with frequency and power) and
+  licensed amateur stations (purple ring). The register lists amateur
+  stations without band or power, so 70 cm (430-440 MHz, next to 433 MHz) is
+  possible but not known for a given station. The popup lists only the
+  chosen band's transmitters. Nothing in the register sits inside
+  433.05-434.79 MHz: that band is licence-exempt and not registered.
+- A sync now stores about 25.9k sites (868 view 17,660, 433 view 8,208: 452
+  PAMR / base sites and 7,756 amateur stations).
+
+### Backend
+- Sync also keeps 400-470 MHz antennas (band `450`) and amateur sites (band
+  `amateur`, no transmitters). `GET /api/antenna-register/sites` accepts a
+  limit up to 50000.
+
 ## Update 2026-10-19 (open any graph larger + share it animated, feat/graph-zoom-panel-share)
 
 Frontend only. No migration, no new dependency. Nothing is sent over the radio.

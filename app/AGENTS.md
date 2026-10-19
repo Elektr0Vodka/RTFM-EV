@@ -143,9 +143,12 @@ pages two feature types, 2000 per page (the server cap), sorted by `ID`:
 `Antennes_Groepen` (one row per antenna: `AI_ID`, `SAT_CODE`, `FREQUENTIE` as a
 string such as `"816 MHz"` or `"925-934.8 MHz"`, height, bearing, power in dBW;
 its geometry is a placeholder) with a loose server-side `FREQUENTIE` filter
-(`7##*MHz` / `8##*MHz` / `9##*MHz`), then `Antennes` (one row per site: RD New
-`X`/`Y` and `ANT_IDS`, the `AI_ID`s on it). Only antennas overlapping `BANDS`
-(700: 758-788, 800: 791-821, 900: 925-960 MHz downlink) are kept. The register
+(`4##*MHz` / `7##*MHz` / `8##*MHz` / `9##*MHz`), then `Antennes` (one row per
+site: RD New `X`/`Y` and `ANT_IDS`, the `AI_ID`s on it). Only antennas
+overlapping `BANDS` are kept (450: 400-470 MHz PAMR / base stations, next to
+433 MHz; 700: 758-788, 800: 791-821, 900: 925-960 MHz downlinks, next to 868
+MHz). Licensed amateur sites (`ZENDAMATEURS`) have no `Antennes_Groepen` rows
+at all, so they are kept as sites with band `AMATEUR` and no transmitters. The register
 lists some site IDs more than once (same position, one feature per antenna
 group), so features are merged on ID (`collect_site_feature`) before
 `build_site`. Sectors of one system + frequency are folded into one
@@ -158,7 +161,8 @@ and keeps the old cache. No periodic sync: `POST /sync` (202) starts a
 background task (a few minutes, ~100 pages) and is a no-op while one runs;
 `GET /status` (`count`, `last_synced_at`, `running`, `phase`, `fetched`,
 `error`); `GET /sites?west&south&east&north&limit` (summaries, strongest
-first, `truncated`; the map asks for everything, ~18k rows); `GET /sites/{id}`
+first, `truncated`; limit up to 50000; the map asks for everything, ~26k
+rows); `GET /sites/{id}`
 (full site, 404 when unknown).
 
 ## Core Runtime Flows

@@ -10,13 +10,18 @@ none``. Two feature types are used:
 * ``Antennes``: one row per site with RD New ``X``/``Y`` and ``ANT_IDS``, a
   comma-separated list of the ``AI_ID`` values of the antennas on it.
 
-Only antennas in the sub-GHz mobile bands that sit either side of the 868 MHz
-mesh band are kept (see :data:`BANDS`); nothing in the register transmits inside
-it, since 863-870 MHz is licence-exempt and unregistered. The service only
-serves RD New (EPSG:28992), so positions are converted with :mod:`app.rd_new`.
+Only antennas in the bands next to the two LoRa mesh bands are kept (see
+:data:`BANDS`): the 700/800/900 MHz mobile downlinks either side of 868 MHz, and
+400-470 MHz (PAMR and base stations) around 433 MHz. Nothing in the register
+transmits inside 863-870 or 433.05-434.79 MHz: those bands are licence-exempt
+and unregistered. Licensed amateur stations (70 cm is 430-440 MHz) are listed
+as sites without any antenna rows, so their band and power are unknown; they
+are kept as sites with the :data:`AMATEUR` band and no transmitters. The
+service only serves RD New (EPSG:28992), so positions are converted with
+:mod:`app.rd_new`.
 
-A sync pages through both types (about 80 + 19 pages of 2000) and takes a minute
-or two, so it runs as a background task; callers poll :func:`get_sync_state`.
+A sync pages through both types (about 80 + 19 pages of 2000) and takes a few
+minutes, so it runs as a background task; callers poll :func:`get_sync_state`.
 There is no periodic sync: it only runs when the user asks.
 """
 
@@ -44,23 +49,28 @@ MAX_PAGES = 400
 _FETCH_TIMEOUT = 120.0
 _USER_AGENT = "RTFM-EV antenna-register sync"
 
-# (label, low MHz, high MHz): downlink bands next to 868 MHz. An antenna is kept
-# when its registered frequency (or range) overlaps one of these.
+# (label, low MHz, high MHz): registered bands next to the mesh bands. An antenna
+# is kept when its registered frequency (or range) overlaps one of these. The
+# map groups 700/800/900 as "near 868 MHz" and 450 as "near 433 MHz".
 BANDS: tuple[tuple[str, float, float], ...] = (
+    ("450", 400.0, 470.0),  # PAMR (421-425, 462.65 MHz) and base stations
     ("700", 758.0, 788.0),  # 5G NR n28 downlink
     ("800", 791.0, 821.0),  # LTE band 20 downlink
     ("900", 925.0, 960.0),  # GSM / UMTS / LTE 900 downlink
 )
+# Band label for a licensed amateur station: the register lists the site but no
+# antenna rows, so frequency and power are unknown.
+AMATEUR = "amateur"
 
-# Server-side pre-filter so only 7xx/8xx/9xx MHz antennas are transferred. It is
-# deliberately loose (also matches e.g. "9200-9500 MHz"); BANDS decides.
+# Server-side pre-filter so only 4xx/7xx/8xx/9xx MHz antennas are transferred.
+# It is deliberately loose (also matches e.g. "9200-9500 MHz"); BANDS decides.
 _FREQ_FILTER = (
     "<Filter><Or>"
     + "".join(
         "<PropertyIsLike wildCard='*' singleChar='#' escapeChar='!'>"
         f"<ValueReference>FREQUENTIE</ValueReference><Literal>{lead}##*MHz</Literal>"
         "</PropertyIsLike>"
-        for lead in "789"
+        for lead in "4789"
     )
     + "</Or></Filter>"
 )
@@ -200,11 +210,15 @@ def _ant_ids(props: dict) -> list[int]:
     return [int(raw) for raw in str(props.get("ANT_IDS") or "").split(",") if raw.strip().isdigit()]
 
 
+def _is_amateur(props: dict) -> bool:
+    return bool(props.get("ZENDAMATEURS")) or "ZENDAMATEURS" in str(props.get("HOOFDSOORT") or "")
+
+
 def collect_site_feature(
     merged: dict[int, dict], feature: dict, sectors: dict[int, list[Sector]]
 ) -> None:
     """Add an ``Antennes`` feature to ``merged`` (by site ID) if it has in-band
-    antennas.
+    antennas or is a licensed amateur station.
 
     The register lists some sites more than once (same ID and position, one
     feature per antenna group, e.g. a mobile group and a microwave-link group),
@@ -213,7 +227,9 @@ def collect_site_feature(
     """
     props = feature.get("properties") or {}
     site_id = props.get("ID")
-    if not isinstance(site_id, int) or not any(a in sectors for a in _ant_ids(props)):
+    if not isinstance(site_id, int):
+        return
+    if not _is_amateur(props) and not any(a in sectors for a in _ant_ids(props)):
         return
     existing = merged.get(site_id)
     if existing is None:
@@ -223,11 +239,13 @@ def collect_site_feature(
     into["ANT_IDS"] = f"{into.get('ANT_IDS') or ''}, {props.get('ANT_IDS') or ''}"
     kinds = f"{into.get('HOOFDSOORT') or ''}, {props.get('HOOFDSOORT') or ''}".split(", ")
     into["HOOFDSOORT"] = ", ".join(dict.fromkeys(k for k in kinds if k))
+    if _is_amateur(props):
+        into["ZENDAMATEURS"] = 1.0
 
 
 def build_site(feature: dict, sectors: dict[int, list[Sector]]) -> AntennaRegisterSite | None:
     """A cached site from an ``Antennes`` feature, or None if it has no in-band
-    antennas or no usable position."""
+    antennas, is not an amateur station, or has no usable position."""
     props = feature.get("properties") or {}
     site_id = props.get("ID")
     if not isinstance(site_id, int):
@@ -235,7 +253,8 @@ def build_site(feature: dict, sectors: dict[int, list[Sector]]) -> AntennaRegist
     mine: list[Sector] = []
     for ant_id in _ant_ids(props):
         mine.extend(sectors.get(ant_id, ()))
-    if not mine:
+    amateur = _is_amateur(props)
+    if not mine and not amateur:
         return None
     x, y = props.get("X"), props.get("Y")
     if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
@@ -248,6 +267,8 @@ def build_site(feature: dict, sectors: dict[int, list[Sector]]) -> AntennaRegist
     lat, lon = rd_to_wgs84(float(x), float(y))
     transmitters = fold_sectors(mine)
     bands = list(dict.fromkeys(t.band for t in transmitters))
+    if amateur:
+        bands.append(AMATEUR)
     return AntennaRegisterSite(
         id=site_id,
         lat=round(lat, 6),

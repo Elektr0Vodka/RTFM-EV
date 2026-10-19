@@ -173,7 +173,9 @@ machine this was authored on and may differ elsewhere.
   `Antennes_Groepen`, EPSG:28992 only; capabilities state `Fees: none`,
   `AccessConstraints: none`). Fetched only on a manual sync
   (`app/services/antenna_register.py`). Its viewer's own JS shows the field
-  meanings (power is labelled "Vermogen (dBW)"). RD New to WGS84 is
+  meanings (power is labelled "Vermogen (dBW)"). Amateur sites
+  (`HOOFDSOORT` `ZENDAMATEURS`) have no antenna rows: no band, no power. RD New
+  to WGS84 is
   `app/rd_new.py`, checked against PDOK locatieserver `centroide_rd` /
   `centroide_ll` pairs.
 - Cornmeister / Argus analyzer (node/packet lookup reference; Go): https://github.com/Elektr0Vodka/Argus-mesh-analyzer

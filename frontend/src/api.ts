@@ -1156,13 +1156,13 @@ export const api = {
     fetchJson<AntennaRegisterStatus>('/antenna-register/sync', { method: 'POST' }),
   getAntennaRegisterStatus: () => fetchJson<AntennaRegisterStatus>('/antenna-register/status'),
   getAntennaRegisterSites: (signal?: AbortSignal) => {
-    // The whole cache (~18k sites) in one go; MapLibre handles the rest.
+    // The whole cache (~26k sites) in one go; MapLibre handles the rest.
     const qs = new URLSearchParams({
       west: '-180',
       south: '-90',
       east: '180',
       north: '90',
-      limit: '20000',
+      limit: '50000',
     });
     return fetchJson<{ sites: AntennaRegisterSiteSummary[]; truncated: boolean }>(
       `/antenna-register/sites?${qs.toString()}`,

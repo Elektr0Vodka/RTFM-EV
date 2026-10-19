@@ -1,12 +1,13 @@
-// Map "antenna register" layer: mobile-network masts from the Dutch
-// Antenneregister that transmit in the 700/800/900 MHz bands next to the
-// 868 MHz mesh band, so a strong one close to a node can desensitise it.
+// Map "antenna register" layer: registered transmitters from the Dutch
+// Antenneregister next to the chosen LoRa mesh band (868: 700/800/900 MHz
+// mobile masts; 433: 400-470 MHz PAMR / base stations and licensed amateur
+// stations), so a strong one close to a node can desensitise it.
 //
 // Reads the backend cache (GET /antenna-register/sites), which is only filled
 // by a manual sync in Settings. MapView owns the toggle; this hook owns fetch,
 // layer and popup.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Popup as MlPopup, type Map as MlMap } from 'maplibre-gl';
 
 import { api, isAbortError } from '../api';
@@ -16,11 +17,17 @@ import type { DistanceUnit } from '../utils/distanceUnits';
 import { formatCoordinates, type CoordinateFormat } from '../utils/coordinateFormat';
 import { calculateDistance, formatDistance, isValidLocation } from '../utils/pathUtils';
 import { useT } from '../i18n';
-import { createAntennaRegisterLayer } from './layers/antennaRegisterLayer';
+import {
+  ANTENNA_BAND_GROUPS,
+  createAntennaRegisterLayer,
+  sitesForBand,
+  type AntennaBand,
+} from './layers/antennaRegisterLayer';
 import { appendPopupLine } from './locationPopup';
 
 export interface UseAntennaRegisterOptions {
   enabled: boolean;
+  band: AntennaBand;
   config: RadioConfig | null | undefined;
   distanceUnit: DistanceUnit;
   coordinateFormat: CoordinateFormat;
@@ -28,6 +35,8 @@ export interface UseAntennaRegisterOptions {
 
 export interface AntennaSitePopupDeps {
   t: TFn;
+  /** Mesh band shown on the map: only that band's transmitters are listed. */
+  band: AntennaBand;
   config: RadioConfig | null | undefined;
   distanceUnit: DistanceUnit;
   coordinateFormat: CoordinateFormat;
@@ -56,7 +65,8 @@ export function buildAntennaSitePopup(
     }
   }
 
-  for (const tx of site.transmitters) {
+  const group = ANTENNA_BAND_GROUPS[deps.band];
+  for (const tx of site.transmitters.filter((x) => group.includes(x.band))) {
     const directions = tx.bearings_deg.length
       ? tx.bearings_deg.map((b) => `${Math.round(b)}°`).join(', ')
       : t('map_antennas_omni');
@@ -72,6 +82,11 @@ export function buildAntennaSitePopup(
         power: num(tx.power_dbw),
       })
     );
+  }
+
+  if (deps.band === '433' && site.bands.includes('amateur')) {
+    line(t('map_antennas_amateur'), 'text-xs font-medium mt-1');
+    line(t('map_antennas_amateur_detail'));
   }
 
   line(
@@ -97,7 +112,8 @@ export function useAntennaRegister(opts: UseAntennaRegisterOptions) {
   const tRef = useRef(t);
   tRef.current = t;
 
-  const { enabled } = opts;
+  const { enabled, band } = opts;
+  const shown = useMemo(() => sitesForBand(sites, band), [sites, band]);
 
   // Fetch the whole cache each time the layer is switched on (it only changes
   // on a manual sync, so there is nothing to poll for).
@@ -146,6 +162,7 @@ export function useAntennaRegister(opts: UseAntennaRegisterOptions) {
         popup.setDOMContent(
           buildAntennaSitePopup(site, {
             t: tRef.current,
+            band: o.band,
             config: o.config,
             distanceUnit: o.distanceUnit,
             coordinateFormat: o.coordinateFormat,
@@ -159,9 +176,11 @@ export function useAntennaRegister(opts: UseAntennaRegisterOptions) {
 
   // Push data and visibility to the layer.
   useEffect(() => {
-    sitesRef.current = sites;
-    layerRef.current?.setData(sites);
-  }, [sites]);
+    sitesRef.current = shown;
+    layerRef.current?.setData(shown, band);
+    popupAbortRef.current?.abort();
+    popupRef.current?.remove();
+  }, [shown, band]);
   useEffect(() => {
     layerRef.current?.setVisible(enabled);
     if (!enabled) {
@@ -184,7 +203,7 @@ export function useAntennaRegister(opts: UseAntennaRegisterOptions) {
       mapRef.current = map;
       const layer = createAntennaRegisterLayer(map, { onClick: openPopup });
       layer.ensure();
-      layer.setData(sitesRef.current);
+      layer.setData(sitesRef.current, optsRef.current.band);
       layer.setVisible(optsRef.current.enabled);
       layerRef.current = layer;
     },
@@ -196,9 +215,9 @@ export function useAntennaRegister(opts: UseAntennaRegisterOptions) {
     const layer = layerRef.current;
     if (!layer) return;
     layer.reattach();
-    layer.setData(sitesRef.current);
+    layer.setData(sitesRef.current, optsRef.current.band);
     layer.setVisible(optsRef.current.enabled);
   }, []);
 
-  return { attach, reattach, sites, loaded };
+  return { attach, reattach, sites: shown, loaded };
 }

@@ -116,6 +116,7 @@ import { useSharedLocations } from '../map/useSharedLocations';
 import { useTeamBeacons } from '../map/useTeamBeacons';
 import { useGuessedLocations } from '../map/useGuessedLocations';
 import { useAntennaRegister } from '../map/useAntennaRegister';
+import { ANTENNA_BANDS, type AntennaBand } from '../map/layers/antennaRegisterLayer';
 import { useRelaySignal } from '../map/useRelaySignal';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
@@ -593,6 +594,12 @@ export function MapView({
     'remoteterm-map-antenna-register',
     false,
     isBool
+  );
+  // Which mesh band's neighbours the antenna layer shows.
+  const [antennaBand, setAntennaBand] = usePersistedMapSetting<AntennaBand>(
+    'remoteterm-map-antenna-register-band',
+    '868',
+    isOneOf(ANTENNA_BANDS)
   );
   const [showRelaySignal, setShowRelaySignal] = usePersistedMapSetting(
     'remoteterm-map-relay-signal',
@@ -1687,6 +1694,7 @@ export function MapView({
     loaded: antennaSitesLoaded,
   } = useAntennaRegister({
     enabled: showAntennas,
+    band: antennaBand,
     config,
     distanceUnit,
     coordinateFormat,
@@ -2467,7 +2475,32 @@ export function MapView({
               />
               {t('map_antennas_enable')}
             </label>
-            <p className="text-xs text-muted-foreground">{t('map_antennas_help')}</p>
+            <div
+              role="group"
+              aria-label={t('map_antennas_band')}
+              className="flex flex-wrap items-center gap-1"
+            >
+              <span className="text-xs text-muted-foreground mr-1">{t('map_antennas_band')}</span>
+              {ANTENNA_BANDS.map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  aria-pressed={antennaBand === b}
+                  className={
+                    'rounded px-2 py-1 text-xs ' +
+                    (antennaBand === b
+                      ? 'bg-accent text-accent-foreground'
+                      : 'bg-muted text-muted-foreground')
+                  }
+                  onClick={() => setAntennaBand(b)}
+                >
+                  {t('map_antennas_band_mhz', { mhz: b })}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(antennaBand === '433' ? 'map_antennas_help_433' : 'map_antennas_help')}
+            </p>
             {showAntennas && antennaSitesLoaded && (
               <p className="text-xs text-muted-foreground" aria-live="polite">
                 {antennaSites.length > 0
@@ -2583,6 +2616,8 @@ export function MapView({
     antennaSites.length,
     antennaSitesLoaded,
     setShowAntennas,
+    antennaBand,
+    setAntennaBand,
     showRelaySignal,
     relaySignalPlaced,
     relaySignalUnplaced,
