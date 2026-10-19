@@ -9,9 +9,9 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
-  ResponsiveContainer,
   Legend,
 } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
 import { Marker as MlMarker, Popup as MlPopup, type Map as MlMap } from 'maplibre-gl';
 import { MiniMap } from '../map/MiniMap';
 import { api } from '../api';
@@ -1064,6 +1064,12 @@ function ActivityLineChart<T extends ContactAnalyticsHourlyBucket | ContactAnaly
         minSpan={INDEX_MIN_SPAN}
         disabled={points.length < 2}
         inset={{ left: 24, right: 4 }}
+        title={ariaLabel}
+        timeRange={(d) => {
+          const a = points[Math.max(0, Math.round(d[0]))];
+          const b = points[Math.min(points.length - 1, Math.round(d[1]))];
+          return a && b ? [a.bucket_start, b.bucket_start] : null;
+        }}
       >
         {({ domain, isPanning }) => (
           <ResponsiveContainer width="100%" height={ACTIVITY_CHART_HEIGHT}>
@@ -2043,6 +2049,7 @@ function ContactTelemetrySection({
                       full={telemetryFull}
                       minSpan={TIME_MIN_SPAN}
                       inset={{ left: 40, right: 4 }}
+                      title={activeSeries.label}
                     >
                       {({ domain, isPanning }) => (
                         <ResponsiveContainer width="100%" height={120}>

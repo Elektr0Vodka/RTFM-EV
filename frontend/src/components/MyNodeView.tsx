@@ -1540,6 +1540,10 @@ function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-muted ${className}`} />;
 }
 
+/** Unix seconds of a bin / sample, for the chart share clock. */
+const binTime = (b: Bin) => b.time / 1000;
+const sampleTime = (s: { timestamp: number }) => s.timestamp;
+
 function ChartCard({
   title,
   stat,
@@ -2289,7 +2293,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   title={t('node_chart_bytes_received')}
                   stat={t('node_value_bytes_compact', { value: liveStats.bytes.toLocaleString() })}
                 >
-                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                  <ZoomableBinChart
+                    items={activeBins}
+                    plotLeftFrac={binPlotLeftFrac}
+                    title={t('node_chart_bytes_received')}
+                    timeOf={binTime}
+                  >
                     {(bins) => (
                       <BarChart
                         bins={bins}
@@ -2311,7 +2320,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   title={t('settings_radio_stat_packets_received')}
                   stat={String(liveStats.packets)}
                 >
-                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                  <ZoomableBinChart
+                    items={activeBins}
+                    plotLeftFrac={binPlotLeftFrac}
+                    title={t('settings_radio_stat_packets_received')}
+                    timeOf={binTime}
+                  >
                     {(bins) => (
                       <BarChart
                         bins={bins}
@@ -2325,7 +2339,13 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   </ZoomableBinChart>
                 </ChartCard>
                 <ChartCard title={t('node_chart_packets_by_type')}>
-                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                  <ZoomableBinChart
+                    items={activeBins}
+                    plotLeftFrac={binPlotLeftFrac}
+                    title={t('node_chart_packets_by_type')}
+                    timeOf={binTime}
+                    legend={typesInWindow.map((pt) => ({ label: pt, color: typeColor(pt) }))}
+                  >
                     {(bins) => <StackedBarChart bins={bins} windowSeconds={windowSeconds} t={t} />}
                   </ZoomableBinChart>
                   {typesInWindow.length > 0 ? (
@@ -2356,7 +2376,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     return v != null ? t('node_stat_db_avg', { value: v.toFixed(1) }) : undefined;
                   })()}
                 >
-                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                  <ZoomableBinChart
+                    items={activeBins}
+                    plotLeftFrac={binPlotLeftFrac}
+                    title={t('node_chart_snr_title')}
+                    timeOf={binTime}
+                  >
                     {(bins) => (
                       <LineChart
                         bins={bins}
@@ -2378,7 +2403,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     return v != null ? t('node_stat_dbm_avg', { value: v.toFixed(0) }) : undefined;
                   })()}
                 >
-                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                  <ZoomableBinChart
+                    items={activeBins}
+                    plotLeftFrac={binPlotLeftFrac}
+                    title={t('node_chart_rssi_title')}
+                    timeOf={binTime}
+                  >
                     {(bins) => (
                       <LineChart
                         bins={bins}
@@ -2419,7 +2449,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         : undefined
                     }
                   >
-                    <ZoomableBinChart items={noiseFloorSamples} plotLeftFrac={binPlotLeftFrac}>
+                    <ZoomableBinChart
+                      items={noiseFloorSamples}
+                      plotLeftFrac={binPlotLeftFrac}
+                      title={t('settings_radio_stat_noise_floor')}
+                      timeOf={sampleTime}
+                    >
                       {(s) => (
                         <NoiseFloorLineChart samples={s} windowSeconds={windowSeconds} t={t} />
                       )}
@@ -2434,7 +2469,16 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                       tx: airtimeSamples[airtimeSamples.length - 1].tx_pct.toFixed(1),
                     })}
                   >
-                    <ZoomableBinChart items={airtimeSamples} plotLeftFrac={binPlotLeftFrac}>
+                    <ZoomableBinChart
+                      items={airtimeSamples}
+                      plotLeftFrac={binPlotLeftFrac}
+                      title={t('node_chart_airtime_title')}
+                      timeOf={sampleTime}
+                      legend={[
+                        { label: t('node_chart_airtime_rx'), color: 'hsl(var(--info))' },
+                        { label: t('node_chart_airtime_tx'), color: 'hsl(var(--destructive))' },
+                      ]}
+                    >
                       {(s) => <AirtimeLineChart samples={s} windowSeconds={windowSeconds} t={t} />}
                     </ZoomableBinChart>
                     <div className="mt-1 flex flex-wrap gap-2 px-1">
@@ -2468,6 +2512,8 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     <ZoomableBinChart
                       items={rxErrorBins(airtimeSamples)}
                       plotLeftFrac={binPlotLeftFrac}
+                      title={t('node_chart_rx_errors_title')}
+                      timeOf={binTime}
                     >
                       {(b) => (
                         <BarChart
@@ -2500,7 +2546,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         : undefined
                     }
                   >
-                    <ZoomableBinChart items={batterySamples} plotLeftFrac={binPlotLeftFrac}>
+                    <ZoomableBinChart
+                      items={batterySamples}
+                      plotLeftFrac={binPlotLeftFrac}
+                      title={t('settings_radio_stat_battery')}
+                      timeOf={sampleTime}
+                    >
                       {(s) => <BatteryLineChart samples={s} windowSeconds={windowSeconds} t={t} />}
                     </ZoomableBinChart>
                   </ChartCard>

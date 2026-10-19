@@ -389,7 +389,17 @@ export function MeshRequestsPanel({ selectedWindow, refreshKey, onLoadingChange 
               <LegendDot color={RESPONSE_COLOR} label={t('mesh_health_req_legend_responses')} />
             </div>
           </div>
-          <ZoomableBinChart items={data.series} plotLeftFrac={24 / 360}>
+          <ZoomableBinChart
+            items={data.series}
+            plotLeftFrac={24 / 360}
+            title={t('mesh_health_req_volume_heading')}
+            timeOf={(b) => b.bucket_ts}
+            legend={[
+              { label: t('mesh_health_col_flood'), color: FLOOD_COLOR },
+              { label: t('mesh_health_col_direct'), color: DIRECT_COLOR },
+              { label: t('mesh_health_req_legend_responses'), color: RESPONSE_COLOR },
+            ]}
+          >
             {(s) => <VolumeChart series={s} />}
           </ZoomableBinChart>
         </div>

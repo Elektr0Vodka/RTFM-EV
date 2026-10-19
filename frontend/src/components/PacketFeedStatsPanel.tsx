@@ -7,9 +7,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
-  ResponsiveContainer,
   Cell,
 } from 'recharts';
+import { ResponsiveContainer } from './charts/ResponsiveContainer';
+import { ExpandableChart } from './charts/ChartExpand';
 
 import type { Contact, RawFeedHistoricalStats } from '../types';
 import { api } from '../api';
@@ -336,35 +337,37 @@ function RankedBars({
         <p className="mt-3 text-sm text-muted-foreground">{emptyLabel}</p>
       ) : (
         <div className="mt-2">
-          <ResponsiveContainer width="100%" height={items.length * 28 + 8}>
-            <BarChart
-              data={data}
-              layout="vertical"
-              margin={{ top: 0, right: 4, bottom: 0, left: 0 }}
-              barCategoryGap="20%"
-            >
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                tickLine={false}
-                axisLine={false}
-                width={80}
-              />
-              <RechartsTooltip
-                {...TOOLTIP_STYLE}
-                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={(_v: any, _n: any, props: any) => [props.payload.detail, null]}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16}>
-                {data.map((entry, i) => (
-                  <Cell key={i} fill={colorForIndex(i, colorMap, entry.name)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <ExpandableChart title={title}>
+            <ResponsiveContainer width="100%" height={items.length * 28 + 8}>
+              <BarChart
+                data={data}
+                layout="vertical"
+                margin={{ top: 0, right: 4, bottom: 0, left: 0 }}
+                barCategoryGap="20%"
+              >
+                <XAxis type="number" hide />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={80}
+                />
+                <RechartsTooltip
+                  {...TOOLTIP_STYLE}
+                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(_v: any, _n: any, props: any) => [props.payload.detail, null]}
+                />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16}>
+                  {data.map((entry, i) => (
+                    <Cell key={i} fill={colorForIndex(i, colorMap, entry.name)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ExpandableChart>
         </div>
       )}
     </section>
@@ -486,36 +489,44 @@ function TimelineChart({
         </div>
       </div>
       <div className="mt-2">
-        <ResponsiveContainer width="100%" height={110}>
-          <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              axisLine={false}
-              allowDecimals={false}
-            />
-            <RechartsTooltip
-              {...TOOLTIP_STYLE}
-              cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-            />
-            {typeOrder.map((type, i) => (
-              <Bar
-                key={type}
-                dataKey={type}
-                stackId="packets"
-                fill={colorMap.get(type) ?? TIMELINE_FILL_COLORS[0]}
-                radius={i === typeOrder.length - 1 ? [2, 2, 0, 0] : undefined}
+        <ExpandableChart
+          title={t('packet_traffic_timeline')}
+          legend={typeOrder.map((type) => ({
+            label: type,
+            color: colorMap.get(type) ?? TIMELINE_FILL_COLORS[0],
+          }))}
+        >
+          <ResponsiveContainer width="100%" height={110}>
+            <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -24 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tickLine={false}
+                axisLine={false}
               />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
+              <YAxis
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <RechartsTooltip
+                {...TOOLTIP_STYLE}
+                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
+              />
+              {typeOrder.map((type, i) => (
+                <Bar
+                  key={type}
+                  dataKey={type}
+                  stackId="packets"
+                  fill={colorMap.get(type) ?? TIMELINE_FILL_COLORS[0]}
+                  radius={i === typeOrder.length - 1 ? [2, 2, 0, 0] : undefined}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </ExpandableChart>
       </div>
     </section>
   );
