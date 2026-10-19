@@ -161,6 +161,16 @@ function panel(): HTMLElement {
   return screen.getByRole('dialog', { name: 'Guided walkthrough' });
 }
 
+/**
+ * The panel is on screen and its effects have run. The buddy loads outside
+ * act(), so React can commit the panel before running its effects (the tour
+ * subscription, opening the stop's page); a test that moves the tour then
+ * would move it unseen. The panel focuses "Next" in one of those effects.
+ */
+async function waitForPanel(): Promise<void> {
+  await waitFor(() => expect(panel().contains(document.activeElement)).toBe(true));
+}
+
 function stored(tour: 'main' | 'mc118' | 'meshcomod') {
   return JSON.parse(localStorage.getItem(buddyTourStorageKey(tour)) ?? 'null');
 }
@@ -366,7 +376,7 @@ describe('BuddyHost with the add-on tours', () => {
     render(<BuddyHost {...props} />);
     const card = await screen.findByRole('dialog', { name: 'New in MeshCore 1.18' });
     fireEvent.click(within(card).getByRole('button', { name: 'Start walkthrough' }));
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     expect(within(panel()).getByRole('heading', { name: 'MeshCore 1.18' })).toBeInTheDocument();
     expect(within(panel()).getByText('Step 1 of 7')).toBeInTheDocument();
 
@@ -423,7 +433,7 @@ describe('BuddyHost with the add-on tours', () => {
     render(<BuddyHost {...props} />);
     await waitFor(() => expect(getBuddyTourFeatures().cad).toBe(true));
     act(() => startBuddyTour('meshcomod'));
-    await waitFor(() => expect(panel()).toBeInTheDocument());
+    await waitForPanel();
     expect(
       within(panel()).getByText(`Step 1 of ${BUDDY_TOURS.meshcomod.length}`)
     ).toBeInTheDocument();

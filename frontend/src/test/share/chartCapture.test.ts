@@ -86,6 +86,47 @@ describe('captureChart', () => {
     expect(snap.plot.w).toBeCloseTo(324);
   });
 
+  it('keeps labels a chart draws outside its box when it shows overflow', () => {
+    sized(360, 80);
+    // jsdom has no getBBox: the top label sticks out 4 above the box.
+    Object.defineProperty(SVGElement.prototype, 'getBBox', {
+      configurable: true,
+      value: () => ({ x: 0, y: -4, width: 360, height: 84 }),
+    });
+    try {
+      const snap = captureChart(
+        mount('<svg viewBox="0 0 360 80" style="overflow: visible"><text y="0">-85</text></svg>'),
+        { left: 0.1, top: 0, width: 0.9, height: 1 }
+      )!;
+      // 4 overflow plus 2 spare above; nothing sticks out elsewhere.
+      expect(snap.fullSvg).toContain('viewBox="0 -6 360 86"');
+      expect(snap.height).toBeCloseTo(86);
+      expect(snap.width).toBeCloseTo(360);
+      // The plot area moves down with the content.
+      expect(snap.plot.y).toBeCloseTo(6);
+      expect(snap.plot.h).toBeCloseTo(80);
+    } finally {
+      delete (SVGElement.prototype as { getBBox?: unknown }).getBBox;
+    }
+  });
+
+  it('leaves the box alone when the chart clips its overflow', () => {
+    sized(360, 80);
+    Object.defineProperty(SVGElement.prototype, 'getBBox', {
+      configurable: true,
+      value: () => ({ x: 0, y: -4, width: 360, height: 84 }),
+    });
+    try {
+      const snap = captureChart(
+        mount('<svg viewBox="0 0 360 80" style="overflow: hidden"><text y="0">-85</text></svg>')
+      )!;
+      expect(snap.fullSvg).toContain('viewBox="0 0 360 80"');
+      expect(snap.height).toBe(80);
+    } finally {
+      delete (SVGElement.prototype as { getBBox?: unknown }).getBBox;
+    }
+  });
+
   it('sweeps a pie chart', () => {
     sized(200, 200);
     const snap = captureChart(

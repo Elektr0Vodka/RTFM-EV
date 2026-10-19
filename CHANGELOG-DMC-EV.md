@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (share graph: top of My Node charts cut off, fix/share-graph-top-cutoff)
+
+### Share cards
+- **My Node graphs keep their top label.** The My Node charts draw the
+  highest value on the top edge with its label half above the chart box,
+  which shows on screen but was cut off in the shared image and animation.
+  The capture now takes in whatever a chart shows outside its box (only for
+  charts that show overflow on screen, so Recharts graphs such as Mesh
+  Health and Mesh Trends come out as before).
+
 ## Update 2026-10-19 (ATAK and MeshCore SAR trackers, TAK Stream)
 
 Migration `_157` (tables `tracker_positions`, `tracker_objects`). No new
