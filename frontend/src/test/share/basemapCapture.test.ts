@@ -11,23 +11,36 @@ import { BasemapLoadError, captureBasemap } from '../../share/basemapCapture';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const mapMock = maplibre.Map as unknown as ReturnType<typeof vi.fn>;
 const stub = (maplibre as any).__stub as {
-  fire: (ev: string) => void;
+  fire: (ev: string, e?: unknown) => void;
   fitBounds: ReturnType<typeof vi.fn>;
   jumpTo: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   getZoom: ReturnType<typeof vi.fn>;
   getCenter?: ReturnType<typeof vi.fn>;
+  triggerRepaint?: ReturnType<typeof vi.fn>;
 };
 
 const drawImage = vi.fn();
+/** Pixels the copy reads back: opaque (a drawn map) unless a test says otherwise. */
+let copied: 'opaque' | 'transparent' = 'opaque';
+const pixels = () => {
+  const data = new Uint8ClampedArray(64 * 64 * 4);
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 30 + (i % 50);
+    data[i + 3] = copied === 'opaque' ? 255 : 0;
+  }
+  return { data, width: 64, height: 64 } as ImageData;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  copied = 'opaque';
   localStorage.setItem('remoteterm-map-layer', 'light');
   stub.getCenter = vi.fn(() => ({ lat: 52.25, lng: 5.25 }));
   stub.getZoom.mockReturnValue(9);
+  stub.triggerRepaint = vi.fn();
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
-    () => ({ drawImage }) as unknown as CanvasRenderingContext2D
+    () => ({ drawImage, getImageData: () => pixels() }) as unknown as CanvasRenderingContext2D
   );
 });
 
@@ -37,6 +50,12 @@ afterEach(() => {
 });
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+/** The map loads, settles and draws a frame. */
+const rendered = () => {
+  stub.fire('load');
+  stub.fire('idle');
+  stub.fire('render');
+};
 
 describe('captureBasemap', () => {
   it('creates the off-screen map with the saved basemap and no interaction', async () => {
@@ -54,8 +73,7 @@ describe('captureBasemap', () => {
     expect(opts.canvasContextAttributes).toEqual(
       expect.objectContaining({ preserveDrawingBuffer: true })
     );
-    stub.fire('load');
-    stub.fire('idle');
+    rendered();
     const cap = await p;
     expect(stub.fitBounds).toHaveBeenCalled();
     expect(cap.credit).toContain('OpenStreetMap');
@@ -65,10 +83,44 @@ describe('captureBasemap', () => {
     expect(drawImage).toHaveBeenCalled();
   });
 
-  it('centres a single point instead of fitting bounds', async () => {
+  it('copies the map in the frame drawn after it settled, not at idle', async () => {
     const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 100, h: 100 }, 10);
     stub.fire('load');
     stub.fire('idle');
+    expect(stub.triggerRepaint).toHaveBeenCalled();
+    expect(drawImage).not.toHaveBeenCalled();
+    stub.fire('render');
+    await p;
+    expect(drawImage).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries a fresh map once when the copy comes out empty', async () => {
+    copied = 'transparent';
+    const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 100, h: 100 }, 10);
+    rendered();
+    await flush();
+    expect(mapMock).toHaveBeenCalledTimes(2);
+    copied = 'opaque';
+    rendered();
+    await expect(p).resolves.toMatchObject({ credit: expect.any(String) });
+  });
+
+  it('rejects with BasemapLoadError when the retry is empty too, and says why', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    copied = 'transparent';
+    const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 100, h: 100 }, 10);
+    const assertion = expect(p).rejects.toBeInstanceOf(BasemapLoadError);
+    rendered();
+    await flush();
+    rendered();
+    await assertion;
+    expect(mapMock).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('empty'), expect.anything());
+  });
+
+  it('centres a single point instead of fitting bounds', async () => {
+    const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 100, h: 100 }, 10);
+    rendered();
     await p;
     expect(stub.jumpTo).toHaveBeenCalledWith(
       expect.objectContaining({ center: [5, 52], zoom: 11 })
@@ -77,8 +129,7 @@ describe('captureBasemap', () => {
 
   it('returns a projector that still works after the map is removed', async () => {
     const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 200, h: 100 }, 10);
-    stub.fire('load');
-    stub.fire('idle');
+    rendered();
     const cap = await p;
     expect(stub.remove).toHaveBeenCalled();
     const c = cap.project({ lat: 52.25, lon: 5.25 });
@@ -114,13 +165,8 @@ describe('captureBasemap', () => {
 
   it('ignores a single failed tile and still captures', async () => {
     const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 100, h: 100 }, 10);
-    (stub as unknown as { fire: (ev: string, e?: unknown) => void }).fire('error', {
-      sourceId: 'openmaptiles',
-      tile: {},
-      error: new Error('404'),
-    });
-    stub.fire('load');
-    stub.fire('idle');
+    stub.fire('error', { sourceId: 'openmaptiles', tile: {}, error: new Error('404') });
+    rendered();
     await expect(p).resolves.toMatchObject({ credit: expect.any(String) });
   });
 
@@ -128,8 +174,7 @@ describe('captureBasemap', () => {
     const before = document.body.children.length;
     const ok = captureBasemap([{ lat: 52, lon: 5 }], { w: 100, h: 100 }, 10);
     expect(document.body.children.length).toBe(before + 1);
-    stub.fire('load');
-    stub.fire('idle');
+    rendered();
     await ok;
     await flush();
     expect(document.body.children.length).toBe(before);

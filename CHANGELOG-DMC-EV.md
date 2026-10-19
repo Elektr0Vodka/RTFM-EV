@@ -35,6 +35,23 @@ sent over the radio.
   register's WFS only serves RD New coordinates; `app/rd_new.py` converts
   them (about 0.3 m off PDOK's own coordinate pairs).
 
+## Update 2026-10-19 (share card map came out empty, fix/share-card-blank-map)
+
+Frontend only. No migration, no new dependency. Nothing is sent over the radio.
+
+### Share cards
+- **Empty map behind the routes.** In a long-open browser tab a share card
+  could come out with the map credit but no map: the copied map picture was
+  fully transparent. The cause is not found yet (a reload fixed it, and it
+  did not happen in a fresh tab). The base map is now copied inside the
+  frame MapLibre draws right after the map settled, while its pixels are in
+  the buffer. A copy that is still (almost) fully transparent is retried
+  once with a fresh map; if that is empty too, the dialog says the map did
+  not load and offers **Make it without the map**, and the browser console
+  gets a warning ("Share card: the base map copy came out empty twice")
+  with the basemap, whether the WebGL context was lost, and whether the
+  style and tiles had loaded (`share/basemapCapture.ts`).
+
 ## Update 2026-10-18 (share cards 2-5: trace, reach, mesh summary, filters, feat/share-cards-more)
 
 No migration, no new dependency. Nothing is sent over the radio. Every card
