@@ -52,7 +52,11 @@ class TestFrequencies:
             ("925-934.8 MHz", "900"),
             ("957.4 MHz", "900"),
             ("868 MHz", None),  # licence-exempt, never registered, but not a neighbour band
-            ("421-425 MHz", None),
+            ("421-425 MHz", "450"),  # PAMR, next to 433 MHz
+            ("462.65 MHz", "450"),
+            ("433.92 MHz", "450"),  # never registered, but the band would match
+            ("380-395 MHz", None),
+            ("474 MHz", None),  # DVB-T, not kept
             ("1825-1845 MHz", None),
             ("9200-9500 MHz", None),  # matched by the loose server filter, dropped here
             ("71.625 GHz", None),
@@ -138,6 +142,23 @@ class TestBuildSite:
     def test_site_without_in_band_antennas_is_skipped(self):
         sectors = _sectors(_sector_props(1, "816 MHz", 0))
         assert svc.build_site(_site_feature(7, [99]), sectors) is None
+
+    def test_amateur_site_without_antennas_is_kept(self):
+        feature = _site_feature(7, [99])
+        feature["properties"]["HOOFDSOORT"] = "ZENDAMATEURS"
+        feature["properties"]["ZENDAMATEURS"] = 1.0
+        site = svc.build_site(feature, {})
+        assert site is not None
+        assert site.bands == [svc.AMATEUR]
+        assert site.transmitters == []
+        assert site.max_power_dbw is None
+
+    def test_amateur_flag_from_kinds_alone(self):
+        feature = _site_feature(7, [1])
+        feature["properties"]["HOOFDSOORT"] = "LTE, ZENDAMATEURS"
+        site = svc.build_site(feature, _sectors(_sector_props(1, "816 MHz", 0)))
+        assert site is not None
+        assert site.bands == ["800", svc.AMATEUR]
 
     def test_placeholder_position_is_skipped(self):
         sectors = _sectors(_sector_props(1, "816 MHz", 0))
@@ -230,7 +251,7 @@ class TestSync:
         second = _site_feature(7, [2, 3])
         second["properties"]["HOOFDSOORT"] = "GSM, VASTE VERB"
         out_of_band = _site_feature(7, [99])  # microwave group, nothing in band
-        out_of_band["properties"]["HOOFDSOORT"] = "VASTE VERB, ZENDAMATEURS"
+        out_of_band["properties"]["HOOFDSOORT"] = "VASTE VERB"
         with _fake_pages(groups, [first, out_of_band, second]):
             count, _ = await svc.sync_antenna_register()
         assert count == 1
@@ -239,6 +260,21 @@ class TestSync:
         assert [t.frequency for t in site.transmitters] == ["816 MHz", "950 MHz"]
         assert site.bands == ["800", "900"]
         assert site.kinds == "LTE, GSM, VASTE VERB"
+
+    @pytest.mark.asyncio
+    async def test_amateur_group_merged_into_mobile_site(self, test_db):
+        groups = [{"properties": _sector_props(1, "816 MHz", 0)}]
+        mobile = _site_feature(7, [1])
+        ham = _site_feature(7, [50])
+        ham["properties"]["HOOFDSOORT"] = "ZENDAMATEURS"
+        ham["properties"]["ZENDAMATEURS"] = 1.0
+        plain = _site_feature(8, [60])  # no in-band antennas, not amateur: dropped
+        with _fake_pages(groups, [mobile, ham, plain]):
+            count, _ = await svc.sync_antenna_register()
+        assert count == 1
+        site = await AntennaRegisterRepository.get(7)
+        assert site is not None
+        assert site.bands == ["800", svc.AMATEUR]
 
     @pytest.mark.asyncio
     async def test_empty_result_keeps_previous_cache(self, test_db):
