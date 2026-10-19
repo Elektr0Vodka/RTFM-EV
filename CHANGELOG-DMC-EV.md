@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-19 (share graph: top of My Node charts cut off)
+## Update 2026-10-19 (share graph: top of My Node charts cut off, fix/share-graph-top-cutoff)
 
 ### Share cards
 - **My Node graphs keep their top label.** The My Node charts draw the
@@ -20,6 +20,28 @@ the change. Upstream development is on hold; the fork is the active repository.
   The capture now takes in whatever a chart shows outside its box (only for
   charts that show overflow on screen, so Recharts graphs such as Mesh
   Health and Mesh Trends come out as before).
+
+## Update 2026-10-19 (packets with another header version, fix/packet-header-version)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### Packets
+- Packets whose header version bits are 1 to 3 are now their own type,
+  **OtherVersion** (stored as `OTHER_VERSION`). MeshCore 1.18.0 knows only
+  version 0 and drops the rest ("unsupported packet version",
+  `Dispatcher::tryParsePacket`), but the companion still pushes them to the app.
+  Trail Mate firmware sends version 1 by default. Before this change RTFM-EV
+  handled them as their inner type: a version-1 advert could create or update a
+  contact.
+- The packet feed shows them as "Other version (v2, Advert)", with the payload
+  as raw bytes instead of decoded fields. OtherVersion is a filter type in the
+  feed, Packet History and the packet stats.
+
+### Backend
+- `parse_packet` returns None for header versions 1 to 3 unless
+  `any_version=True`, so historical decryption, the link-edge backfill and
+  advert links skip them. Ingest stores and broadcasts them with their route
+  and hop fields, and runs no advert, message, path, ACK, link or relay handling.
 
 ## Update 2026-10-19 (antenna layer: faster toggle, 3D masts, radiation patterns, feat/antenna-3d-patterns)
 

@@ -16,6 +16,13 @@ const RAW_PACKET_STATS_WINDOW_SECONDS: Record<Exclude<RawPacketStatsWindow, 'ses
 
 export const MAX_RAW_PACKET_STATS_OBSERVATIONS = 20000;
 
+/**
+ * Feed type for packets whose header version bits (6-7) are 1-3. MeshCore
+ * 1.18.0 drops them ("unsupported packet version"), so they are shown as their
+ * own type instead of the inner payload type the decoder library reports.
+ */
+export const OTHER_VERSION_TYPE = 'OtherVersion';
+
 export const KNOWN_PAYLOAD_TYPES = [
   'Advert',
   'GroupText',
@@ -26,8 +33,25 @@ export const KNOWN_PAYLOAD_TYPES = [
   'Trace',
   'Path',
   'Control',
+  OTHER_VERSION_TYPE,
   'Unknown',
 ] as const;
+
+/** True for a decoded packet with header version 1-3. */
+export function isOtherVersion(decoded: { isValid: boolean; payloadVersion: number }): boolean {
+  return decoded.isValid && decoded.payloadVersion !== 0;
+}
+
+/** The payload type name the feed, filters and stats use for a decoded packet. */
+export function feedPayloadTypeName(decoded: {
+  isValid: boolean;
+  payloadVersion: number;
+  payloadType: PayloadType;
+}): string {
+  if (!decoded.isValid) return 'Unknown';
+  if (isOtherVersion(decoded)) return OTHER_VERSION_TYPE;
+  return Utils.getPayloadTypeName(decoded.payloadType);
+}
 
 /**
  * Hop-byte-width buckets, shared by the stats "Hop Byte Width" chart and the
@@ -229,9 +253,7 @@ export function summarizeRawPacketForStats(packet: RawPacket): RawPacketStatsObs
   try {
     const decoded = MeshCoreDecoder.decode(packet.data);
     const pathTokens = decoded.isValid ? getPathTokens(decoded) : [];
-    const payloadType = decoded.isValid
-      ? Utils.getPayloadTypeName(decoded.payloadType)
-      : packet.payload_type;
+    const payloadType = decoded.isValid ? feedPayloadTypeName(decoded) : packet.payload_type;
     const routeType = decoded.isValid ? Utils.getRouteTypeName(decoded.routeType) : 'Unknown';
     const sourceInfo = getSourceInfo(packet, decoded);
 

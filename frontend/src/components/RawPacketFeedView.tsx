@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Volume2, VolumeX, X } from 'lucide-react';
 
-import { MeshCoreDecoder, Utils } from '@michaelhart/meshcore-decoder';
+import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
@@ -13,6 +13,7 @@ import type { AnalyzerSite, AppSettingsUpdate, Channel, Contact, RawPacket } fro
 import {
   KNOWN_PAYLOAD_TYPES,
   classifyDecodedHopByteWidth,
+  feedPayloadTypeName,
   type HopByteWidthBucket,
 } from '../utils/rawPacketStats';
 import { createDecoderOptions } from '../utils/rawPacketInspector';
@@ -42,7 +43,7 @@ function summarizePacketForFeed(
 ): { payloadType: string; hopWidth: HopByteWidthBucket; isDirect: boolean } {
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, decoderOptions);
-    const name = decoded.isValid ? Utils.getPayloadTypeName(decoded.payloadType) : 'Unknown';
+    const name = feedPayloadTypeName(decoded);
     const hopWidth = classifyDecodedHopByteWidth(decoded);
     return {
       payloadType: KNOWN_PAYLOAD_TYPE_SET.has(name) ? name : 'Unknown',

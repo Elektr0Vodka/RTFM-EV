@@ -7,6 +7,7 @@ which is critical for correctly interpreting mesh network messages.
 import hashlib
 import hmac
 
+import pytest
 from Crypto.Cipher import AES
 
 from app.decoder import (
@@ -635,6 +636,44 @@ class TestRealWorldPackets:
         assert "hashtag room is essentially public" in result.message
         assert result.channel_hash == "e6"
         assert result.timestamp == 1766604717
+
+    def test_other_header_version_is_not_decrypted(self):
+        """The same packet with header version 1 is dropped, as firmware does.
+
+        MeshCore 1.18.0 ``Dispatcher::tryParsePacket`` rejects any version above
+        PAYLOAD_VER_1, so historical decryption must not turn it into a message.
+        """
+        packet = bytearray.fromhex(
+            "1500E69C7A89DD0AF6A2D69F5823B88F9720731E4B887C56932BF889255D8D926D"
+            "99195927144323A42DD8A158F878B518B8304DF55E80501C7D02A9FFD578D35182"
+            "83156BBA257BF8413E80A237393B2E4149BBBC864371140A9BBC4E23EB9BF203EF"
+            "0D029214B3E3AAC3C0295690ACDB89A28619E7E5F22C83E16073AD679D25FA904D"
+            "07E5ACF1DB5A7C77D7E1719FB9AE5BF55541EE0D7F59ED890E12CF0FEED6700818"
+        )
+        packet[0] |= 0x40  # version bits 6-7 = 1
+        channel_key = hashlib.sha256(b"#six77").digest()[:16]
+
+        assert try_decrypt_packet_with_channel_key(bytes(packet), channel_key) is None
+
+
+class TestPacketHeaderVersion:
+    """parse_packet follows firmware: only header version 0 is a MeshCore packet."""
+
+    @pytest.mark.parametrize("version", [1, 2, 3])
+    def test_other_versions_return_none(self, version):
+        packet = bytes([(version << 6) | 0x15, 0x00]) + b"payload_data"
+        assert parse_packet(packet) is None
+
+    def test_any_version_keeps_the_header_fields(self):
+        packet = bytes([(1 << 6) | 0x15, 0x00]) + b"payload_data"
+
+        result = parse_packet(packet, any_version=True)
+
+        assert result is not None
+        assert result.payload_version == 1
+        assert result.route_type == RouteType.FLOOD
+        assert result.payload_type == PayloadType.GROUP_TEXT
+        assert result.payload == b"payload_data"
 
 
 class TestAdvertisementParsing:

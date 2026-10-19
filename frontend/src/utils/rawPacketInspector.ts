@@ -10,6 +10,7 @@ import {
 
 import type { Channel, RawPacket } from '../types';
 import { formatDateTime } from './dateTimeFormat';
+import { feedPayloadTypeName, isOtherVersion } from './rawPacketStats';
 
 export interface RawPacketSummary {
   summary: string;
@@ -176,6 +177,16 @@ export function decodePacketSummary(
     const pathTokens = getPathTokens(decoded);
     const pathStr = pathTokens.length > 0 ? ` via ${pathTokens.join(', ')}` : '';
 
+    if (isOtherVersion(decoded)) {
+      // Firmware drops these, so never show the inner payload as if it were
+      // read (an advert name, a DM pair). Header version 1 is "v2" in Packet.h.
+      return {
+        summary: `Other version (v${decoded.payloadVersion + 1}, ${payloadTypeName})${pathStr}`,
+        routeType,
+        pathTokens,
+      };
+    }
+
     let summary = payloadTypeName;
 
     switch (decoded.payloadType) {
@@ -286,9 +297,8 @@ export function inspectRawPacketWithOptions(
   const routeTypeName = decoded?.isValid
     ? Utils.getRouteTypeName(decoded.routeType)
     : summary.routeType;
-  const payloadTypeName = decoded?.isValid
-    ? Utils.getPayloadTypeName(decoded.payloadType)
-    : packet.payload_type;
+  const otherVersion = decoded != null && isOtherVersion(decoded);
+  const payloadTypeName = decoded?.isValid ? feedPayloadTypeName(decoded) : packet.payload_type;
   const payloadVersionName = decoded?.isValid
     ? Utils.getPayloadVersionName(decoded.payloadVersion)
     : 'Unknown';
@@ -315,14 +325,15 @@ export function inspectRawPacketWithOptions(
   const payloadFields =
     structure == null
       ? []
-      : (structure.payload.segments.length > 0
+      : (structure.payload.segments.length > 0 && !otherVersion
           ? structure.payload.segments
           : structure.payload.hex.length > 0
             ? [
                 {
                   name: 'Payload Bytes',
-                  description:
-                    'Field-level payload breakdown is not available for this packet type.',
+                  description: otherVersion
+                    ? `Not decoded: header version ${(decoded?.payloadVersion ?? 0) + 1} is not a version MeshCore firmware reads (1.18.0 drops it).`
+                    : 'Field-level payload breakdown is not available for this packet type.',
                   startByte: 0,
                   endByte: Math.max(0, structure.payload.hex.length / 2 - 1),
                   value: structure.payload.hex,
