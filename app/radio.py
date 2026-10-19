@@ -186,6 +186,10 @@ class RadioManager:
         self.allowed_repeat_freqs: list[dict] | None = None
         # meshcomod companion receive filter (`filter` CLI), probed at connect.
         self.companion_filter_supported: bool = False
+        # Full capture (meshcomod 0xE0): flags the radio accepts, 0 = unsupported.
+        self.full_capture_supported_flags: int = 0
+        # Frames the radio lost to a full receive queue since connect (drop notices).
+        self.rx_ring_drops: int = 0
         self._channel_slot_by_key: OrderedDict[str, int] = OrderedDict()
         self._channel_key_by_slot: dict[int, str] = {}
         self._pending_message_channel_key_by_slot: dict[int, str] = {}
@@ -237,6 +241,8 @@ class RadioManager:
         self.client_repeat = None
         self.allowed_repeat_freqs = None
         self.companion_filter_supported = False
+        self.full_capture_supported_flags = 0
+        self.rx_ring_drops = 0
         self.reset_channel_send_cache()
         self.clear_pending_message_channel_slots()
 

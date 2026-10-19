@@ -81,3 +81,52 @@ describe('MeshcomodSettings', () => {
     await waitFor(() => expect(patch).toHaveBeenCalledWith({ cad_enabled: false }));
   });
 });
+
+describe('MeshcomodSettings Full capture', () => {
+  const base = {
+    cad_supported: true,
+    cad_enabled: false,
+    gps_supported: false,
+    gps_enabled: null,
+    gps_interval: null,
+  };
+
+  it('says so when the firmware has no Full capture', async () => {
+    vi.spyOn(api, 'getMeshcomodConfig').mockResolvedValue({
+      ...base,
+      full_capture_supported: false,
+      full_capture_flags: 0,
+      rx_ring_drops: 0,
+    });
+    render(<MeshcomodSettings health={health(true)} />);
+    expect(
+      await screen.findByText('This firmware does not support Full capture')
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Over-long frames/)).not.toBeInTheDocument();
+  });
+
+  it('toggles a kind of frame by its bit', async () => {
+    vi.spyOn(api, 'getMeshcomodConfig').mockResolvedValue({
+      ...base,
+      full_capture_supported: true,
+      full_capture_flags: 2,
+      rx_ring_drops: 0,
+    });
+    const patch = vi.spyOn(api, 'updateMeshcomodConfig').mockResolvedValue({ ...base });
+    render(<MeshcomodSettings health={health(true)} />);
+    expect(await screen.findByLabelText(/Damaged frames/)).toBeChecked();
+    await userEvent.click(screen.getByLabelText(/Over-long frames/));
+    await waitFor(() => expect(patch).toHaveBeenCalledWith({ full_capture_flags: 3 }));
+  });
+
+  it('shows the lost-frame count when counting is on', async () => {
+    vi.spyOn(api, 'getMeshcomodConfig').mockResolvedValue({
+      ...base,
+      full_capture_supported: true,
+      full_capture_flags: 4,
+      rx_ring_drops: 17,
+    });
+    render(<MeshcomodSettings health={health(true)} />);
+    expect(await screen.findByText('Lost since connect: 17')).toBeInTheDocument();
+  });
+});

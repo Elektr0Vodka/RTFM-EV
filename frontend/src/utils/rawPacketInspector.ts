@@ -11,6 +11,7 @@ import {
 import type { Channel, RawPacket } from '../types';
 import { formatDateTime } from './dateTimeFormat';
 import { fuotaFromDecoded, fuotaPayloadFields, fuotaSummary } from './fuotaPayload';
+import { damagedSummary, isDamaged } from './damagedFrames';
 import { feedPayloadTypeName, isOtherVersion } from './rawPacketStats';
 
 export interface RawPacketSummary {
@@ -166,6 +167,9 @@ export function decodePacketSummary(
   packet: RawPacket,
   decoderOptions?: DecryptionOptions
 ): RawPacketSummary {
+  if (isDamaged(packet)) {
+    return { summary: damagedSummary(packet.damaged_status ?? 3), routeType: 'Unknown' };
+  }
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, decoderOptions);
 
@@ -283,6 +287,35 @@ export function inspectRawPacketWithOptions(
   decoderOptions?: DecryptionOptions
 ): RawPacketInspection {
   const summary = decodePacketSummary(packet, decoderOptions);
+  if (isDamaged(packet)) {
+    // The radio said the frame is damaged: show the bytes, read nothing from them.
+    const lastByte = Math.max(0, packet.data.length / 2 - 1);
+    return {
+      decoded: null,
+      structure: null,
+      routeTypeName: 'Unknown',
+      payloadTypeName: 'Damaged',
+      payloadVersionName: 'Unknown',
+      pathTokens: [],
+      summary,
+      validationErrors: [summary.summary],
+      packetFields: [
+        {
+          id: 'packet-0',
+          scope: 'packet',
+          name: 'Frame Bytes',
+          description:
+            'As received. The radio reported this frame as damaged, so nothing is decoded.',
+          value: packet.data,
+          startByte: 0,
+          endByte: lastByte,
+          absoluteStartByte: 0,
+          absoluteEndByte: lastByte,
+        },
+      ],
+      payloadFields: [],
+    };
+  }
   const validationErrors = safeValidate(packet.data);
 
   let decoded: DecodedPacket | null = null;

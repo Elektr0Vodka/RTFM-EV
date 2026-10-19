@@ -228,7 +228,7 @@ class TestWebSocketEventProfiles:
         assert chat not in ws_manager._excluded
 
     def test_chat_profile_excludes_only_non_chat_events(self):
-        assert EVENT_PROFILES["chat"] == frozenset({"raw_packet", "host_repeater"})
+        assert EVENT_PROFILES["chat"] == frozenset({"raw_packet", "rx_bad_frame", "host_repeater"})
 
     def test_unknown_profile_means_full_stream(self):
         assert resolve_event_profile("nope") == frozenset()

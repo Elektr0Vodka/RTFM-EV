@@ -96,7 +96,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Radio parameters, path hash mode (1, 2 or 3 bytes per hop when the firmware supports it), location, adverts, default flood scope and known regions.
 - GPS toggle on any radio that reports it, including stock companion firmware.
 - [Command line for your own radio](#meshcore-118-companion-command-line) in Settings > Radio and on My Node (companion firmware 1.18+): CAD, interference threshold, TX delays, time zone offset, WiFi and more.
-- [meshcomod (DMC-EV)](#meshcomod-dmc-ev-firmware) CAD and GPS controls, and [OpenHop](#openhop-nodes) management panes.
+- [meshcomod (DMC-EV)](#meshcomod-dmc-ev-firmware) CAD, GPS and Full capture controls, and [OpenHop](#openhop-nodes) management panes.
 - Radio identity registry: history per radio, and a prompt when a different radio connects (new radio or replacement).
 - [Several radios at once](README_ADVANCED.md#multiple-radios-experimental) (experimental, opt-in): one workspace per radio, for example 433 and 868 MHz side by side, with a shared channel list, a radio switcher and unread badges across radios.
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
@@ -333,6 +333,7 @@ Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `ME
 
 - **CAD (Channel Activity Detection):** check for channel activity before each transmit and defer while the channel is busy (needs CAD-capable meshcomod firmware).
 - **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
+- **Full capture:** let the radio pass on frames it normally drops: over-long frames (174-255 bytes), damaged frames (CRC or header error) and a count of frames lost to a full receive queue. Over-long frames go through the normal packet pipeline. Damaged frames are kept for 7 days apart from the packet history and show in the Packet Feed only with **Show damaged frames** on; they never reach MQTT or any other integration. Needs a meshcomod build with Full capture (command `0xE0`); the setting lives in RAM on the radio and RTFM-EV sends it again on every connect. Nothing extra is sent over the radio.
 
 Detection is automatic from the radio's device info; each control disables itself when the firmware build does not report support, and the panel is hidden on other firmware. Stock companion firmware that reports the `gps` custom var gets a standalone GPS toggle instead.
 

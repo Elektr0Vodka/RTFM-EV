@@ -6,6 +6,7 @@ import type { AnalyzerSite, Channel, Contact, RawPacket } from '../types';
 import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { resolvePathHopNames } from '../utils/pathHopNames';
 import { formatDateTime } from '../utils/dateTimeFormat';
+import { isDamaged } from '../utils/damagedFrames';
 import { cn } from '@/lib/utils';
 import {
   createDecoderOptions,
@@ -733,9 +734,11 @@ export function RawPacketInspectionPanel({
             label={t('packet_meta_label_packet')}
             primary={t('packet_bytes_status', {
               count: packet.data.length / 2,
-              status: packetIsDecrypted
-                ? t('settings_statistics_decrypted_label')
-                : t('packet_status_encrypted'),
+              status: isDamaged(packet)
+                ? t('packet_status_damaged')
+                : packetIsDecrypted
+                  ? t('settings_statistics_decrypted_label')
+                  : t('packet_status_encrypted'),
             })}
             secondary={
               t('packet_storage_number', { id: packet.id }) +

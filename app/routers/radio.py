@@ -36,6 +36,7 @@ from app.models import (
 from app.radio_sync import send_advertisement as do_send_advertisement
 from app.radio_sync import sync_radio_time
 from app.repository import AppSettingsRepository, ContactRepository
+from app.repository.rx_bad_frames import RxBadFrameRepository
 from app.routers.repeaters import request_anon_region_names
 from app.routers.server_control import _monotonic
 from app.services.companion_cli import (
@@ -49,6 +50,7 @@ from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     reconcile_contact_messages,
 )
+from app.services.full_capture import enable_full_capture
 from app.services.meshcomod import (
     apply_gps_update,
     apply_meshcomod_update,
@@ -205,12 +207,18 @@ class MeshcomodConfigResponse(BaseModel):
     gps_supported: bool = False
     gps_enabled: bool | None = None
     gps_interval: int | None = None
+    full_capture_supported: bool = False
+    full_capture_flags: int = Field(
+        default=0, description="Full capture: 1 over-long, 2 damaged, 4 drop counts"
+    )
+    rx_ring_drops: int = Field(default=0, description="Frames lost to a full queue since connect")
 
 
 class MeshcomodConfigUpdate(BaseModel):
     cad_enabled: bool | None = None
     gps_enabled: bool | None = None
     gps_interval: int | None = Field(default=None, ge=0, le=86400)
+    full_capture_flags: int | None = Field(default=None, ge=0, le=7)
 
 
 class GpsConfigResponse(BaseModel):
@@ -658,7 +666,12 @@ async def get_meshcomod_config() -> MeshcomodConfigResponse:
     _require_meshcomod()
     async with radio_manager.radio_operation("get_meshcomod_config") as mc:
         data = await read_meshcomod_settings(mc)
-    return MeshcomodConfigResponse(**data)
+    return MeshcomodConfigResponse(
+        **data,
+        full_capture_supported=radio_manager.full_capture_supported_flags != 0,
+        full_capture_flags=await RxBadFrameRepository.get_flags(),
+        rx_ring_drops=radio_manager.rx_ring_drops,
+    )
 
 
 @router.patch("/meshcomod", response_model=MeshcomodConfigResponse)
@@ -666,7 +679,13 @@ async def update_meshcomod_config(update: MeshcomodConfigUpdate) -> MeshcomodCon
     """Update meshcomod-specific settings. Only provided fields are applied."""
     radio_manager.require_connected()
     _require_meshcomod()
+    if update.full_capture_flags is not None and not radio_manager.full_capture_supported_flags:
+        raise HTTPException(status_code=422, detail="This firmware does not support Full capture")
     async with radio_manager.radio_operation("update_meshcomod_config") as mc:
+        if update.full_capture_flags is not None:
+            await RxBadFrameRepository.set_flags(update.full_capture_flags)
+            if await enable_full_capture(mc, update.full_capture_flags) is None:
+                raise HTTPException(status_code=422, detail="The radio refused Full capture")
         try:
             await apply_meshcomod_update(
                 mc,

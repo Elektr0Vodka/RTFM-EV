@@ -11,6 +11,34 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (meshcomod Full capture receiver, feat/full-capture)
+
+Migration **_158** (`rx_bad_frames`, `app_settings.full_capture_flags`). No new
+dependency. Nothing is sent over the radio: `0xE0` is a companion command only.
+Needs a meshcomod build with Full capture (not released yet); stock firmware is
+unaffected.
+
+### Settings
+- **Full capture** section in the Meshcomod (DMC-EV) card: over-long frames
+  (174-255 bytes), damaged frames (CRC or header error) and a count of frames
+  lost to a full receive queue. Shown when the radio supports it, with the lost
+  count since connect.
+
+### Packets
+- Over-long frames go through the normal pipeline (feed, history, MQTT).
+- **Show damaged frames** switch in the Packet Feed filters (off by default):
+  damaged frames show as "Damaged frame (CRC error / header damaged / read
+  error)" with their bytes, never decoded, and stay out of the map, visualizer,
+  stats and signal audio.
+
+### Backend
+- `0xC0` pushes are taken from the reader, reassembled (two parts, 2 s expiry)
+  and routed. Damaged frames are stored in `rx_bad_frames` (kept 7 days) and
+  sent as a WS-only `rx_bad_frame` event; they never reach `raw_packets`,
+  fanout or MQTT.
+- `GET/PATCH /api/radio/meshcomod`: `full_capture_supported`,
+  `full_capture_flags`, `rx_ring_drops`.
+
 ## Update 2026-10-19 (community MQTT publishes other header versions, fix/mqtt-forward-other-version)
 
 No migration, no new dependency. Nothing is sent over the radio.
