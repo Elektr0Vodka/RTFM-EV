@@ -135,6 +135,11 @@ def test_tracker_event_sar_uid():
     assert root.find("detail/contact").get("callsign") == "Rescue 1"
 
 
+def test_tracker_event_meshcoreng_uid():
+    position = _position(source="meshcoreng", identity="1a2b3c4d", display_name="NG")
+    assert _parse(tracker_event(position, NOW)).get("uid") == "RTFM-EV-NG-1a2b3c4d"
+
+
 def test_tracker_event_expired_none():
     assert tracker_event(_position(received_at=NOW - 901), NOW) is None
 

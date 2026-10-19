@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (MeshCoreNG trackers, feat/meshcoreng-trackers)
+
+No migration, no new dependency. Nothing is sent over the radio. Builds on
+feat/third-party-packet-labels (#364).
+
+### Map
+- **MeshCoreNG GPS trackers** show on the Trackers overlay in their own colour,
+  named after the report's node name (else the contact, else the node id). They
+  come from the tracker channel (data type 0x0200; add the channel by its fixed
+  key, see README_ADVANCED) and from the older plaintext Location packets
+  (0x0D), which need no channel. A flood repeat adds no second fix.
+- The TAK Stream sends them as `RTFM-EV-NG-<node id>`.
+
+### Chat
+- A channel datagram RTFM-EV does not decode names its project when the data
+  type is known, e.g. "MCO Advanced data (not supported)" (MeshCore Open,
+  Ripple, MCO Advanced, StreamSensor, Nelos, MeshCoreNG, TAK-MESHCORE, Trail
+  Mate). 0xFFFF stays unnamed: MeshCore SAR and MeshCore Companion share it.
+
+### API
+- `GET /api/trackers` accepts `source=meshcoreng`.
+
 ## Update 2026-10-19 (labels for other firmwares' packets, feat/third-party-packet-labels)
 
 No migration, no new dependency. Nothing is sent over the radio.

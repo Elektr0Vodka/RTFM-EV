@@ -134,6 +134,8 @@ def tracker_event(p: TrackerPosition, now: int) -> bytes | None:
         uid = p.cot_uid
     elif p.source == "atak":
         uid = f"RTFM-EV-ATAK-{p.identity}"
+    elif p.source == "meshcoreng":
+        uid = f"RTFM-EV-NG-{p.identity}"
     else:
         uid = f"RTFM-EV-SAR-{p.identity}"
     return cot_event_xml(

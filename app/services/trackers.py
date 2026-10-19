@@ -1,4 +1,4 @@
-"""Turn decoded ATAK (TAK-MESHCORE) and MeshCore SAR traffic into trackers.
+"""Turn decoded ATAK (TAK-MESHCORE), MeshCore SAR and MeshCoreNG traffic into trackers.
 
 Positions and ATAK map objects go to ``tracker_positions`` / ``tracker_objects``
 and out as a ``tracker`` WebSocket event, which ``broadcast_event`` never hands
@@ -36,6 +36,7 @@ from app.atak_payloads import (
     parse_envelope,
 )
 from app.decoder import DecryptedGroupData
+from app.meshcoreng import DATA_TYPE_MESHCORENG_TRACKER, Mcl1Report, decode_mcl1
 from app.models import TrackerObject, TrackerPosition
 from app.repository import ContactRepository
 from app.repository.trackers import TrackerRepository
@@ -102,13 +103,17 @@ def _publish(kind: str, item: TrackerPosition | TrackerObject, realtime: bool) -
 
 
 async def _store_position(ctx: DatagramContext, position: TrackerPosition) -> None:
+    await _save_position(position, ctx.realtime)
+
+
+async def _save_position(position: TrackerPosition, realtime: bool) -> None:
     # A raw packet decoded again (historical decryption, restart) adds no second fix.
     if position.packet_id is not None and await TrackerRepository.has_position_for_packet(
         position.packet_id
     ):
         return
     stored = position.model_copy(update={"id": await TrackerRepository.add_position(position)})
-    _publish("position", stored, ctx.realtime)
+    _publish("position", stored, realtime)
 
 
 async def _store_chat(ctx: DatagramContext, sender: str, text: str) -> None:
@@ -149,6 +154,42 @@ async def _store_chat(ctx: DatagramContext, sender: str, text: str) -> None:
         transport_code=ctx.transport_code,
         region=ctx.region,
     )
+
+
+async def _mcl1_fields(report: Mcl1Report) -> dict:
+    """TrackerPosition fields of a MeshCoreNG report; a nameless one uses the contact's name."""
+    name = report.name
+    if not name:
+        contact = await ContactRepository.get_by_key_prefix(report.node_id)
+        name = contact.name if contact and contact.name else report.node_id
+    return {
+        "source": "meshcoreng",
+        "identity": report.node_id,
+        "display_name": name,
+        "lat": report.lat,
+        "lon": report.lon,
+        "alt_m": report.alt_m,
+        "speed_mps": report.speed_cms / 100,
+        "course_deg": report.heading_cdeg / 100,
+    }
+
+
+async def handle_meshcoreng_location(
+    payload: bytes, *, packet_id: int, path_len: int, received_at: int
+) -> bool:
+    """Store a plaintext MeshCoreNG 0x0D report; repeats share the raw packet id."""
+    report = decode_mcl1(payload)
+    if report is None:
+        return False
+    position = TrackerPosition(
+        channel_key=None,
+        packet_id=packet_id,
+        path_len=path_len,
+        received_at=received_at,
+        **await _mcl1_fields(report),
+    )
+    await _save_position(position, realtime=True)
+    return True
 
 
 def _position(ctx: DatagramContext, **fields) -> TrackerPosition:
@@ -300,6 +341,20 @@ async def handle_tracker_datagram(decrypted: DecryptedGroupData, ctx: DatagramCo
             )
         except Exception:
             atak_reassembler.forget_frame(ctx.channel_key, sar_key)
+            raise
+        return True
+    if decrypted.data_type == DATA_TYPE_MESHCORENG_TRACKER:
+        report = decode_mcl1(decrypted.data)
+        if report is None:
+            return False
+        # The report carries the node's timestamp: a flood repeat is byte-identical.
+        ng_key = b"mcl1:" + decrypted.data
+        if atak_reassembler.seen_frame(ctx.channel_key, ng_key):
+            return True
+        try:
+            await _store_position(ctx, _position(ctx, **await _mcl1_fields(report)))
+        except Exception:
+            atak_reassembler.forget_frame(ctx.channel_key, ng_key)
             raise
         return True
     if decrypted.data_type == DATA_TYPE_ATAK_RAW:

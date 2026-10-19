@@ -7,7 +7,7 @@ import {
   trackerColor,
   trackerId,
 } from '../map/layers/trackersLayer';
-import { mergeTrackerPosition } from '../map/useTrackers';
+import { buildTrackerPopup, mergeTrackerPosition } from '../map/useTrackers';
 import type { TrackerObject, TrackerPosition } from '../types';
 
 function pos(identity: string, at: number, extra: Partial<TrackerPosition> = {}): TrackerPosition {
@@ -67,6 +67,13 @@ describe('trackersLayer features', () => {
     expect(trackerId(pos('A', 1, { source: 'sar_fast_gps' }))).toBe('sar_fast_gps:A');
   });
 
+  it('colours MeshCoreNG trackers apart from ATAK and SAR', () => {
+    const ng = trackerColor(pos('1a2b3c4d', 1, { source: 'meshcoreng' }));
+    expect(ng).not.toBe(trackerColor(pos('A', 1)));
+    expect(ng).not.toBe(trackerColor(pos('A', 1, { source: 'sar_fast_gps' })));
+    expect(trackerId(pos('1a2b3c4d', 1, { source: 'meshcoreng' }))).toBe('meshcoreng:1a2b3c4d');
+  });
+
   it('builds object pins with their uid', () => {
     const obj: TrackerObject = {
       uid: 'u-1',
@@ -100,5 +107,18 @@ describe('mergeTrackerPosition', () => {
     expect(merged.map((p) => p.received_at)).toEqual([60, 50, 40]);
     const capped = mergeTrackerPosition(merged, pos('A', 70), true, null, 3);
     expect(capped.map((p) => p.received_at)).toEqual([70, 60, 50]);
+  });
+});
+
+describe('buildTrackerPopup', () => {
+  const t = (key: string) => key;
+
+  it('names the source of each tracker kind', () => {
+    const text = (extra: Partial<TrackerPosition>) =>
+      buildTrackerPopup(pos('A', 1, extra), { t, coordinateFormat: 'decimal', trailCount: 1 })
+        .textContent;
+    expect(text({})).toContain('tracker_popup_source_atak');
+    expect(text({ source: 'sar_fast_gps' })).toContain('tracker_popup_source_sar');
+    expect(text({ source: 'meshcoreng' })).toContain('tracker_popup_source_meshcoreng');
   });
 });

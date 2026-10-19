@@ -234,6 +234,15 @@ machine this was authored on and may differ elsewhere.
   and `frontend/src/utils/sarPayloads.ts`) and `lib/utils/fast_gps_packet.dart`
   (16-byte fast-GPS datagram, data type `0xFFFF` = MeshCore `DATA_TYPE_DEV` from
   `src/helpers/TxtDataHelpers.h`, in `app/atak_payloads.py`).
+- MeshCoreNG: https://github.com/MichTronics/MeshCoreNG (`main`, read 2026-10-19),
+  `docs/payloads.md` (`MCL1` tracker report, big-endian), `src/Packet.h` (payload
+  types 0x0C Atlas / 0x0D Location), `src/helpers/Atlas.cpp`, `src/helpers/TxtDataHelpers.h`
+  (`DATA_TYPE_MESHCORENG_TRACKER 0x0200`) and `examples/simple_sensor/main.cpp`
+  (tracker channel secret, sends only with a valid GPS fix). Decoded in `app/meshcoreng.py`
+  and `frontend/src/utils/thirdPartyPackets.ts`. Receive only; no captured traffic.
+- GRP_DATA data type owners for the chat placeholder (`frontend/src/utils/groupDataTypes.ts`):
+  MeshCore `docs/number_allocations.md` plus the types projects use on their own,
+  listed in the 2026-10-19 third-party traffic research report (section 3).
 - TAK Stream CoT events (`app/tak_stream/events.py`) follow the public Cursor-on-Target
   event schema (`event` / `point` / `detail` with `contact`, `__group`, `track`,
   `remarks`); the type codes per node role are RTFM-EV's choice.

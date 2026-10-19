@@ -419,11 +419,17 @@ The ATAK plugin for MeshCore ([TAK-MESHCORE](https://github.com/atakmaps/TAK-MES
 - Name: `ATAK_DATA`
 - Key: `A3741E6A529CCF31D04B89FE1763B82D`
 
-RTFM-EV then decodes what the ATAK users send: positions go to the map's **Trackers** overlay, GeoChat lines appear in the channel, and shared map objects show as pins. If the ATAK users set an encryption passphrase in the plugin, their traffic cannot be read; it is only counted, and the Trackers overlay says how many messages could not be read. MeshCore SAR fast-GPS beacons are decoded on any channel you have added. These decoders were written from the source of both projects and have not been checked against captured traffic yet.
+RTFM-EV then decodes what the ATAK users send: positions go to the map's **Trackers** overlay, GeoChat lines appear in the channel, and shared map objects show as pins. If the ATAK users set an encryption passphrase in the plugin, their traffic cannot be read; it is only counted, and the Trackers overlay says how many messages could not be read. MeshCore SAR fast-GPS beacons are decoded on any channel you have added.
+
+MeshCoreNG GPS trackers send their position reports on a channel with a fixed key and no name. To see them, add a private channel with any name and this key:
+
+- Key: `5F303AC5075F800F0F47113199D51053`
+
+Their reports then show on the **Trackers** overlay with the node's name. The older MeshCoreNG Location packets (payload type 0x0D) are not encrypted and show there without a channel. These decoders were written from the source of the projects and have not been checked against captured traffic yet.
 
 ### Feeding ATAK / WinTAK from RTFM-EV
 
-Set `MESHCORE_TAK_STREAM_ENABLED=true` and restart. RTFM-EV then listens on TCP port 8088 (`MESHCORE_TAK_STREAM_PORT`) and streams Cursor-on-Target events: your positioned nodes (heard in the last hour), ATAK and SAR trackers and MeshCore TEAM beacons (last 15 minutes) and ATAK map objects. A client gets everything on connect and again every 30 seconds, plus new trackers as they are decoded. Whatever a client sends is ignored; nothing reaches the mesh.
+Set `MESHCORE_TAK_STREAM_ENABLED=true` and restart. RTFM-EV then listens on TCP port 8088 (`MESHCORE_TAK_STREAM_PORT`) and streams Cursor-on-Target events: your positioned nodes (heard in the last hour), ATAK, SAR and MeshCoreNG trackers and MeshCore TEAM beacons (last 15 minutes) and ATAK map objects. A client gets everything on connect and again every 30 seconds, plus new trackers as they are decoded. Whatever a client sends is ignored; nothing reaches the mesh.
 
 - Docker: publish the port next to the web port:
 

@@ -112,6 +112,26 @@ describe('MessageList channel sender rendering', () => {
     expect(placeholder).toHaveAttribute('title', expect.stringContaining('0x1234, 5 bytes'));
   });
 
+  it('names the project of a known GRP_DATA type', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            text: '[data] type=0x0120 len=40 sha=2cf24dba',
+            txt_type: TXT_TYPE_GROUP_DATA,
+            sender_timestamp: null,
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    const placeholder = screen.getByTestId('group-data-placeholder');
+    expect(placeholder).toHaveTextContent('MCO Advanced data (not supported)');
+    expect(placeholder).toHaveAttribute('title', expect.stringContaining('0x0120, 40 bytes'));
+  });
+
   it('renders a region badge for region-scoped channel messages', () => {
     render(
       <MessageList
