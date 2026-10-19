@@ -71,6 +71,7 @@ from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields
 from app.services.policy_verdict import policy_verdicts
 from app.services.relay_reception import record_packet_reception
+from app.services.trackers import DatagramContext, handle_tracker_datagram
 from app.smaz import decode_message_text
 from app.websocket import broadcast_error, broadcast_event
 
@@ -645,6 +646,30 @@ async def _process_group_data(
             decrypted.data_type,
             len(decrypted.data),
         )
+
+        # ATAK (TAK-MESHCORE) and MeshCore SAR tracker datagrams get decoded
+        # instead of stored as a placeholder row.
+        tracker_ctx = DatagramContext(
+            packet_id=packet_id,
+            channel_key=channel.key.upper(),
+            channel_name=channel.name,
+            received_at=timestamp,
+            path=packet_info.path.hex() if packet_info else None,
+            path_len=packet_info.path_length if packet_info else None,
+            rssi=rssi,
+            snr=snr,
+            packet_hash=packet_hash,
+            transport_code=transport_code,
+            region=region,
+        )
+        if await handle_tracker_datagram(decrypted, tracker_ctx):
+            return {
+                "decrypted": True,
+                "channel_name": channel.name,
+                "sender": None,
+                "message_id": None,
+                "channel_key": channel.key,
+            }
 
         msg_id, text, sender_label = await create_group_data_message(
             packet_id=packet_id,

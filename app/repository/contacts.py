@@ -336,6 +336,20 @@ class ContactRepository:
         return [ContactRepository._row_to_contact(row) for row in rows]
 
     @staticmethod
+    async def get_positioned(since: int) -> list[Contact]:
+        """Contacts heard since ``since`` with an advertised or manual location (not 0,0)."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT * FROM contacts WHERE last_seen >= ? AND ("
+                "(lat IS NOT NULL AND lon IS NOT NULL AND NOT (lat = 0 AND lon = 0)) OR "
+                "(manual_lat IS NOT NULL AND manual_lon IS NOT NULL "
+                "AND NOT (manual_lat = 0 AND manual_lon = 0)))",
+                (since,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [ContactRepository._row_to_contact(row) for row in rows]
+
+    @staticmethod
     async def full_key_identities() -> list[tuple[str, str | None, float | None, float | None]]:
         """(public_key, name, lat, lon) for every contact with a full 64-hex key.
 

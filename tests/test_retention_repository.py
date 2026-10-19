@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from app.models import CONTACT_TYPE_REPEATER
+from app.models import CONTACT_TYPE_REPEATER, TrackerObject, TrackerPosition
 from app.repository import ContactRepository, MessageRepository
 from app.repository.advert_events import AdvertEventRepository
 from app.repository.airtime_history import AirtimeHistoryRepository
@@ -20,6 +20,7 @@ from app.repository.packet_receptions import PacketReceptionRepository
 from app.repository.raw_packets import RawPacketRepository
 from app.repository.repeater_telemetry import RepeaterTelemetryRepository
 from app.repository.retention import AGE_TABLES, RetentionRepository
+from app.repository.trackers import TrackerRepository
 
 KEY_A = "aa" * 32
 KEY_B = "bb" * 32
@@ -91,6 +92,12 @@ async def test_prune_older_than_each_age_table(test_db):
         await DeviceConfigHistoryRepository.record(KEY_A, "node_info", ts, {"v": ts})
         await SnmpHistoryRepository.record(KEY_A, ts, {"v": ts})
         await ContactLocationHistoryRepository.record_location(KEY_A, 52.0 + ts % 7, 4.3, ts)
+        await TrackerRepository.add_position(
+            TrackerPosition(source="atak", identity="OP", lat=52.0, lon=5.0, received_at=ts)
+        )
+        await TrackerRepository.upsert_object(
+            TrackerObject(uid=f"u-{ts}", cot_type="a-h-G", lat=52.0, lon=5.0, received_at=ts)
+        )
 
     cutoff = now - 30 * DAY
     for key in AGE_TABLES:

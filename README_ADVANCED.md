@@ -14,6 +14,9 @@ These are intended for diagnosing or working around radios that behave oddly, or
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | false | Enable autoevict mode for contact loading ([docs](#autoevict-mode)) |
 | `__CLOWNTOWN_DO_CLOCK_WRAPAROUND` | false | Highly experimental: if the radio clock is ahead of system time, try forcing the clock to `0xFFFFFFFF`, wait for uint32 wraparound, and then retry normal time sync before falling back to reboot ([docs](#clock-wraparound)) |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | false | Enable `GET /api/radio/private-key` to return the in-memory private key as hex for backup or migration. Only enable on a trusted network. Import via `PUT /api/radio/private-key` is always available. ([docs](#private-key-export)) |
+| `MESHCORE_TAK_STREAM_ENABLED` | false | Serve a plaintext CoT feed for ATAK / WinTAK ([docs](#tak-stream-atak--wintak)) |
+| `MESHCORE_TAK_STREAM_HOST` | 0.0.0.0 | Address the TAK Stream listens on |
+| `MESHCORE_TAK_STREAM_PORT` | 8088 | TCP port of the TAK Stream |
 | `MESHCORE_FLEET_VAULT_ENABLED` | false | Switch on the fleet key vault: private keys and passwords of fleet assets, stored encrypted under a passphrase you set. See "Fleet key vault" below before you enable it. |
 
 By default the app relies on radio events plus MeshCore auto-fetch for incoming messages, and also runs a low-frequency hourly audit poll. That audit checks both:
@@ -406,6 +409,36 @@ What differs from a firmware node:
 | Network | WiFi RSSI is always `-127` |
 
 SNMPv2c is not encrypted and the community is the only check. Anyone who can reach the port and knows the community can read these values, so set your own community and do not expose the port to the internet.
+
+## TAK Stream (ATAK / WinTAK)
+
+### Seeing ATAK users in RTFM-EV
+
+The ATAK plugin for MeshCore ([TAK-MESHCORE](https://github.com/atakmaps/TAK-MESHCORE)) talks on a private channel named `ATAK_DATA`. Its key is published in the plugin's source. Add it as a private channel:
+
+- Name: `ATAK_DATA`
+- Key: `A3741E6A529CCF31D04B89FE1763B82D`
+
+RTFM-EV then decodes what the ATAK users send: positions go to the map's **Trackers** overlay, GeoChat lines appear in the channel, and shared map objects show as pins. If the ATAK users set an encryption passphrase in the plugin, their traffic cannot be read; it is only counted. MeshCore SAR fast-GPS beacons are decoded on any channel you have added. These decoders were written from the source of both projects and have not been checked against captured traffic yet.
+
+### Feeding ATAK / WinTAK from RTFM-EV
+
+Set `MESHCORE_TAK_STREAM_ENABLED=true` and restart. RTFM-EV then listens on TCP port 8088 (`MESHCORE_TAK_STREAM_PORT`) and streams Cursor-on-Target events: your positioned nodes (heard in the last hour), ATAK and SAR trackers and MeshCore TEAM beacons (last 15 minutes) and ATAK map objects. A client gets everything on connect and again every 30 seconds, plus new trackers as they are decoded. Whatever a client sends is ignored; nothing reaches the mesh.
+
+- Docker: publish the port next to the web port:
+
+  ```yaml
+  ports:
+    - "8000:8000"
+    - "8088:8088"
+  environment:
+    MESHCORE_TAK_STREAM_ENABLED: "true"
+  ```
+
+- In ATAK or WinTAK, add a network input (streaming input) with protocol **TCP**, the RTFM-EV host as address and port 8088. The menu path differs between versions; look for the inputs list in the network settings.
+- **Settings > Radio-App Management > TAK Stream** shows whether it runs and how many clients are connected.
+
+The stream has no password and no encryption, and it carries node and tracker positions. Keep the port on a trusted network and never expose it to the internet. At most 16 clients can connect; a client that stops reading is disconnected.
 
 ## Debug Logging And Bug Reports
 

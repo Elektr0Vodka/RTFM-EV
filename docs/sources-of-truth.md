@@ -219,6 +219,24 @@ machine this was authored on and may differ elsewhere.
   form) and single `#WAY:` waypoints (`buildTeamWaypointPayload`); the vessel types are
   RTFM-EV's own list, not part of either format. No real traffic sample was available
   when this was written; the fixtures are built from those encoders.
+- TAK-MESHCORE (ATAK plugin) wire format: https://github.com/atakmaps/TAK-MESHCORE
+  (`main`, v1.5.10), `app/src/main/java/com/atakmaps/meshcore/plugin/`
+  `bluetooth/BtConnectionManager.java` (`ATAK_DATA` channel key, GRP_DATA data
+  types `0xFF01` / `0xFF02`, `UVAX1|` envelope), `ax25/Ax25Frame.java`,
+  `protocol/MeshCorePacket.java` (TLV types, GPS / chat / ping / ack layouts),
+  `protocol/PacketFragmenter.java` (CoT fragments), `crypto/EncryptionManager.java`
+  (AES-GCM envelope, recognised only) and `cot/CotBuilder.java` (gzip CoT).
+  Decoded in `app/atak_payloads.py`, reassembled in `app/services/atak_reassembly.py`.
+  Receive only; nothing is sent. Fixtures in `tests/atak_fixtures.py` are built by
+  hand from these layouts; no captured traffic was available.
+- MeshCore SAR: https://github.com/dz0ny/meshcore-sar (`main`),
+  `lib/utils/sar_message_parser.dart` (`S:` markers, in `app/location_payloads.py`
+  and `frontend/src/utils/sarPayloads.ts`) and `lib/utils/fast_gps_packet.dart`
+  (16-byte fast-GPS datagram, data type `0xFFFF` = MeshCore `DATA_TYPE_DEV` from
+  `src/helpers/TxtDataHelpers.h`, in `app/atak_payloads.py`).
+- TAK Stream CoT events (`app/tak_stream/events.py`) follow the public Cursor-on-Target
+  event schema (`event` / `point` / `detail` with `contact`, `__group`, `track`,
+  `remarks`); the type codes per node role are RTFM-EV's choice.
 - Community key derivation and QR JSON: meshcore-open `lib/models/community.dart`
   (channel names in `lib/screens/channels_screen.dart` and
   `community_qr_scanner_screen.dart`), ported in `app/communities.py`. meshcore-open

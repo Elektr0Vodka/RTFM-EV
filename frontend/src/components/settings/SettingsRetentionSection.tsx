@@ -68,7 +68,7 @@ const ROWS: RowDef[] = [
   },
   {
     id: 'device_history',
-    statKeys: ['device_config', 'contact_locations'],
+    statKeys: ['device_config', 'contact_locations', 'tracker_positions', 'tracker_objects'],
     fields: [DAYS('device_history_retention_days')],
   },
   { id: 'noise_floor', statKeys: ['noise_floor'], fields: [DAYS('noise_floor_retention_days')] },

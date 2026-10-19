@@ -14,6 +14,7 @@ import {
   Signal,
   BatteryCharging,
   Navigation,
+  Crosshair,
   Orbit,
   RadioTower,
 } from 'lucide-react';
@@ -114,6 +115,7 @@ import {
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
 import { useTeamBeacons } from '../map/useTeamBeacons';
+import { useTrackers } from '../map/useTrackers';
 import { useGuessedLocations } from '../map/useGuessedLocations';
 import { useAntennaRegister } from '../map/useAntennaRegister';
 import { ANTENNA_BANDS, type AntennaBand } from '../map/layers/antennaRegisterLayer';
@@ -589,6 +591,17 @@ export function MapView({
   // Off = newest beacon per sender; on = every beacon in the window, as a track.
   const [beaconTrails, setBeaconTrails] = usePersistedMapSetting(
     'remoteterm-map-beacons-trails',
+    false,
+    isBool
+  );
+  const [showTrackers, setShowTrackers] = usePersistedMapSetting(
+    'remoteterm-map-trackers',
+    false,
+    isBool
+  );
+  // Off = newest fix per tracker; on = every fix in the window, as a track.
+  const [trackerTrails, setTrackerTrails] = usePersistedMapSetting(
+    'remoteterm-map-trackers-trails',
     false,
     isBool
   );
@@ -1700,6 +1713,20 @@ export function MapView({
   });
 
   const {
+    attach: attachTrackers,
+    reattach: reattachTrackers,
+    trackerCount,
+    objectCount: trackerObjectCount,
+    truncated: trackersTruncated,
+  } = useTrackers({
+    enabled: showTrackers,
+    trails: trackerTrails,
+    since: sinceCutoffSec,
+    until: sinceUntilSec,
+    coordinateFormat,
+  });
+
+  const {
     attach: attachGuessedLocations,
     reattach: reattachGuessedLocations,
     guesses: guessedLocations,
@@ -1792,6 +1819,8 @@ export function MapView({
       attachSharedLocations(map);
       // TEAM beacons and waypoints, above the nodes for the same reason.
       attachTeamBeacons(map);
+      // ATAK / MeshCore SAR trackers, above the nodes for the same reason.
+      attachTrackers(map);
       // Guessed locations sit above real nodes too, and above shared-location
       // pins, so a guess marker is never obscured by a real one.
       attachGuessedLocations(map);
@@ -1880,6 +1909,7 @@ export function MapView({
     reattachAntennaRegister();
     reattachSharedLocations();
     reattachTeamBeacons();
+    reattachTrackers();
     reattachGuessedLocations();
     reattachRelaySignal();
   }, [
@@ -1891,6 +1921,7 @@ export function MapView({
     latestTelemetry,
     reattachSharedLocations,
     reattachTeamBeacons,
+    reattachTrackers,
     reattachGuessedLocations,
     reattachRelaySignal,
     reattachAntennaRegister,
@@ -2446,6 +2477,39 @@ export function MapView({
         ),
       },
       {
+        id: 'trackers',
+        label: t('map_trackers_label'),
+        icon: <Crosshair size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showTrackers}
+                onChange={(e) => setShowTrackers(e.target.checked)}
+              />
+              {t('map_trackers_enable')}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={trackerTrails}
+                disabled={!showTrackers}
+                onChange={(e) => setTrackerTrails(e.target.checked)}
+              />
+              {t('map_trackers_trails')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_trackers_help')}</p>
+            {showTrackers && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_trackers_count', { trackers: trackerCount, objects: trackerObjectCount })}
+                {trackersTruncated && ` ${t('map_trackers_truncated')}`}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
         id: 'relay-signal',
         label: t('map_relay_signal_label'),
         icon: <Signal size={20} aria-hidden />,
@@ -2695,6 +2759,13 @@ export function MapView({
     setSharedLocationsAll,
     setShowBeacons,
     setBeaconTrails,
+    showTrackers,
+    trackerTrails,
+    trackerCount,
+    trackerObjectCount,
+    trackersTruncated,
+    setShowTrackers,
+    setTrackerTrails,
     showGuessedLocations,
     guessedLocations.length,
     setShowGuessedLocations,

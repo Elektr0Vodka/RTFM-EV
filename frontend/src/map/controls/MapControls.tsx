@@ -677,6 +677,7 @@ export function MapControls(props: MapControlsProps) {
         'telemetry',
         'shared-locations',
         'beacons',
+        'trackers',
         'relay-signal',
         'guessed-locations',
         'antenna-register',

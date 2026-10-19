@@ -4,6 +4,8 @@ Used by the map's shared-locations layer (``GET /api/messages/locations``).
 The MGRS rule mirrors ``frontend/src/utils/mgrsText.ts`` so the layer and the
 chat agree on what an MGRS reference is. Formats, first match wins:
 
+- ``sar``: MeshCore SAR ``S:<emoji>:<colour>:<lat>,<lon>[:<notes>]`` (first
+  line; same rule as ``parseSarMarker`` in ``frontend/src/utils/sarPayloads.ts``).
 - ``marker``: meshcore-open ``m:<lat>,<lon>|<label>|<flags>`` (whole body; same
   regex as ``parseMarker`` in ``frontend/src/utils/meshcoreOpenPayloads.ts``).
 - ``mgrs``: an MGRS reference such as ``31U FT 45332 73249`` (upper case, 2-5
@@ -22,9 +24,13 @@ from typing import Literal
 
 from app.mgrs import mgrs_to_point
 
-LocationFormat = Literal["marker", "mgrs", "decimal"]
+LocationFormat = Literal["marker", "mgrs", "decimal", "sar"]
 
 _MARKER = re.compile(r"^m:(-?[0-9.]+),(-?[0-9.]+)\|([^|]*)\|([^\n]*)$")
+# MeshCore SAR (lib/utils/sar_message_parser.dart), first line only: with and
+# without the colour index. ``S2:`` (custom-map coordinates) is not geographic.
+_SAR = re.compile(r"^S:([^:]+):(\d):(-?\d+\.?\d*),(-?\d+\.?\d*):?(.*)$")
+_SAR_OLD = re.compile(r"^S:([^:]+):(-?\d+\.?\d*),(-?\d+\.?\d*):?(.*)$")
 _DECIMAL = re.compile(r"(?<![\d.])(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?![\d.])")
 _MGRS = re.compile(
     r"(?<![A-Za-z0-9])(\d{1,2})([C-HJ-NP-X])\s?([A-HJ-NP-Z][A-HJ-NP-V])\s?"
@@ -102,6 +108,34 @@ def _parse_decimal(body: str) -> LocationShare | None:
     return None
 
 
+def _parse_sar(body: str) -> LocationShare | None:
+    first = body.strip().split("\n", 1)[0]
+    match = _SAR.match(first)
+    if match is not None:
+        emoji, color, lat_s, lon_s, notes = match.groups()
+        flags = f"color={color}"
+    else:
+        match = _SAR_OLD.match(first)
+        if match is None:
+            return None
+        emoji, lat_s, lon_s, notes = match.groups()
+        flags = ""
+    try:
+        lat, lon = float(lat_s), float(lon_s)
+    except ValueError:
+        return None
+    if not _valid(lat, lon):
+        return None
+    return LocationShare(
+        lat=lat,
+        lon=lon,
+        format="sar",
+        raw=first,
+        label=f"{emoji} {notes.strip()}".strip(),
+        flags=flags,
+    )
+
+
 def parse_location_share(body: str) -> LocationShare | None:
     """The location a message body shares, or None. ``body`` excludes the channel sender prefix."""
-    return _parse_marker(body) or _parse_mgrs(body) or _parse_decimal(body)
+    return _parse_sar(body) or _parse_marker(body) or _parse_mgrs(body) or _parse_decimal(body)

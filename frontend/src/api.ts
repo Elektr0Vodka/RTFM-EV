@@ -149,6 +149,8 @@ import type {
   ReactionTargetResponse,
   SharedLocationsResponse,
   TeamBeaconsResponse,
+  TrackersResponse,
+  TakStreamStatusResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -993,6 +995,21 @@ export const api = {
       signal,
     });
   },
+  getTrackers: (
+    params: { since?: number; until?: number; latestPerIdentity?: boolean },
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    if (params.since !== undefined) qs.set('since', String(params.since));
+    if (params.until !== undefined) qs.set('until', String(params.until));
+    if (params.latestPerIdentity !== undefined) {
+      qs.set('latest_per_identity', String(params.latestPerIdentity));
+    }
+    const query = qs.toString();
+    return fetchJson<TrackersResponse>(`/trackers${query ? `?${query}` : ''}`, { signal });
+  },
+  getTakStreamStatus: (signal?: AbortSignal) =>
+    fetchJson<TakStreamStatusResponse>('/tak-stream/status', { signal }),
   getMessagesAround: (
     messageId: number,
     type?: 'PRIV' | 'CHAN',

@@ -39,6 +39,7 @@ import {
   parseMarker,
   type ParsedMarker,
 } from '../utils/meshcoreOpenPayloads';
+import { parseSarMarker } from '../utils/sarPayloads';
 import {
   parseTeamPayload,
   teamBeaconIcon,
@@ -499,7 +500,7 @@ function renderPayloadBody(
       </span>
     );
   }
-  const marker = parseMarker(body);
+  const marker = parseMarker(body) ?? parseSarMarker(body);
   if (marker) {
     return <MarkerMessage marker={marker} onCoordinateClick={onCoordinateClick} />;
   }

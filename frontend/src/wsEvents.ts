@@ -10,6 +10,7 @@ import type {
   RawPacket,
   SpamGuardSummary,
 } from './types';
+import type { TrackerEventPayload } from './utils/trackerEvents';
 
 export interface MessageAckedPayload {
   message_id: number;
@@ -81,6 +82,7 @@ export type KnownWsEvent =
   | { type: 'spam_guard'; data: SpamGuardSummary }
   | { type: 'message_spam'; data: MessageSpamPayload }
   | { type: 'bot_lists'; data: BotListsState }
+  | { type: 'tracker'; data: TrackerEventPayload }
   | { type: 'error'; data: ToastPayload }
   | { type: 'success'; data: ToastPayload }
   | { type: 'pong'; data?: null };
@@ -121,6 +123,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'spam_guard':
     case 'message_spam':
     case 'bot_lists':
+    case 'tracker':
     case 'error':
     case 'success':
       return {
