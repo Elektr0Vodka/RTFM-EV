@@ -1,3 +1,4 @@
+import { api } from '../api';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -118,5 +119,24 @@ describe('RawPacketDetailModal', () => {
     render(<RawPacketDetailModal packet={BOT_PACKET} channels={[BOT_CHANNEL]} onClose={vi.fn()} />);
 
     expect(screen.queryByText('Scope')).not.toBeInTheDocument();
+  });
+
+  it('shows a damaged frame as bytes only, without the analyzer lookup', () => {
+    const damaged = {
+      ...BOT_PACKET,
+      id: 3,
+      observation_id: 77,
+      payload_type: 'DAMAGED',
+      decrypted: false,
+      decrypted_info: null,
+      damaged_status: 1,
+    };
+    const whoHeard = vi.spyOn(api, 'packetWhoHeard');
+    render(<RawPacketDetailModal packet={damaged} channels={[]} onClose={vi.fn()} />);
+
+    expect(screen.getAllByText('Damaged frame (CRC error)').length).toBeGreaterThan(0);
+    expect(screen.getByText('Frame Bytes')).toBeInTheDocument();
+    // A hash of damaged bytes means nothing to an analyzer: never asked.
+    expect(whoHeard).not.toHaveBeenCalled();
   });
 });

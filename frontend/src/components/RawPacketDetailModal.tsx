@@ -827,7 +827,7 @@ export function RawPacketInspectionPanel({
         </div>
       </div>
 
-      <PacketWhoHeard packetHex={packet.data} />
+      {!isDamaged(packet) && <PacketWhoHeard packetHex={packet.data} />}
 
       <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <FieldSection
