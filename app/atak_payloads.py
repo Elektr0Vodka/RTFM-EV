@@ -139,11 +139,15 @@ def _ascii_field(raw: bytes) -> str:
 
 
 def parse_envelope(text: str) -> EnvelopeChunk | None:
-    """One ``UVAX1|`` chunk found anywhere in ``text``, or None."""
-    start = text.find(ENVELOPE_PREFIX)
-    if start < 0:
+    """The ``UVAX1|`` chunk ``text`` consists of, or None.
+
+    The text must start with the prefix (surrounding whitespace aside), so a
+    chat line that only quotes plugin output stays chat.
+    """
+    text = text.strip()
+    if not text.startswith(ENVELOPE_PREFIX):
         return None
-    parts = text[start + len(ENVELOPE_PREFIX) :].strip().split("|", 3)
+    parts = text[len(ENVELOPE_PREFIX) :].split("|", 3)
     if len(parts) != 4:
         return None
     msg_id, seq_text, total_text, encoded = parts
@@ -159,6 +163,26 @@ def parse_envelope(text: str) -> EnvelopeChunk | None:
     if not data:
         return None
     return EnvelopeChunk(msg_id=msg_id, seq=seq, total=total, data=data)
+
+
+# MeshCore node names are at most 32 bytes.
+_MAX_SENDER_NAME = 32
+
+
+def envelope_body(text: str) -> str | None:
+    """The ``UVAX1|`` envelope a channel line carries, or None.
+
+    Either the whole line is the envelope, or a ``Sender: `` prefix the decoder
+    could not split off (names with ``[``, ``]`` or ``:``) comes first. A longer
+    lead-in is someone quoting plugin output, which stays chat.
+    """
+    stripped = text.strip()
+    if stripped.startswith(ENVELOPE_PREFIX):
+        return stripped
+    head, sep, rest = stripped.partition(": ")
+    if sep and 0 < len(head) <= _MAX_SENDER_NAME and rest.startswith(ENVELOPE_PREFIX):
+        return rest
+    return None
 
 
 def _ax25_address(raw: bytes) -> tuple[str, int]:

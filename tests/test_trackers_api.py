@@ -85,3 +85,31 @@ async def test_truncated_when_over_limit(test_db, client, monkeypatch):
     body = response.json()
     assert [p["received_at"] for p in body["positions"]] == [102, 101]
     assert body["truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_counts_of_unreadable_frames(test_db, client, monkeypatch):
+    from app.services import trackers
+
+    monkeypatch.setattr(trackers, "tracker_counters", trackers.Counter())
+    trackers.tracker_counters[("AA", "encrypted")] += 2
+    trackers.tracker_counters[("BB", "encrypted")] += 1
+    trackers.tracker_counters[("AA", "ping")] += 4
+    response = await client.get("/api/trackers")
+    assert response.json()["counts"] == {"encrypted": 3, "ping": 4}
+
+
+@pytest.mark.asyncio
+async def test_identity_filter(test_db, client):
+    await _pos("a1b2c3d4e5f6", 100, source="sar_fast_gps")
+    await _pos("a1b2c3d4e5f6", 200, source="sar_fast_gps")
+    await _pos("ffffffffffff", 300, source="sar_fast_gps")
+    response = await client.get(
+        "/api/trackers",
+        params={
+            "identity": "A1B2C3D4E5F6",
+            "source": "sar_fast_gps",
+            "latest_per_identity": "false",
+        },
+    )
+    assert [p["received_at"] for p in response.json()["positions"]] == [200, 100]

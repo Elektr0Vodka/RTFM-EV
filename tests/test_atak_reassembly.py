@@ -66,3 +66,10 @@ def test_duplicate_frame_suppressed():
     assert r.seen_frame("CH", b"frame") is True
     clock.now += 121
     assert r.seen_frame("CH", b"frame") is False
+
+
+def test_forget_frame():
+    r, _ = _make()
+    assert r.seen_frame("CH", b"frame") is False
+    r.forget_frame("CH", b"frame")
+    assert r.seen_frame("CH", b"frame") is False

@@ -77,15 +77,25 @@ export function buildTrackerObjectPopup(
   return el;
 }
 
-/** Add a live fix to the list (newest first) the way a refetch would show it. */
+/** The most fixes the server returns per request (POSITION_LIMIT in app/routers/trackers.py). */
+export const TRACKER_POSITION_LIMIT = 5000;
+
+/**
+ * Add a live fix to the list (newest first) the way a refetch would show it:
+ * fixes at or before `since` leave the window and the list stays within `limit`,
+ * so a tab left open through a long exercise does not grow without end.
+ */
 export function mergeTrackerPosition(
   positions: TrackerPosition[],
   p: TrackerPosition,
-  trails: boolean
+  trails: boolean,
+  since: number | null,
+  limit = TRACKER_POSITION_LIMIT
 ): TrackerPosition[] {
   const key = trackerId(p);
   const rest = trails ? positions : positions.filter((x) => trackerId(x) !== key);
-  return [p, ...rest];
+  const inWindow = since == null ? rest : rest.filter((x) => x.received_at > since);
+  return [p, ...inWindow].slice(0, limit);
 }
 
 export function useTrackers(opts: UseTrackersOptions) {
@@ -93,6 +103,7 @@ export function useTrackers(opts: UseTrackersOptions) {
   const [positions, setPositions] = useState<TrackerPosition[]>([]);
   const [objects, setObjects] = useState<TrackerObject[]>([]);
   const [truncated, setTruncated] = useState(false);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const layerRef = useRef<ReturnType<typeof createTrackersLayer> | null>(null);
   const mapRef = useRef<MlMap | null>(null);
   const popupRef = useRef<MlPopup | null>(null);
@@ -110,6 +121,7 @@ export function useTrackers(opts: UseTrackersOptions) {
       setPositions([]);
       setObjects([]);
       setTruncated(false);
+      setCounts({});
       return;
     }
     const controller = new AbortController();
@@ -127,6 +139,7 @@ export function useTrackers(opts: UseTrackersOptions) {
           setPositions(res.positions);
           setObjects(res.objects);
           setTruncated(res.truncated);
+          setCounts(res.counts ?? {});
         })
         .catch((err) => {
           if (!isAbortError(err)) console.error('Failed to load trackers:', err);
@@ -143,12 +156,12 @@ export function useTrackers(opts: UseTrackersOptions) {
     if (!enabled || until != null) return;
     return subscribeTrackerEvents((event) => {
       if (event.kind === 'position') {
-        setPositions((current) => mergeTrackerPosition(current, event.data, trails));
+        setPositions((current) => mergeTrackerPosition(current, event.data, trails, since));
       } else {
         setObjects((current) => [event.data, ...current.filter((o) => o.uid !== event.data.uid)]);
       }
     });
-  }, [enabled, trails, until]);
+  }, [enabled, trails, since, until]);
 
   const showPopup = useCallback((lat: number, lon: number, body: HTMLElement) => {
     const map = mapRef.current;
@@ -236,5 +249,5 @@ export function useTrackers(opts: UseTrackersOptions) {
 
   const trackerCount = useMemo(() => countTrackers(positions), [positions]);
 
-  return { attach, reattach, trackerCount, objectCount: objects.length, truncated };
+  return { attach, reattach, trackerCount, objectCount: objects.length, truncated, counts };
 }

@@ -24,6 +24,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
             speed_mps REAL,
             course_deg REAL,
             battery_pct INTEGER,
+            cot_uid TEXT,
             channel_key TEXT,
             packet_id INTEGER,
             path_len INTEGER,

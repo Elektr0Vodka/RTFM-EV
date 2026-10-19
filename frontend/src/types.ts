@@ -971,6 +971,8 @@ export interface TrackerPosition {
   speed_mps: number | null;
   course_deg: number | null;
   battery_pct: number | null;
+  /** The uid ATAK knows this user by, when it was heard (full callsign or CoT). */
+  cot_uid: string | null;
   channel_key: string | null;
   packet_id: number | null;
   path_len: number | null;
@@ -1005,6 +1007,8 @@ export interface TrackersResponse {
   /** Not yet stale, newest first. */
   objects: TrackerObject[];
   truncated: boolean;
+  /** ATAK frames recognised but not stored since the server started, per kind (e.g. encrypted). */
+  counts: Record<string, number>;
 }
 
 export interface TeamBeaconsResponse {

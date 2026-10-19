@@ -31,6 +31,8 @@ async def test_creates_tables_and_indexes():
             "idx_tracker_positions_time",
             "idx_tracker_objects_time",
         } <= await _names(conn, "index")
+        columns = await (await conn.execute("PRAGMA table_info(tracker_positions)")).fetchall()
+        assert "cot_uid" in {c[1] for c in columns}
     finally:
         await conn.close()
 

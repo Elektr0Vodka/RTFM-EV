@@ -112,10 +112,17 @@ def _position(**fields) -> TrackerPosition:
 
 
 def test_tracker_event_atak_uid():
-    root = _parse(tracker_event(_position(team="Cyan", speed_mps=2.0, course_deg=45.0), NOW))
+    position = _position(team="Cyan", speed_mps=2.0, course_deg=45.0, cot_uid="ANDROID-JESTER_25")
+    root = _parse(tracker_event(position, NOW))
     assert root.get("uid") == "ANDROID-JESTER_25"
     assert root.find("detail/__group").get("name") == "Cyan"
     assert root.get("stale") == "2026-10-19T12:29:50.000Z"  # received + 15 min
+
+
+def test_tracker_event_atak_without_known_uid():
+    # Only the 6-character radio callsign was heard: do not guess ATAK's uid.
+    root = _parse(tracker_event(_position(identity="JSTR25", display_name="JSTR25"), NOW))
+    assert root.get("uid") == "RTFM-EV-ATAK-JSTR25"
 
 
 def test_tracker_event_sar_uid():
@@ -155,3 +162,20 @@ def test_object_event_stale_none():
         uid="u", cot_type="a-h-G", lat=1.0, lon=2.0, stale_at=NOW - 1, received_at=NOW - 5
     )
     assert object_event(obj, NOW) is None
+
+
+def test_control_characters_are_dropped():
+    raw = cot_event_xml(
+        "X\x01", "a-f-G", 1.0, 2.0, "Node\x00\x1bA\tB", NOW, NOW + 60, remarks="hi\x07there"
+    )
+    root = _parse(raw)  # well-formed XML 1.0
+    assert root.get("uid") == "X"
+    assert root.find("detail/contact").get("callsign") == "NodeA\tB"
+    assert root.find("detail/remarks").text == "hithere"
+
+
+def test_noncharacters_are_dropped():
+    root = _parse(
+        cot_event_xml("X", "a-f-G", 1.0, 2.0, "A" + chr(0xFFFE) + "B" + chr(0xFFFF), NOW, NOW + 60)
+    )
+    assert root.find("detail/contact").get("callsign") == "AB"

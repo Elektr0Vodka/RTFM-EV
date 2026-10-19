@@ -5,6 +5,7 @@ plain TCP "network input". Pure functions; ``None`` means "do not send" (no
 position, or already stale).
 """
 
+import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 
@@ -22,6 +23,8 @@ NODE_STALE_S = 3600
 TRACKER_STALE_S = 900
 # CoT "unknown" for height and circular / linear error.
 _UNKNOWN = "9999999.0"
+# Characters XML 1.0 does not allow; mesh-supplied names can carry them.
+_XML_ILLEGAL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
 
 _NODE_TYPES = {
     CONTACT_TYPE_REPEATER: "a-f-G-I-U-T",  # ground installation, telecom
@@ -33,6 +36,10 @@ _PERSON_TYPE = "a-f-G-U-C"  # friendly ground unit
 
 def _stamp(epoch: int) -> str:
     return datetime.fromtimestamp(epoch, UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _clean(text: str) -> str:
+    return _XML_ILLEGAL.sub("", text)
 
 
 def cot_event_xml(
@@ -48,6 +55,9 @@ def cot_event_xml(
     course_deg: float | None = None,
     remarks: str | None = None,
 ) -> bytes:
+    uid, cot_type, callsign = _clean(uid), _clean(cot_type), _clean(callsign)
+    team = _clean(team) if team else team
+    remarks = _clean(remarks) if remarks else remarks
     event = ET.Element(
         "event",
         {
@@ -120,7 +130,12 @@ def tracker_event(p: TrackerPosition, now: int) -> bytes | None:
     stale = p.received_at + TRACKER_STALE_S
     if stale < now:
         return None
-    uid = f"ANDROID-{p.identity}" if p.source == "atak" else f"RTFM-EV-SAR-{p.identity}"
+    if p.cot_uid:
+        uid = p.cot_uid
+    elif p.source == "atak":
+        uid = f"RTFM-EV-ATAK-{p.identity}"
+    else:
+        uid = f"RTFM-EV-SAR-{p.identity}"
     return cot_event_xml(
         uid=uid,
         cot_type=_PERSON_TYPE,

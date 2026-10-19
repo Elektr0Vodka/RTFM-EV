@@ -150,6 +150,7 @@ import type {
   SharedLocationsResponse,
   TeamBeaconsResponse,
   TrackersResponse,
+  TrackerSource,
   TakStreamStatusResponse,
   RawPacket,
   RadioAdvertMode,
@@ -996,7 +997,13 @@ export const api = {
     });
   },
   getTrackers: (
-    params: { since?: number; until?: number; latestPerIdentity?: boolean },
+    params: {
+      since?: number;
+      until?: number;
+      latestPerIdentity?: boolean;
+      source?: TrackerSource;
+      identity?: string;
+    },
     signal?: AbortSignal
   ) => {
     const qs = new URLSearchParams();
@@ -1005,6 +1012,8 @@ export const api = {
     if (params.latestPerIdentity !== undefined) {
       qs.set('latest_per_identity', String(params.latestPerIdentity));
     }
+    if (params.source !== undefined) qs.set('source', params.source);
+    if (params.identity !== undefined) qs.set('identity', params.identity);
     const query = qs.toString();
     return fetchJson<TrackersResponse>(`/trackers${query ? `?${query}` : ''}`, { signal });
   },

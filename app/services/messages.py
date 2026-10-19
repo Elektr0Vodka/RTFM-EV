@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
-from app.atak_payloads import ENVELOPE_PREFIX
+from app.atak_payloads import envelope_body
 from app.decoder import TXT_TYPE_GROUP_DATA
 from app.malformed import is_malformed_channel_message, malformed_reason
 from app.models import Message, MessagePath
@@ -321,7 +321,7 @@ async def create_message_from_decrypted(
 ) -> int | None:
     """Store and broadcast a decrypted channel message."""
     received = received_at or int(time.time())
-    if ENVELOPE_PREFIX in message_text:
+    if (envelope := envelope_body(message_text)) is not None:
         from app.services.trackers import DatagramContext, handle_tracker_text
 
         ctx = DatagramContext(
@@ -338,7 +338,7 @@ async def create_message_from_decrypted(
             region=region,
             realtime=realtime,
         )
-        if await handle_tracker_text(message_text, ctx):
+        if await handle_tracker_text(envelope, ctx):
             return None
     # Spam Guard reads the text as it was sent: that is what a forwarding
     # rule on the host repeater or an OpenHop node matches on.
@@ -669,7 +669,7 @@ async def create_fallback_channel_message(
 ) -> Message | None:
     """Store and broadcast a CHANNEL_MSG_RECV fallback channel message."""
     conversation_key_normalized = conversation_key.upper()
-    if ENVELOPE_PREFIX in message_text:
+    if (envelope := envelope_body(message_text)) is not None:
         from app.services.trackers import DatagramContext, handle_tracker_text
 
         ctx = DatagramContext(
@@ -685,7 +685,7 @@ async def create_fallback_channel_message(
             transport_code=None,
             region=None,
         )
-        if await handle_tracker_text(message_text, ctx):
+        if await handle_tracker_text(envelope, ctx):
             return None
     wire_text = message_text  # what Spam Guard reads, as in create_message_from_decrypted
     message_text = decode_message_text(message_text)

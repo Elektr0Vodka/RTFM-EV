@@ -1718,6 +1718,7 @@ export function MapView({
     trackerCount,
     objectCount: trackerObjectCount,
     truncated: trackersTruncated,
+    counts: trackerCounts,
   } = useTrackers({
     enabled: showTrackers,
     trails: trackerTrails,
@@ -2506,6 +2507,11 @@ export function MapView({
                 {trackersTruncated && ` ${t('map_trackers_truncated')}`}
               </p>
             )}
+            {showTrackers && (trackerCounts.encrypted ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t('map_trackers_encrypted', { count: trackerCounts.encrypted })}
+              </p>
+            )}
           </div>
         ),
       },
@@ -2764,6 +2770,7 @@ export function MapView({
     trackerCount,
     trackerObjectCount,
     trackersTruncated,
+    trackerCounts,
     setShowTrackers,
     setTrackerTrails,
     showGuessedLocations,

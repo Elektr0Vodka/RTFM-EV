@@ -23,6 +23,7 @@ from app.atak_payloads import (
     TLV_GPS,
     TLV_NET_CONFIG,
     TLV_PING,
+    Ax25Frame,
     CotEvent,
     decode_ax25,
     decode_chat,
@@ -72,8 +73,26 @@ class DatagramContext:
     realtime: bool = True
 
 
+def _count(ctx: DatagramContext, kind: str) -> None:
+    """Count a frame that is recognised but not stored (encrypted, ping, ack, ...)."""
+    tracker_counters[(ctx.channel_key, kind)] += 1
+    logger.debug("ATAK %s frame on channel %s (not stored)", kind, ctx.channel_name or "?")
+
+
+def tracker_counts() -> dict[str, int]:
+    """Frames per kind that were recognised but not stored, since the server started."""
+    totals: Counter[str] = Counter()
+    for (_channel, kind), n in tracker_counters.items():
+        totals[kind] += n
+    return dict(totals)
+
+
 def _publish(kind: str, item: TrackerPosition | TrackerObject, realtime: bool) -> None:
-    broadcast_event("tracker", {"kind": kind, "data": item.model_dump()}, realtime=realtime)
+    """Announce a stored item. Never raises: the row is already written by then."""
+    try:
+        broadcast_event("tracker", {"kind": kind, "data": item.model_dump()}, realtime=realtime)
+    except Exception:  # noqa: BLE001 - a failed broadcast must not undo the stored row
+        logger.exception("Tracker broadcast failed")
     if not realtime:
         return
     try:
@@ -157,6 +176,7 @@ async def _handle_cot(ctx: DatagramContext, sender: str, event: CotEvent) -> Non
                 ctx,
                 source="atak",
                 identity=identity,
+                cot_uid=event.uid,
                 display_name=identity,
                 team=event.team,
                 lat=event.lat,
@@ -188,13 +208,23 @@ async def _handle_frame(ctx: DatagramContext, raw: bytes) -> bool:
         return False
     if atak_reassembler.seen_frame(ctx.channel_key, raw):
         return True
+    try:
+        await _process_frame(ctx, frame)
+    except Exception:
+        # Not stored: let a repeat of this frame try again.
+        atak_reassembler.forget_frame(ctx.channel_key, raw)
+        raise
+    return True
+
+
+async def _process_frame(ctx: DatagramContext, frame: Ax25Frame) -> None:
     if looks_encrypted(frame.info):
-        tracker_counters[(ctx.channel_key, "encrypted")] += 1
-        return True
+        _count(ctx, "encrypted")
+        return
     tlv = decode_tlv(frame.info)
     if tlv is None:
-        tracker_counters[(ctx.channel_key, "unknown")] += 1
-        return True
+        _count(ctx, "unknown")
+        return
 
     if tlv.type == TLV_GPS:
         gps = decode_gps(tlv.value)
@@ -206,6 +236,8 @@ async def _handle_frame(ctx: DatagramContext, raw: bytes) -> bool:
                     ctx,
                     source="atak",
                     identity=name,
+                    # The plugin names a peer ANDROID-<FULL CALLSIGN>; the radio form is not a uid.
+                    cot_uid=f"ANDROID-{gps.full_callsign.upper()}" if gps.full_callsign else None,
                     display_name=name,
                     team=gps.team,
                     lat=gps.lat,
@@ -229,8 +261,7 @@ async def _handle_frame(ctx: DatagramContext, raw: bytes) -> bool:
         if event is not None:
             await _handle_cot(ctx, frame.src, event)
     else:
-        tracker_counters[(ctx.channel_key, _COUNTED_KINDS.get(tlv.type, "unknown"))] += 1
-    return True
+        _count(ctx, _COUNTED_KINDS.get(tlv.type, "unknown"))
 
 
 async def _handle_envelope_text(text: str, ctx: DatagramContext) -> bool:
@@ -250,24 +281,29 @@ async def handle_tracker_datagram(decrypted: DecryptedGroupData, ctx: DatagramCo
         if fix is None:
             return False
         # No timestamp in the beacon: a flood repeat is byte-identical.
-        if atak_reassembler.seen_frame(ctx.channel_key, b"sar:" + decrypted.data):
+        sar_key = b"sar:" + decrypted.data
+        if atak_reassembler.seen_frame(ctx.channel_key, sar_key):
             return True
-        contact = await ContactRepository.get_by_key_prefix(fix.sender_prefix)
-        await _store_position(
-            ctx,
-            _position(
+        try:
+            contact = await ContactRepository.get_by_key_prefix(fix.sender_prefix)
+            await _store_position(
                 ctx,
-                source="sar_fast_gps",
-                identity=fix.sender_prefix,
-                display_name=contact.name if contact and contact.name else fix.sender_prefix,
-                lat=fix.lat,
-                lon=fix.lon,
-                speed_mps=round(fix.speed_kmh / 3.6, 2),
-            ),
-        )
+                _position(
+                    ctx,
+                    source="sar_fast_gps",
+                    identity=fix.sender_prefix,
+                    display_name=contact.name if contact and contact.name else fix.sender_prefix,
+                    lat=fix.lat,
+                    lon=fix.lon,
+                    speed_mps=round(fix.speed_kmh / 3.6, 2),
+                ),
+            )
+        except Exception:
+            atak_reassembler.forget_frame(ctx.channel_key, sar_key)
+            raise
         return True
     if decrypted.data_type == DATA_TYPE_ATAK_RAW:
-        tracker_counters[(ctx.channel_key, "raw")] += 1
+        _count(ctx, "raw")
         return True
     if decrypted.data_type == DATA_TYPE_ATAK_AX25:
         return await _handle_envelope_text(decrypted.data.decode("utf-8", errors="replace"), ctx)
@@ -275,5 +311,12 @@ async def handle_tracker_datagram(decrypted: DecryptedGroupData, ctx: DatagramCo
 
 
 async def handle_tracker_text(body: str, ctx: DatagramContext) -> bool:
-    """Handle channel text carrying a ``UVAX1|`` envelope (older plugin builds)."""
-    return await _handle_envelope_text(body, ctx)
+    """Handle channel text that is a ``UVAX1|`` envelope (older plugin builds).
+
+    True for every well-formed envelope, also when the joined frame is not
+    ATAK data: a base64 chunk is never useful as a chat line.
+    """
+    if parse_envelope(body) is None:
+        return False
+    await _handle_envelope_text(body, ctx)
+    return True

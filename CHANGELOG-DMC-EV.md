@@ -24,14 +24,18 @@ yet.
   decoded when you have its `ATAK_DATA` channel: positions go to the map,
   GeoChat lines become ordinary channel messages, and shared map objects
   (CoT markers) are kept per uid. Pings, receipts and frames encrypted with
-  the plugin's passphrase are only counted. Before this a datagram showed as
+  the plugin's passphrase are only counted; the Trackers overlay says how
+  many ATAK messages could not be read. Before this a datagram showed as
   a `[data] type=0xFF01` placeholder (`app/atak_payloads.py`,
-  `app/services/trackers.py`).
+  `app/services/trackers.py`). Only a channel line that starts with the
+  plugin's `UVAX1|` envelope is treated as plugin data, so a chat line that
+  quotes one stays chat.
 - **MeshCore SAR.** `S:` markers
   ([dz0ny/meshcore-sar](https://github.com/dz0ny/meshcore-sar)) show as
   location cards in chat and as pins on the shared-locations layer, and its
   16-byte fast-GPS datagrams (data type `0xFFFF`) are decoded as tracker
-  positions.
+  positions. A contact that sent them gets a **MeshCore SAR positions**
+  section in its contact info.
 
 ### Map
 - **Trackers overlay** (map controls, Overlays): ATAK users in their team
@@ -45,7 +49,10 @@ yet.
   beacons and ATAK map objects; a snapshot on connect and every 30 s, and
   new trackers as they arrive. No authentication and no TLS: trusted
   networks only. Status in **Settings > Radio-App Management**
-  (`GET /api/tak-stream/status`).
+  (`GET /api/tak-stream/status`). An ATAK user's event uses the plugin's
+  own uid only when the full callsign was heard. In multi-radio mode the
+  gateway's setting is not passed to the radios; a radio can turn it on in
+  its own environment with its own port.
 
 ### Data
 - Tracker rows age out with the device-history retention setting.

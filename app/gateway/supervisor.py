@@ -51,12 +51,19 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
+# Not passed from the gateway to its workers, but a radio may set them in its
+# own env: the TAK Stream binds one TCP port, so every worker would fight over it.
+NOT_INHERITED_ENV = frozenset(
+    {"MESHCORE_TAK_STREAM_ENABLED", "MESHCORE_TAK_STREAM_HOST", "MESHCORE_TAK_STREAM_PORT"}
+)
+
+
 def build_worker_env(
     entry: RadioEntry, token: str, base_env: dict[str, str] | None = None
 ) -> dict[str, str]:
     """The gateway's environment minus what it owns, plus this radio's settings."""
     base = dict(os.environ if base_env is None else base_env)
-    env = {k: v for k, v in base.items() if k not in RESERVED_ENV}
+    env = {k: v for k, v in base.items() if k not in RESERVED_ENV and k not in NOT_INHERITED_ENV}
     env.update(entry.transport.env())
     env["MESHCORE_DATABASE_PATH"] = entry.database_path
     env["MESHCORE_WORKER_TOKEN"] = token

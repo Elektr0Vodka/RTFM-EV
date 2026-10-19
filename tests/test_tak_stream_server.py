@@ -18,6 +18,7 @@ def _position(identity: str = "JESTER_25", remarks_size: int = 0) -> TrackerPosi
     return TrackerPosition(
         source="atak",
         identity=identity + "x" * remarks_size,
+        cot_uid=f"ANDROID-{identity}",
         lat=52.0,
         lon=5.0,
         received_at=int(time.time()),

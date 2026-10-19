@@ -305,7 +305,7 @@ Each workspace lives at `/r/<key>/`, where `<key>` is the first 12 characters of
 - **Backups.** Each radio has its own database and its own backup settings. Give every radio its own backup folder: automatic backups from two radios use the same file names, and each radio's rotation would delete the other's files in a shared folder. A restore is applied when that radio restarts; use **Restart** on the radios page.
 - **Integrations.** MQTT, Home Assistant, webhooks and Apprise are configured in each workspace. See `README_HA.md` for how Home Assistant ids are built.
 - **Basic auth** is set once (`MESHCORE_BASIC_AUTH_USERNAME` / `MESHCORE_BASIC_AUTH_PASSWORD`) and protects the radios page and every workspace.
-- **Other `MESHCORE_*` variables** apply to every radio. A radio can override one through `env` in `data/radios.json` (the transport, database path, Basic auth and the switch itself cannot be overridden there).
+- **Other `MESHCORE_*` variables** apply to every radio, except `MESHCORE_TAK_STREAM_*` ([TAK Stream](#tak-stream-atak--wintak)). A radio can override one through `env` in `data/radios.json` (the transport, database path, Basic auth and the switch itself cannot be overridden there).
 
 ### Where the data lives
 
@@ -419,7 +419,7 @@ The ATAK plugin for MeshCore ([TAK-MESHCORE](https://github.com/atakmaps/TAK-MES
 - Name: `ATAK_DATA`
 - Key: `A3741E6A529CCF31D04B89FE1763B82D`
 
-RTFM-EV then decodes what the ATAK users send: positions go to the map's **Trackers** overlay, GeoChat lines appear in the channel, and shared map objects show as pins. If the ATAK users set an encryption passphrase in the plugin, their traffic cannot be read; it is only counted. MeshCore SAR fast-GPS beacons are decoded on any channel you have added. These decoders were written from the source of both projects and have not been checked against captured traffic yet.
+RTFM-EV then decodes what the ATAK users send: positions go to the map's **Trackers** overlay, GeoChat lines appear in the channel, and shared map objects show as pins. If the ATAK users set an encryption passphrase in the plugin, their traffic cannot be read; it is only counted, and the Trackers overlay says how many messages could not be read. MeshCore SAR fast-GPS beacons are decoded on any channel you have added. These decoders were written from the source of both projects and have not been checked against captured traffic yet.
 
 ### Feeding ATAK / WinTAK from RTFM-EV
 
@@ -439,6 +439,8 @@ Set `MESHCORE_TAK_STREAM_ENABLED=true` and restart. RTFM-EV then listens on TCP 
 - **Settings > Radio-App Management > TAK Stream** shows whether it runs and how many clients are connected.
 
 The stream has no password and no encryption, and it carries node and tracker positions. Keep the port on a trusted network and never expose it to the internet. At most 16 clients can connect; a client that stops reading is disconnected.
+
+With `MESHCORE_MULTI_RADIO`, the gateway does not pass `MESHCORE_TAK_STREAM_*` on to the radios, because they would all try to open the same port. To stream a radio, set `MESHCORE_TAK_STREAM_ENABLED=true` and its own `MESHCORE_TAK_STREAM_PORT` in that radio's `env` in `data/radios.json`, and publish each port.
 
 ## Debug Logging And Bug Reports
 

@@ -7,6 +7,7 @@ import {
   trackerColor,
   trackerId,
 } from '../map/layers/trackersLayer';
+import { mergeTrackerPosition } from '../map/useTrackers';
 import type { TrackerObject, TrackerPosition } from '../types';
 
 function pos(identity: string, at: number, extra: Partial<TrackerPosition> = {}): TrackerPosition {
@@ -22,6 +23,7 @@ function pos(identity: string, at: number, extra: Partial<TrackerPosition> = {})
     speed_mps: null,
     course_deg: null,
     battery_pct: null,
+    cot_uid: null,
     channel_key: null,
     packet_id: null,
     path_len: null,
@@ -80,5 +82,23 @@ describe('trackersLayer features', () => {
     };
     const fc = buildTrackerObjectFeatures([obj]);
     expect(fc.features[0].properties).toMatchObject({ uid: 'u-1', title: 'OP' });
+  });
+});
+
+describe('mergeTrackerPosition', () => {
+  it('replaces the newest fix per tracker when trails are off', () => {
+    const merged = mergeTrackerPosition([pos('A', 1), pos('B', 1)], pos('A', 2), false, null);
+    expect(merged.map((p) => [p.identity, p.received_at])).toEqual([
+      ['A', 2],
+      ['B', 1],
+    ]);
+  });
+
+  it('drops fixes that left the window and caps the list with trails on', () => {
+    const current = [pos('A', 50), pos('A', 40), pos('A', 5)];
+    const merged = mergeTrackerPosition(current, pos('A', 60), true, 10, 3);
+    expect(merged.map((p) => p.received_at)).toEqual([60, 50, 40]);
+    const capped = mergeTrackerPosition(merged, pos('A', 70), true, null, 3);
+    expect(capped.map((p) => p.received_at)).toEqual([70, 60, 50]);
   });
 });

@@ -80,5 +80,9 @@ class AtakReassembler:
         self._seen[key] = now
         return False
 
+    def forget_frame(self, channel_key: str, frame: bytes) -> None:
+        """Undo ``seen_frame`` (the frame could not be stored, so a repeat may try again)."""
+        self._seen.pop((channel_key, hashlib.sha256(frame).digest()), None)
+
 
 atak_reassembler = AtakReassembler()

@@ -1155,6 +1155,10 @@
   "map_trackers_help": "Positions and map objects from the ATAK plugin for MeshCore (TAK-MESHCORE) and MeshCore SAR fast-GPS beacons, on channels you have added (for ATAK: the ATAK_DATA channel). Only shown here, never forwarded.",
   "map_trackers_count": "{trackers} trackers and {objects} ATAK map objects on the map.",
   "map_trackers_truncated": "Only the newest 5,000 positions are shown; narrow the time window to see older ones.",
+  "map_trackers_encrypted": {
+    "one": "{count} ATAK message since the server started could not be read, probably because the ATAK users set an encryption passphrase in the plugin.",
+    "other": "{count} ATAK messages since the server started could not be read, probably because the ATAK users set an encryption passphrase in the plugin."
+  },
   "tracker_popup_source_atak": "ATAK user (via MeshCore)",
   "tracker_popup_source_sar": "MeshCore SAR beacon",
   "tracker_popup_team": "Team: {team}",
@@ -1667,6 +1671,8 @@
   "contact_positions_note": "Advertised positions, rounded to about 11 m, newest first.",
   "contact_beacons_heading": "Beacon history",
   "contact_beacons_note": "MeshCore TEAM position beacons this node sent in channels you follow, newest first. The map's Beacons overlay can draw them as a trail.",
+  "contact_tracker_fixes_heading": "MeshCore SAR positions",
+  "contact_tracker_fixes_note": "Fast GPS beacons this node sent with MeshCore SAR, newest first. The map's Trackers overlay can draw them as a trail.",
   "contact_beacons_show_all": "Show all {count}",
   "contact_beacons_show_fewer": "Show fewer",
   "contact_vessel_type_label": "Vessel type",

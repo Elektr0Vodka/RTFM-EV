@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('maplibre-gl', async () => {
   const { mockMaplibreModule } = await import('./mocks/maplibre');
@@ -34,6 +34,7 @@ function position(identity: string, at: number): TrackerPosition {
     speed_mps: 1.5,
     course_deg: 90,
     battery_pct: 80,
+    cot_uid: null,
     channel_key: 'AB'.repeat(16),
     packet_id: null,
     path_len: 1,
@@ -45,6 +46,7 @@ const response: TrackersResponse = {
   positions: [position('JESTER_25', 1_790_000_000)],
   objects: [],
   truncated: false,
+  counts: {},
 };
 
 beforeEach(() => {
@@ -125,5 +127,15 @@ describe('MapView Trackers layer', () => {
     });
     await waitFor(() => expect(lastSetData('rt-trackers').features).toHaveLength(2));
     expect(fetchTrackers).toHaveBeenCalledTimes(1);
+  });
+
+  it('says when ATAK frames could not be read', async () => {
+    localStorage.setItem('remoteterm-map-trackers', 'true');
+    vi.spyOn(api, 'getTrackers').mockResolvedValue({ ...response, counts: { encrypted: 3 } });
+    renderMap();
+    fireEvent.click(await screen.findByRole('button', { name: /overlays/i }));
+    expect(
+      await screen.findByText(/3 ATAK messages since the server started could not be read/)
+    ).toBeInTheDocument();
   });
 });

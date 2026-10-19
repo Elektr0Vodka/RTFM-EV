@@ -1152,6 +1152,10 @@
   "map_trackers_help": "Posities en kaartobjecten van de ATAK-plugin voor MeshCore (TAK-MESHCORE) en snelle GPS-bakens van MeshCore SAR, op kanalen die je hebt toegevoegd (voor ATAK: het kanaal ATAK_DATA). Alleen hier getoond, nooit doorgestuurd.",
   "map_trackers_count": "{trackers} trackers en {objects} ATAK-kaartobjecten op de kaart.",
   "map_trackers_truncated": "Alleen de nieuwste 5.000 posities worden getoond; maak het tijdvenster kleiner om oudere te zien.",
+  "map_trackers_encrypted": {
+    "one": "{count} ATAK-bericht sinds de start van de server kon niet gelezen worden, waarschijnlijk omdat de ATAK-gebruikers in de plugin een versleutelingswachtwoord hebben ingesteld.",
+    "other": "{count} ATAK-berichten sinds de start van de server konden niet gelezen worden, waarschijnlijk omdat de ATAK-gebruikers in de plugin een versleutelingswachtwoord hebben ingesteld."
+  },
   "tracker_popup_source_atak": "ATAK-gebruiker (via MeshCore)",
   "tracker_popup_source_sar": "MeshCore SAR-baken",
   "tracker_popup_team": "Team: {team}",
@@ -1668,6 +1672,8 @@
   "contact_positions_note": "Geadverteerde posities, afgerond op ongeveer 11 m, nieuwste eerst.",
   "contact_beacons_heading": "Bakengeschiedenis",
   "contact_beacons_note": "MeshCore TEAM-positiebakens die deze node stuurde in kanalen die je volgt, nieuwste eerst. De Bakens-laag op de kaart kan ze als spoor tekenen.",
+  "contact_tracker_fixes_heading": "MeshCore SAR-posities",
+  "contact_tracker_fixes_note": "Snelle GPS-bakens die deze node met MeshCore SAR verstuurde, nieuwste eerst. De Trackers-laag op de kaart kan ze als spoor tekenen.",
   "contact_beacons_show_all": "Toon alle {count}",
   "contact_beacons_show_fewer": "Minder tonen",
   "contact_vessel_type_label": "Vaartuigtype",

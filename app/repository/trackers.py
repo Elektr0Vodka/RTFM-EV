@@ -12,6 +12,7 @@ _POSITION_COLUMNS = (
     "speed_mps",
     "course_deg",
     "battery_pct",
+    "cot_uid",
     "channel_key",
     "packet_id",
     "path_len",
@@ -74,12 +75,16 @@ class TrackerRepository:
         latest_per_identity: bool,
         source: str | None,
         limit: int,
+        identity: str | None = None,
     ) -> list[TrackerPosition]:
-        """Positions received in (since, until], newest first."""
+        """Positions received in (since, until], newest first; ``identity`` ignores case."""
         clauses, params = _window(since, until, "received_at")
         if source is not None:
             clauses.append("source = ?")
             params.append(source)
+        if identity is not None:
+            clauses.append("identity = ? COLLATE NOCASE")
+            params.append(identity)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         if latest_per_identity:
             sql = (

@@ -48,9 +48,13 @@ class TestEnvelope:
     def test_parse_envelope_roundtrip(self):
         assert parse_envelope("UVAX1|42|1|2|" + _b64(b"abc")) == EnvelopeChunk("42", 1, 2, b"abc")
 
-    def test_prefix_inside_text(self):
-        chunk = parse_envelope("x UVAX1|7|1|1|" + _b64(b"\x01\x02"))
+    def test_surrounding_whitespace_allowed(self):
+        chunk = parse_envelope("  UVAX1|7|1|1|" + _b64(b"\x01\x02") + "\n")
         assert chunk == EnvelopeChunk("7", 1, 1, b"\x01\x02")
+
+    def test_prefix_inside_text_is_not_envelope(self):
+        # Someone quoting plugin output in a chat line is chat, not plugin data.
+        assert parse_envelope("look at this: UVAX1|7|1|1|" + _b64(b"\x01\x02")) is None
 
     def test_seq_above_total_rejected(self):
         assert parse_envelope("UVAX1|1|3|2|" + _b64(b"abc")) is None

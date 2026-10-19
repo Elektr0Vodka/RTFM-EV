@@ -51,6 +51,8 @@ class TakStreamServer:
         self._server: asyncio.Server | None = None
         self._snapshot_task: asyncio.Task | None = None
         self._clients: set[_Client] = set()
+        # Pending drop tasks, kept referenced so they are not garbage-collected mid-run.
+        self._drops: set[asyncio.Task] = set()
         self._host: str | None = None
         self.port: int | None = None
 
@@ -114,7 +116,7 @@ class TakStreamServer:
                 client.queue.put_nowait(event)
             except asyncio.QueueFull:
                 logger.info("TAK Stream client too slow, disconnecting")
-                asyncio.create_task(self._drop(client))
+                self._spawn_drop(client)
                 return
 
     async def _snapshot(self) -> list[bytes]:
@@ -180,7 +182,7 @@ class TakStreamServer:
                 await asyncio.wait_for(client.writer.drain(), self._write_timeout_s)
         except (TimeoutError, ConnectionError, OSError):
             logger.info("TAK Stream client stopped reading, disconnecting")
-            asyncio.create_task(self._drop(client))
+            self._spawn_drop(client)
 
     async def _discard_loop(self, client: _Client, reader: asyncio.StreamReader) -> None:
         try:
@@ -188,7 +190,12 @@ class TakStreamServer:
                 pass
         except (ConnectionError, OSError):
             pass
-        asyncio.create_task(self._drop(client))
+        self._spawn_drop(client)
+
+    def _spawn_drop(self, client: _Client) -> None:
+        task = asyncio.create_task(self._drop(client))
+        self._drops.add(task)
+        task.add_done_callback(self._drops.discard)
 
     async def _drop(self, client: _Client) -> None:
         if client not in self._clients:

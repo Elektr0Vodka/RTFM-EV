@@ -967,6 +967,10 @@ class TrackerPosition(BaseModel):
     speed_mps: float | None = None
     course_deg: float | None = None
     battery_pct: int | None = None
+    cot_uid: str | None = Field(
+        default=None,
+        description="The uid ATAK knows this user by, when it was heard (full callsign or CoT)",
+    )
     channel_key: str | None = None
     packet_id: int | None = None
     path_len: int | None = None
@@ -992,6 +996,13 @@ class TrackersResponse(BaseModel):
     positions: list[TrackerPosition] = Field(description="Newest first")
     objects: list[TrackerObject] = Field(description="Not yet stale, newest first")
     truncated: bool = Field(description="True when the window held more positions than the limit")
+    counts: dict[str, int] = Field(
+        default_factory=dict,
+        description=(
+            "ATAK frames recognised but not stored since the server started, per kind "
+            "(encrypted, ping, chat_ack, cot_ack, net_config, raw, unknown)"
+        ),
+    )
 
 
 class ResendChannelMessageResponse(BaseModel):

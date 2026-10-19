@@ -1152,6 +1152,10 @@
   "map_trackers_help": "Positionen und Kartenobjekte aus dem ATAK-Plugin für MeshCore (TAK-MESHCORE) und schnelle GPS-Baken von MeshCore SAR, auf Kanälen, die du hinzugefügt hast (für ATAK: der Kanal ATAK_DATA). Nur hier angezeigt, nie weitergeleitet.",
   "map_trackers_count": "{trackers} Tracker und {objects} ATAK-Kartenobjekte auf der Karte.",
   "map_trackers_truncated": "Nur die neuesten 5.000 Positionen werden angezeigt; verkleinere das Zeitfenster, um ältere zu sehen.",
+  "map_trackers_encrypted": {
+    "one": "{count} ATAK-Nachricht seit dem Serverstart konnte nicht gelesen werden, wahrscheinlich weil die ATAK-Nutzer im Plugin ein Verschlüsselungspasswort gesetzt haben.",
+    "other": "{count} ATAK-Nachrichten seit dem Serverstart konnten nicht gelesen werden, wahrscheinlich weil die ATAK-Nutzer im Plugin ein Verschlüsselungspasswort gesetzt haben."
+  },
   "tracker_popup_source_atak": "ATAK-Nutzer (über MeshCore)",
   "tracker_popup_source_sar": "MeshCore-SAR-Bake",
   "tracker_popup_team": "Team: {team}",
@@ -1668,6 +1672,8 @@
   "contact_positions_note": "Angekündigte Positionen, auf etwa 11 m gerundet, neueste zuerst.",
   "contact_beacons_heading": "Baken-Verlauf",
   "contact_beacons_note": "MeshCore-TEAM-Positionsbaken, die dieser Knoten in Kanälen gesendet hat, denen du folgst, neueste zuerst. Die Baken-Ebene der Karte kann sie als Spur zeichnen.",
+  "contact_tracker_fixes_heading": "MeshCore-SAR-Positionen",
+  "contact_tracker_fixes_note": "Schnelle GPS-Baken, die dieser Knoten mit MeshCore SAR gesendet hat, neueste zuerst. Die Tracker-Ebene der Karte kann sie als Spur zeichnen.",
   "contact_beacons_show_all": "Alle {count} anzeigen",
   "contact_beacons_show_fewer": "Weniger anzeigen",
   "contact_vessel_type_label": "Schiffstyp",

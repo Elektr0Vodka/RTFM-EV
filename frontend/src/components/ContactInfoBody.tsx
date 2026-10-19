@@ -84,6 +84,7 @@ import type {
   TeamBeaconPoint,
   TelemetryHistoryEntry,
   TelemetryLppSensor,
+  TrackerPosition,
   VesselType,
 } from '../types';
 
@@ -793,6 +794,8 @@ export function ContactInfoBody({
         />
       )}
 
+      {show('network') && <ContactTrackerFixesSection publicKey={contact.public_key} t={t} />}
+
       {show('network') && !isRepeater && (
         <>
           <MessageStatsSection
@@ -1427,6 +1430,85 @@ export function ContactBeaconHistorySection({
           {showAll
             ? t('contact_beacons_show_fewer')
             : t('contact_beacons_show_all', { count: beacons.length })}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const TRACKER_FIX_PREVIEW = 5;
+// The contact pane shows the last week; the map's Trackers overlay covers any window.
+const TRACKER_FIX_WINDOW_S = 7 * 86400;
+
+/**
+ * MeshCore SAR fast-GPS fixes this node sent. The beacon carries the sender's
+ * 6-byte key prefix, which is how the fixes are found.
+ */
+export function ContactTrackerFixesSection({ publicKey, t }: { publicKey: string; t: TFn }) {
+  const coordinateFormat = useCoordinateFormat();
+  const [fixes, setFixes] = useState<TrackerPosition[]>([]);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFixes([]);
+    setShowAll(false);
+    api
+      .getTrackers({
+        since: Math.floor(Date.now() / 1000) - TRACKER_FIX_WINDOW_S,
+        identity: publicKey.slice(0, 12).toLowerCase(),
+        source: 'sar_fast_gps',
+        latestPerIdentity: false,
+      })
+      .then((res) => {
+        if (!cancelled) setFixes(res.positions);
+      })
+      .catch(() => {
+        if (!cancelled) setFixes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [publicKey]);
+
+  if (fixes.length === 0) return null;
+  const visible = showAll ? fixes : fixes.slice(0, TRACKER_FIX_PREVIEW);
+  return (
+    <div className="px-5 py-3 border-b border-border" data-testid="contact-tracker-fixes">
+      <SectionLabel>{t('contact_tracker_fixes_heading')}</SectionLabel>
+      <p className="text-xs text-muted-foreground mb-1">{t('contact_tracker_fixes_note')}</p>
+      <div className="space-y-1.5">
+        {visible.map((fix) => (
+          <div
+            key={fix.id ?? fix.received_at}
+            className="text-sm"
+            data-testid="contact-tracker-fix-row"
+          >
+            <div className="flex justify-between items-center gap-2">
+              <span className="font-mono truncate">
+                {formatCoordinates(fix.lat, fix.lon, coordinateFormat, 5)}
+              </span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatTime(fix.received_at)}
+              </span>
+            </div>
+            {fix.speed_mps != null && (
+              <div className="text-xs text-muted-foreground">
+                {t('tracker_popup_speed', { kmh: (fix.speed_mps * 3.6).toFixed(1) })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {fixes.length > TRACKER_FIX_PREVIEW && (
+        <button
+          type="button"
+          className="mt-1 text-xs text-primary underline hover:text-primary/80"
+          onClick={() => setShowAll((all) => !all)}
+        >
+          {showAll
+            ? t('contact_beacons_show_fewer')
+            : t('contact_beacons_show_all', { count: fixes.length })}
         </button>
       )}
     </div>
