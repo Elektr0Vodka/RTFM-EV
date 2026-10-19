@@ -117,6 +117,13 @@ import { useTeamBeacons } from '../map/useTeamBeacons';
 import { useGuessedLocations } from '../map/useGuessedLocations';
 import { useAntennaRegister } from '../map/useAntennaRegister';
 import { ANTENNA_BANDS, type AntennaBand } from '../map/layers/antennaRegisterLayer';
+import {
+  DEFAULT_PATTERN_LEVEL,
+  DEFAULT_PATTERN_MIN_ZOOM,
+  PATTERN_LEVELS_DBM,
+  PATTERN_MIN_ZOOM_RANGE,
+  type PatternLevel,
+} from '../map/antennaPatterns';
 import { useRelaySignal } from '../map/useRelaySignal';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
@@ -600,6 +607,22 @@ export function MapView({
     'remoteterm-map-antenna-register-band',
     '868',
     isOneOf(ANTENNA_BANDS)
+  );
+  // Estimated radiation patterns: on/off, from which zoom, and the edge level.
+  const [antennaPatterns, setAntennaPatterns] = usePersistedMapSetting(
+    'remoteterm-map-antenna-patterns',
+    false,
+    isBool
+  );
+  const [antennaPatternZoom, setAntennaPatternZoom] = usePersistedMapSetting(
+    'remoteterm-map-antenna-patterns-zoom',
+    DEFAULT_PATTERN_MIN_ZOOM,
+    isNumberIn(PATTERN_MIN_ZOOM_RANGE[0], PATTERN_MIN_ZOOM_RANGE[1])
+  );
+  const [antennaPatternLevel, setAntennaPatternLevel] = usePersistedMapSetting<PatternLevel>(
+    'remoteterm-map-antenna-patterns-level',
+    DEFAULT_PATTERN_LEVEL,
+    isOneOf(PATTERN_LEVELS_DBM)
   );
   const [showRelaySignal, setShowRelaySignal] = usePersistedMapSetting(
     'remoteterm-map-relay-signal',
@@ -1692,9 +1715,18 @@ export function MapView({
     reattach: reattachAntennaRegister,
     sites: antennaSites,
     loaded: antennaSitesLoaded,
+    patternCount: antennaPatternCount,
+    patternsTruncated: antennaPatternsTruncated,
+    patternsBelowZoom: antennaPatternsBelowZoom,
   } = useAntennaRegister({
     enabled: showAntennas,
     band: antennaBand,
+    buildings3D: buildings,
+    patterns: {
+      enabled: antennaPatterns,
+      minZoom: antennaPatternZoom,
+      levelDbm: antennaPatternLevel,
+    },
     config,
     distanceUnit,
     coordinateFormat,
@@ -2508,6 +2540,60 @@ export function MapView({
                   : t('map_antennas_empty')}
               </p>
             )}
+            <p className="text-xs text-muted-foreground">{t('map_antennas_3d_help')}</p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={antennaPatterns}
+                disabled={!showAntennas}
+                onChange={(e) => setAntennaPatterns(e.target.checked)}
+              />
+              {t('map_antennas_patterns_enable')}
+            </label>
+            {antennaPatterns && (
+              <div className="space-y-2 pl-6">
+                <label className="flex items-center gap-2 text-xs">
+                  {t('map_antennas_patterns_zoom')}
+                  <input
+                    type="number"
+                    min={PATTERN_MIN_ZOOM_RANGE[0]}
+                    max={PATTERN_MIN_ZOOM_RANGE[1]}
+                    step={1}
+                    value={antennaPatternZoom}
+                    onChange={(e) => {
+                      const v = Math.round(Number(e.target.value));
+                      if (v >= PATTERN_MIN_ZOOM_RANGE[0] && v <= PATTERN_MIN_ZOOM_RANGE[1]) {
+                        setAntennaPatternZoom(v);
+                      }
+                    }}
+                    className="w-14 rounded border border-input bg-background px-1 py-0.5"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-xs">
+                  {t('map_antennas_patterns_level')}
+                  <select
+                    value={antennaPatternLevel}
+                    onChange={(e) => setAntennaPatternLevel(Number(e.target.value) as PatternLevel)}
+                    className="rounded border border-input bg-background px-1 py-0.5"
+                  >
+                    {PATTERN_LEVELS_DBM.map((level) => (
+                      <option key={level} value={level}>
+                        {t('map_antennas_level_dbm', { level })}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="text-xs text-muted-foreground">{t('map_antennas_patterns_help')}</p>
+                {showAntennas && (
+                  <p className="text-xs text-muted-foreground" aria-live="polite">
+                    {antennaPatternsBelowZoom
+                      ? t('map_antennas_patterns_zoom_in', { zoom: antennaPatternZoom })
+                      : t('map_antennas_patterns_count', { count: antennaPatternCount })}
+                    {antennaPatternsTruncated && ` ${t('map_antennas_patterns_truncated')}`}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         ),
       },
@@ -2618,6 +2704,15 @@ export function MapView({
     setShowAntennas,
     antennaBand,
     setAntennaBand,
+    antennaPatterns,
+    setAntennaPatterns,
+    antennaPatternZoom,
+    setAntennaPatternZoom,
+    antennaPatternLevel,
+    setAntennaPatternLevel,
+    antennaPatternCount,
+    antennaPatternsTruncated,
+    antennaPatternsBelowZoom,
     showRelaySignal,
     relaySignalPlaced,
     relaySignalUnplaced,

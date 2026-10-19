@@ -8,10 +8,11 @@ import type { Map as MlMap } from 'maplibre-gl';
 // a layer builder, and the overlay renders the slots' layers combined, in
 // SLOT_ORDER.
 
-export type DeckSlotKey = 'neon' | 'packets';
+export type DeckSlotKey = 'antennas' | 'neon' | 'packets';
 
-// Draw order, bottom to top: neon node bodies under the packet arcs and pulses.
-const SLOT_ORDER: DeckSlotKey[] = ['neon', 'packets'];
+// Draw order, bottom to top: antenna masts and patterns, neon node bodies, then
+// the packet arcs and pulses.
+const SLOT_ORDER: DeckSlotKey[] = ['antennas', 'neon', 'packets'];
 
 /** The MapLibre custom-layer id deck.gl uses for layers without a `beforeId`. */
 export const DECK_LAYER_GROUP_ID = 'deck-maplibre-layer-group-last';

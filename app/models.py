@@ -2792,6 +2792,7 @@ class AntennaRegisterSiteSummary(BaseModel):
     lon: float
     bands: list[str] = Field(default_factory=list)
     max_power_dbw: float | None = None
+    max_height_m: float | None = None  # Highest antenna, metres above ground level
 
 
 class AntennaRegisterSite(AntennaRegisterSiteSummary):

@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (antenna layer: faster toggle, 3D masts, radiation patterns, feat/antenna-3d-patterns)
+
+Migration `_156` (`antenna_register_sites.max_height_m`, backfilled from the
+stored antenna data). No new dependency. Nothing is sent over the radio.
+
+### Map
+- **Faster toggling.** The site list stays loaded after the first switch-on
+  (only refetched after a new sync), toggling only hides or shows the layer,
+  and the band picker is a filter. Measured in headless Chrome on the full
+  register (25,862 sites): switching back on went from 0.8-1.0 s to about
+  0.2 s, the first load from 1.3-1.9 s to 0.9-1.2 s.
+- **Masts at their height in 3D.** With 3D buildings on, each site is a stick
+  up to its highest antenna (registered height from ground level to the
+  antenna centre) with a dot at the top; buildings hide the part inside them.
+- **Radiation patterns** (estimate, off by default): per antenna a wedge in
+  its registered direction, or a circle for an omnidirectional antenna,
+  reaching the free-space distance where its signal (dBW ERP as registered)
+  falls to a level you pick (-30/-40/-50/-60 dBm, default -40). The register
+  has no beamwidth, gain or tilt, so the wedge assumes 65 degrees; buildings,
+  terrain and downtilt make the real reach shorter. Shown from a zoom level
+  you set (default 12), at antenna height in 3D. Overlapping wedges show as
+  one even tint; clicking a mast outlines its own wedges and the popup lists
+  each system's estimated reach.
+
+### Backend
+- `GET /api/antenna-register/sites/all`: every site as compact rows, kept
+  encoded in memory until the next sync (0.14-0.16 s instead of 0.5-1.2 s).
+- `GET /api/antenna-register/sites/full`: sites with all transmitters in a
+  box, for the patterns. Site summaries now carry `max_height_m`.
+
 ## Update 2026-10-19 (Analyzer nodes from map.meshcore.io, feat/analyzer-nodes-meshcore-map)
 
 Migration `_155` (`app_settings.external_map_source`). No new dependency.
