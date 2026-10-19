@@ -65,6 +65,17 @@ class TestHistoryFilters:
         assert "OTHER_VERSION" not in {p["payload_type"] for p in r.json()["packets"]}
 
     @pytest.mark.asyncio
+    async def test_fuota_bucket_is_its_own_type(self, test_db, client):
+        await RawPacketRepository.create(b"\x3a\x00\x04\xab", 100, payload_type="FUOTA")
+        await RawPacketRepository.create(b"\x02", 101, payload_type="GROUP_DATA")
+
+        r = await client.get("/api/packets/history", params=[("payload_types", "FUOTA")])
+        assert {p["payload_type"] for p in r.json()["packets"]} == {"FUOTA"}
+
+        r = await client.get("/api/packets/history", params=[("payload_types", "Unknown")])
+        assert "FUOTA" not in {p["payload_type"] for p in r.json()["packets"]}
+
+    @pytest.mark.asyncio
     async def test_payload_type_unknown_bucket_is_complement(self, test_db, client):
         await RawPacketRepository.create(b"\x01", 100, payload_type="ADVERT")
         await RawPacketRepository.create(b"\x02", 101, payload_type="GROUP_DATA")

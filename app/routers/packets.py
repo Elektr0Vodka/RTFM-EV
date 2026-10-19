@@ -16,6 +16,7 @@ from app.decoder import (
     try_decrypt_group_data_with_channel_key,
     try_decrypt_packet_with_channel_key,
 )
+from app.fuota import FUOTA_PAYLOAD_TYPE_NAME
 from app.models import (
     AdvertLinkEdge,
     AdvertLinkNode,
@@ -37,6 +38,7 @@ from app.repository import (
     RequestTrafficRepository,
 )
 from app.repository.advert_links import AdvertLinksRepository
+from app.repository.fuota_traffic import FuotaTrafficRepository, aggregate_fuota
 from app.repository.link_edges import LinkEdgesRepository
 from app.repository.packet_receptions import PacketReceptionRepository
 from app.repository.partial_resolution import PartialResolutionRepository
@@ -44,6 +46,8 @@ from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, haversine_km, resolve_advert_edges
 from app.services.analyzer_packet_lookup import fetch_packet_observations
 from app.services.analyzer_path_check import AnalyzerCheckError, analyzer_base_url
+from app.services.host_repeater_engine import lora_airtime_ms
+from app.services.host_repeater_link import radio_snapshot
 from app.services.messages import backfill_message_regions, create_group_data_message
 from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -314,6 +318,7 @@ _PAYLOAD_TYPE_TO_ENUM: dict[str, str] = {
     "Path": "PATH",
     "Control": "CONTROL",
     "OtherVersion": OTHER_VERSION_PAYLOAD_TYPE,
+    "FUOTA": FUOTA_PAYLOAD_TYPE_NAME,
 }
 
 
@@ -1347,6 +1352,62 @@ class RequestTrafficResponse(BaseModel):
     pairs: list[RequestTrafficPair]
 
 
+class FuotaTotals(BaseModel):
+    offers: int
+    requests: int
+    data: int
+    retracts: int
+    senders: int
+    airtime_ms: float | None = Field(
+        description="Estimated airtime of the heard FUOTA packets; null when radio settings are unknown"
+    )
+
+
+class FuotaSender(BaseModel):
+    sender: str = Field(description="Sender's 1-byte public key prefix, hex")
+    count: int
+    best_rssi: int | None
+    best_snr: float | None
+    kinds: list[str]
+
+
+class FuotaCampaign(BaseModel):
+    campaign: str = Field(description="Campaign ID: first 4 bytes of SHA-256 of the manifest, hex")
+    first_seen: int
+    last_seen: int
+    build: int | None
+    target: int | None
+    patch_size: int | None
+    manifest_len: int | None
+    source_prefix: str | None
+    offers: int
+    requests: int
+    data: int
+    fragments_heard: list[int]
+    senders: list[FuotaSender]
+    providers_asked: list[str] = Field(
+        description="First byte of each Request's target/nonce field, hex (split unpublished)"
+    )
+    airtime_ms: float | None
+
+
+class FuotaRetract(BaseModel):
+    ts: int
+    sender: str
+    count: int
+
+
+class FuotaTrafficResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    visibility_limit_bytes: int = Field(
+        description="Longest raw packet a stock companion passes to the app (RX log push)"
+    )
+    totals: FuotaTotals
+    campaigns: list[FuotaCampaign]
+    retracts: list[FuotaRetract]
+
+
 class RelayCellModel(BaseModel):
     last_hop_hex: str | None = Field(
         description="Delivering relay's path hash; null = heard from the origin"
@@ -1768,6 +1829,34 @@ async def get_request_traffic(
     packets = await RequestTrafficRepository.window_packets(start_ts, end_ts)
     agg = aggregate_request_traffic(packets, start_ts, end_ts, bucket_count, pair_cap)
     return RequestTrafficResponse(start_ts=start_ts, end_ts=end_ts, **agg)
+
+
+# Companion firmware 1.18.0 pushes an RX-log frame only when len + 3 <= 176.
+_RX_LOG_VISIBILITY_LIMIT_BYTES = 173
+
+
+@router.get("/fuota-traffic", response_model=FuotaTrafficResponse)
+async def get_fuota_traffic(start_ts: int, end_ts: int) -> FuotaTrafficResponse:
+    """meshcore_fuota firmware-update traffic heard over RF in the window.
+
+    Grouped by campaign. FUOTA packets are never forwarded, so every sender is a
+    direct neighbour. Full Data fragments (186 raw bytes) exceed what a stock
+    companion passes to the app, so mostly Offers, Requests and Retracts show.
+    Passive: nothing is sent.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+
+    observations = await FuotaTrafficRepository.window_observations(start_ts, end_ts)
+    radio = radio_snapshot().radio
+    airtime = (lambda n: lora_airtime_ms(n, radio)) if radio is not None else None
+    agg = aggregate_fuota(observations, airtime)
+    return FuotaTrafficResponse(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        visibility_limit_bytes=_RX_LOG_VISIBILITY_LIMIT_BYTES,
+        **agg,
+    )
 
 
 class PacketWhoHeardRequest(BaseModel):

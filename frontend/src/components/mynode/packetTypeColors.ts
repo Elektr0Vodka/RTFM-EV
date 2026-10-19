@@ -17,6 +17,7 @@ const NAMED_TYPE_COLORS: Record<string, string> = {
   MULTIPART: 'hsl(222, 68%, 58%)', // indigo-blue
   CONTROL: 'hsl(282, 58%, 54%)', // purple
   RAW_CUSTOM: 'hsl(82,  58%, 44%)', // lime
+  FUOTA: 'hsl(100, 55%, 40%)', // green (meshcore_fuota firmware updates, payload type 0x0E)
   // Legacy / alternate spellings that may appear in older data
   GROUPTEXT: 'hsl(255, 65%, 60%)',
   TEXTMESSAGE: 'hsl(48,  85%, 46%)',
