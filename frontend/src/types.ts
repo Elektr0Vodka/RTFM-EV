@@ -58,12 +58,19 @@ export interface MeshcomodConfig {
   gps_supported: boolean;
   gps_enabled: boolean | null;
   gps_interval: number | null;
+  /** Full capture (meshcomod 0xE0): the radio can pass on frames it drops. */
+  full_capture_supported?: boolean;
+  /** Bits: 1 over-long frames, 2 damaged frames, 4 count lost frames. */
+  full_capture_flags?: number;
+  /** Frames the radio lost to a full receive queue since connect. */
+  rx_ring_drops?: number;
 }
 
 export interface MeshcomodConfigUpdate {
   cad_enabled?: boolean;
   gps_enabled?: boolean;
   gps_interval?: number;
+  full_capture_flags?: number;
 }
 
 /** meshcomod companion receive filter (`filter` CLI on the radio). */
@@ -1114,6 +1121,11 @@ export interface RawPacket {
    * and the seeded feed carry it too.
    */
   policy?: RawPacketPolicyVerdict | null;
+  /**
+   * Full capture damaged frame (1 CRC error, 2 header damaged, 3 read error).
+   * Set only on rows from the damaged frame store; their bytes are never decoded.
+   */
+  damaged_status?: number;
 }
 
 export interface RawPacketPolicyVerdict {

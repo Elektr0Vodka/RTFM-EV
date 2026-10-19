@@ -20,6 +20,7 @@ from app.repository.packet_receptions import PacketReceptionRepository
 from app.repository.raw_packets import RawPacketRepository
 from app.repository.repeater_telemetry import RepeaterTelemetryRepository
 from app.repository.retention import AGE_TABLES, RetentionRepository
+from app.repository.rx_bad_frames import RxBadFrameRepository
 from app.repository.trackers import TrackerRepository
 
 KEY_A = "aa" * 32
@@ -98,6 +99,7 @@ async def test_prune_older_than_each_age_table(test_db):
         await TrackerRepository.upsert_object(
             TrackerObject(uid=f"u-{ts}", cot_type="a-h-G", lat=52.0, lon=5.0, received_at=ts)
         )
+        await RxBadFrameRepository.create(ts, 1, b"bad", -90, -2.5)
 
     cutoff = now - 30 * DAY
     for key in AGE_TABLES:

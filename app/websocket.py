@@ -18,7 +18,7 @@ SEND_TIMEOUT_SECONDS = 5.0
 # to the event types that connection does NOT receive. The chat popup uses
 # "chat": it never renders packets, and `raw_packet` is by far the busiest event.
 EVENT_PROFILES: dict[str, frozenset[str]] = {
-    "chat": frozenset({"raw_packet", "host_repeater"}),
+    "chat": frozenset({"raw_packet", "rx_bad_frame", "host_repeater"}),
 }
 
 

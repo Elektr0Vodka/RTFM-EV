@@ -256,6 +256,18 @@ async def run_post_connect_setup(radio_manager) -> None:
                         "present" if radio_manager.companion_filter_supported else "absent",
                     )
 
+                # Full capture (meshcomod 0xE0): frames the radio normally drops.
+                # A companion command only; nothing is sent over RF.
+                radio_manager.full_capture_supported_flags = 0
+                radio_manager.rx_ring_drops = 0
+                if is_meshcomod(radio_manager.firmware_ver_code, radio_manager.firmware_version):
+                    from app.services.full_capture import apply_on_connect
+
+                    try:
+                        await apply_on_connect(mc)
+                    except Exception as exc:
+                        logger.warning("Full capture setup failed: %s", exc)
+
                 # Apply flood scope from settings (best-effort; older firmware may
                 # not support the mode-1 unscoped command). Done after the device
                 # query so radio_manager.firmware_ver_code is known and the unscoped

@@ -11,6 +11,13 @@ interface Props {
   health: HealthStatus | null;
 }
 
+const FULL_CAPTURE_KINDS = [
+  { bit: 1, id: 'meshcomod-full-capture-long', label: 'settings_meshcomod_full_capture_long' },
+  { bit: 2, id: 'meshcomod-full-capture-bad', label: 'settings_meshcomod_full_capture_bad' },
+  { bit: 4, id: 'meshcomod-full-capture-drops', label: 'settings_meshcomod_full_capture_drops' },
+] as const;
+const FULL_CAPTURE_DROPS = 4;
+
 export function MeshcomodSettings({ health }: Props) {
   const t = useT();
   const isMeshcomod = health?.radio_device_info?.is_meshcomod ?? false;
@@ -81,6 +88,44 @@ export function MeshcomodSettings({ health }: Props) {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold">{t('settings_meshcomod_full_capture_title')}</h4>
+        {cfg?.full_capture_supported ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              {t('settings_meshcomod_full_capture_hint')}
+            </p>
+            {FULL_CAPTURE_KINDS.map(({ bit, id, label }) => {
+              const flags = cfg.full_capture_flags ?? 0;
+              return (
+                <div key={id} className="flex items-start gap-2">
+                  <Checkbox
+                    id={id}
+                    className="mt-0.5"
+                    checked={(flags & bit) !== 0}
+                    onCheckedChange={(checked) =>
+                      save({ full_capture_flags: checked === true ? flags | bit : flags & ~bit })
+                    }
+                  />
+                  <Label htmlFor={id}>{t(label)}</Label>
+                </div>
+              );
+            })}
+            {((cfg.full_capture_flags ?? 0) & FULL_CAPTURE_DROPS) !== 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t('settings_meshcomod_full_capture_drops_value', {
+                  count: cfg.rx_ring_drops ?? 0,
+                })}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {t('settings_meshcomod_full_capture_unsupported')}
+          </p>
+        )}
       </div>
     </div>
   );

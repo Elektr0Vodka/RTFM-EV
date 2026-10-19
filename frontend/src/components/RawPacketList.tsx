@@ -6,6 +6,7 @@ import { foldPacketsByContent } from '../utils/rawPacketContent';
 import { createDecoderOptions, decodePacketSummary } from '../utils/rawPacketInspector';
 import { resolvePathHopNames } from '../utils/pathHopNames';
 import { formatDateTime } from '../utils/dateTimeFormat';
+import { isDamaged } from '../utils/damagedFrames';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 
@@ -277,6 +278,7 @@ export function RawPacketList({
 
               {/* Encryption status */}
               {!packet.decrypted &&
+                !isDamaged(packet) &&
                 (decoded.notEncrypted ? (
                   <span className="sr-only">{t('packet_status_not_encrypted')}</span>
                 ) : (
@@ -290,7 +292,11 @@ export function RawPacketList({
               <span
                 className={cn(
                   'text-[0.8125rem]',
-                  packet.decrypted ? 'text-primary' : 'text-foreground'
+                  packet.decrypted
+                    ? 'text-primary'
+                    : isDamaged(packet)
+                      ? 'text-muted-foreground'
+                      : 'text-foreground'
                 )}
               >
                 {decoded.summary}
