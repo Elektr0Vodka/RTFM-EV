@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import httpx
 
 from app.services.url_safety import UnsafeUrlError, resolve_public_ip
+from app.version_info import user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ _FETCH_DEADLINE = 12.0
 _MAX_BYTES = 256 * 1024
 _MAX_REDIRECTS = 3
 _CACHE_TTL = 3600.0
-_USER_AGENT = "RTFM-EV-LinkPreview/1.0 (+https://github.com/Elektr0Vodka/RTFM-EV)"
 # Charsets a page may name for itself (as ``codecs.lookup`` spells them).
 # Anything else is read as UTF-8: the page picks the codec, the decode runs on
 # the event loop, and some codecs Python knows (``punycode``) take seconds on a
@@ -154,7 +154,7 @@ async def _fetch_once(client: httpx.AsyncClient, target: str) -> tuple[str | Non
         "GET",
         pinned,
         headers={
-            "User-Agent": _USER_AGENT,
+            "User-Agent": user_agent(),
             "Accept": "text/html",
             "Accept-Encoding": "identity",
             "Host": host_header,

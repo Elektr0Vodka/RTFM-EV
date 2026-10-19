@@ -1281,6 +1281,9 @@ export interface ContactGroup {
   sort_order?: FavoriteSortOrder;
 }
 
+/** Node source for the external-map overlay: map.meshcore.io or the analyzer URL. */
+export type ExternalMapSource = 'meshcore_map' | 'analyzer';
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -1382,6 +1385,8 @@ export interface AppSettings {
   external_map_enabled: boolean;
   external_map_sync_url: string;
   external_map_sync_interval_hours: number;
+  /** Where the "Analyzer nodes" overlay syncs from (backend default 'meshcore_map'). */
+  external_map_source: ExternalMapSource;
   backup_to_path_enabled: boolean;
   backup_destination_path: string;
   backup_schedule_enabled: boolean;
@@ -1776,6 +1781,7 @@ export interface AppSettingsUpdate {
   external_map_enabled?: boolean;
   external_map_sync_url?: string;
   external_map_sync_interval_hours?: number;
+  external_map_source?: ExternalMapSource;
   backup_to_path_enabled?: boolean;
   backup_destination_path?: string;
   backup_schedule_enabled?: boolean;

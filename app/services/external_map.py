@@ -1,13 +1,20 @@
-"""External analyzer node sync for the map overlay.
+"""External node sync for the map overlay ("Analyzer nodes").
 
-Fetches a node directory from an external analyzer (default: the EU MeshCore
-Analyzer ``/api/nodes`` feed), normalises it, and caches located nodes locally
-so the map can overlay nodes RTFM-EV has not heard itself.
+Fetches a node directory from one of two sources, normalises it, and caches
+located nodes locally so the map can overlay nodes RTFM-EV has not heard itself:
 
-The feed is a bare JSON array of objects with PascalCase keys (``ID``, ``Name``,
-``Role``, ``Lat``, ``Lon``, ``LastSeen``, ``AdvertCount``, ``Mobile``); ``Lat``/
-``Lon`` may be null. It has no CORS header and is several MB, so the fetch must
-happen server-side (never from the browser).
+- ``meshcore_map`` (default): the MeshCore map, ``map.meshcore.io``
+  ``/api/v1/nodes``. A bare JSON array of objects with snake_case keys
+  (``public_key``, ``type``, ``adv_name``, ``adv_lat``, ``adv_lon``,
+  ``updated_date``, ...); ``type`` is the MeshCore advert type (1 companion,
+  2 repeater, 3 room server, 4 sensor). Worldwide, ~50 MB uncompressed.
+- ``analyzer``: a MeshCore Analyzer ``/api/nodes`` feed at
+  ``external_map_sync_url`` (default: the EU analyzer). A bare JSON array with
+  PascalCase keys (``ID``, ``Name``, ``Role``, ``Lat``, ``Lon``, ``LastSeen``,
+  ``AdvertCount``, ``Mobile``); ``Lat``/``Lon`` may be null.
+
+Both feeds are several MB and not meant for the browser, so the fetch happens
+server-side.
 """
 
 import asyncio
@@ -19,15 +26,25 @@ import httpx
 from app.models import ExternalMapNode
 from app.repository.external_map import ExternalMapRepository
 from app.repository.settings import AppSettingsRepository
+from app.version_info import user_agent
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_EXTERNAL_MAP_URL = "https://meshcore-analyzer.eu/api/nodes"
+MESHCORE_MAP_NODES_URL = "https://map.meshcore.io/api/v1/nodes"
+SOURCE_MESHCORE_MAP = "meshcore_map"
+SOURCE_ANALYZER = "analyzer"
+EXTERNAL_MAP_SOURCES = (SOURCE_MESHCORE_MAP, SOURCE_ANALYZER)
+DEFAULT_EXTERNAL_MAP_SOURCE = SOURCE_MESHCORE_MAP
 # Cap parsed entries so a runaway feed cannot exhaust memory (mirrors the
-# wordlist-sync guard). The EU feed is ~9k nodes today.
-MAX_EXTERNAL_NODES = 50_000
+# wordlist-sync guard). On 2026-10-19 map.meshcore.io listed ~67k nodes and the
+# EU analyzer ~86k entries (fewer of them located).
+MAX_EXTERNAL_NODES = 200_000
 _FETCH_TIMEOUT = 30.0
 _INITIAL_DELAY = 20.0
+# MeshCore advert type -> the role strings the analyzer feed uses, so both
+# sources read the same downstream (map popup, partial-resolution promotion).
+_MESHCORE_MAP_ROLES = {1: "Companion", 2: "Repeater", 3: "Roomserver", 4: "Sensor"}
 
 _sync_task: asyncio.Task | None = None
 _sync_lock = asyncio.Lock()
@@ -49,6 +66,18 @@ def _parse_last_seen(value: object) -> int | None:
         return None
 
 
+def _coords(lat: object, lon: object) -> tuple[float, float] | None:
+    """Return ``(lat, lon)`` as floats, or None when missing or invalid."""
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        return None
+    # Reject the null island / out-of-range coordinates.
+    if lat == 0 and lon == 0:
+        return None
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        return None
+    return float(lat), float(lon)
+
+
 def _parse_nodes(payload: object) -> list[ExternalMapNode]:
     """Normalise the analyzer array into located ExternalMapNode records.
 
@@ -63,16 +92,10 @@ def _parse_nodes(payload: object) -> list[ExternalMapNode]:
         if not isinstance(item, dict):
             continue
         pubkey = item.get("ID")
-        lat = item.get("Lat")
-        lon = item.get("Lon")
         if not isinstance(pubkey, str) or not pubkey:
             continue
-        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
-            continue
-        # Reject the null island / out-of-range coordinates.
-        if lat == 0 and lon == 0:
-            continue
-        if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        coords = _coords(item.get("Lat"), item.get("Lon"))
+        if coords is None:
             continue
         name = item.get("Name")
         role = item.get("Role")
@@ -82,8 +105,8 @@ def _parse_nodes(payload: object) -> list[ExternalMapNode]:
                 pubkey=pubkey.lower(),
                 name=name if isinstance(name, str) else "",
                 role=role if isinstance(role, str) else "",
-                lat=float(lat),
-                lon=float(lon),
+                lat=coords[0],
+                lon=coords[1],
                 last_seen=_parse_last_seen(item.get("LastSeen")),
                 advert_count=advert if isinstance(advert, int) else 0,
                 mobile=bool(item.get("Mobile")),
@@ -92,17 +115,68 @@ def _parse_nodes(payload: object) -> list[ExternalMapNode]:
     return nodes
 
 
-async def sync_external_map(url: str | None = None) -> tuple[int, int]:
+def _parse_meshcore_map_nodes(payload: object) -> list[ExternalMapNode]:
+    """Normalise the map.meshcore.io ``/api/v1/nodes`` array.
+
+    Same rules as :func:`_parse_nodes`. The feed has no advert count or mobile
+    flag, so those keep their defaults.
+    """
+    if not isinstance(payload, list):
+        raise ExternalMapSyncError("Sync source returned unexpected format (expected array)")
+
+    nodes: list[ExternalMapNode] = []
+    for item in payload[:MAX_EXTERNAL_NODES]:
+        if not isinstance(item, dict):
+            continue
+        pubkey = item.get("public_key")
+        if not isinstance(pubkey, str) or not pubkey:
+            continue
+        coords = _coords(item.get("adv_lat"), item.get("adv_lon"))
+        if coords is None:
+            continue
+        name = item.get("adv_name")
+        node_type = item.get("type")
+        role = _MESHCORE_MAP_ROLES.get(node_type, "Unknown") if isinstance(node_type, int) else ""
+        nodes.append(
+            ExternalMapNode(
+                pubkey=pubkey.lower(),
+                name=name if isinstance(name, str) else "",
+                role=role,
+                lat=coords[0],
+                lon=coords[1],
+                # updated_date is the map server's clock; last_advert is the
+                # node's own and was years in the future for ~3k nodes.
+                last_seen=_parse_last_seen(item.get("updated_date")),
+            )
+        )
+    return nodes
+
+
+async def sync_external_map(
+    url: str | None = None, source: str = DEFAULT_EXTERNAL_MAP_SOURCE
+) -> tuple[int, int]:
     """Fetch, parse, and cache the external node directory.
 
+    ``source`` picks the feed: ``meshcore_map`` fetches map.meshcore.io and
+    ignores ``url``; ``analyzer`` fetches ``url`` (or the EU analyzer default).
     Returns ``(node_count, synced_at_epoch)``. Raises ExternalMapSyncError on a
     transport error, non-200 response, or unparseable body. Serialised so a
     manual sync and the periodic loop cannot overlap.
     """
-    target = (url or "").strip() or DEFAULT_EXTERNAL_MAP_URL
+    if source == SOURCE_ANALYZER:
+        target = (url or "").strip() or DEFAULT_EXTERNAL_MAP_URL
+        parse = _parse_nodes
+        # Analyzer requests keep the httpx default User-Agent (unchanged).
+        headers: dict[str, str] = {}
+    else:
+        target = MESHCORE_MAP_NODES_URL
+        parse = _parse_meshcore_map_nodes
+        headers = {"User-Agent": user_agent()}
     async with _sync_lock:
         try:
-            async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT, follow_redirects=True) as client:
+            async with httpx.AsyncClient(
+                timeout=_FETCH_TIMEOUT, follow_redirects=True, headers=headers
+            ) as client:
                 response = await client.get(target)
         except httpx.HTTPError as exc:
             logger.warning("External-map sync fetch failed for %s: %s", target, exc)
@@ -112,11 +186,13 @@ async def sync_external_map(url: str | None = None) -> tuple[int, int]:
             raise ExternalMapSyncError(f"Sync source returned HTTP {response.status_code}")
 
         try:
-            payload = response.json()
+            # Off the event loop: map.meshcore.io is ~50 MB of JSON (seconds of
+            # CPU), which would otherwise stall radio and WebSocket work.
+            payload = await asyncio.to_thread(response.json)
         except Exception as exc:
             raise ExternalMapSyncError("Sync source returned unexpected format (not JSON)") from exc
 
-        nodes = _parse_nodes(payload)
+        nodes = parse(payload)
         synced_at = int(datetime.now(UTC).timestamp())
         count = await ExternalMapRepository.replace_all(nodes, source=target, synced_at=synced_at)
         logger.info("External-map sync stored %d located nodes from %s", count, target)
@@ -132,7 +208,7 @@ async def _run_periodic_cycle(now: datetime) -> None:
     if now.hour % interval != 0:
         return
     try:
-        await sync_external_map(settings.external_map_sync_url)
+        await sync_external_map(settings.external_map_sync_url, settings.external_map_source)
     except ExternalMapSyncError as exc:
         logger.warning("Scheduled external-map sync failed: %s", exc)
 

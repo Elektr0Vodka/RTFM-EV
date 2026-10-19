@@ -134,6 +134,7 @@ const baseSettings: AppSettings = {
   external_map_enabled: false,
   external_map_sync_url: '',
   external_map_sync_interval_hours: 0,
+  external_map_source: 'meshcore_map',
   backup_to_path_enabled: false,
   backup_destination_path: '',
   backup_schedule_enabled: false,
@@ -452,6 +453,19 @@ describe('SettingsModal', () => {
 
     await waitFor(() => {
       expect(onSaveAppSettings).toHaveBeenCalledWith({ max_radio_contacts: 250 });
+    });
+  });
+
+  it('switches the analyzer node source through onSaveAppSettings', async () => {
+    const { onSaveAppSettings } = renderModal();
+    openRadioSection();
+
+    const sourceSelect = screen.getByLabelText('Node source') as HTMLSelectElement;
+    expect(sourceSelect.value).toBe('meshcore_map');
+    fireEvent.change(sourceSelect, { target: { value: 'analyzer' } });
+
+    await waitFor(() => {
+      expect(onSaveAppSettings).toHaveBeenCalledWith({ external_map_source: 'analyzer' });
     });
   });
 
