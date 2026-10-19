@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-19 (community MQTT publishes other header versions, fix/mqtt-forward-other-version)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### MQTT
+- Community MQTT now also publishes packets whose header version bits are 1
+  to 3 (for example Trail Mate firmware, which sends version 1 by default).
+  Before, they were dropped from the feed. Route, packet type, payload length
+  and path come from the header as for version 0, and `raw` carries the bytes
+  unchanged, so an analyzer can read the version itself. RTFM-EV itself still
+  stores and shows them as OtherVersion and does not process them (#358).
+
 ## Update 2026-10-19 (code scanning alert 26, share card map credit)
 
 Frontend only. No migration, no new dependency. No visible change.

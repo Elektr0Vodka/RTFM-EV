@@ -312,12 +312,24 @@ class TestPacketFormatConversion:
         assert result["route"] == "F"
         assert "path" not in result
 
-    def test_unknown_version_returns_none(self):
-        # version=1 in high bits, type=5, route=1
+    def test_other_version_is_published(self):
+        # version=1 in high bits, type=5, route=1 (FLOOD); MeshCore 1.18 drops these,
+        # analyzers still get them, with the raw bytes unchanged.
         header = (1 << 6) | (5 << 2) | 1
-        data = {"timestamp": 0, "data": f"{header:02x}00", "snr": 1.0, "rssi": -70}
+        data = {"timestamp": 0, "data": f"{header:02x}00aabb", "snr": 1.0, "rssi": -70}
         result = _format_raw_packet(data, "Node", "AA" * 32)
-        assert result is None
+        assert result is not None
+        assert result["route"] == "F"
+        assert result["packet_type"] == "5"
+        assert result["raw"].startswith("55")
+
+    def test_version_3_direct_keeps_path(self):
+        header = (3 << 6) | (2 << 2) | 2
+        data = {"timestamp": 0, "data": f"{header:02x}02aabbcc", "snr": 1.0, "rssi": -70}
+        result = _format_raw_packet(data, "Node", "AA" * 32)
+        assert result is not None
+        assert result["route"] == "D"
+        assert result["path"] == "aa,bb"
 
 
 class TestCalculatePacketHash:

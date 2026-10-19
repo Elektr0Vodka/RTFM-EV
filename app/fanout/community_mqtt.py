@@ -163,8 +163,10 @@ def _decode_packet_fields(raw_bytes: bytes) -> tuple[str, str, str, list[str], i
     payload_type: int | None = None
 
     try:
+        # Header versions 1-3 (e.g. Trail Mate) are published too: the version
+        # bits stay in ``raw``, so an analyzer can read them itself.
         envelope = parse_packet_envelope(raw_bytes)
-        if envelope is None or envelope.payload_version != 0:
+        if envelope is None:
             return route, packet_type, payload_len, path_values, payload_type
 
         payload_type = envelope.payload_type
