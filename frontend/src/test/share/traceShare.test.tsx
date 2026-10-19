@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 
 const renderTraceCard = vi.fn();
@@ -56,11 +56,20 @@ const config = {
 
 const alpha = repeater('11'.repeat(32), 'Relay Alpha', 52.1, 5);
 
+// Still a class: TracePane lazy-loads its map, and the module loader calls `new URL`.
+class StubURL extends URL {
+  static createObjectURL = () => 'blob:x';
+  static revokeObjectURL = () => {};
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   renderTraceCard.mockResolvedValue({ png: new Blob(['p'], { type: 'image/png' }) });
-  vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:x', revokeObjectURL: () => {} });
+  vi.stubGlobal('URL', StubURL);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('TracePane share', () => {
