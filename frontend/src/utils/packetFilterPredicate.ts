@@ -1,8 +1,12 @@
-import { MeshCoreDecoder, Utils } from '@michaelhart/meshcore-decoder';
+import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 
 import type { Channel, RawPacket } from '../types';
 import type { PacketFilters } from '../hooks/usePacketFilters';
-import { KNOWN_PAYLOAD_TYPES, classifyDecodedHopByteWidth } from './rawPacketStats';
+import {
+  KNOWN_PAYLOAD_TYPES,
+  classifyDecodedHopByteWidth,
+  feedPayloadTypeName,
+} from './rawPacketStats';
 import { createDecoderOptions } from './rawPacketInspector';
 
 const KNOWN_PAYLOAD_TYPE_SET = new Set<string>(KNOWN_PAYLOAD_TYPES);
@@ -54,7 +58,7 @@ export function matchesPacketFilters(
   if (filters.allTypesEnabled && filters.allHopWidthsEnabled) return true;
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, createDecoderOptions(channels));
-    const name = decoded.isValid ? Utils.getPayloadTypeName(decoded.payloadType) : 'Unknown';
+    const name = feedPayloadTypeName(decoded);
     const payloadType = KNOWN_PAYLOAD_TYPE_SET.has(name) ? name : 'Unknown';
     const hopWidth = classifyDecodedHopByteWidth(decoded);
     return (
