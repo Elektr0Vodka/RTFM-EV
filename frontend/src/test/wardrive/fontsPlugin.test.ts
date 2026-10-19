@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import { wardriveFonts } from '../../wardrive/build/fonts';
+import { wardriveFonts } from '../../wardrive/bundling/fonts';
 
 type Hook = (this: unknown, ...args: unknown[]) => unknown;
 

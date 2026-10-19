@@ -1,8 +1,8 @@
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { wardriveAssetList } from './src/wardrive/build/assetList';
-import { wardriveFonts } from './src/wardrive/build/fonts';
+import { wardriveAssetList } from './src/wardrive/bundling/assetList';
+import { wardriveFonts } from './src/wardrive/bundling/fonts';
 
 // The wardrive page (MESHCORE_WARDRIVE) is its own build in dist/wardrive/.
 // Every file it loads must live under /wardrive/, the prefix the main Basic

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { wardriveAssetList } from '../../wardrive/build/assetList';
+import { wardriveAssetList } from '../../wardrive/bundling/assetList';
 
 describe('wardrive build asset list', () => {
   it('lists every file under assets/ for the service worker', () => {
