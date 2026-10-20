@@ -2,6 +2,9 @@
 
 import hashlib
 import importlib.util
+import io
+import json
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -61,3 +64,90 @@ def test_parse_and_verify_sha256():
         pt.verify_sha256(b"y", digest)
     with pytest.raises(SystemExit):
         pt.parse_sha256("not-a-hash  file")
+
+
+def make_tar(members: dict[str, bytes]) -> bytes:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def _dump(data: dict) -> bytes:
+    return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def _locales(tmp_path: Path) -> None:
+    (tmp_path / "en.json").write_bytes(_dump(EN))
+    (tmp_path / "nl.json").write_bytes(_dump({"_meta": {"name": "Nederlands"}, "d": "Kaart"}))
+    (tmp_path / "de.json").write_bytes(_dump({"_meta": {"name": "Deutsch"}}))
+
+
+def _release() -> tuple[bytes, str]:
+    tar = make_tar(
+        {
+            "app/nl.json": _dump({"_meta": {"name": "Nederlands"}, "a": "Verzenden"}),
+            "app/de.json": _dump({"_meta": {"name": "Deutsch"}, "a": "Senden"}),
+        }
+    )
+    return tar, hashlib.sha256(tar).hexdigest()
+
+
+def test_pull_writes_targets_in_en_order(tmp_path):
+    _locales(tmp_path)
+    en_before = (tmp_path / "en.json").read_bytes()
+    tar, sha = _release()
+    stats = pt.pull(tar, f"{sha}  rtfm-ev-i18n.tar.gz", "v2026.10.20-abc", tmp_path)
+    nl = json.loads((tmp_path / "nl.json").read_text(encoding="utf-8"))
+    assert list(nl) == ["_meta", "a", "b", "c", "d"]
+    assert nl["_meta"] == {
+        "locale": "nl",
+        "name": "Nederlands",
+        "source": "rtfm-ev-i18n",
+        "release": "v2026.10.20-abc",
+        "license": "CC BY 4.0",
+    }
+    assert nl["a"] == "Verzenden" and nl["d"] == "Kaart"
+    assert (tmp_path / "nl.json").read_bytes().endswith(b"}\n")
+    assert b"\r\n" not in (tmp_path / "nl.json").read_bytes()
+    assert (tmp_path / "en.json").read_bytes() == en_before
+    assert stats["nl"]["release"] == 1
+    assert stats["de"] == {"release": 1, "kept": 0, "english": 3}
+
+
+def test_pull_checksum_mismatch_writes_nothing(tmp_path):
+    _locales(tmp_path)
+    nl_before = (tmp_path / "nl.json").read_bytes()
+    tar, _ = _release()
+    with pytest.raises(SystemExit):
+        pt.pull(tar, "0" * 64 + "  rtfm-ev-i18n.tar.gz", "t", tmp_path)
+    assert (tmp_path / "nl.json").read_bytes() == nl_before
+
+
+def test_pull_dry_run_writes_nothing(tmp_path):
+    _locales(tmp_path)
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    tar, sha = _release()
+    stats = pt.pull(tar, sha, "t", tmp_path, dry_run=True)
+    assert stats["nl"]["release"] == 1
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+def test_read_ignores_other_members():
+    tar = make_tar(
+        {
+            "app/nl.json": b'{"a": "x"}',
+            "../evil.json": b"{}",
+            "app/../../x.json": b"{}",
+            "locales/nl.json": b"{}",
+        }
+    )
+    assert pt.read_app_catalogs(tar, ["nl"]) == {"nl": {"a": "x"}}
+
+
+def test_read_missing_language_exits():
+    with pytest.raises(SystemExit):
+        pt.read_app_catalogs(make_tar({"app/nl.json": b"{}"}), ["nl", "de"])
