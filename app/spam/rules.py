@@ -27,7 +27,7 @@ a block changes hands.
 
 A bot list (``app/services/bot_lists.py``) can ask for its names to be kept off
 the air: ``render(bot_senders=...)`` then puts one drop rule per protected
-channel first in ``before``, named ``bots:<channel key> (bot list)``. It is not
+channel with ``drop_bots`` on first in ``before``, named ``bots:<channel key> (bot list)``. It is not
 a detector block, and it sits ahead of the user's rules and the known-people
 allow rules, so a listed bot is dropped even when Spam Guard knows its name.
 
@@ -362,7 +362,8 @@ def render(
     the user agreed to that.
 
     ``bot_senders`` are the names a bot list wants kept off the air: one drop
-    rule per channel that may appear, ahead of everything else.
+    rule per channel that may appear and has ``drop_bots`` on, ahead of
+    everything else.
     """
     out = RuleSet()
     config = detector.config
@@ -382,8 +383,9 @@ def render(
     names = sorted({name for name in bot_senders if name})
     if dialect == "openhop":
         names = [name for name in names if _same_sender_on_openhop(name)]
+    bot_keys = {channel.key for channel in config.channels if channel.drop_bots}
     if names:
-        for key in channel_keys:
+        for key in (k for k in channel_keys if k in bot_keys):
             if len(out.before) >= limit:
                 out.truncated = True
                 break

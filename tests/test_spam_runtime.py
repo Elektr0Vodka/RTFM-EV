@@ -819,6 +819,25 @@ class TestBotForward:
         assert await runtime.save_config(runtime.version, paused) is not None
         assert runtime.bot_forward()["state"] == "paused"
 
+        two = SpamConfig(
+            mode="protect",
+            channels=[
+                {"key": PUBLIC, "name": "P"},
+                {"key": OTHER, "name": "#o", "drop_bots": False},
+            ],
+        )
+        assert await runtime.save_config(runtime.version, two) is not None
+        # Only the channel with bot rules on counts.
+        assert runtime.bot_forward() == {"state": "active", "channels": 1, "names": 2}
+        assert self.managed(feed) == [f"spam:bots:{PUBLIC} (bot list)"]
+
+        none = SpamConfig(
+            mode="protect", channels=[{"key": PUBLIC, "name": "P", "drop_bots": False}]
+        )
+        assert await runtime.save_config(runtime.version, none) is not None
+        assert runtime.bot_forward() == {"state": "no_bot_channels", "channels": 0, "names": 2}
+        assert self.managed(feed) == []
+
         empty = SpamConfig(mode="protect", channels=[])
         assert await runtime.save_config(runtime.version, empty) is not None
         assert runtime.bot_forward() == {"state": "no_channels", "channels": 0, "names": 2}

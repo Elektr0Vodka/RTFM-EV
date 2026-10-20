@@ -1,10 +1,12 @@
-import { KNOWN_PAYLOAD_TYPES, HOP_BYTE_WIDTH_BUCKETS } from './rawPacketStats';
+import { KNOWN_PAYLOAD_TYPES, HOP_BYTE_WIDTH_BUCKETS, ROUTE_FILTER_TYPES } from './rawPacketStats';
 
 export interface HistoryParamInput {
   startTs: number;
   endTs: number;
   enabledTypes: Set<string>;
   enabledHopWidths: Set<string>;
+  /** Route types to keep; left out (or all of them) filters nothing. */
+  enabledRoutes?: Set<string>;
   hexQuery: string;
   /** Trimmed search term (message content or policy rule name); empty means "no search". */
   searchTerm: string;
@@ -31,6 +33,9 @@ export function buildHistoryParams(input: HistoryParamInput): URLSearchParams {
   }
   if (input.enabledHopWidths.size < HOP_BYTE_WIDTH_BUCKETS.length) {
     for (const width of input.enabledHopWidths) p.append('hop_widths', width);
+  }
+  if (input.enabledRoutes && input.enabledRoutes.size < ROUTE_FILTER_TYPES.length) {
+    for (const route of input.enabledRoutes) p.append('route_types', route);
   }
   if (input.hexQuery !== '') p.set('hex', input.hexQuery);
   if (input.searchTerm) p.set('search', input.searchTerm);

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from typing import Any
@@ -177,12 +177,14 @@ def aggregate_filter_stats(
     channels: dict[str, ChannelInfo],
     policy_rules: list[dict[str, Any]],
     channel: str | None = None,
+    protected: Collection[str] = (),
 ) -> dict[str, Any]:
     """Build the report for ``[start_ts, end_ts)``.
 
     ``bot_names`` / ``bot_keys`` map a sender name / a lower-case public key to
     the names of the enabled bot lists that hold it (exceptions already left
-    out). ``limit`` cuts the sender and source tables.
+    out). ``limit`` cuts the sender and source tables. ``protected`` holds the
+    keys of the channels Spam Guard reads; the channel table marks them.
     """
     bucket_seconds = max(1, math.ceil(max(1, end_ts - start_ts) / buckets))
     series = [_Counts() for _ in range(buckets)]
@@ -298,7 +300,13 @@ def aggregate_filter_stats(
     for key, counts in by_channel.items():
         info = channels.get(key, ChannelInfo("", False))
         channel_rows.append(
-            {"key": key, "name": info.name, "public": info.public, **asdict(counts)}
+            {
+                "key": key,
+                "name": info.name,
+                "public": info.public,
+                "protected": key in protected,
+                **asdict(counts),
+            }
         )
     channel_rows.sort(key=lambda c: (-c["flagged"], -c["messages"], c["name"], c["key"]))
 

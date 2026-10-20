@@ -177,6 +177,12 @@ class TestOffenders:
         assert (by_key[FAMILY]["name"], by_key[FAMILY]["public"]) == ("Family", False)
         assert (by_key["AA" * 16]["name"], by_key["AA" * 16]["public"]) == ("", False)
 
+    def test_channels_say_whether_spam_guard_protects_them(self):
+        report = run([row(1), row(2, channel=FAMILY)], protected={FAMILY})
+        by_key = {channel["key"]: channel for channel in report["channels"]}
+        assert by_key[PUBLIC]["protected"] is False
+        assert by_key[FAMILY]["protected"] is True
+
     def test_sources_group_by_first_hop_and_skip_unknown_paths(self):
         report = run(
             [

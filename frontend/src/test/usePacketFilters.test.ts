@@ -76,6 +76,22 @@ describe('usePacketFilters', () => {
     expect(onChange).toHaveBeenLastCalledWith(false);
   });
 
+  it('filters on route types: flood and transport flood together', () => {
+    const { result } = renderHook(() => usePacketFilters());
+    expect(result.current.allRoutesEnabled).toBe(true);
+    act(() => result.current.onlyRoute('Flood'));
+    act(() => result.current.toggleRoute('TransportFlood'));
+    expect([...result.current.enabledRoutes].sort()).toEqual(['Flood', 'TransportFlood']);
+    expect(result.current.allRoutesEnabled).toBe(false);
+    expect(result.current.activeFilterCount).toBe(2);
+    act(() => result.current.toggleAllRoutes());
+    expect(result.current.allRoutesEnabled).toBe(true);
+    act(() => result.current.onlyRoute('Direct'));
+    act(() => result.current.reset());
+    expect(result.current.allRoutesEnabled).toBe(true);
+    expect(result.current.activeFilterCount).toBe(0);
+  });
+
   it('reset restores defaults including search', () => {
     const { result } = renderHook(() => usePacketFilters());
     act(() => result.current.onlyType(KNOWN_PAYLOAD_TYPES[0]));

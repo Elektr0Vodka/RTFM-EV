@@ -77,6 +77,12 @@ export const HOP_BYTE_WIDTH_BUCKETS = [
 ] as const;
 export type HopByteWidthBucket = (typeof HOP_BYTE_WIDTH_BUCKETS)[number];
 
+/**
+ * Route types the feed and history can filter on: the decoder's names, which
+ * are also the labels stored in `raw_packets.route_type`.
+ */
+export const ROUTE_FILTER_TYPES = ['Flood', 'TransportFlood', 'Direct', 'TransportDirect'] as const;
+
 const KNOWN_ROUTE_TYPES = [
   'Flood',
   'Direct',

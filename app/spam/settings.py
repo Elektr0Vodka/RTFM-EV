@@ -193,6 +193,10 @@ class ProtectedChannel(BaseModel):
     # policy file. OpenHop needs the key inside a rule to read sender and text.
     # Only asked for a private channel: Public and hashtag keys are no secret.
     share_key: bool = False
+    # A bot list with Block forwards on gets a drop rule on this channel. Off
+    # leaves listed bots alone here, so a channel can be protected without one
+    # more rule per channel on the backend.
+    drop_bots: bool = True
 
     @field_validator("key")
     @classmethod

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PacketFilterModal } from '../components/PacketFilterModal';
-import { KNOWN_PAYLOAD_TYPES } from '../utils/rawPacketStats';
+import { KNOWN_PAYLOAD_TYPES, ROUTE_FILTER_TYPES } from '../utils/rawPacketStats';
 
 function baseProps() {
   return {
@@ -19,6 +19,11 @@ function baseProps() {
     onToggleAllHopWidths: vi.fn(),
     onToggleHopWidth: vi.fn(),
     onOnlyHopWidth: vi.fn(),
+    enabledRoutes: new Set<string>(ROUTE_FILTER_TYPES),
+    allRoutesEnabled: true,
+    onToggleAllRoutes: vi.fn(),
+    onToggleRoute: vi.fn(),
+    onOnlyRoute: vi.fn(),
     onGroupByHashChange: vi.fn(),
     onReset: vi.fn(),
     matchCount: 12,
@@ -48,6 +53,21 @@ describe('PacketFilterModal', () => {
     const row = screen.getByLabelText(KNOWN_PAYLOAD_TYPES[0]).closest('span')!;
     fireEvent.click(within(row).getByRole('button', { name: /only/i }));
     expect(props.onOnlyType).toHaveBeenCalledWith(KNOWN_PAYLOAD_TYPES[0]);
+  });
+
+  it('offers every route type with toggle, only and all', () => {
+    const props = baseProps();
+    render(<PacketFilterModal {...props} />);
+    for (const route of ROUTE_FILTER_TYPES) {
+      expect(screen.getByLabelText(route)).toBeChecked();
+    }
+    fireEvent.click(screen.getByLabelText('TransportFlood'));
+    expect(props.onToggleRoute).toHaveBeenCalledWith('TransportFlood');
+    const row = screen.getByLabelText('Flood').closest('span')!;
+    fireEvent.click(within(row).getByRole('button', { name: /only/i }));
+    expect(props.onOnlyRoute).toHaveBeenCalledWith('Flood');
+    fireEvent.click(screen.getByLabelText('All routes'));
+    expect(props.onToggleAllRoutes).toHaveBeenCalled();
   });
 
   it('fires onReset from Reset all', () => {

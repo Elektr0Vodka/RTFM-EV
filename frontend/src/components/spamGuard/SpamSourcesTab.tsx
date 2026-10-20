@@ -13,7 +13,6 @@ const SpamSourcesMap = lazy(() =>
 );
 
 const DIRECT = 'DIRECT';
-const MAX_CANDIDATES = 6;
 
 function hasLocation(contact: Contact): contact is Contact & { lat: number; lon: number } {
   return (
@@ -51,9 +50,7 @@ export function SpamSourcesTab({
         const candidates =
           source.hop === DIRECT
             ? []
-            : repeaters
-                .filter((c) => c.public_key.toLowerCase().startsWith(prefix))
-                .slice(0, MAX_CANDIDATES);
+            : repeaters.filter((c) => c.public_key.toLowerCase().startsWith(prefix));
         return { source, candidates };
       }),
     [state.metrics.sources, repeaters]

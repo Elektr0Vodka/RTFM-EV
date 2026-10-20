@@ -99,7 +99,6 @@ MIN_CAMPAIGN_CHARS = 8
 MIN_REPEAT_CHARS = 8
 MAX_VARIANT_BLOCKS = 5
 HISTORY_HOURS = 8 * 24
-MAX_SOURCES = 15
 MAX_FLAGGED = 5000
 # Usual first hops kept per name, and how many uncaught messages from a first
 # hop make it one of them.
@@ -1697,7 +1696,8 @@ class SpamDetector:
                 if start >= day_ago - 3600:
                     source["d1"] += count
                 source["last"] = max(source["last"], hour["last"].get(hop, start))
-        top = sorted(sources.values(), key=lambda s: (-s["d7"], -s["d1"]))[:MAX_SOURCES]
+        # Every hop, not a top few: a cut hid sources until rows above them went.
+        top = sorted(sources.values(), key=lambda s: (-s["d7"], -s["d1"]))
         for source in top:
             source["blocked"] = f"hop:{source['hop']}" in self.blocks
             source["allowed"] = source["hop"] != DIRECT and self.hop_allowed(source["hop"])

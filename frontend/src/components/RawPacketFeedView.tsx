@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Volume2, VolumeX, X } from 'lucide-react';
 
-import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
+import { MeshCoreDecoder, Utils } from '@michaelhart/meshcore-decoder';
 
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
@@ -42,10 +42,10 @@ const KNOWN_PAYLOAD_TYPE_SET = new Set<string>(KNOWN_PAYLOAD_TYPES);
 function summarizePacketForFeed(
   packet: RawPacket,
   decoderOptions?: ReturnType<typeof createDecoderOptions>
-): { payloadType: string; hopWidth: HopByteWidthBucket; isDirect: boolean } {
+): { payloadType: string; hopWidth: HopByteWidthBucket; route: string; isDirect: boolean } {
   if (isDamaged(packet)) {
     // Never decoded; the "Show damaged frames" switch alone decides.
-    return { payloadType: 'Damaged', hopWidth: 'No path', isDirect: false };
+    return { payloadType: 'Damaged', hopWidth: 'No path', route: 'Unknown', isDirect: false };
   }
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, decoderOptions);
@@ -54,13 +54,14 @@ function summarizePacketForFeed(
     return {
       payloadType: KNOWN_PAYLOAD_TYPE_SET.has(name) ? name : 'Unknown',
       hopWidth,
+      route: decoded.isValid ? Utils.getRouteTypeName(decoded.routeType) : 'Unknown',
       // Direct = decoded successfully and carries no path (0 hops), i.e. heard
       // directly from a neighbour. `No path` alone also covers undecodable
       // packets, so gate on isValid to avoid over-claiming.
       isDirect: decoded.isValid && hopWidth === 'No path',
     };
   } catch {
-    return { payloadType: 'Unknown', hopWidth: 'No path', isDirect: false };
+    return { payloadType: 'Unknown', hopWidth: 'No path', route: 'Unknown', isDirect: false };
   }
 }
 
@@ -168,6 +169,7 @@ export function RawPacketFeedView({
     if (
       filters.allTypesEnabled &&
       filters.allHopWidthsEnabled &&
+      filters.allRoutesEnabled &&
       filters.hexQuery === '' &&
       !filters.hideMalformed &&
       !filters.policyOnly
@@ -176,10 +178,11 @@ export function RawPacketFeedView({
     }
     return packetsWithTypes
       .filter(
-        ({ packet, payloadType, hopWidth }) =>
+        ({ packet, payloadType, hopWidth, route }) =>
           (isDamaged(packet) ||
             ((filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
-              (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)))) &&
+              (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)) &&
+              (filters.allRoutesEnabled || filters.enabledRoutes.has(route)))) &&
           (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery)) &&
           !(filters.hideMalformed && packet.malformed) &&
           !(filters.policyOnly && !packet.policy)
@@ -192,6 +195,8 @@ export function RawPacketFeedView({
     filters.allHopWidthsEnabled,
     filters.enabledTypes,
     filters.enabledHopWidths,
+    filters.allRoutesEnabled,
+    filters.enabledRoutes,
     filters.hexQuery,
     filters.hexInvalid,
     filters.hideMalformed,
@@ -402,6 +407,11 @@ export function RawPacketFeedView({
         onToggleAllHopWidths={filters.toggleAllHopWidths}
         onToggleHopWidth={filters.toggleHopWidth}
         onOnlyHopWidth={filters.onlyHopWidth}
+        enabledRoutes={filters.enabledRoutes}
+        allRoutesEnabled={filters.allRoutesEnabled}
+        onToggleAllRoutes={filters.toggleAllRoutes}
+        onToggleRoute={filters.toggleRoute}
+        onOnlyRoute={filters.onlyRoute}
         onGroupByHashChange={filters.setGroupByHash}
         hideMalformed={filters.hideMalformed}
         onHideMalformedChange={filters.setHideMalformed}

@@ -704,6 +704,29 @@ class TestBotLists:
         ]
         assert [PolicyRule.model_validate(r).id for r in rules.before] == [f"spam:bots:{PUBLIC}"]
 
+    def test_one_rule_per_protected_channel_by_default(self):
+        det, _ = self.two_channels()
+        rules = render(det, "host", bot_senders=BOTS)
+        assert [r["id"] for r in rules.before] == [f"spam:bots:{PUBLIC}", f"spam:bots:{OTHER}"]
+
+    def test_only_channels_with_drop_bots_get_a_rule(self):
+        det, _ = make(
+            channels=[
+                {"key": PUBLIC, "name": "Public"},
+                {"key": OTHER, "name": "#o", "drop_bots": False},
+            ]
+        )
+        rules = render(det, "host", bot_senders=BOTS)
+        assert [r["id"] for r in rules.before] == [f"spam:bots:{PUBLIC}"]
+        assert rules.bot_senders == BOTS
+
+    def test_no_bot_channel_means_no_bot_rule(self):
+        det, _ = make(channels=[{"key": PUBLIC, "name": "Public", "drop_bots": False}])
+        rules = render(det, "openhop", bot_senders=BOTS)
+        assert rules.before == []
+        # Nothing refers to the object, so it is not written either.
+        assert rules.bot_senders == []
+
     def test_openhop_rule_refers_to_the_object(self):
         det, _ = make()
         rules = render(det, "openhop", bot_senders=BOTS)

@@ -6,7 +6,13 @@ import time
 
 import pytest
 
-from app.spam.detector import LOCKDOWN_KEY, STATE_VERSION, SettledOutcome, SpamDetector
+from app.spam.detector import (
+    LOCKDOWN_KEY,
+    STATE_VERSION,
+    SettledOutcome,
+    SpamDetector,
+    _empty_hour,
+)
 from app.spam.rules import render
 from app.spam.settings import SpamConfig
 
@@ -911,6 +917,20 @@ class TestActions:
         say(det, clock, "PL4MN8QR", SPAM)
         settle(det, clock)
         assert {s["hop"] for s in det.metrics()["sources"]} == {"27", "44"}
+
+    def test_sources_list_every_hop(self):
+        # No top-N cut: a hop past the old 15 stayed out of view until rows
+        # above it were removed.
+        det, clock = make()
+        hour = det.hours.setdefault(int(clock.now // 3600) * 3600, _empty_hour())
+        for n in range(20):
+            hop = f"{n:02X}"
+            hour["hops"][hop] = 20 - n
+            hour["last"][hop] = clock.now
+        sources = det.metrics()["sources"]
+        assert len(sources) == 20
+        assert sources[0]["hop"] == "00"
+        assert sources[-1]["hop"] == "13"
 
     def test_clear_messages_hides_them_but_keeps_the_evidence(self):
         det, clock = make(overrides={"dedupe_enabled": False, "enable_hop_rules": False})

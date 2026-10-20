@@ -1174,6 +1174,37 @@ describe('SpamGuardView on an OpenHop radio', () => {
     ]);
   });
 
+  it('turns bot rules off for one protected channel', async () => {
+    const state = openHopState({ private_channels: [CLUB] });
+    await renderView(
+      {
+        ...state,
+        settings: {
+          ...state.settings,
+          channels: [
+            { key: PUBLIC, name: 'Public' },
+            { key: CLUB, name: 'Club', share_key: true },
+          ],
+        },
+      },
+      WITH_CLUB
+    );
+    openTab('Settings');
+    const boxes = screen.getAllByLabelText(/Block listed bots here/);
+    expect(boxes).toHaveLength(2);
+    // Left out means on, as the server defaults it.
+    boxes.forEach((box) => expect(box).toBeChecked());
+
+    fireEvent.click(boxes[1]);
+    expect(boxes[1]).not.toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1].channels).toEqual([
+      { key: PUBLIC, name: 'Public' },
+      { key: CLUB, name: 'Club', share_key: true, drop_bots: false },
+    ]);
+  });
+
   it('takes the agreement back without asking', async () => {
     const confirm = vi.spyOn(window, 'confirm');
     const state = openHopState({ private_channels: [CLUB] });

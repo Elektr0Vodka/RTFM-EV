@@ -189,6 +189,14 @@ export function SpamSettingsTab({
     }));
   };
 
+  const setDropBots = (key: string, on: boolean) => {
+    setDirty(true);
+    setDraft((prev) => ({
+      ...prev,
+      channels: prev.channels.map((c) => (c.key === key ? { ...c, drop_bots: on } : c)),
+    }));
+  };
+
   const saveDraft = async () => {
     if (await guard.save(draft)) setDirty(false);
   };
@@ -335,6 +343,17 @@ export function SpamSettingsTab({
                     >
                       {t('spam_channels_remove')}
                     </button>
+                  </div>
+                  <div className="mt-1 flex items-start gap-2 text-[0.8125rem] text-muted-foreground">
+                    <input
+                      id={`${id}-drop-bots`}
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-current"
+                      checked={selected.drop_bots !== false}
+                      disabled={disabled}
+                      onChange={(e) => setDropBots(selected.key, e.target.checked)}
+                    />
+                    <label htmlFor={`${id}-drop-bots`}>{t('spam_channels_drop_bots')}</label>
                   </div>
                   {askForKey && channel && (
                     <div className="mt-1 flex items-start gap-2 text-[0.8125rem] text-muted-foreground">

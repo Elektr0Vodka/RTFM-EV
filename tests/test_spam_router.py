@@ -74,7 +74,9 @@ async def test_state_shape_for_a_fresh_install(runtime):
     assert state["version"] == 0
     assert state["mode"] == "monitor"
     assert state["backend"] == "host"
-    assert state["settings"]["channels"] == [{"key": PUBLIC, "name": "Public", "share_key": False}]
+    assert state["settings"]["channels"] == [
+        {"key": PUBLIC, "name": "Public", "share_key": False, "drop_bots": True}
+    ]
     assert state["tunables"]["similarity"] == PRESETS["balanced"]["similarity"]
     assert state["presets"] == PRESETS
     assert state["defaults"]["similarity"] == PRESETS["balanced"]["similarity"]

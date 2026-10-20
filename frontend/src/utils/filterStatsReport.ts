@@ -50,6 +50,8 @@ export interface FilterStatsChannel extends FilterCounts {
   key: string;
   name: string;
   public: boolean;
+  /** Spam Guard reads this channel (a protected channel). */
+  protected?: boolean;
 }
 
 export interface FilterStatsSource extends FilterCounts {

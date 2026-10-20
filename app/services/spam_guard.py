@@ -327,11 +327,20 @@ class SpamGuardRuntime:
             state = "rules_failed"
         else:
             on_openhop = self.backend_name() == "openhop"
-            keys = self.config.shareable_channels() if on_openhop else self._channel_keys
+            # Only channels with "Block listed bots here" on get a bot rule.
+            bot_keys = {c.key for c in self.config.channels if c.drop_bots}
+            keys = (
+                self.config.shareable_channels() if on_openhop else self._channel_keys
+            ) & bot_keys
             reach = min(len(keys), self.detector.tunables.max_total_rules)
             if not reach:
-                # On OpenHop a private channel only counts once its key may be copied there.
-                state = "key_not_shared" if on_openhop and self._channel_keys else "no_channels"
+                if not self._channel_keys:
+                    state = "no_channels"
+                elif not bot_keys:
+                    state = "no_bot_channels"
+                else:
+                    # On OpenHop a private channel only counts once its key may be copied there.
+                    state = "key_not_shared"
             elif on_openhop and self.openhop.status()["state"] != "synced":
                 state = "not_synced"
             elif not on_openhop and host_repeater.state != "armed":
