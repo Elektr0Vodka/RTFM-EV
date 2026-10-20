@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (wardrive page Auto-discover, feat/wardrive-plugin)
+
+No migration, no new dependency. The page now has one transmitting function,
+off at every start.
+
+### Wardrive
+- Auto-discover, as rx.mesh-hunter.eu has it: a rail switch, never stored,
+  only while a radio is connected. Each cycle (10 s or 50 m, never inside the
+  10% airtime floor) sends a Discover request, trace pings to picked
+  repeaters or a sweep of heard ones, your own advert with Introduce my node
+  to targets on (Settings tab, off by default) and a companion picked, and at
+  most one telemetry or anonymous request, always zero-hop. Answers to these
+  asks are named after the node asked. Frames and timings as core-hunter;
+  not tested on a real radio.
+- The About and start screen now say the page transmits only while
+  Auto-discover is on.
+
 ## Update 2026-10-20 (wardrive page radio, signal and brokers, feat/wardrive-plugin)
 
 No migration, no new dependency. Nothing is sent over the radio: the stats

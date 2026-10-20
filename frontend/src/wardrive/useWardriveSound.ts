@@ -10,7 +10,16 @@ import {
   getSavedSignalAudioTheme,
   getSavedSignalAudioVolume,
 } from '../utils/signalAudioPreference';
+import type { SentKind } from './discover/autoDiscover';
 import type { LiveEntry } from './liveLog';
+
+// The app's own transmit tones for what Auto-discover sends.
+const TX_KIND: Record<SentKind, string> = {
+  discover: 'default',
+  advert: 'advert-direct',
+  trace: 'trace',
+  request: 'message',
+};
 
 export type SoundMode = 'off' | 'rx';
 export const SOUND_KEY = 'rtfm-wardrive-sound';
@@ -19,7 +28,7 @@ export function useWardriveSound(
   mode: SoundMode,
   entries: LiveEntry[],
   deps: { createEngine?: () => SignalAudioEngine } = {}
-): { enable(): void } {
+): { enable(): void; tx(kind: SentKind): void } {
   const engineRef = useRef<SignalAudioEngine | null>(null);
   const lastIdRef = useRef(0);
   const createRef = useRef(deps.createEngine ?? createSignalAudioEngine);
@@ -78,7 +87,15 @@ export function useWardriveSound(
 
   useEffect(() => () => engineRef.current?.dispose(), []);
 
-  return { enable };
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  /** A frame Auto-discover sent, with sound on. */
+  const tx = (kind: SentKind) => {
+    if (modeRef.current !== 'rx') return;
+    engineRef.current?.onTx({ kind: TX_KIND[kind] });
+  };
+
+  return { enable, tx };
 }
 
 function newestId(list: LiveEntry[]): number {

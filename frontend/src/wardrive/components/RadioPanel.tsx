@@ -10,6 +10,7 @@ export function RadioPanel({
   onConnect,
   onDisconnect,
   batteryMv = null,
+  autoDiscoverCadence,
 }: {
   info: { publicKey: string; name: string } | null;
   lost: boolean;
@@ -19,6 +20,8 @@ export function RadioPanel({
   onDisconnect: () => void;
   /** The radio's battery (GET_STATS), null before it answered. */
   batteryMv?: number | null;
+  /** Seconds between Auto-discover cycles; null when off. */
+  autoDiscoverCadence?: number | null;
 }) {
   const t = useT();
   const hasBattery = !!info && batteryKnown(batteryMv);
@@ -62,6 +65,13 @@ export function RadioPanel({
             ? t('wardrive_page_battery_volts', { volts })
             : t('wardrive_page_battery', { volts, percent })}
           {isLowBattery(batteryMv) && ` ${t('wardrive_page_battery_low')}`}
+        </p>
+      )}
+      {info && autoDiscoverCadence !== undefined && (
+        <p className="text-sm text-muted-foreground" data-testid="wardrive-autodiscover-status">
+          {autoDiscoverCadence === null
+            ? t('wardrive_page_autodiscover_status_off')
+            : t('wardrive_page_autodiscover_status_on', { seconds: autoDiscoverCadence })}
         </p>
       )}
       {!bleSupported && !serialSupported && (

@@ -133,4 +133,12 @@ describe('decodeReception', () => {
       text: null,
     });
   });
+
+  it('gives a trace its tag and how well the first hop heard it', async () => {
+    const d = await decode(TRACE_FRAME);
+    expect(d.traceTag).toBe('04030201');
+    expect(d.heardUsSnr).toBe(-23.75);
+    const g = await decode(REAL_DIRECT);
+    expect(g.traceTag ?? null).toBeNull();
+  });
 });

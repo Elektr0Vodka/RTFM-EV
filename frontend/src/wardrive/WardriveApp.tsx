@@ -88,6 +88,8 @@ import { useDrive } from './useDrive';
 import { ExaggerationSetting } from './components/ExaggerationSetting';
 import { AttenuatorSetting } from './components/AttenuatorSetting';
 import { NoiseMapSetting } from './components/NoiseMapSetting';
+import { IntroduceSetting } from './components/IntroduceSetting';
+import { useAutoDiscover, type Attribute } from './discover/useAutoDiscover';
 import { parseAttenuator, plotOffset } from './signal';
 import { useRadioStats } from './useRadioStats';
 import { nextCompassMode, parseCompassMode, type CompassMode } from './map/compassMode';
@@ -131,7 +133,7 @@ export const defaultDeps: WardriveDeps = {
 
 interface RadioConnection {
   companion: Companion;
-  info: { publicKey: string; name: string };
+  info: { publicKey: string; name: string; sf: number | null };
   offClose: () => void;
 }
 
@@ -167,6 +169,7 @@ const EXAGGERATION_KEY = 'rtfm-wardrive-exaggeration';
 const ATTENUATOR_KEY = 'rtfm-wardrive-attenuator';
 const CALIBRATION_KEY = 'rtfm-wardrive-calibration';
 const NOISE_MAP_KEY = 'rtfm-wardrive-noise-map';
+const INTRODUCE_KEY = 'rtfm-wardrive-introduce';
 
 function writePref(key: string, value: string): void {
   try {
@@ -292,6 +295,8 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     : radio
       ? [radio.info.publicKey]
       : [];
+  // Auto-discover names the answers to its own asks in the reception pipeline.
+  const attributeRef = useRef<Attribute | null>(null);
   const live = useLiveReceptions(
     radio?.companion ?? null,
     fixRef,
@@ -300,7 +305,8 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     {
       queue,
       radioKeys: historyRadios,
-    }
+    },
+    attributeRef
   );
   const soundCtl = useWardriveSound(sound, live.entries);
 
@@ -329,6 +335,35 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     stand,
     ignore,
     nowMs,
+  });
+
+  // Auto-discover: the page's only transmitting function. Off at every start
+  // and every connection; the switch itself is never stored.
+  const [introduce, setIntroduce] = useState(() => readRaw(INTRODUCE_KEY) === '1');
+  const changeIntroduce = (on: boolean) => {
+    setIntroduce(on);
+    try {
+      if (on) localStorage.setItem(INTRODUCE_KEY, '1');
+      else localStorage.removeItem(INTRODUCE_KEY);
+    } catch {
+      // Not kept: off again next time.
+    }
+  };
+  const [txPulse, setTxPulse] = useState(0);
+  const autoDiscover = useAutoDiscover({
+    radio,
+    position: () => {
+      const f = fixRef.current;
+      return f && isUsableFix(f, Date.now()) ? { lat: f.lat, lon: f.lon } : null;
+    },
+    entries: view.all,
+    targets: filter.targets,
+    introduce,
+    onSent: (kind) => {
+      setTxPulse((n) => n + 1);
+      soundCtl.tx(kind);
+    },
+    attributeRef,
   });
 
   // Heading for the arrow: the compass when slow, the GPS course from 2 m/s.
@@ -435,7 +470,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       const transport = deps.makeTransport(kind);
       await transport.connect();
       const companion = new Companion(transport);
-      let info: { publicKey: string; name: string };
+      let info: { publicKey: string; name: string; sf: number | null };
       try {
         info = await companion.start();
       } catch (e) {
@@ -849,6 +884,10 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
           onSound={toggleSound}
           nodePos={nodePos}
           onNodePos={cycleNodePos}
+          autoDiscover={autoDiscover.state}
+          autoDiscoverDisabled={!autoDiscover.available}
+          onAutoDiscover={autoDiscover.toggle}
+          autoDiscoverPulse={txPulse}
         />
       }
       start={
@@ -921,6 +960,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
                 onConnect={connectRadio}
                 onDisconnect={disconnectRadio}
                 batteryMv={radioStats.batteryMv}
+                autoDiscoverCadence={autoDiscover.cadence}
               />
               <PositionPanel
                 kind={positionKind}
@@ -956,6 +996,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
                 }}
               />
               <NoiseMapSetting on={noiseMap} onChange={changeNoiseMap} />
+              <IntroduceSetting on={introduce} onChange={changeIntroduce} />
             </>
           }
           drives={

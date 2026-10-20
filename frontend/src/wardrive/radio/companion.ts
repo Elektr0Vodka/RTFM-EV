@@ -27,6 +27,9 @@ const SIGN_TIMEOUT_MS = 8000;
 const CONTACTS_TIMEOUT_MS = 8000;
 const STATS_TIMEOUT_MS = 4000;
 const STATS_QUIET_MS = 5 * 60 * 1000;
+const TRANSMIT_TIMEOUT_MS = 3000;
+/** RESP_CODE_SENT: a directed packet was queued for the air. */
+const RESP_SENT = 6;
 
 export interface RadioReception {
   snr: number;
@@ -47,7 +50,7 @@ export class Companion {
   constructor(readonly transport: RadioTransport) {}
 
   /** APP_START, resolving with the radio's own public key and name. */
-  start(): Promise<{ publicKey: string; name: string }> {
+  start(): Promise<{ publicKey: string; name: string; sf: number | null }> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         off();
@@ -133,6 +136,73 @@ export class Companion {
       });
       this.transport.send(new Uint8Array([CMD_GET_STATS, type])).catch(() => finish(null));
     });
+  }
+
+  /** A command that makes the radio transmit (only Auto-discover sends
+   * these). In the one-at-a-time chain, so its OK cannot be taken for a sign
+   * step's. `sent`: the radio answered OK (`'ok'`) or SENT (`'sent'`), or did
+   * not answer in time (it may have gone out); false on ERR or a link error. */
+  transmit(
+    frame: Uint8Array,
+    accept: 'ok' | 'sent',
+    timeoutMs = TRANSMIT_TIMEOUT_MS
+  ): Promise<{ sent: boolean; reply: Uint8Array | null }> {
+    const run = this.signing.then(() => this.transmitNow(frame, accept, timeoutMs));
+    this.signing = run.catch(() => undefined);
+    return run;
+  }
+
+  private transmitNow(
+    frame: Uint8Array,
+    accept: 'ok' | 'sent',
+    timeoutMs: number
+  ): Promise<{ sent: boolean; reply: Uint8Array | null }> {
+    const want = accept === 'ok' ? RESP_OK : RESP_SENT;
+    return new Promise((resolve) => {
+      const finish = (r: { sent: boolean; reply: Uint8Array | null }) => {
+        clearTimeout(timer);
+        off();
+        resolve(r);
+      };
+      const timer = setTimeout(() => finish({ sent: true, reply: null }), timeoutMs);
+      const off = this.transport.onFrame((reply) => {
+        if (reply[0] === want) finish({ sent: true, reply });
+        else if (reply[0] === RESP_ERR) finish({ sent: false, reply: null });
+      });
+      this.transport.send(frame).catch(() => finish({ sent: false, reply: null }));
+    });
+  }
+
+  /** One local command and the first reply `accept` reads (the contact read
+   * and write of a directed ask), null on a timeout. In the chain. */
+  request<T>(
+    frame: Uint8Array,
+    accept: (reply: Uint8Array) => T | null,
+    timeoutMs: number
+  ): Promise<T | null> {
+    const run = this.signing.then(
+      () =>
+        new Promise<T | null>((resolve) => {
+          const finish = (v: T | null) => {
+            clearTimeout(timer);
+            off();
+            resolve(v);
+          };
+          const timer = setTimeout(() => finish(null), timeoutMs);
+          const off = this.transport.onFrame((reply) => {
+            const v = accept(reply);
+            if (v !== null) finish(v);
+          });
+          this.transport.send(frame).catch(() => finish(null));
+        })
+    );
+    this.signing = run.catch(() => undefined);
+    return run;
+  }
+
+  /** Every frame from the radio (the answers to directed asks are pushes). */
+  onPush(cb: (frame: Uint8Array) => void): () => void {
+    return this.transport.onFrame(cb);
   }
 
   /** The radio's Ed25519 signature over `bytes`. The radio has one sign

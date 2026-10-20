@@ -34,6 +34,7 @@ describe('companion protocol frames', () => {
         .join('')
         .toUpperCase(),
       name: 'Car radio',
+      sf: null,
     });
   });
 

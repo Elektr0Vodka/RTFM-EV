@@ -16,7 +16,16 @@ import { bytesToHex } from '../packet';
 import type { ChannelKeys } from './channels';
 
 export type SenderKind =
-  'advert_pubkey' | 'discover_pubkey' | 'relay' | 'path_hash' | 'direct_hash' | 'channel_name';
+  | 'advert_pubkey'
+  | 'discover_pubkey'
+  | 'relay'
+  | 'path_hash'
+  | 'direct_hash'
+  | 'channel_name'
+  // Answers to Auto-discover's own asks, named after the node asked (discover/).
+  | 'trace_reply'
+  | 'telemetry_reply'
+  | 'anon_reply';
 
 export interface Sender {
   kind: SenderKind | null;
@@ -33,6 +42,10 @@ export interface Decoded {
   sender: Sender;
   channel: string | null;
   text: string | null;
+  /** A trace's tag (8 hex), which names the reply to one of our pings. */
+  traceTag?: string | null;
+  /** On a trace: the SNR at which its first hop heard the frame it forwarded. */
+  heardUsSnr?: number | null;
 }
 
 export const UNKNOWN_TYPE = 'Unknown';
@@ -154,7 +167,18 @@ export async function decodeReception(raw: Uint8Array, keys: ChannelKeys): Promi
       text = str(decrypted.message);
     }
   }
+  let traceTag: string | null = null;
+  let heardUsSnr: number | null = null;
+  if (pkt.payloadType === PayloadType.Trace) {
+    const d = (pkt.payload.decoded ?? {}) as Fields;
+    const tag = str(d.traceTag);
+    traceTag = tag && /^[0-9a-f]{1,8}$/i.test(tag) ? tag.toLowerCase().padStart(8, '0') : null;
+    const snr = Array.isArray(d.snrValues) ? d.snrValues[0] : undefined;
+    heardUsSnr = typeof snr === 'number' && Number.isFinite(snr) ? snr : null;
+  }
   return {
+    traceTag,
+    heardUsSnr,
     packetType: typeName(pkt.payloadType),
     hops,
     heardDirect: sender.kind !== null,

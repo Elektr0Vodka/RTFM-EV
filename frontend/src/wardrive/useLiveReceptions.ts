@@ -14,6 +14,7 @@ import { LiveLog, STORE_MAX, type LiveEntry } from './liveLog';
 import type { Fix, ObsMessage } from './messages';
 import { frameWalk, hexToBytes } from './packet';
 import type { Queue } from './queue';
+import type { Attribute } from './discover/useAutoDiscover';
 import type { Companion } from './radio/companion';
 
 const FLUSH_MS = 100;
@@ -51,7 +52,9 @@ export function useLiveReceptions(
   fixRef: MutableRefObject<Fix | null>,
   driving: boolean,
   keys: ChannelKeys,
-  history: { queue: Queue | null; radioKeys: string[] }
+  history: { queue: Queue | null; radioKeys: string[] },
+  /** Auto-discover's attribution of answers to its own asks. */
+  attributeRef?: MutableRefObject<Attribute | null>
 ): { entries: LiveEntry[]; latest: LiveEntry | null } {
   const logRef = useRef(new LiveLog());
   const drivingRef = useRef(driving);
@@ -109,8 +112,16 @@ export function useLiveReceptions(
       chain = chain.then(async () => {
         const d = await decodeReception(r.raw, keysRef.current);
         if (!live) return;
+        // An answer to one of our asks names the node asked (heard directly).
+        const asked = attributeRef?.current?.({
+          packetType: d.packetType,
+          sender: d.sender,
+          traceTag: d.traceTag ?? null,
+          heardUsSnr: d.heardUsSnr ?? null,
+        });
+        const named = asked ? { ...d, sender: asked.sender, heardDirect: true } : d;
         // The frame walk's hop count stands even when the payload is unreadable.
-        logRef.current.push({ ...d, ...heard });
+        logRef.current.push({ ...named, ...heard });
         flushRef.current();
       });
     });
@@ -118,7 +129,7 @@ export function useLiveReceptions(
       live = false;
       off();
     };
-  }, [companion, fixRef]);
+  }, [companion, fixRef, attributeRef]);
 
   const { queue, radioKeys } = history;
   const radioList = radioKeys.join(',');

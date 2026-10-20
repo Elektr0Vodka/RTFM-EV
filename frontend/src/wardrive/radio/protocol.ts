@@ -43,14 +43,19 @@ export function appStartFrame(appName: string): Uint8Array {
   return frame;
 }
 
-/** SELF_INFO: public key at bytes 4-35, the name from byte 58 (NUL-trimmed). */
-export function parseSelfInfo(frame: Uint8Array): { publicKey: string; name: string } | null {
+/** SELF_INFO: public key at bytes 4-35, the spreading factor at byte 56
+ * (null when absent or not 5..12), the name from byte 58 (NUL-trimmed). */
+export function parseSelfInfo(
+  frame: Uint8Array
+): { publicKey: string; name: string; sf: number | null } | null {
   if (frame.length < 36 || frame[0] !== RESP_SELF_INFO) return null;
   let name = '';
   if (frame.length > 58) {
     name = new TextDecoder().decode(frame.subarray(58)).replace(/\0+$/, '');
   }
-  return { publicKey: hexUpper(frame.subarray(4, 36)), name };
+  const sfByte = frame.length > 56 ? frame[56] : 0;
+  const sf = sfByte >= 5 && sfByte <= 12 ? sfByte : null;
+  return { publicKey: hexUpper(frame.subarray(4, 36)), name, sf };
 }
 
 /** RX log push: [0x88][snr int8, quarter dB][rssi int8][raw packet]. */

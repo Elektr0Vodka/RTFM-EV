@@ -66,7 +66,7 @@ describe('Companion', () => {
       t.push(b);
     };
     const info = await new Companion(t).start();
-    expect(info).toEqual({ publicKey: 'AB'.repeat(32), name: 'Car' });
+    expect(info).toEqual({ publicKey: 'AB'.repeat(32), name: 'Car', sf: null });
   });
 
   it('rejects when the radio does not answer SELF_INFO in time', async () => {
@@ -231,5 +231,72 @@ describe('Companion', () => {
     void c.stats(1, 1000);
     await vi.advanceTimersByTimeAsync(0);
     expect(t.sent.length).toBe(sent + 1);
+  });
+
+  it('transmits in turn after a signing and resolves on the radio answer', async () => {
+    const t = new FakeTransport();
+    signingRadio(t);
+    const sign = t.reply;
+    t.reply = (frame, tt) => {
+      if (frame[0] === 0x24) tt.push([6, 0, 1, 2, 3, 4, 0, 0, 0, 0]);
+      else if (frame[0] === 0x37) tt.push([0]);
+      else sign(frame, tt);
+    };
+    const c = new Companion(t);
+    const signing = c.sign(new Uint8Array(10));
+    const trace = c.transmit(new Uint8Array([0x24, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0xa1]), 'sent');
+    const discover = c.transmit(new Uint8Array([0x37, 0x81, 0xff, 1, 2, 3, 4]), 'ok');
+    await signing;
+    const r = await trace;
+    expect(r.sent).toBe(true);
+    expect(Array.from(r.reply ?? [])).toEqual([6, 0, 1, 2, 3, 4, 0, 0, 0, 0]);
+    expect((await discover).sent).toBe(true);
+    // The transmits went out only after the whole signing.
+    expect(t.sent.map((f) => f[0])).toEqual([33, 34, 35, 0x24, 0x37]);
+  });
+
+  it('counts a refused transmit as not sent and a silent one as sent', async () => {
+    vi.useFakeTimers();
+    const t = new FakeTransport();
+    t.reply = (frame, tt) => {
+      if (frame[0] === 7) tt.push([1, 3]);
+    };
+    const c = new Companion(t);
+    expect(await c.transmit(new Uint8Array([7, 0]), 'ok')).toEqual({ sent: false, reply: null });
+    t.reply = () => {};
+    const silent = c.transmit(new Uint8Array([0x37, 0x81, 0xff, 1, 2, 3, 4]), 'ok', 3000);
+    await vi.advanceTimersByTimeAsync(3100);
+    expect(await silent).toEqual({ sent: true, reply: null });
+  });
+
+  it('runs a request for the first reply it accepts, or null', async () => {
+    vi.useFakeTimers();
+    const t = new FakeTransport();
+    t.reply = (frame, tt) => {
+      tt.push([9, 9]);
+      tt.push([3, frame[1]]);
+    };
+    const c = new Companion(t);
+    const got = await c.request(
+      new Uint8Array([30, 0xbb]),
+      (b) => (b[0] === 3 ? b[1] : null),
+      1000
+    );
+    expect(got).toBe(0xbb);
+    t.reply = () => {};
+    const none = c.request(new Uint8Array([30, 1]), () => 1, 1000);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(await none).toBeNull();
+  });
+
+  it('hands every frame to push listeners', () => {
+    const t = new FakeTransport();
+    const c = new Companion(t);
+    const got: number[] = [];
+    const off = c.onPush((f) => got.push(f[0]));
+    t.push([0x8b, 0, 1, 2, 3, 4, 5, 6]);
+    off();
+    t.push([0x8c, 0]);
+    expect(got).toEqual([0x8b]);
   });
 });

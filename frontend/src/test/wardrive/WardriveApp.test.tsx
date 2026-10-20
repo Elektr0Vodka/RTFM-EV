@@ -96,6 +96,9 @@ class FakeRadio implements RadioTransport {
       const sig = new Uint8Array(65);
       sig[0] = 20;
       queueMicrotask(() => this.frames.emit(sig));
+    } else if (frame[0] === 0x37) {
+      // Discover (only with Auto-discover on): the radio answers OK.
+      queueMicrotask(() => this.frames.emit(new Uint8Array([0])));
     } else if (frame[0] === 0x38) {
       // Stats: battery 3.7 V, noise -110 dBm.
       const f = new Uint8Array(frame[1] === 0 ? 11 : 14);
@@ -499,6 +502,54 @@ describe('wardrive page', () => {
     // On the start screen's radio row and in the error banner behind it.
     expect((await screen.findAllByText(/write failed/)).length).toBeGreaterThan(0);
     expect(disconnect).toHaveBeenCalled();
+  });
+
+  it('starts with Auto-discover off and disabled until a radio is connected', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    // Whatever an older page or a hand-edit left, the switch starts off.
+    localStorage.setItem('rtfm-wardrive-autodiscover', '1');
+    const { radio } = setup();
+    const before = (await screen.findByRole('button', {
+      name: 'Auto-discover: off',
+    })) as HTMLButtonElement;
+    expect(before.disabled).toBe(true);
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    const after = screen.getByRole('button', { name: 'Auto-discover: off' }) as HTMLButtonElement;
+    await waitFor(() => expect(after.disabled).toBe(false));
+    expect(radio.sent).not.toContain(0x37);
+  });
+
+  it('sends a Discover when switched on, says its cadence, and stops with the radio', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    const keysBefore = new Set(Object.keys(localStorage));
+    const { radio } = setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    fireEvent.click(screen.getByRole('button', { name: 'Auto-discover: off' }));
+    await waitFor(() => expect(radio.sent).toContain(0x37));
+    expect(await screen.findByRole('button', { name: 'Auto-discover: on' })).toBeTruthy();
+    await openMenu();
+    expect(screen.getByTestId('wardrive-autodiscover-status').textContent).toContain('every 10 s');
+    await closeMenu();
+    // Nothing about the switch is kept.
+    const added = Object.keys(localStorage).filter((k) => !keysBefore.has(k));
+    expect(added.filter((k) => /discover/i.test(k))).toEqual([]);
+    act(() => radio.closes.emit());
+    expect(await screen.findByRole('button', { name: 'Auto-discover: off' })).toBeTruthy();
+  });
+
+  it('keeps Introduce my node as a setting, off by default', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    setup();
+    await openMenu();
+    const settings = screen.getByRole('tab', { name: 'Settings' });
+    fireEvent.mouseDown(settings);
+    fireEvent.click(settings);
+    const box = (await screen.findByLabelText('Introduce my node to targets')) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(localStorage.getItem('rtfm-wardrive-introduce')).toBe('1');
   });
 
   it('lets the radio go when the link closes', async () => {

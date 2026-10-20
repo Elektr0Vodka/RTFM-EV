@@ -251,6 +251,19 @@ machine this was authored on and may differ elsewhere.
   battery mV at bytes 2-3, radio (1) `<B B h b b I I>` with the noise floor
   int16 at bytes 2-3. Battery percent and the low threshold: core-hunter
   3928ebf `app/src/battery.js` (the firmware's 3000/4200 mV and 3500 mV).
+- Auto-discover (`frontend/src/wardrive/discover/`): core-hunter
+  `upstream/master` 000bb89 (2026-10-02) `app/src/discover.js`,
+  `autoping.js`, `airtime.js`, `sweep.js`, `announce.js`, `tracetag.js`,
+  `telemetryreq.js`, `anonreq.js`, `contactpath.js`, `feed.js`
+  (`selectedRepeaterIds`, `selectedCompanionIds`, `heardRepeaterIds`) and
+  `app.js` (`autoPingTick`, `toggleAutoPing`, `stopAutoPing`), read for
+  behaviour; `src/test/wardrive/discoverVectors.json` is their output for
+  fixed inputs. Companion replies (MeshCore-dev
+  `examples/companion_radio/MyMesh.cpp`): CMD_SEND_CONTROL_DATA and
+  CMD_SEND_SELF_ADVERT answer OK or ERR, CMD_SEND_TRACE_PATH,
+  CMD_SEND_TELEMETRY_REQ and CMD_SEND_ANON_REQ answer SENT (6) or ERR.
+  Battery 0 mV on boards without sensing: MeshCore-dev
+  `src/helpers/stm32/STM32Board.h` and the Station G2/G3 variants.
 - Float readout: core-hunter 3928ebf `app/src/floatreadout.js` (canvas into
   a video, picture-in-picture, fullscreen first on Android), read for
   behaviour only.

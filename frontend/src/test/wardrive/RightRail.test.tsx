@@ -15,6 +15,9 @@ function renderRail(over: Partial<Parameters<typeof RightRail>[0]> = {}) {
     onSound: vi.fn(),
     nodePos: 'off' as const,
     onNodePos: vi.fn(),
+    autoDiscover: 'off' as const,
+    autoDiscoverDisabled: false,
+    onAutoDiscover: vi.fn(),
     ...over,
   };
   render(
@@ -65,6 +68,9 @@ describe('wardrive right rail', () => {
             onSound={() => {}}
             nodePos={(['off', 'positions', 'reach'] as const)[i % 3]}
             onNodePos={() => {}}
+            autoDiscover="off"
+            autoDiscoverDisabled={false}
+            onAutoDiscover={() => {}}
           />
         </I18nProvider>
       );
@@ -76,5 +82,22 @@ describe('wardrive right rail', () => {
     expect(
       screen.getByRole('button', { name: 'Node positions: positions and reach' })
     ).toBeTruthy();
+  });
+
+  it('puts Auto-discover second, says its state, and is off without a radio', () => {
+    const props = renderRail({ autoDiscoverDisabled: true });
+    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names[1]).toBe('Auto-discover: off');
+    const button = screen.getByRole('button', { name: 'Auto-discover: off' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(button);
+    expect(props.onAutoDiscover).not.toHaveBeenCalled();
+  });
+
+  it('names Auto-discover on, and on with target pings', () => {
+    renderRail({ autoDiscover: 'target' });
+    const b = screen.getByRole('button', { name: 'Auto-discover and target pings: on' });
+    expect(b.getAttribute('aria-pressed')).toBe('true');
   });
 });

@@ -1,0 +1,724 @@
+{
+  "frames": {
+    "discover_01020304": "3781ff01020304",
+    "trace_deadbeef_0_a1": "24efbeadde0000000000a1",
+    "trace_00000001_12345678_a1b2": "24010000007856341200a1b2",
+    "self_advert": "0700",
+    "telemetry": "270000000123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "anon_regions": "390123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0100",
+    "anon_owner": "390123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0200",
+    "key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "sentAck": {
+    "bytes": "060178563412e8030000",
+    "parsed": {
+      "tag": 305419896,
+      "isFlood": true,
+      "estTimeoutMs": 1000
+    },
+    "short": null
+  },
+  "telemetryResponse": {
+    "bytes": "8b00abcdef012345017401860267fff103fa09",
+    "parsed": {
+      "prefix": "abcdef012345",
+      "telemetry": {
+        "voltage_v": 3.9,
+        "temp_c": -1.5
+      }
+    }
+  },
+  "binaryResponse": {
+    "bytes": "8c0001020304102030406e6c2c62652c6465000000",
+    "tag": 67305985,
+    "data": "102030406e6c2c62652c6465000000",
+    "regions": {
+      "repeaterClock": 1076895760,
+      "regions": ["nl", "be", "de"],
+      "truncated": false
+    },
+    "owner": {
+      "repeaterClock": 1,
+      "name": "Toren",
+      "owner": "Piet, 06"
+    },
+    "ownerNoNewline": {
+      "repeaterClock": 1,
+      "name": "Toren",
+      "owner": ""
+    }
+  },
+  "airtime": [
+    {
+      "sf": 5,
+      "bytes": 0,
+      "ms": 26
+    },
+    {
+      "sf": 5,
+      "bytes": 1,
+      "ms": 28
+    },
+    {
+      "sf": 5,
+      "bytes": 8,
+      "ms": 33
+    },
+    {
+      "sf": 5,
+      "bytes": 12,
+      "ms": 39
+    },
+    {
+      "sf": 5,
+      "bytes": 22,
+      "ms": 49
+    },
+    {
+      "sf": 5,
+      "bytes": 53,
+      "ms": 80
+    },
+    {
+      "sf": 5,
+      "bytes": 103,
+      "ms": 131
+    },
+    {
+      "sf": 5,
+      "bytes": 134,
+      "ms": 164
+    },
+    {
+      "sf": 5,
+      "bytes": 200,
+      "ms": 231
+    },
+    {
+      "sf": 5,
+      "bytes": 255,
+      "ms": 287
+    },
+    {
+      "sf": 6,
+      "bytes": 0,
+      "ms": 52
+    },
+    {
+      "sf": 6,
+      "bytes": 1,
+      "ms": 52
+    },
+    {
+      "sf": 6,
+      "bytes": 8,
+      "ms": 67
+    },
+    {
+      "sf": 6,
+      "bytes": 12,
+      "ms": 72
+    },
+    {
+      "sf": 6,
+      "bytes": 22,
+      "ms": 88
+    },
+    {
+      "sf": 6,
+      "bytes": 53,
+      "ms": 144
+    },
+    {
+      "sf": 6,
+      "bytes": 103,
+      "ms": 226
+    },
+    {
+      "sf": 6,
+      "bytes": 134,
+      "ms": 282
+    },
+    {
+      "sf": 6,
+      "bytes": 200,
+      "ms": 395
+    },
+    {
+      "sf": 6,
+      "bytes": 255,
+      "ms": 487
+    },
+    {
+      "sf": 7,
+      "bytes": 0,
+      "ms": 100
+    },
+    {
+      "sf": 7,
+      "bytes": 1,
+      "ms": 100
+    },
+    {
+      "sf": 7,
+      "bytes": 8,
+      "ms": 121
+    },
+    {
+      "sf": 7,
+      "bytes": 12,
+      "ms": 131
+    },
+    {
+      "sf": 7,
+      "bytes": 22,
+      "ms": 162
+    },
+    {
+      "sf": 7,
+      "bytes": 53,
+      "ms": 254
+    },
+    {
+      "sf": 7,
+      "bytes": 103,
+      "ms": 397
+    },
+    {
+      "sf": 7,
+      "bytes": 134,
+      "ms": 489
+    },
+    {
+      "sf": 7,
+      "bytes": 200,
+      "ms": 684
+    },
+    {
+      "sf": 7,
+      "bytes": 255,
+      "ms": 848
+    },
+    {
+      "sf": 8,
+      "bytes": 0,
+      "ms": 201
+    },
+    {
+      "sf": 8,
+      "bytes": 1,
+      "ms": 201
+    },
+    {
+      "sf": 8,
+      "bytes": 8,
+      "ms": 242
+    },
+    {
+      "sf": 8,
+      "bytes": 12,
+      "ms": 263
+    },
+    {
+      "sf": 8,
+      "bytes": 22,
+      "ms": 304
+    },
+    {
+      "sf": 8,
+      "bytes": 53,
+      "ms": 467
+    },
+    {
+      "sf": 8,
+      "bytes": 103,
+      "ms": 734
+    },
+    {
+      "sf": 8,
+      "bytes": 134,
+      "ms": 877
+    },
+    {
+      "sf": 8,
+      "bytes": 200,
+      "ms": 1225
+    },
+    {
+      "sf": 8,
+      "bytes": 255,
+      "ms": 1512
+    },
+    {
+      "sf": 9,
+      "bytes": 0,
+      "ms": 272
+    },
+    {
+      "sf": 9,
+      "bytes": 1,
+      "ms": 272
+    },
+    {
+      "sf": 9,
+      "bytes": 8,
+      "ms": 313
+    },
+    {
+      "sf": 9,
+      "bytes": 12,
+      "ms": 354
+    },
+    {
+      "sf": 9,
+      "bytes": 22,
+      "ms": 477
+    },
+    {
+      "sf": 9,
+      "bytes": 53,
+      "ms": 722
+    },
+    {
+      "sf": 9,
+      "bytes": 103,
+      "ms": 1214
+    },
+    {
+      "sf": 9,
+      "bytes": 134,
+      "ms": 1460
+    },
+    {
+      "sf": 9,
+      "bytes": 200,
+      "ms": 2074
+    },
+    {
+      "sf": 9,
+      "bytes": 255,
+      "ms": 2566
+    },
+    {
+      "sf": 10,
+      "bytes": 0,
+      "ms": 544
+    },
+    {
+      "sf": 10,
+      "bytes": 1,
+      "ms": 544
+    },
+    {
+      "sf": 10,
+      "bytes": 8,
+      "ms": 708
+    },
+    {
+      "sf": 10,
+      "bytes": 12,
+      "ms": 790
+    },
+    {
+      "sf": 10,
+      "bytes": 22,
+      "ms": 954
+    },
+    {
+      "sf": 10,
+      "bytes": 53,
+      "ms": 1609
+    },
+    {
+      "sf": 10,
+      "bytes": 103,
+      "ms": 2592
+    },
+    {
+      "sf": 10,
+      "bytes": 134,
+      "ms": 3248
+    },
+    {
+      "sf": 10,
+      "bytes": 200,
+      "ms": 4640
+    },
+    {
+      "sf": 10,
+      "bytes": 255,
+      "ms": 5705
+    },
+    {
+      "sf": 11,
+      "bytes": 0,
+      "ms": 925
+    },
+    {
+      "sf": 11,
+      "bytes": 1,
+      "ms": 1089
+    },
+    {
+      "sf": 11,
+      "bytes": 8,
+      "ms": 1253
+    },
+    {
+      "sf": 11,
+      "bytes": 12,
+      "ms": 1417
+    },
+    {
+      "sf": 11,
+      "bytes": 22,
+      "ms": 1744
+    },
+    {
+      "sf": 11,
+      "bytes": 53,
+      "ms": 2891
+    },
+    {
+      "sf": 11,
+      "bytes": 103,
+      "ms": 4694
+    },
+    {
+      "sf": 11,
+      "bytes": 134,
+      "ms": 5840
+    },
+    {
+      "sf": 11,
+      "bytes": 200,
+      "ms": 8298
+    },
+    {
+      "sf": 11,
+      "bytes": 255,
+      "ms": 10264
+    },
+    {
+      "sf": 12,
+      "bytes": 0,
+      "ms": 1851
+    },
+    {
+      "sf": 12,
+      "bytes": 1,
+      "ms": 2179
+    },
+    {
+      "sf": 12,
+      "bytes": 8,
+      "ms": 2506
+    },
+    {
+      "sf": 12,
+      "bytes": 12,
+      "ms": 2834
+    },
+    {
+      "sf": 12,
+      "bytes": 22,
+      "ms": 3489
+    },
+    {
+      "sf": 12,
+      "bytes": 53,
+      "ms": 5455
+    },
+    {
+      "sf": 12,
+      "bytes": 103,
+      "ms": 8732
+    },
+    {
+      "sf": 12,
+      "bytes": 134,
+      "ms": 10698
+    },
+    {
+      "sf": 12,
+      "bytes": 200,
+      "ms": 14958
+    },
+    {
+      "sf": 12,
+      "bytes": 255,
+      "ms": 18563
+    }
+  ],
+  "airtimeUnknownSf": 263,
+  "minPeriod": [
+    {
+      "bytes": [8, 12, 12, 12, 12],
+      "sf": 8,
+      "ms": 12940
+    },
+    {
+      "bytes": [8],
+      "sf": 8,
+      "ms": 2420
+    },
+    {
+      "bytes": [8, 134, 22],
+      "sf": 10,
+      "ms": 49100
+    },
+    {
+      "bytes": [],
+      "sf": 8,
+      "ms": 0
+    }
+  ],
+  "advertBytes": [
+    {
+      "name": "",
+      "bytes": 111
+    },
+    {
+      "name": "Car",
+      "bytes": 114
+    },
+    {
+      "name": "A very long node name that is over 32 bytes",
+      "bytes": 134
+    },
+    {
+      "name": "Fiets 🚲",
+      "bytes": 121
+    }
+  ],
+  "gate": [
+    {
+      "lastFireAt": null,
+      "now": 1800000000000,
+      "fire": true
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000009999,
+      "fire": false
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000010000,
+      "fire": true
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000003000,
+      "lastLat": 52,
+      "lastLon": 5,
+      "lat": 52.0005,
+      "lon": 5,
+      "fire": true
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000003000,
+      "lastLat": 52,
+      "lastLon": 5,
+      "lat": 52.0003,
+      "lon": 5,
+      "fire": false
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000003000,
+      "lastLat": 52,
+      "lastLon": 5,
+      "lat": 52.001,
+      "lon": 5,
+      "minPeriodMs": 5000,
+      "fire": false
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000011000,
+      "minPeriodMs": 12900,
+      "fire": false
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000020000,
+      "pendingTargets": 1,
+      "fire": false
+    },
+    {
+      "lastFireAt": 1800000000000,
+      "now": 1800000003000,
+      "lat": 52.001,
+      "lon": 5,
+      "fire": false
+    }
+  ],
+  "stagger": [
+    {
+      "id": "a1",
+      "delayMs": 1500
+    },
+    {
+      "id": "b2",
+      "delayMs": 3000
+    },
+    {
+      "id": "c3",
+      "delayMs": 4500
+    }
+  ],
+  "sweep": [
+    {
+      "candidates": ["a1", "b2", "c3", "d4", "e5"],
+      "ctx": {},
+      "batch": ["a1", "b2", "c3", "d4"]
+    },
+    {
+      "candidates": ["a1", "b2", "c3", "d4", "e5"],
+      "ctx": {
+        "cursor": 3
+      },
+      "batch": ["d4", "e5", "a1", "b2"]
+    },
+    {
+      "candidates": ["a1", "b2"],
+      "ctx": {
+        "attempts": [["a1", 2]],
+        "lastAskedAt": [["a1", 1799999990000]]
+      },
+      "batch": ["b2"]
+    },
+    {
+      "candidates": ["a1", "b2"],
+      "ctx": {
+        "attempts": [["a1", 2]],
+        "lastAskedAt": [["a1", 1799999960000]]
+      },
+      "batch": ["b2"]
+    },
+    {
+      "candidates": ["a1", "b2"],
+      "ctx": {
+        "attempts": [
+          ["a1", 3],
+          ["b2", 2]
+        ],
+        "lastAskedAt": [
+          ["a1", 1799999800000],
+          ["b2", 1799999800000]
+        ]
+      },
+      "batch": ["b2"]
+    },
+    {
+      "candidates": ["a1"],
+      "ctx": {
+        "attempts": [["a1", 5]],
+        "lastAskedAt": [["a1", 1799999999000]],
+        "heardAt": [["a1", 1799999999500]]
+      },
+      "batch": ["a1"]
+    },
+    {
+      "candidates": ["a1", "b2"],
+      "ctx": {
+        "attempts": [
+          ["a1", 4],
+          ["b2", 4]
+        ],
+        "lastAskedAt": [
+          ["a1", 1799999999000],
+          ["b2", 1799999999000]
+        ]
+      },
+      "batch": []
+    }
+  ],
+  "noteAsk": {
+    "heard": [["a1", 1]],
+    "cold": [["a1", 3]]
+  },
+  "backoff": [0, 30000, 120000, 600000, 600000, 600000],
+  "trace": {
+    "normalize": ["deadbeef", "deadbeef", "00000007", null, null],
+    "hit": "a1b2c3",
+    "expired": null,
+    "unknown": null,
+    "ambiguous": null
+  },
+  "asks": {
+    "match": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "miss": null,
+    "expired": null,
+    "ambiguous": null,
+    "rotate": [
+      {
+        "id": "a",
+        "cursor": 1
+      },
+      {
+        "id": "b",
+        "cursor": 4
+      },
+      null
+    ]
+  },
+  "anonAsk": [
+    {
+      "id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "type": 1
+    },
+    {
+      "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "type": 1
+    },
+    null,
+    {
+      "id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "type": 1
+    },
+    null
+  ],
+  "directed": [
+    {
+      "telemetryDue": true,
+      "anonDue": true,
+      "last": null,
+      "kind": "telemetry"
+    },
+    {
+      "telemetryDue": true,
+      "anonDue": true,
+      "last": "telemetry",
+      "kind": "anon"
+    },
+    {
+      "telemetryDue": true,
+      "anonDue": true,
+      "last": "anon",
+      "kind": "telemetry"
+    },
+    {
+      "telemetryDue": true,
+      "anonDue": false,
+      "last": "telemetry",
+      "kind": "telemetry"
+    },
+    {
+      "telemetryDue": false,
+      "anonDue": true,
+      "last": "anon",
+      "kind": "anon"
+    },
+    {
+      "telemetryDue": false,
+      "anonDue": false,
+      "last": null,
+      "kind": null
+    }
+  ],
+  "announce": [true, false, false, false],
+  "cadence": ["Off", "On, every 10 s", "On, every 13 s"]
+}
