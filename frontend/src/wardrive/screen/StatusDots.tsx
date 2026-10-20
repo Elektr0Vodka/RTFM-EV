@@ -4,12 +4,12 @@ import { useT } from '../../i18n';
 import type { ForwardStatus } from '../forward/forwarder';
 import type { UploadStatus } from '../uploader';
 
-export type RadioDot = 'on' | 'lost' | 'off';
+export type RadioDot = 'on' | 'low' | 'lost' | 'off';
 export type BrokerDot = 'all' | 'some' | 'none' | 'off';
 export type UploadDot = 'ok' | 'waiting' | 'offline' | 'logged-out';
 
-export function radioDot(connected: boolean, lost: boolean): RadioDot {
-  if (connected) return 'on';
+export function radioDot(connected: boolean, lost: boolean, lowBattery = false): RadioDot {
+  if (connected) return lowBattery ? 'low' : 'on';
   return lost ? 'lost' : 'off';
 }
 
@@ -41,7 +41,7 @@ const BAD = 'bg-status-disconnected';
 const WARN = 'bg-amber-400 cvd:bg-warning';
 const IDLE = 'bg-muted-foreground/40';
 
-const RADIO_CLASS: Record<RadioDot, string> = { on: GOOD, lost: BAD, off: IDLE };
+const RADIO_CLASS: Record<RadioDot, string> = { on: GOOD, low: WARN, lost: BAD, off: IDLE };
 const BROKER_CLASS: Record<BrokerDot, string> = { all: GOOD, some: WARN, none: BAD, off: IDLE };
 const UPLOAD_CLASS: Record<UploadDot, string> = {
   ok: GOOD,
@@ -52,6 +52,7 @@ const UPLOAD_CLASS: Record<UploadDot, string> = {
 
 const STATE_KEY: Record<RadioDot | BrokerDot | UploadDot, string> = {
   on: 'wardrive_page_dot_on',
+  low: 'wardrive_page_dot_low',
   lost: 'wardrive_page_dot_lost',
   off: 'wardrive_page_dot_off',
   all: 'wardrive_page_dot_all',

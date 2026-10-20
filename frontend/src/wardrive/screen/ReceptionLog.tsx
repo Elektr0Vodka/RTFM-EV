@@ -34,6 +34,8 @@ export interface ReceptionLogProps {
   size: LogSize;
   onSize(s: LogSize): void;
   nowMs: number;
+  /** dB added to RSSI for the tier dot (calibration, attenuator). */
+  rssiOffset?: number;
 }
 
 function meta(e: ViewEntry, t: TFn): string {
@@ -46,12 +48,14 @@ const LogRow = memo(function LogRow({
   entry: e,
   selected,
   age,
+  rssiOffset,
   onSelect,
 }: {
   entry: ViewEntry;
   selected: boolean;
   age: string;
   onSelect(id: number): void;
+  rssiOffset: number;
 }) {
   const t = useT();
   const cvd = useCvdMode() !== 'off';
@@ -80,7 +84,7 @@ const LogRow = memo(function LogRow({
           <i
             className="block h-2 w-2 rounded-full"
             data-testid="wardrive-log-tier"
-            style={{ backgroundColor: tierColor(rssiTier(e.rssi), cvd) }}
+            style={{ backgroundColor: tierColor(rssiTier(e.rssi, rssiOffset), cvd) }}
             aria-hidden="true"
           />
           <span className="font-semibold" data-testid="wardrive-log-rssi">
@@ -108,6 +112,7 @@ export function ReceptionLog({
   size,
   onSize,
   nowMs,
+  rssiOffset = 0,
 }: ReceptionLogProps) {
   const t = useT();
   if (size === 'hidden') return null;
@@ -159,6 +164,7 @@ export function ReceptionLog({
       >
         {shown.map((e) => (
           <LogRow
+            rssiOffset={rssiOffset}
             key={e.id}
             entry={e}
             selected={e.id === selectedId}

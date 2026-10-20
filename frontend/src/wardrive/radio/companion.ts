@@ -2,6 +2,8 @@
 import type { DirectoryNode } from '../names';
 import {
   CMD_GET_CONTACTS,
+  CMD_GET_STATS,
+  RESP_STATS,
   CMD_SIGN_DATA,
   CMD_SIGN_FINISH,
   CMD_SIGN_START,
@@ -23,6 +25,8 @@ const APP_NAME = 'rtfm-ev-wardrive';
 const START_TIMEOUT_MS = 6000;
 const SIGN_TIMEOUT_MS = 8000;
 const CONTACTS_TIMEOUT_MS = 8000;
+const STATS_TIMEOUT_MS = 4000;
+const STATS_QUIET_MS = 5 * 60 * 1000;
 
 export interface RadioReception {
   snr: number;
@@ -38,6 +42,7 @@ export class Companion {
   // answers in order, so once the next signing's start is answered all late
   // replies are behind us; until then an error frame is not taken as ours.
   private lateReplies = false;
+  private statsQuietUntil = 0;
 
   constructor(readonly transport: RadioTransport) {}
 
@@ -97,6 +102,36 @@ export class Companion {
         }
       });
       this.transport.send(new Uint8Array([CMD_GET_CONTACTS])).catch(finish);
+    });
+  }
+
+  /** A stats reply (`CMD_GET_STATS`: 0 core, 1 radio), null when the radio
+   * does not answer in time (older firmware). A local request to the
+   * companion; nothing goes over the air. Runs in the one-at-a-time chain. */
+  stats(type: 0 | 1, timeoutMs = STATS_TIMEOUT_MS): Promise<Uint8Array | null> {
+    // A radio that did not answer (older firmware) is not asked again for a
+    // while: each wait would hold up signing behind it.
+    if (Date.now() < this.statsQuietUntil) return Promise.resolve(null);
+    const run = this.signing.then(() => this.statsNow(type, timeoutMs));
+    this.signing = run.catch(() => undefined);
+    return run;
+  }
+
+  private statsNow(type: 0 | 1, timeoutMs: number): Promise<Uint8Array | null> {
+    return new Promise((resolve) => {
+      const finish = (frame: Uint8Array | null) => {
+        clearTimeout(timer);
+        off();
+        resolve(frame);
+      };
+      const timer = setTimeout(() => {
+        this.statsQuietUntil = Date.now() + STATS_QUIET_MS;
+        finish(null);
+      }, timeoutMs);
+      const off = this.transport.onFrame((frame) => {
+        if (frame[0] === RESP_STATS && frame[1] === type) finish(frame);
+      });
+      this.transport.send(new Uint8Array([CMD_GET_STATS, type])).catch(() => finish(null));
     });
   }
 

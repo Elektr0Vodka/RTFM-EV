@@ -1,11 +1,12 @@
 import { getPayloadTypeName, verifyAuthToken } from '@michaelhart/meshcore-decoder';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { BROKERS, destId } from '../../wardrive/forward/brokers';
+import { DEFAULT_BROKERS, destId, parseBrokers } from '../../wardrive/forward/brokers';
+import { loadServedBrokers, saveServedBrokers } from '../../wardrive/forward/brokerConfig';
 import {
+  observerPacket,
+  observerTopic,
   obsTopic,
-  packetsPayload,
-  packetsTopic,
   payloadTypeName,
   trackTopic,
 } from '../../wardrive/forward/payloads';
@@ -34,8 +35,8 @@ function decodePart(part: string) {
 const NOW = 1792404000;
 
 describe('broker list', () => {
-  it('has the two DMC collectors and on8ar, all distinct', () => {
-    expect(BROKERS.map((b) => [b.id, b.url, b.format, b.label ?? null, b.auth])).toEqual([
+  it('starts with the two DMC collectors until the server sends its list', () => {
+    expect(DEFAULT_BROKERS.map((b) => [b.id, b.url, b.format, b.label ?? null, b.auth])).toEqual([
       ['dmc-hunter', 'wss://collector1.dutchmeshcore.nl:443', 'wardrive', 'hunter', 'companion'],
       [
         'dmc-wardriver',
@@ -44,8 +45,35 @@ describe('broker list', () => {
         'wardriver',
         'companion',
       ],
-      ['on8ar', 'wss://emqx.on8ar.eu:8084/ws', 'packets', null, 'password'],
     ]);
+    expect(DEFAULT_BROKERS.map((b) => b.audience)).toEqual([
+      'collector1.dutchmeshcore.nl',
+      'collector2.dutchmeshcore.nl',
+    ]);
+  });
+
+  it('keeps the served brokers it can use and drops the rest', () => {
+    const good = {
+      id: 'meshcore-analyzer',
+      name: 'meshcore-analyzer.eu',
+      url: 'wss://mqtt.meshcore-analyzer.eu:443',
+      audience: 'mqtt.meshcore-analyzer.eu',
+      auth: 'companion',
+      format: 'packets',
+      region: 'nl',
+      builtin: true,
+    };
+    const list = parseBrokers([
+      good,
+      { ...good, id: 'plain', url: 'ws://mqtt.example.org/mqtt' },
+      { ...good, id: 'noregion', region: undefined },
+      { ...good, id: 'nolabel', format: 'wardrive' },
+      { ...good, id: 'nopass', auth: 'password' },
+      'junk',
+    ]);
+    expect(list?.map((b) => b.id)).toEqual(['meshcore-analyzer']);
+    expect(parseBrokers({ brokers: [] })).toBeNull();
+    expect(parseBrokers(undefined)).toBeNull();
   });
 
   it('makes one destination per broker and radio', () => {
@@ -110,55 +138,109 @@ describe('topics and payloads', () => {
   it('puts the upper-case key under the stream label', () => {
     expect(obsTopic('wardriver', KEY)).toBe(`meshcore/wardriver/${'AB'.repeat(32)}/wardriver/obs`);
     expect(trackTopic('hunter', KEY)).toBe(`meshcore/hunter/${'AB'.repeat(32)}/wardriver/track`);
-    expect(packetsTopic('AB'.repeat(32))).toBe(`meshcore/hunter/${KEY}/packets`);
   });
 
   it('names payload types exactly like the decoder core-hunter uses', () => {
     for (let n = 0; n < 16; n++) expect(payloadTypeName(n)).toBe(getPayloadTypeName(n));
   });
 
-  it('maps an obs to the packets payload', () => {
-    const obs: ObsMessage = {
-      v: 1,
-      origin_id: 'AB'.repeat(32),
-      rx_at: '2026-10-19T10:00:00.000Z',
-      hash: '0123456789abcdef',
-      raw: '1502a1b2c0ff',
-      len: 6,
-      packet_type: 5,
-      route: 'F',
-      payload_len: 2,
-      path: ['a1', 'b2'],
-      RSSI: -92,
-      SNR: 6.5,
-      pos: { lat: 52.1, lon: 5.1, accuracy: 4, src: 'phone' },
-    };
-    expect(packetsPayload(obs, 'Car')).toEqual({
-      origin_id: KEY,
+  it('builds the observer topic like RTFM-EV community MQTT does', () => {
+    expect(observerTopic('nl', KEY)).toBe(`meshcore/NL/${'AB'.repeat(32)}/packets`);
+  });
+
+  // A flood GroupText heard over two relays: header 0x15 (route 1, type 5),
+  // path byte 0x02, hops a1 b2, payload c0 ff.
+  const obs: ObsMessage = {
+    v: 1,
+    origin_id: 'AB'.repeat(32),
+    rx_at: '2026-10-19T10:00:00.000Z',
+    hash: '0123456789abcdef',
+    raw: '1502a1b2c0ff',
+    len: 6,
+    packet_type: 5,
+    route: 'F',
+    payload_len: 2,
+    path: ['a1', 'b2'],
+    RSSI: -92,
+    SNR: 6.5,
+    pos: { lat: 52.1, lon: 5.1, accuracy: 4, src: 'phone' },
+  };
+
+  it('maps a stored obs to the observer packet, key for key', () => {
+    const p = observerPacket(obs, 'Car');
+    expect(p).toEqual({
       origin: 'Car',
+      origin_id: 'AB'.repeat(32),
       timestamp: '2026-10-19T10:00:00.000Z',
       type: 'PACKET',
       direction: 'rx',
-      raw: '1502a1b2c0ff',
+      time: '10:00:00',
+      date: '19/10/2026',
+      len: '6',
+      packet_type: '5',
+      route: 'F',
+      payload_len: '2',
+      raw: '1502A1B2C0FF',
       SNR: 6.5,
       RSSI: -92,
-      is_direct: true,
-      hops: 2,
-      sender_kind: null,
-      sender_id: null,
-      sender_label: null,
-      sender_role: null,
-      channel_name: null,
-      packet_type: 'GroupText',
-      gps: { lat: 52.1, lon: 5.1, acc_m: 4 },
+      hash: '0123456789ABCDEF',
     });
-    expect(packetsPayload({ ...obs, path: [] })).toMatchObject({ is_direct: true, hops: 0 });
-    expect(packetsPayload({ ...obs, route: 'D' })).toMatchObject({ is_direct: false });
-    expect(packetsPayload({ ...obs, packet_type: 9 })).toMatchObject({
-      is_direct: false,
-      packet_type: 'Trace',
+    expect(Object.keys(p)).toEqual([
+      'origin',
+      'origin_id',
+      'timestamp',
+      'type',
+      'direction',
+      'time',
+      'date',
+      'len',
+      'packet_type',
+      'route',
+      'payload_len',
+      'raw',
+      'SNR',
+      'RSSI',
+      'hash',
+    ]);
+  });
+
+  it('adds the path only for a direct route and reads the route from the header', () => {
+    // 0x16: route 2 (direct), type 5.
+    const direct = observerPacket({ ...obs, raw: '1602a1b2c0ff', route: 'D' }, 'Car');
+    expect(direct).toMatchObject({ route: 'D', path: 'a1,b2' });
+    // 0x17: route 3 (transport direct) is T, as the community publisher sends it.
+    expect(observerPacket({ ...obs, raw: '1702a1b2c0ff', route: 'D' }, 'Car')).toMatchObject({
+      route: 'T',
     });
-    expect(packetsPayload(obs)).not.toHaveProperty('origin');
+    expect(observerPacket({ ...obs, raw: '1402a1b2c0ff' }, 'Car')).toMatchObject({ route: 'F' });
+  });
+
+  it('says Unknown for a missing signal and names an unnamed radio', () => {
+    const { RSSI: _r, SNR: _s, ...bare } = obs;
+    void _r;
+    void _s;
+    expect(observerPacket(bare as ObsMessage)).toMatchObject({
+      origin: 'MeshCore Device',
+      SNR: 'Unknown',
+      RSSI: 'Unknown',
+    });
+  });
+});
+
+describe('served broker cache', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('keeps the last served list for offline use', () => {
+    saveServedBrokers(DEFAULT_BROKERS);
+    expect(loadServedBrokers()).toEqual(DEFAULT_BROKERS);
+  });
+
+  it('ignores a cache it cannot read', () => {
+    expect(loadServedBrokers()).toBeNull();
+    localStorage.setItem('rtfm-wardrive-served-brokers', '{not json');
+    expect(loadServedBrokers()).toBeNull();
+    localStorage.setItem('rtfm-wardrive-served-brokers', '{"a":1}');
+    expect(loadServedBrokers()).toBeNull();
   });
 });
 
@@ -166,21 +248,28 @@ describe('broker settings', () => {
   beforeEach(() => localStorage.clear());
 
   it('starts with everything off', () => {
-    expect(loadBrokerSettings()).toEqual({ enabled: {}, on8ar: null, tokens: {} });
+    expect(loadBrokerSettings()).toEqual({ enabled: {}, tokens: {} });
   });
 
   it('survives a reload', () => {
-    saveBrokerSettings({
+    saveBrokerSettings({ enabled: { 'dmc-wardriver@AB': true }, tokens: { 'h@AB': 't' } });
+    expect(loadBrokerSettings()).toEqual({
       enabled: { 'dmc-wardriver@AB': true },
-      on8ar: { username: 'u', password: 'p' },
       tokens: { 'h@AB': 't' },
     });
-    expect(loadBrokerSettings().enabled['dmc-wardriver@AB']).toBe(true);
-    expect(loadBrokerSettings().on8ar).toEqual({ username: 'u', password: 'p' });
+  });
+
+  it('drops an on8ar account kept by an older page', () => {
+    localStorage.setItem(
+      'rtfm-wardrive-brokers',
+      JSON.stringify({ enabled: {}, on8ar: { username: 'u', password: 'p' }, tokens: {} })
+    );
+    expect(loadBrokerSettings()).toEqual({ enabled: {}, tokens: {} });
+    expect(localStorage.getItem('rtfm-wardrive-brokers')).not.toContain('"p"');
   });
 
   it('treats unreadable storage as defaults', () => {
     localStorage.setItem('rtfm-wardrive-brokers', '{not json');
-    expect(loadBrokerSettings()).toEqual({ enabled: {}, on8ar: null, tokens: {} });
+    expect(loadBrokerSettings()).toEqual({ enabled: {}, tokens: {} });
   });
 });

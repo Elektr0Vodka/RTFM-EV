@@ -9,6 +9,10 @@ from app.repository.channels import ChannelRepository
 from app.repository.wardrive import WardriveConfigRepository
 
 HASHTAG_CHANNELS = "hashtag_channels"
+# dB added to every RSSI the page plots (rx's rssiCalibrationOffset), for a
+# radio that reads high or low; display only, never stored or forwarded.
+RSSI_CALIBRATION = "rssi_calibration_db"
+MAX_CALIBRATION_DB = 30
 MAX_HASHTAG_CHANNELS = 200
 # The radio's channel name field: 32 UTF-8 bytes including the leading '#'.
 MAX_NAME_BYTES = 32
@@ -57,3 +61,8 @@ async def resolved_hashtag_channels() -> list[str]:
     """The owner's list when set, else the home radio's hashtag channels."""
     owner = await owner_hashtag_channels()
     return owner if owner is not None else await default_hashtag_channels()
+
+
+async def rssi_calibration() -> int:
+    stored = await WardriveConfigRepository.get_json(RSSI_CALIBRATION)
+    return stored if isinstance(stored, int) and not isinstance(stored, bool) else 0

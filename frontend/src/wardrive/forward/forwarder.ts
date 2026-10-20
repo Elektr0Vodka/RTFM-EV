@@ -8,9 +8,9 @@ import type { ObsMessage } from '../messages';
 import type { Companion } from '../radio/companion';
 import { destId, type Broker, type BrokerId } from './brokers';
 import type { MqttCredentials, MqttLike } from './client';
-import { obsTopic, packetsPayload, packetsTopic, trackTopic, withPubAt } from './payloads';
+import { observerPacket, observerTopic, obsTopic, trackTopic, withPubAt } from './payloads';
 import type { BrokerSettings } from './settings';
-import { audienceOf, brokerUsername, buildToken, tokenUsable } from './token';
+import { brokerUsername, buildToken, tokenUsable } from './token';
 
 const BATCH = 50;
 const MAX_BATCHES_PER_TICK = 20;
@@ -26,7 +26,7 @@ export interface ForwarderOptions {
   radioKey: string;
   queue: Queue;
   companion: Companion;
-  /** The radio's own name, sent as `origin` in on8ar's packets format. */
+  /** The radio's own name, sent as `origin` in the observer packets. */
   radioName?: string;
   connect: (url: string, creds: MqttCredentials) => Promise<MqttLike>;
   settings: () => BrokerSettings;
@@ -58,19 +58,18 @@ export class Forwarder {
   private async credentials(): Promise<MqttCredentials | null> {
     const { broker, companion } = this.opts;
     if (broker.auth === 'password') {
-      const account = this.opts.settings().on8ar;
-      if (!account || !account.username || !account.password) {
+      if (!broker.username || !broker.password) {
         this.state = 'error';
-        this.lastError = 'No account entered';
+        this.lastError = 'No account set for this broker';
         return null;
       }
       return {
-        username: account.username,
-        password: account.password,
-        clientId: this.key.toLowerCase(),
+        username: broker.username,
+        password: broker.password,
+        clientId: `wardrive-${this.key.toLowerCase()}`,
       };
     }
-    const audience = audienceOf(broker.url);
+    const audience = broker.audience;
     const tokenKey = `${audience}@${this.key}`;
     let token: string | undefined = this.opts.settings().tokens[tokenKey];
     if (!tokenUsable(token, this.key, audience, this.now())) {
@@ -125,7 +124,7 @@ export class Forwarder {
   private async drain(kind: QueueKind): Promise<boolean> {
     const { broker, queue } = this.opts;
     if (broker.format === 'packets' && kind === 'track') {
-      // on8ar's packets stream has no tracks: mark them done.
+      // An observer packets stream has no tracks: mark them done.
       await queue.ack(this.dest, kind, await queue.lastId(kind));
       return true;
     }
@@ -134,10 +133,13 @@ export class Forwarder {
       if (rows.length === 0) return true;
       for (const row of rows) {
         if (this.stopped || !this.client) return true;
-        const topic = broker.format === 'packets' ? packetsTopic(this.key) : this.topicFor(kind);
+        const topic =
+          broker.format === 'packets'
+            ? observerTopic(broker.region ?? 'nl', this.key)
+            : this.topicFor(kind);
         const payload =
           broker.format === 'packets'
-            ? packetsPayload(row.message as ObsMessage, this.opts.radioName)
+            ? observerPacket(row.message as ObsMessage, this.opts.radioName)
             : kind === 'obs'
               ? withPubAt(row.message as ObsMessage, new Date().toISOString())
               : row.message;

@@ -4,9 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { I18nProvider } from '../../i18n';
 import { WardriveApp, type WardriveDeps } from '../../wardrive/WardriveApp';
-import { WardriveApiError, wardriveApi, type WardriveMe } from '../../wardrive/api';
+import {
+  WardriveApiError,
+  wardriveApi,
+  type WardriveConfig,
+  type WardriveMe,
+} from '../../wardrive/api';
 import type { Fix } from '../../wardrive/messages';
 import type { PositionSource } from '../../wardrive/position/sources';
+import { DEFAULT_BROKERS, type Broker } from '../../wardrive/forward/brokers';
 import type { MqttLike } from '../../wardrive/forward/client';
 import { openQueue } from '../../wardrive/queue';
 import { openNodeCache } from '../../wardrive/nodeSources';
@@ -26,6 +32,7 @@ vi.mock('../../wardrive/map/LiveMap', () => ({
     nodePos: string;
     exaggeration: number;
     nodes: unknown[];
+    noiseOn?: boolean;
   }) => (
     <div
       data-testid="live-map"
@@ -35,6 +42,7 @@ vi.mock('../../wardrive/map/LiveMap', () => ({
       data-nodepos={p.nodePos}
       data-exaggeration={p.exaggeration}
       data-nodes={p.nodes.length}
+      data-noise={p.noiseOn ? 'on' : 'off'}
     />
   ),
 }));
@@ -88,6 +96,13 @@ class FakeRadio implements RadioTransport {
       const sig = new Uint8Array(65);
       sig[0] = 20;
       queueMicrotask(() => this.frames.emit(sig));
+    } else if (frame[0] === 0x38) {
+      // Stats: battery 3.7 V, noise -110 dBm.
+      const f = new Uint8Array(frame[1] === 0 ? 11 : 14);
+      f[0] = 24;
+      f[1] = frame[1];
+      new DataView(f.buffer).setInt16(2, frame[1] === 0 ? 3700 : -110, true);
+      queueMicrotask(() => this.frames.emit(f));
     }
   }
   onFrame(cb: (f: Uint8Array) => void) {
@@ -173,6 +188,29 @@ async function closeMenu() {
   fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 }
+
+const SERVED_ANALYZER: Broker = {
+  id: 'meshcore-analyzer',
+  name: 'meshcore-analyzer.eu',
+  url: 'wss://mqtt.meshcore-analyzer.eu:443',
+  audience: 'mqtt.meshcore-analyzer.eu',
+  auth: 'companion',
+  format: 'packets',
+  region: 'nl',
+  builtin: true,
+};
+const SERVED_CLUB: Broker = {
+  id: 'club-mqtt',
+  name: 'Club MQTT',
+  url: 'wss://mqtt.example.org:8084/mqtt',
+  audience: 'mqtt.example.org',
+  auth: 'password',
+  username: 'club',
+  password: 's3cret-pass',
+  format: 'packets',
+  region: 'ams',
+  builtin: false,
+};
 
 beforeEach(() => {
   localStorage.clear();
@@ -329,19 +367,57 @@ describe('wardrive page', () => {
     expect(screen.queryByText(/Problem: refused/)).toBeNull();
   });
 
-  it('needs an on8ar username and password before on8ar can be switched on', async () => {
+  it('lists the brokers the server serves, with switches and no account fields', async () => {
     vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    vi.spyOn(wardriveApi, 'config').mockResolvedValue({
+      hashtag_channels: [],
+      brokers: [...DEFAULT_BROKERS, SERVED_ANALYZER, SERVED_CLUB],
+    });
     setup();
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
     await openMenu();
-    const box = (await screen.findByLabelText('on8ar (your own account)')) as HTMLInputElement;
-    expect(box.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText('on8ar username'), { target: { value: 'me' } });
-    fireEvent.change(screen.getByLabelText('on8ar password'), { target: { value: 'pw' } });
-    expect(
-      ((await screen.findByLabelText('on8ar (your own account)')) as HTMLInputElement).disabled
-    ).toBe(false);
+    expect(await screen.findByLabelText('meshcore-analyzer.eu')).toBeTruthy();
+    expect(screen.getByLabelText('Club MQTT')).toBeTruthy();
+    expect(screen.getByLabelText(/DutchMeshCore wardriver/)).toBeTruthy();
+    expect(screen.queryByLabelText(/on8ar/)).toBeNull();
+    expect(screen.queryByLabelText(/password/i)).toBeNull();
+    // Kept for the next start without a connection.
+    expect(localStorage.getItem('rtfm-wardrive-served-brokers')).toContain('Club MQTT');
+  });
+
+  it('stops forwarding to a broker the server no longer serves', async () => {
+    localStorage.setItem(
+      'rtfm-wardrive-served-brokers',
+      JSON.stringify([...DEFAULT_BROKERS, SERVED_ANALYZER])
+    );
+    localStorage.setItem(
+      'rtfm-wardrive-brokers',
+      JSON.stringify({ enabled: { [`meshcore-analyzer@${KEY}`]: true }, tokens: {} })
+    );
+    let serve: (c: WardriveConfig) => void = () => {};
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    vi.spyOn(wardriveApi, 'config').mockReturnValue(new Promise((r) => (serve = r)));
+    const end = vi.fn(async () => {});
+    const connectMqtt = vi.fn<WardriveDeps['connectMqtt']>(async () => ({
+      publish: async () => {},
+      end,
+      onClose: () => {},
+    }));
+    setup({ connectMqtt });
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    await waitFor(() =>
+      expect(connectMqtt).toHaveBeenCalledWith(
+        'wss://mqtt.meshcore-analyzer.eu:443',
+        expect.anything()
+      )
+    );
+    await act(async () => serve({ hashtag_channels: [], brokers: DEFAULT_BROKERS }));
+    await waitFor(() => expect(end).toHaveBeenCalled());
+    await openMenu();
+    await screen.findByLabelText(/DutchMeshCore wardriver/);
+    expect(screen.queryByLabelText('meshcore-analyzer.eu')).toBeNull();
   });
 
   it('publishes a reception to a broker that is switched on', async () => {
@@ -470,12 +546,11 @@ describe('wardrive page', () => {
     );
   });
 
-  it('forgets the on8ar password and the radio tokens on log out', async () => {
+  it('forgets the radio tokens on log out', async () => {
     localStorage.setItem(
       'rtfm-wardrive-brokers',
       JSON.stringify({
         enabled: { [`dmc-wardriver@${KEY}`]: true },
-        on8ar: { username: 'me', password: 'secret' },
         tokens: { [`collector2.dutchmeshcore.nl@${KEY}`]: 'token' },
       })
     );
@@ -486,8 +561,8 @@ describe('wardrive page', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Log out' }));
     await screen.findByRole('button', { name: 'Log in' });
     const stored = JSON.parse(localStorage.getItem('rtfm-wardrive-brokers') ?? '{}');
-    expect(stored.on8ar).toBeNull();
     expect(stored.tokens).toEqual({});
+    expect(stored.enabled).toEqual({ [`dmc-wardriver@${KEY}`]: true });
   });
 });
 
@@ -616,11 +691,19 @@ describe('wardrive page reading what it hears', () => {
     );
   });
 
-  it('asks the radio for its contacts and sends nothing else of its own', async () => {
+  it('asks the radio only local questions and sends nothing of its own', async () => {
     const { radio } = await connected();
     await waitFor(() => expect(radio.sent).toContain(0x04));
     await hearChannelMessage(radio);
-    expect(radio.sent).toEqual([0x01, 0x04]);
+    // APP_START, GET_CONTACTS and GET_STATS: none of them goes over the air.
+    expect(new Set(radio.sent)).toEqual(new Set([0x01, 0x04, 0x38]));
+  });
+
+  it('shows the noise floor the radio reports', async () => {
+    await connected();
+    await waitFor(() =>
+      expect(screen.getByTestId('wardrive-hud-noise').textContent).toContain('-110')
+    );
   });
 
   it('filters by packet type, counts it on the pill, and All brings the rest back', async () => {
@@ -690,6 +773,31 @@ describe('wardrive page reading what it hears', () => {
     const map = await screen.findByTestId('live-map');
     expect(map.dataset.compass).toBe('heading');
     expect(map.dataset.nodepos).toBe('positions');
+  });
+
+  it('puts the noise floor on the map from the Settings tab, off by default', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    setup();
+    expect((await screen.findByTestId('live-map')).getAttribute('data-noise')).toBe('off');
+    await openMenu();
+    const settings = screen.getByRole('tab', { name: 'Settings' });
+    fireEvent.mouseDown(settings);
+    fireEvent.click(settings);
+    fireEvent.click(await screen.findByLabelText('Noise floor on the map'));
+    await waitFor(() =>
+      expect(screen.getByTestId('live-map').getAttribute('data-noise')).toBe('on')
+    );
+    expect(localStorage.getItem('rtfm-wardrive-noise-map')).toBe('1');
+  });
+
+  it('shows the radio battery in the Status tab', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    await openMenu();
+    // The test radio reports 3700 mV.
+    expect((await screen.findByTestId('wardrive-battery')).textContent).toContain('3.70 V, 58 %');
   });
 
   it('sets the terrain exaggeration in the Settings tab', async () => {

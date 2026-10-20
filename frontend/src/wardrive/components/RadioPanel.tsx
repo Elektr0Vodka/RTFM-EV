@@ -1,5 +1,6 @@
 import { useT } from '../../i18n';
 import { Button } from '../../components/ui/button';
+import { batteryPercent, isLowBattery } from '../radio/battery';
 
 export function RadioPanel({
   info,
@@ -8,6 +9,7 @@ export function RadioPanel({
   serialSupported,
   onConnect,
   onDisconnect,
+  batteryMv = null,
 }: {
   info: { publicKey: string; name: string } | null;
   lost: boolean;
@@ -15,8 +17,13 @@ export function RadioPanel({
   serialSupported: boolean;
   onConnect: (kind: 'ble' | 'usb') => void;
   onDisconnect: () => void;
+  /** The radio's battery (GET_STATS), null before it answered. */
+  batteryMv?: number | null;
 }) {
   const t = useT();
+  const hasBattery = !!info && batteryMv !== null && Number.isFinite(batteryMv);
+  const percent = hasBattery ? batteryPercent(batteryMv) : null;
+  const volts = hasBattery ? (batteryMv / 1000).toFixed(2) : '';
   return (
     <section className="space-y-3 rounded-md border border-border p-3">
       <h2 className="text-base font-semibold">{t('wardrive_page_radio_heading')}</h2>
@@ -45,6 +52,17 @@ export function RadioPanel({
             </Button>
           )}
         </div>
+      )}
+      {hasBattery && (
+        <p
+          className={`text-sm ${isLowBattery(batteryMv) ? 'text-destructive' : 'text-muted-foreground'}`}
+          data-testid="wardrive-battery"
+        >
+          {percent === null
+            ? t('wardrive_page_battery_volts', { volts })
+            : t('wardrive_page_battery', { volts, percent })}
+          {isLowBattery(batteryMv) && ` ${t('wardrive_page_battery_low')}`}
+        </p>
       )}
       {!bleSupported && !serialSupported && (
         <p className="text-sm text-muted-foreground">{t('wardrive_page_no_radio_support')}</p>

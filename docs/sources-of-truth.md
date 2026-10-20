@@ -232,13 +232,28 @@ machine this was authored on and may differ elsewhere.
   `filters.js`, `arrow.js`, read for behaviour only; the decoder is
   `@michaelhart/meshcore-decoder` (the patched multibyte build the app
   pins).
-- Wardrive brokers (`frontend/src/wardrive/forward/brokers.ts`): the
-  `brokers` list in rx.mesh-hunter.eu's live `config.json` (read
-  2026-10-19): DutchMeshCore `wss://collector1.dutchmeshcore.nl:443` label
-  `hunter`, `wss://collector2.dutchmeshcore.nl:443` label `wardriver`, both
-  companion auth; on8ar `wss://emqx.on8ar.eu:8084/ws` in the `packets`
-  format (core-hunter `publisher.js` `buildPayload`), with the driver's own
-  account.
+- Wardrive brokers (`app/wardrive/brokers.py` `BUILTIN_BROKERS`, served
+  to the page; `frontend/src/wardrive/forward/brokers.ts` `DEFAULT_BROKERS`
+  before the first answer): the DutchMeshCore entries are the `brokers` list
+  in rx.mesh-hunter.eu's live `config.json` (read 2026-10-19):
+  `wss://collector1.dutchmeshcore.nl:443` label `hunter`,
+  `wss://collector2.dutchmeshcore.nl:443` label `wardriver`, both companion
+  auth. meshcore-analyzer.eu: `wss://mqtt.meshcore-analyzer.eu:443`, token
+  audience `mqtt.meshcore-analyzer.eu`, companion sign-in (owner answer,
+  2026-10-20). on8ar was removed (owner answer). Observer packets for a
+  `packets` broker follow RTFM-EV's own community MQTT publisher
+  (`app/fanout/community_mqtt.py` `_format_raw_packet` and the topic
+  builders: `meshcore/{IATA upper}/{KEY}/packets`); not checked against the
+  analyzer's ingest.
+- Companion stats (`frontend/src/wardrive/radio/protocol.ts`): the meshcore
+  Python library `reader.py`, `RESP_CODE_STATS` 24 answering
+  `CMD_GET_STATS` 0x38 with a type byte: core (0) `<B B H I H B>` with
+  battery mV at bytes 2-3, radio (1) `<B B h b b I I>` with the noise floor
+  int16 at bytes 2-3. Battery percent and the low threshold: core-hunter
+  3928ebf `app/src/battery.js` (the firmware's 3000/4200 mV and 3500 mV).
+- Float readout: core-hunter 3928ebf `app/src/floatreadout.js` (canvas into
+  a video, picture-in-picture, fullscreen first on Android), read for
+  behaviour only.
 - MGRS conversion: the `mgrs` npm package (proj4js, MIT),
   https://github.com/proj4js/mgrs, v2.2.0. The frontend uses it directly;
   `app/mgrs.py` ports its inverse (`decode` + `UTMtoLL` + `toPoint`), and

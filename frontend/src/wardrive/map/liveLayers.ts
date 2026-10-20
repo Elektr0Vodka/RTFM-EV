@@ -11,7 +11,9 @@ export function liveGeoJson(
   selectedId: number | null,
   cvd: boolean,
   /** Start of the current ride: what came before is backlog (rides.ts). */
-  rideStart: number | null = null
+  rideStart: number | null = null,
+  /** dB added for the colour (calibration, attenuator). */
+  rssiOffset = 0
 ): { points: FeatureCollection<Point>; selected: FeatureCollection<Point> } {
   const placed = entries.filter((e) => e.lat !== null && e.lon !== null);
   const feature = (e: LiveEntry) => ({
@@ -22,7 +24,7 @@ export function liveGeoJson(
       kept: e.kept,
       rssi: e.rssi,
       snr: e.snr,
-      color: tierColor(rssiTier(e.rssi), cvd),
+      color: tierColor(rssiTier(e.rssi, rssiOffset), cvd),
       backlog: isBacklog(e.at, rideStart),
     },
   });

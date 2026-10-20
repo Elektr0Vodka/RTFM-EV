@@ -12,10 +12,25 @@ const FLOORS: [number, RssiTier][] = [
   [-115, 'cold'],
 ];
 
-export function rssiTier(rssi: number | null): RssiTier {
+/** The tier of `rssi` as plotted: `offset` (plotOffset) is added first. */
+export function rssiTier(rssi: number | null, offset = 0): RssiTier {
   if (rssi === null || !Number.isFinite(rssi)) return 'none';
-  for (const [floor, tier] of FLOORS) if (rssi >= floor) return tier;
+  const v = rssi + offset;
+  for (const [floor, tier] of FLOORS) if (v >= floor) return tier;
   return 'faint';
+}
+
+/** rx's effectivePlotOffset: the owner's calibration plus the attenuator's
+ * loss added back (the attenuator setting is negative). Display only. */
+export function plotOffset(calibrationDb: number, attenuatorDb: number): number {
+  return (calibrationDb || 0) - (attenuatorDb || 0);
+}
+
+export const ATTENUATOR_STEPS = [0, -10, -20, -30];
+
+export function parseAttenuator(v: string | null): number {
+  const x = Number(v);
+  return ATTENUATOR_STEPS.includes(x) ? x : 0;
 }
 
 const NORMAL: Record<RssiTier, string> = {

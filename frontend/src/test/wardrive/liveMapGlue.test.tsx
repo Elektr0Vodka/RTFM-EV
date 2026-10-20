@@ -210,4 +210,19 @@ describe('live map glue', () => {
     expect(p.onSelect).toHaveBeenCalledWith(1);
     expect(map.setLayoutProperty).toHaveBeenCalledWith('wd-live-selected', 'visibility', 'visible');
   });
+
+  it('shows the noise floor readings only when switched on', async () => {
+    const readings = [{ lat: 52.5, lon: 6, noise: -110, at: Date.now() }];
+    const p = props({ noiseReadings: readings, noiseOn: false });
+    const { rerender } = mount(p);
+    await flush();
+    expect(map.layers.has('wd-noise')).toBe(true);
+    expect(map.setLayoutProperty).toHaveBeenCalledWith('wd-noise', 'visibility', 'none');
+    rerender({ ...p, noiseOn: true });
+    await flush();
+    expect(map.setLayoutProperty).toHaveBeenLastCalledWith('wd-noise', 'visibility', 'visible');
+    const calls = map.sources.get('wd-noise')!.setData.mock.calls;
+    const data = calls[calls.length - 1][0];
+    expect(data.features).toHaveLength(1);
+  });
 });

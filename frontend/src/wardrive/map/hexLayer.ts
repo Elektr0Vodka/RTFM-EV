@@ -29,9 +29,9 @@ export interface HexInput {
   senderKind: SenderKind | null;
 }
 
-export function heightFor(rssi: number | null): number {
+export function heightFor(rssi: number | null, offset = 0): number {
   if (rssi === null || !Number.isFinite(rssi)) return 0;
-  return Math.max(0, rssi - FLOOR_DBM) * HEIGHT_PER_DB;
+  return Math.max(0, rssi + offset - FLOOR_DBM) * HEIGHT_PER_DB;
 }
 
 /** "5566 1122 a1b2 +1": distinct prefixes, newest first. */
@@ -54,7 +54,8 @@ interface CellAcc {
 export function buildHexFeatures(
   entries: HexInput[],
   res: number,
-  cvd: boolean
+  cvd: boolean,
+  offset = 0
 ): FeatureCollection<Polygon> {
   const cells = new Map<string, CellAcc>();
   for (const e of entries) {
@@ -80,8 +81,8 @@ export function buildHexFeatures(
       properties: {
         cell: id,
         rssi: c.rssi,
-        color: tierColor(rssiTier(c.rssi), cvd),
-        height: heightFor(c.rssi),
+        color: tierColor(rssiTier(c.rssi, offset), cvd),
+        height: heightFor(c.rssi, offset),
         label: hexLabel(c.ids),
       },
     });
@@ -108,7 +109,8 @@ export function labelPoints(fc: FeatureCollection<Polygon>): FeatureCollection<P
 /** One small extruded hexagon per placed reception (3D points). */
 export function pillarFeatures(
   entries: (HexInput & { id?: number })[],
-  cvd: boolean
+  cvd: boolean,
+  offset = 0
 ): FeatureCollection<Polygon> {
   const features: FeatureCollection<Polygon>['features'] = [];
   for (const e of entries) {
@@ -120,8 +122,8 @@ export function pillarFeatures(
       geometry: { type: 'Polygon', coordinates: [ring] },
       properties: {
         id: e.id ?? null,
-        color: tierColor(rssiTier(e.rssi), cvd),
-        height: heightFor(e.rssi),
+        color: tierColor(rssiTier(e.rssi, offset), cvd),
+        height: heightFor(e.rssi, offset),
       },
     });
   }

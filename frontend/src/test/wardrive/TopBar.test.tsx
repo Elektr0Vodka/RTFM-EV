@@ -23,6 +23,10 @@ describe('wardrive status dots', () => {
     expect(radioDot(true, false)).toBe('on');
     expect(radioDot(false, true)).toBe('lost');
     expect(radioDot(false, false)).toBe('off');
+    expect(radioDot(true, false, true)).toBe('low');
+    expect(radioDot(true, false, false)).toBe('on');
+    // A lost radio is lost, whatever its last battery reading said.
+    expect(radioDot(false, true, true)).toBe('lost');
   });
 
   it('tells how many switched-on brokers are connected', () => {

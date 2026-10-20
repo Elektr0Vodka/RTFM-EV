@@ -1982,7 +1982,15 @@ export const api = {
     return fetchJson<WardriveData>(`/wardrive-admin/data?${q.toString()}`);
   },
   getWardriveConfig: () => fetchJson<WardriveAdminConfig>('/wardrive-admin/config'),
-  putWardriveConfig: (body: { hashtag_channels: string[] | null }) =>
+  /** Partial: only the keys sent change. */
+  putWardriveConfig: (
+    body: Partial<
+      Pick<
+        WardriveAdminConfig,
+        'hashtag_channels' | 'rssi_calibration_db' | 'brokers' | 'analyzer_region'
+      >
+    >
+  ) =>
     fetchJson<WardriveAdminConfig>('/wardrive-admin/config', {
       method: 'PUT',
       body: JSON.stringify(body),

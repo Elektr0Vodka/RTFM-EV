@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BROKERS, destId, type Broker } from '../../wardrive/forward/brokers';
+import { DEFAULT_BROKERS, destId, type Broker } from '../../wardrive/forward/brokers';
 import type { MqttCredentials, MqttLike } from '../../wardrive/forward/client';
 import { Forwarder, enableBroker } from '../../wardrive/forward/forwarder';
 import type { BrokerSettings } from '../../wardrive/forward/settings';
@@ -13,8 +13,29 @@ import type { Companion } from '../../wardrive/radio/companion';
 const A = 'AA'.repeat(32);
 const B = 'BB'.repeat(32);
 const NOW = 1792404000;
-const DMC_W = BROKERS.find((b) => b.id === 'dmc-wardriver') as Broker;
-const ON8AR = BROKERS.find((b) => b.id === 'on8ar') as Broker;
+const DMC_W = DEFAULT_BROKERS.find((b) => b.id === 'dmc-wardriver') as Broker;
+const ANALYZER: Broker = {
+  id: 'meshcore-analyzer',
+  name: 'meshcore-analyzer.eu',
+  url: 'wss://mqtt.meshcore-analyzer.eu:443',
+  audience: 'mqtt.meshcore-analyzer.eu',
+  auth: 'companion',
+  format: 'packets',
+  region: 'nl',
+  builtin: true,
+};
+const CLUB: Broker = {
+  id: 'club-mqtt',
+  name: 'Club MQTT',
+  url: 'wss://mqtt.example.org:8084/mqtt',
+  audience: 'mqtt.example.org',
+  auth: 'password',
+  username: 'club',
+  password: 's3cret-pass',
+  format: 'packets',
+  region: 'ams',
+  builtin: false,
+};
 let n = 0;
 let queue: Queue;
 
@@ -79,7 +100,7 @@ function forwarder(
 ) {
   const client = over.client ?? new FakeClient();
   const connect = vi.fn(async (_url: string, _creds: MqttCredentials) => client);
-  const settings: BrokerSettings = over.settings ?? { enabled: {}, on8ar: null, tokens: {} };
+  const settings: BrokerSettings = over.settings ?? { enabled: {}, tokens: {} };
   const saveToken = vi.fn((key: string, token: string) => {
     settings.tokens[key] = token;
   });
@@ -163,7 +184,6 @@ describe('Forwarder', () => {
     const fresh = await buildToken(A, host, NOW - 100, async () => new Uint8Array(64));
     const settings: BrokerSettings = {
       enabled: {},
-      on8ar: null,
       tokens: { [`${host}@${A}`]: fresh },
     };
     const first = forwarder(DMC_W, A, { companion, settings });
@@ -188,28 +208,51 @@ describe('Forwarder', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
-  it('sends obs to on8ar in the packets format with the driver credentials and skips tracks', async () => {
-    await queue.addObs(A, obs(A, 'o1'));
+  it('sends obs to a packets broker as observer packets and marks tracks done', async () => {
+    await queue.addObs(A, obs(A, '2026-10-19T10:00:00.000Z'));
     await queue.addTrack(A, track(A, 't1'));
-    const settings: BrokerSettings = {
-      enabled: {},
-      on8ar: { username: 'me', password: 'pw' },
-      tokens: {},
-    };
-    const { fw, client, connect } = forwarder(ON8AR, A, { settings });
+    const { fw, client, connect, saveToken } = forwarder(ANALYZER, A);
     expect(await fw.tick()).toMatchObject({ state: 'connected', pending: 0 });
-    expect(connect).toHaveBeenCalledWith('wss://emqx.on8ar.eu:8084/ws', {
-      username: 'me',
-      password: 'pw',
-      clientId: A.toLowerCase(),
+    expect(connect).toHaveBeenCalledWith('wss://mqtt.meshcore-analyzer.eu:443', {
+      username: `v1_${A}`,
+      password: expect.stringMatching(/^[\w-]+\.[\w-]+\.[0-9a-f]{128}$/),
+      clientId: `wardrive-${A.toLowerCase()}`,
     });
+    // The token is signed for the served audience.
+    expect(saveToken).toHaveBeenCalledWith(`mqtt.meshcore-analyzer.eu@${A}`, expect.any(String));
     expect(client.published).toHaveLength(1);
-    expect(client.published[0].topic).toBe(`meshcore/hunter/${A.toLowerCase()}/packets`);
-    expect(client.published[0].payload).toMatchObject({ type: 'PACKET', timestamp: 'o1', hops: 2 });
+    expect(client.published[0].topic).toBe(`meshcore/NL/${A}/packets`);
+    expect(client.published[0].payload).toMatchObject({
+      type: 'PACKET',
+      origin_id: A,
+      timestamp: '2026-10-19T10:00:00.000Z',
+      raw: '1502A1B2C0FF',
+      route: 'F',
+    });
+    expect(await queue.batchForRadio(destId('meshcore-analyzer', A), 'track', A, 10)).toEqual([]);
   });
 
-  it('does not connect to on8ar without an account', async () => {
-    const { fw, connect } = forwarder(ON8AR, A);
+  it('signs for the audience the server names, not the URL host', async () => {
+    await queue.addObs(A, obs(A, 'o1'));
+    const { fw, saveToken } = forwarder({ ...ANALYZER, audience: 'aud.example.org' }, A);
+    await fw.tick();
+    expect(saveToken).toHaveBeenCalledWith(`aud.example.org@${A}`, expect.any(String));
+  });
+
+  it('connects to a password broker with the owner account', async () => {
+    await queue.addObs(A, obs(A, 'o1'));
+    const { fw, client, connect } = forwarder(CLUB, A);
+    expect(await fw.tick()).toMatchObject({ state: 'connected' });
+    expect(connect).toHaveBeenCalledWith('wss://mqtt.example.org:8084/mqtt', {
+      username: 'club',
+      password: 's3cret-pass',
+      clientId: `wardrive-${A.toLowerCase()}`,
+    });
+    expect(client.published[0].topic).toBe(`meshcore/AMS/${A}/packets`);
+  });
+
+  it('does not connect to a password broker served without a password', async () => {
+    const { fw, connect } = forwarder({ ...CLUB, password: undefined }, A);
     expect(await fw.tick()).toMatchObject({ state: 'error' });
     expect(connect).not.toHaveBeenCalled();
   });
@@ -236,7 +279,7 @@ describe('Forwarder stop', () => {
       queue,
       companion: fakeCompanion().companion,
       connect: () => new Promise<MqttLike>((r) => (finishConnect = r)),
-      settings: () => ({ enabled: {}, on8ar: null, tokens: {} }),
+      settings: () => ({ enabled: {}, tokens: {} }),
       saveToken: () => {},
       nowSec: () => NOW,
     });
@@ -255,7 +298,7 @@ describe('enableBroker', () => {
   it('switches a broker on from the newest row', async () => {
     await queue.addObs(A, obs(A, 'old'));
     await queue.addTrack(A, track(A, 'old'));
-    const settings: BrokerSettings = { enabled: {}, on8ar: null, tokens: {} };
+    const settings: BrokerSettings = { enabled: {}, tokens: {} };
     const next = await enableBroker(queue, settings, 'dmc-wardriver', A);
     expect(next.enabled[destId('dmc-wardriver', A)]).toBe(true);
     expect(await queue.batchForRadio(destId('dmc-wardriver', A), 'obs', A, 10)).toEqual([]);

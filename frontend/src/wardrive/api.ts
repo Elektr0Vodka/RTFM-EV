@@ -82,6 +82,15 @@ export interface ServedNode {
   seen: number | null;
 }
 
+/** GET /api/wardrive/config. Fields after the channels came later: an
+ * older server leaves them out. */
+export interface WardriveConfig {
+  hashtag_channels: string[];
+  rssi_calibration_db?: number;
+  /** Checked by forward/brokers.ts parseBrokers before use. */
+  brokers?: unknown;
+}
+
 export interface NodeBox {
   minLat: number;
   maxLat: number;
@@ -139,8 +148,9 @@ export const wardriveApi = {
     obs: ObsMessage[];
     tracks: TrackMessage[];
   }) => post<UploadResult>('/upload', body),
-  /** Owner settings for the page: the hashtag channel names to decode. */
-  config: () => call<{ hashtag_channels: string[] }>('/config'),
+  /** Owner settings for the page: the hashtag channel names to decode, the
+   * RSSI calibration and the brokers. */
+  config: () => call<WardriveConfig>('/config'),
   nodes: (box: NodeBox) =>
     call<{ nodes: ServedNode[]; truncated: boolean }>(
       `/nodes?min_lat=${box.minLat}&max_lat=${box.maxLat}&min_lon=${box.minLon}&max_lon=${box.maxLon}`

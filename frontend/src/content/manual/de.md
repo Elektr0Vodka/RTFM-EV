@@ -394,7 +394,7 @@ Nur vorhanden, wenn das Wardrive-Plugin an ist. Zeigt die Fahrten aller Fahrer (
 
 ### Wardrive-Karte
 
-Nur vorhanden, wenn das Wardrive-Plugin an ist (`MESHCORE_WARDRIVE=true`). Zeigt alles, was die Wardrive-Fahrer gespeichert haben: ihre Empfänge, nach Signal gefärbt, und ihre Spuren. Wähle die letzten 24 Stunden, 7 Tage oder 30 Tage und beschränke es auf einen Benutzer, eine Gruppe oder ein Funkgerät. Benutzer, Gruppen und die Kanäle, die Fahrer lesen können, verwaltest du unter **Einstellungen > Wardrive**.
+Nur vorhanden, wenn das Wardrive-Plugin an ist (`MESHCORE_WARDRIVE=true`). Zeigt alles, was die Wardrive-Fahrer gespeichert haben: ihre Empfänge, nach Signal gefärbt, und ihre Spuren. Wähle die letzten 24 Stunden, 7 Tage oder 30 Tage und beschränke es auf einen Benutzer, eine Gruppe oder ein Funkgerät. Benutzer, Gruppen, die Kanäle, die Fahrer lesen können, die Broker, an die Fahrer weiterleiten können, und die RSSI-Kalibrierung verwaltest du unter **Einstellungen > Wardrive**.
 
 ### Flotte
 

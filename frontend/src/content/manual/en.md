@@ -394,7 +394,7 @@ Only there when the wardrive plugin is on. Lists every driver's drives (a drive 
 
 ### Wardrive map
 
-Only there when the wardrive plugin is on (`MESHCORE_WARDRIVE=true`). Shows everything the wardrive drivers stored: their receptions, coloured by signal, and their track lines. Pick the last 24 hours, 7 days or 30 days, and narrow it to one user, one group or one radio. Users, groups and the channels drivers can read are managed in **Settings > Wardrive**.
+Only there when the wardrive plugin is on (`MESHCORE_WARDRIVE=true`). Shows everything the wardrive drivers stored: their receptions, coloured by signal, and their track lines. Pick the last 24 hours, 7 days or 30 days, and narrow it to one user, one group or one radio. Users, groups, the channels drivers can read, the brokers drivers can forward to and the RSSI calibration are managed in **Settings > Wardrive**.
 
 ### Fleet
 

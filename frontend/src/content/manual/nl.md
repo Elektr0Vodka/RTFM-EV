@@ -394,7 +394,7 @@ Alleen aanwezig als de wardrive-plugin aan staat. Toont de ritten van alle rijde
 
 ### Wardrive-kaart
 
-Alleen aanwezig als de wardrive-plugin aan staat (`MESHCORE_WARDRIVE=true`). Toont alles wat de wardrive-rijders hebben opgeslagen: hun ontvangsten, gekleurd naar signaal, en hun sporen. Kies de laatste 24 uur, 7 dagen of 30 dagen, en beperk het tot één gebruiker, één groep of één radio. Gebruikers, groepen en de kanalen die rijders kunnen lezen beheer je in **Instellingen > Wardrive**.
+Alleen aanwezig als de wardrive-plugin aan staat (`MESHCORE_WARDRIVE=true`). Toont alles wat de wardrive-rijders hebben opgeslagen: hun ontvangsten, gekleurd naar signaal, en hun sporen. Kies de laatste 24 uur, 7 dagen of 30 dagen, en beperk het tot één gebruiker, één groep of één radio. Gebruikers, groepen, de kanalen die rijders kunnen lezen, de brokers waar rijders naar kunnen doorsturen en de RSSI-kalibratie beheer je in **Instellingen > Wardrive**.
 
 ### Vloot
 

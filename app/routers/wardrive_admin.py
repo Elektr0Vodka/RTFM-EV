@@ -10,7 +10,7 @@ import time
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, StrictInt, field_validator
 
 from app.config import settings
 from app.repository.wardrive import (
@@ -22,12 +22,25 @@ from app.repository.wardrive import (
     WardriveUserRepository,
 )
 from app.wardrive import drives
+from app.wardrive.brokers import (
+    ANALYZER_REGION,
+    CUSTOM_BROKERS,
+    REGION_RE,
+    BrokerIn,
+    analyzer_region,
+    builtin_brokers,
+    check_custom,
+    custom_brokers,
+)
 from app.wardrive.config import (
     HASHTAG_CHANNELS,
+    MAX_CALIBRATION_DB,
     MAX_HASHTAG_CHANNELS,
+    RSSI_CALIBRATION,
     default_hashtag_channels,
     normalize_hashtag,
     owner_hashtag_channels,
+    rssi_calibration,
     sort_names,
 )
 from app.wardrive.crypto import normalize_key
@@ -61,9 +74,35 @@ class GroupMembers(BaseModel):
 
 
 class ConfigBody(BaseModel):
+    """Only the keys sent are changed."""
+
     hashtag_channels: list[str] | None = Field(
-        description="Hashtag channel names drivers may decode; null uses the home radio's"
+        default=None,
+        description="Hashtag channel names drivers may decode; null uses the home radio's",
     )
+    rssi_calibration_db: StrictInt = Field(
+        default=0,
+        ge=-MAX_CALIBRATION_DB,
+        le=MAX_CALIBRATION_DB,
+        description="dB the page adds to every RSSI it plots",
+    )
+    brokers: list[BrokerIn] = Field(
+        default_factory=list, description="The owner's brokers (the built-ins stay)"
+    )
+    analyzer_region: str = Field(default="nl", description="Region code in the analyzer topic")
+
+    @field_validator("brokers")
+    @classmethod
+    def _brokers(cls, v: list[BrokerIn]) -> list[BrokerIn]:
+        check_custom(v)
+        return v
+
+    @field_validator("analyzer_region")
+    @classmethod
+    def _region(cls, v: str) -> str:
+        if not REGION_RE.match(v):
+            raise ValueError("Use 1 to 16 lower-case letters, digits or '-'")
+        return v
 
     @field_validator("hashtag_channels")
     @classmethod
@@ -267,6 +306,10 @@ async def _config() -> dict[str, Any]:
     return {
         "hashtag_channels": await owner_hashtag_channels(),
         "default_hashtag_channels": await default_hashtag_channels(),
+        "rssi_calibration_db": await rssi_calibration(),
+        "builtin_brokers": await builtin_brokers(),
+        "brokers": await custom_brokers(),
+        "analyzer_region": await analyzer_region(),
     }
 
 
@@ -279,10 +322,17 @@ async def wardrive_admin_config() -> dict[str, Any]:
 
 @router.put("/config")
 async def wardrive_admin_set_config(body: ConfigBody) -> dict[str, Any]:
-    if body.hashtag_channels is None:
-        await WardriveConfigRepository.delete(HASHTAG_CHANNELS)
-    else:
-        await WardriveConfigRepository.set_json(
-            HASHTAG_CHANNELS, body.hashtag_channels, int(time.time())
-        )
+    now = int(time.time())
+    sent = body.model_fields_set
+    if "hashtag_channels" in sent:
+        if body.hashtag_channels is None:
+            await WardriveConfigRepository.delete(HASHTAG_CHANNELS)
+        else:
+            await WardriveConfigRepository.set_json(HASHTAG_CHANNELS, body.hashtag_channels, now)
+    if "rssi_calibration_db" in sent:
+        await WardriveConfigRepository.set_json(RSSI_CALIBRATION, body.rssi_calibration_db, now)
+    if "brokers" in sent:
+        await WardriveConfigRepository.set_json(CUSTOM_BROKERS, check_custom(body.brokers), now)
+    if "analyzer_region" in sent:
+        await WardriveConfigRepository.set_json(ANALYZER_REGION, body.analyzer_region, now)
     return await _config()

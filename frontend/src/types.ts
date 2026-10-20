@@ -2226,12 +2226,39 @@ export interface WardriveGroup {
 /** Stored wardrive receptions and tracks (GET /api/wardrive-admin/data). */
 export type { WardriveData } from './wardrive/api';
 
-/** The hashtag channels drivers may decode (GET/PUT /api/wardrive-admin/config). */
+/** A broker the owner adds for the wardrive page (app/wardrive/brokers.py). */
+export interface WardriveBrokerIn {
+  id: string;
+  name: string;
+  url: string;
+  auth: 'companion' | 'password';
+  username?: string;
+  password?: string;
+  format: 'wardrive' | 'packets';
+  label?: string;
+  region?: string;
+}
+
+/** A broker as served, with its token audience. */
+export interface WardriveBroker extends WardriveBrokerIn {
+  audience: string;
+  builtin: boolean;
+}
+
+/** Owner settings for the wardrive page (GET/PUT /api/wardrive-admin/config). */
 export interface WardriveAdminConfig {
   /** The owner's list; null when unset (drivers then get the default). */
   hashtag_channels: string[] | null;
   /** The home radio's hashtag channels whose key follows from the name. */
   default_hashtag_channels: string[];
+  /** dB the page adds to every RSSI it colours (-30..30). */
+  rssi_calibration_db: number;
+  /** DutchMeshCore hunter and wardriver, meshcore-analyzer.eu. */
+  builtin_brokers: WardriveBroker[];
+  /** The owner's own brokers. */
+  brokers: WardriveBrokerIn[];
+  /** Region code in the meshcore-analyzer.eu topic. */
+  analyzer_region: string;
 }
 
 export interface WardriveAdminStatus {

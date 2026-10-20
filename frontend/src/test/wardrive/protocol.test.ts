@@ -5,6 +5,8 @@ import {
   appStartFrame,
   parseContact,
   parseRxLog,
+  parseStatsCore,
+  parseStatsRadio,
   parseSelfInfo,
 } from '../../wardrive/radio/protocol';
 import { SerialFrameDecoder, encodeSerialFrame } from '../../wardrive/radio/serialFraming';
@@ -129,5 +131,27 @@ describe('parseContact', () => {
 
   it('asks for contacts with one byte', () => {
     expect(CMD_GET_CONTACTS).toBe(0x04);
+  });
+});
+
+describe('stats frames', () => {
+  it('reads the battery from core stats', () => {
+    expect(parseStatsCore(new Uint8Array([24, 0, 0x6c, 0x0e, 0, 0, 0, 0, 0, 0, 0]))).toEqual({
+      batteryMv: 3692,
+    });
+  });
+
+  it('reads the noise floor from radio stats', () => {
+    const f = new Uint8Array(14);
+    f[0] = 24;
+    f[1] = 1;
+    new DataView(f.buffer).setInt16(2, -112, true);
+    expect(parseStatsRadio(f)).toEqual({ noiseFloor: -112 });
+  });
+
+  it('refuses other frames', () => {
+    expect(parseStatsCore(new Uint8Array([24, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]))).toBeNull();
+    expect(parseStatsCore(new Uint8Array([24, 0, 1]))).toBeNull();
+    expect(parseStatsRadio(new Uint8Array([25, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))).toBeNull();
   });
 });

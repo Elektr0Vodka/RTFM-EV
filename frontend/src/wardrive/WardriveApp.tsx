@@ -26,6 +26,9 @@ import { MAX_ACCURACY_M, isUsableFix } from './capture';
 import { requestCompassPermission, watchCompass } from './compass';
 import { AccountPanel, type RegisterInput } from './components/AccountPanel';
 import { ForwardPanel } from './components/ForwardPanel';
+import { isLowBattery } from './radio/battery';
+import { DEFAULT_BROKERS, destId, parseBrokers, type Broker } from './forward/brokers';
+import { loadServedBrokers, saveServedBrokers } from './forward/brokerConfig';
 import { MapPanel } from './components/MapPanel';
 import { ReportsTab } from './components/ReportsTab';
 import { PositionPanel } from './components/PositionPanel';
@@ -64,7 +67,10 @@ import { Uploader, type UploadStatus } from './uploader';
 import { connectMqtt } from './forward/client';
 import { AboutPanel } from './screen/AboutPanel';
 import { Banners } from './screen/Banners';
-import { Hud } from './screen/Hud';
+import { Hud, formatAge } from './screen/Hud';
+import { FloatReadout, type FloatReadoutOptions } from './float/FloatReadout';
+import { floatModel, floatSupport } from './float/floatModel';
+import { useCvdMode } from '../hooks/useCvdColors';
 import { MapErrorBoundary } from './screen/MapErrorBoundary';
 import { MenuSheet, type MenuTab } from './screen/MenuSheet';
 import { LOG_SIZE_KEY, ReceptionLog, type LogSize } from './screen/ReceptionLog';
@@ -80,6 +86,10 @@ import { TARGET_KINDS, senderRows } from './targets';
 import { Trail } from './trail';
 import { useDrive } from './useDrive';
 import { ExaggerationSetting } from './components/ExaggerationSetting';
+import { AttenuatorSetting } from './components/AttenuatorSetting';
+import { NoiseMapSetting } from './components/NoiseMapSetting';
+import { parseAttenuator, plotOffset } from './signal';
+import { useRadioStats } from './useRadioStats';
 import { nextCompassMode, parseCompassMode, type CompassMode } from './map/compassMode';
 import { nextNodePosMode, parseNodePosMode, type NodePosMode } from './map/nodeLayer';
 import { parseExaggeration } from './map/terrain';
@@ -154,6 +164,9 @@ const VIEW_KEY = 'rtfm-wardrive-view';
 const COMPASS_KEY = 'rtfm-wardrive-compass';
 const NODEPOS_KEY = 'rtfm-wardrive-nodepos';
 const EXAGGERATION_KEY = 'rtfm-wardrive-exaggeration';
+const ATTENUATOR_KEY = 'rtfm-wardrive-attenuator';
+const CALIBRATION_KEY = 'rtfm-wardrive-calibration';
+const NOISE_MAP_KEY = 'rtfm-wardrive-noise-map';
 
 function writePref(key: string, value: string): void {
   try {
@@ -201,6 +214,18 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   const [exaggeration, setExaggeration] = useState(() =>
     parseExaggeration(readRaw(EXAGGERATION_KEY))
   );
+  const [attenuator, setAttenuator] = useState(() => parseAttenuator(readRaw(ATTENUATOR_KEY)));
+  // The owner's RSSI calibration, kept for offline use.
+  const [calibration, setCalibration] = useState(() => {
+    const v = Number(readRaw(CALIBRATION_KEY));
+    return Number.isInteger(v) && Math.abs(v) <= 30 ? v : 0;
+  });
+  const rssiOffset = plotOffset(calibration, attenuator);
+  const [noiseMap, setNoiseMap] = useState(() => readRaw(NOISE_MAP_KEY) === '1');
+  const changeNoiseMap = (on: boolean) => {
+    setNoiseMap(on);
+    writePref(NOISE_MAP_KEY, on ? '1' : '0');
+  };
   const [sound, setSound] = useState<SoundMode>(() => readPref(SOUND_KEY, ['off', 'rx'], 'off'));
   const [logSize, setLogSize] = useState<LogSize>(() =>
     readPref(LOG_SIZE_KEY, ['full', 'three', 'one', 'hidden'], 'three')
@@ -218,11 +243,14 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   const drive = useDrive(queue, fixRef);
   const { start } = drive;
   useWakeLock(drive.running);
+  // The brokers the owner serves; the last list is kept for offline starts.
+  const [brokers, setBrokers] = useState<Broker[]>(() => loadServedBrokers() ?? DEFAULT_BROKERS);
   const forwarding = useForwarding(
     queue,
     radio?.companion ?? null,
     radio?.info.publicKey ?? null,
     deps.connectMqtt,
+    brokers,
     radio?.info.name || undefined
   );
   const destsForRef = useRef(forwarding.destsFor);
@@ -234,7 +262,19 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     fix,
     companion: radio?.companion ?? null,
     cache: nodeCache,
+    onConfig: (c) => {
+      const cal = c.rssi_calibration_db ?? 0;
+      setCalibration(cal);
+      writePref(CALIBRATION_KEY, String(cal));
+      // An older server sends no list: keep what the page has.
+      const served = parseBrokers(c.brokers);
+      if (served) {
+        setBrokers(served);
+        saveServedBrokers(served);
+      }
+    },
   });
+  const radioStats = useRadioStats(radio?.companion ?? null, fix);
   // Receptions this browser stored earlier: the account's radios, or the
   // connected radio when logged out.
   const historyRadios = me
@@ -496,6 +536,58 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   const sender = shown
     ? senderLine(shown.sender, shown.attr, nodes.directory, shown.packetType, t)
     : { prefix: '', name: '', note: '' };
+  // The float readout: built on the first tap, fed the HUD reading while out.
+  const floatMode = useMemo(() => floatSupport(window, navigator), []);
+  const floatCanvasRef = useRef<HTMLCanvasElement>(null);
+  const floatVideoRef = useRef<HTMLVideoElement>(null);
+  const floatRef = useRef<FloatReadout | null>(null);
+  const [floatOpen, setFloatOpen] = useState(false);
+  const cvdOn = useCvdMode() !== 'off';
+  const floatNow = floatModel({
+    entry: shown,
+    sender,
+    ageText: shown ? formatAge(nowMs - shown.at, t) : '',
+    offset: rssiOffset,
+    t,
+  });
+  const floatKey = JSON.stringify(floatNow);
+  useEffect(() => {
+    if (floatOpen) floatRef.current?.update(JSON.parse(floatKey));
+  }, [floatOpen, floatKey]);
+  useEffect(
+    () => () => {
+      const readout = floatRef.current;
+      if (!readout) return;
+      readout.dispose();
+      void readout.close();
+    },
+    []
+  );
+  const toggleFloat = () => {
+    if (!floatMode) return;
+    if (floatRef.current?.isOpen()) {
+      void floatRef.current.close();
+      return;
+    }
+    const canvas = floatCanvasRef.current;
+    const video = floatVideoRef.current;
+    if (!floatRef.current && canvas && video) {
+      floatRef.current = new FloatReadout({
+        canvas,
+        video,
+        mode: floatMode,
+        labels: {
+          empty: t('wardrive_page_hud_no_reception'),
+          emptyHint: t('wardrive_page_float_empty_hint'),
+          dbm: t('wardrive_page_hud_dbm'),
+        },
+        cvd: cvdOn,
+        onChange: setFloatOpen,
+        orientation: (screen.orientation ?? null) as FloatReadoutOptions['orientation'],
+      });
+    }
+    void floatRef.current?.open(floatNow);
+  };
   const shownId = shown?.sender.id ?? null;
   const canTarget = !!shownId && !!shown?.sender.kind && TARGET_KINDS.includes(shown.sender.kind);
   const canIgnore = !!shownId && !!shown?.sender.kind;
@@ -540,9 +632,9 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   const usableNow = isUsableFix(fix, nowMs);
   const fixTooPoor = fix && fix.accM !== null && fix.accM > MAX_ACCURACY_M ? fix.accM : null;
   const enabledDests = radio
-    ? Object.entries(forwarding.settings.enabled)
-        .filter(([dest, on]) => on && dest.endsWith(`@${radio.info.publicKey}`))
-        .map(([dest]) => dest)
+    ? brokers
+        .map((b) => destId(b.id, radio.info.publicKey))
+        .filter((dest) => forwarding.settings.enabled[dest])
     : [];
 
   // Why Start is not possible yet, said on the main screen.
@@ -639,6 +731,9 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
               nodePos={nodePos}
               nodes={directoryNodes}
               exaggeration={exaggeration}
+              rssiOffset={rssiOffset}
+              noiseReadings={radioStats.noiseReadings}
+              noiseOn={noiseMap}
               onUserPan={() => {
                 // A drag looks away; before the first fix there is nothing to leave.
                 if (fixRef.current) setCompassMode('static');
@@ -651,7 +746,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       topBar={
         <TopBar
           dots={{
-            radio: radioDot(!!radio, radioLost),
+            radio: radioDot(!!radio, radioLost, isLowBattery(radioStats.batteryMv)),
             brokers: brokerDot(enabledDests, forwarding.statuses),
             upload: uploadDot(upload, offline),
           }}
@@ -687,31 +782,47 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
           size={logSize}
           onSize={changeLogSize}
           nowMs={nowMs}
+          rssiOffset={rssiOffset}
         />
       }
       hud={
-        <Hud
-          shown={shown}
-          nowMs={nowMs}
-          speedMps={speedMps}
-          unit={unit}
-          pending={upload?.pendingObs ?? 0}
-          running={drive.running}
-          canStart={canStart && usableNow}
-          startHint={startHint}
-          counts={drive.counts}
-          onStart={startDrive}
-          onStop={drive.stop}
-          arrow={arrow}
-          sender={sender}
-          onTargets={() => setTargetsOpen(true)}
-          onAddTarget={addShownTarget}
-          onIgnore={ignoreShown}
-          stand={stand}
-          onStand={setStand}
-          canTarget={canTarget}
-          canIgnore={canIgnore}
-        />
+        <>
+          {floatMode && (
+            // Off screen, not hidden: fullscreen needs the video in the
+            // document, and the browser's fullscreen style puts it back in view.
+            <div aria-hidden="true" className="pointer-events-none fixed -left-[10000px] top-0">
+              <canvas ref={floatCanvasRef} width={1} height={1} />
+              <video ref={floatVideoRef} muted playsInline className="h-px w-px" />
+            </div>
+          )}
+          <Hud
+            shown={shown}
+            nowMs={nowMs}
+            speedMps={speedMps}
+            unit={unit}
+            pending={upload?.pendingObs ?? 0}
+            running={drive.running}
+            canStart={canStart && usableNow}
+            startHint={startHint}
+            counts={drive.counts}
+            onStart={startDrive}
+            onStop={drive.stop}
+            arrow={arrow}
+            sender={sender}
+            onTargets={() => setTargetsOpen(true)}
+            onAddTarget={addShownTarget}
+            onIgnore={ignoreShown}
+            stand={stand}
+            onStand={setStand}
+            canTarget={canTarget}
+            canIgnore={canIgnore}
+            rssiOffset={rssiOffset}
+            noiseFloor={radioStats.noiseFloor}
+            canFloat={!!floatMode}
+            floatOpen={floatOpen}
+            onFloat={toggleFloat}
+          />
+        </>
       }
       rail={
         <RightRail
@@ -794,6 +905,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
                 serialSupported={deps.serialSupported()}
                 onConnect={connectRadio}
                 onDisconnect={disconnectRadio}
+                batteryMv={radioStats.batteryMv}
               />
               <PositionPanel
                 kind={positionKind}
@@ -806,10 +918,10 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
               {radio && queue && (
                 <ForwardPanel
                   radioKey={radio.info.publicKey}
+                  brokers={brokers}
                   settings={forwarding.settings}
                   statuses={forwarding.statuses}
                   onToggle={(id, on) => void run(() => forwarding.toggle(id, on))}
-                  onOn8arAccount={forwarding.setOn8ar}
                   onSendNow={() => void forwarding.sendNow()}
                 />
               )}
@@ -821,6 +933,14 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
               <ThemeSelector />
               <AccessibilitySettings compact />
               <ExaggerationSetting value={exaggeration} onChange={changeExaggeration} />
+              <AttenuatorSetting
+                value={attenuator}
+                onChange={(db) => {
+                  setAttenuator(db);
+                  writePref(ATTENUATOR_KEY, String(db));
+                }}
+              />
+              <NoiseMapSetting on={noiseMap} onChange={changeNoiseMap} />
             </>
           }
           drives={

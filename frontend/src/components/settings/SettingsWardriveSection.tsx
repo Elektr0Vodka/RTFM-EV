@@ -11,6 +11,8 @@ import type {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { WardriveBrokersCard } from './WardriveBrokersCard';
+import { WardriveCalibrationCard } from './WardriveCalibrationCard';
 import { WardriveChannelsCard } from './WardriveChannelsCard';
 
 const VISIBILITIES: WardriveVisibility[] = ['own', 'groups', 'all'];
@@ -165,6 +167,8 @@ export function SettingsWardriveSection({ className }: { className?: string }) {
         )}
 
         <WardriveChannelsCard />
+        <WardriveBrokersCard />
+        <WardriveCalibrationCard />
 
         <h4 className="text-sm font-semibold">{t('settings_wardrive_users_heading')}</h4>
         {users.length === 0 && (

@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (wardrive page radio, signal and brokers, feat/wardrive-plugin)
+
+No migration, no new dependency. Nothing is sent over the radio: the stats
+the page reads are a local question to the radio.
+
+### Wardrive
+- The page reads the radio's battery (every minute) and noise floor (every
+  10 s or 50 m). The Status tab shows the battery, the radio dot turns amber
+  below 3.5 V, the HUD shows the noise floor, and a Settings switch (off by
+  default) draws noise floor rings on the map.
+- Attenuator setting (0, 10, 20, 30 dB) and an owner RSSI calibration
+  (-30 to 30 dB, Settings > Wardrive): both shift colours, hexes and
+  pillars; the numbers shown, stored, reported and forwarded stay measured.
+- Float: the HUD reading in a floating window (picture-in-picture, or
+  fullscreen on Android), where the browser can.
+- Brokers are now an owner list in Settings > Wardrive: the DutchMeshCore
+  hunter and wardriver collectors and meshcore-analyzer.eu are built in
+  (all off until a driver switches them on), and the owner can add up to 20
+  more (observer packets or wardrive messages, radio-signed token or an
+  account). Observer brokers get packets in RTFM-EV's own community MQTT
+  shape. on8ar is removed, with the account an older page kept for it.
+
 ## Update 2026-10-20 (wardrive page map functions, feat/wardrive-plugin)
 
 No migration, no new dependency. Nothing is sent over the radio.

@@ -189,4 +189,47 @@ describe('Companion', () => {
     await Promise.all([signing, contacts]);
     expect(t.sent.map((f) => f[0])).toEqual([33, 34, 35, 0x04]);
   });
+  it('asks the radio for its core and radio stats', async () => {
+    const t = new FakeTransport();
+    t.reply = (frame) => {
+      if (frame[0] === 0x38 && frame[1] === 0) t.push([24, 0, 0x6c, 0x0e, 0, 0, 0, 0, 0, 0, 0]);
+      if (frame[0] === 0x38 && frame[1] === 1)
+        t.push([24, 1, 0x90, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    };
+    const c = new Companion(t);
+    const core = await c.stats(0);
+    expect(Array.from(t.sent[0])).toEqual([0x38, 0]);
+    expect(core?.[1]).toBe(0);
+    const radio = await c.stats(1);
+    expect(radio?.[1]).toBe(1);
+  });
+
+  it('gives up on stats the radio does not answer and can still sign', async () => {
+    vi.useFakeTimers();
+    const t = new FakeTransport();
+    const c = new Companion(t);
+    const stats = c.stats(0, 1000);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(await stats).toBeNull();
+    vi.useRealTimers();
+    signingRadio(t);
+    const sig = await c.sign(new Uint8Array([1, 2, 3]));
+    expect(sig).toHaveLength(64);
+  });
+  it('stops asking for stats for a while after a radio did not answer', async () => {
+    vi.useFakeTimers();
+    const t = new FakeTransport();
+    const c = new Companion(t);
+    const first = c.stats(0, 1000);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(await first).toBeNull();
+    const sent = t.sent.length;
+    // Asked again at once: no request, no wait (signing is not held up).
+    expect(await c.stats(1, 1000)).toBeNull();
+    expect(t.sent.length).toBe(sent);
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    void c.stats(1, 1000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.sent.length).toBe(sent + 1);
+  });
 });

@@ -7,6 +7,8 @@ import { SettingsWardriveSection } from '../components/settings/SettingsWardrive
 import type {
   WardriveAdminConfig,
   WardriveAdminStatus,
+  WardriveBroker,
+  WardriveBrokerIn,
   WardriveGroup,
   WardriveUser,
 } from '../types';
@@ -34,11 +36,66 @@ function makeUser(overrides: Partial<WardriveUser> = {}): WardriveUser {
   };
 }
 
+const BUILTINS: WardriveBroker[] = [
+  {
+    id: 'dmc-hunter',
+    name: 'DutchMeshCore hunter',
+    url: 'wss://collector1.dutchmeshcore.nl:443',
+    audience: 'collector1.dutchmeshcore.nl',
+    auth: 'companion',
+    format: 'wardrive',
+    label: 'hunter',
+    builtin: true,
+  },
+  {
+    id: 'dmc-wardriver',
+    name: 'DutchMeshCore wardriver',
+    url: 'wss://collector2.dutchmeshcore.nl:443',
+    audience: 'collector2.dutchmeshcore.nl',
+    auth: 'companion',
+    format: 'wardrive',
+    label: 'wardriver',
+    builtin: true,
+  },
+  {
+    id: 'meshcore-analyzer',
+    name: 'meshcore-analyzer.eu',
+    url: 'wss://mqtt.meshcore-analyzer.eu:443',
+    audience: 'mqtt.meshcore-analyzer.eu',
+    auth: 'companion',
+    format: 'packets',
+    region: 'nl',
+    builtin: true,
+  },
+];
+
+const NO_BROKERS = {
+  rssi_calibration_db: 0,
+  builtin_brokers: BUILTINS,
+  brokers: [] as WardriveBrokerIn[],
+  analyzer_region: 'nl',
+};
+
+const CLUB: WardriveBrokerIn = {
+  id: 'club-mqtt',
+  name: 'Club MQTT',
+  url: 'wss://mqtt.example.org:8084/mqtt',
+  auth: 'password',
+  username: 'club',
+  password: 's3cret-pass',
+  format: 'packets',
+  region: 'ams',
+};
+
 function mockApi({
   status = { active: true, unprotected: false, page_path: '/wardrive/' },
   users = [makeUser()],
   groups = [] as WardriveGroup[],
-  config = { hashtag_channels: null, default_hashtag_channels: [] } as WardriveAdminConfig,
+  config = {
+    ...NO_BROKERS,
+    hashtag_channels: null,
+    default_hashtag_channels: [],
+  } as WardriveAdminConfig,
 }: {
   status?: WardriveAdminStatus;
   users?: WardriveUser[];
@@ -218,7 +275,9 @@ describe('Settings: wardrive channels for drivers', () => {
   });
 
   it('lists the radio default and says where it comes from', async () => {
-    mockApi({ config: { hashtag_channels: null, default_hashtag_channels: ['#test'] } });
+    mockApi({
+      config: { ...NO_BROKERS, hashtag_channels: null, default_hashtag_channels: ['#test'] },
+    });
     render(<SettingsWardriveSection />);
     const card = await screen.findByTestId('wardrive-channels');
     await within(card).findByText('#test');
@@ -227,8 +286,11 @@ describe('Settings: wardrive channels for drivers', () => {
   });
 
   it('adds a channel on top of the list in use', async () => {
-    mockApi({ config: { hashtag_channels: null, default_hashtag_channels: ['#test'] } });
+    mockApi({
+      config: { ...NO_BROKERS, hashtag_channels: null, default_hashtag_channels: ['#test'] },
+    });
     const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue({
+      ...NO_BROKERS,
       hashtag_channels: ['#test', '#zwolle'],
       default_hashtag_channels: ['#test'],
     });
@@ -244,10 +306,12 @@ describe('Settings: wardrive channels for drivers', () => {
   });
 
   it('removes a channel from the owner list', async () => {
-    mockApi({ config: { hashtag_channels: ['#a', '#test'], default_hashtag_channels: [] } });
+    mockApi({
+      config: { ...NO_BROKERS, hashtag_channels: ['#a', '#test'], default_hashtag_channels: [] },
+    });
     const put = vi
       .spyOn(api, 'putWardriveConfig')
-      .mockResolvedValue({ hashtag_channels: ['#a'], default_hashtag_channels: [] });
+      .mockResolvedValue({ ...NO_BROKERS, hashtag_channels: ['#a'], default_hashtag_channels: [] });
     render(<SettingsWardriveSection />);
     const card = await screen.findByTestId('wardrive-channels');
     fireEvent.click(await within(card).findByRole('button', { name: 'Remove #test' }));
@@ -255,10 +319,14 @@ describe('Settings: wardrive channels for drivers', () => {
   });
 
   it('goes back to the radio channels', async () => {
-    mockApi({ config: { hashtag_channels: ['#a'], default_hashtag_channels: ['#test'] } });
-    const put = vi
-      .spyOn(api, 'putWardriveConfig')
-      .mockResolvedValue({ hashtag_channels: null, default_hashtag_channels: ['#test'] });
+    mockApi({
+      config: { ...NO_BROKERS, hashtag_channels: ['#a'], default_hashtag_channels: ['#test'] },
+    });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue({
+      ...NO_BROKERS,
+      hashtag_channels: null,
+      default_hashtag_channels: ['#test'],
+    });
     render(<SettingsWardriveSection />);
     const card = await screen.findByTestId('wardrive-channels');
     fireEvent.click(
@@ -268,7 +336,7 @@ describe('Settings: wardrive channels for drivers', () => {
   });
 
   it('shows the server message when a name is refused', async () => {
-    mockApi({ config: { hashtag_channels: [], default_hashtag_channels: [] } });
+    mockApi({ config: { ...NO_BROKERS, hashtag_channels: [], default_hashtag_channels: [] } });
     vi.spyOn(api, 'putWardriveConfig').mockRejectedValue(
       new ApiError('Value error, Not a usable channel name', 422)
     );
@@ -277,6 +345,159 @@ describe('Settings: wardrive channels for drivers', () => {
     fireEvent.change(within(card).getByLabelText('Channel name'), { target: { value: '#' } });
     fireEvent.click(within(card).getByRole('button', { name: 'Add channel' }));
     expect(await within(card).findByText(/Not a usable channel name/)).toBeTruthy();
+  });
+});
+
+describe('Settings: wardrive brokers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const base = { ...NO_BROKERS, hashtag_channels: null, default_hashtag_channels: [] };
+
+  it('lists the built-in brokers without a remove button', async () => {
+    mockApi({ config: base });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    await within(card).findByText('meshcore-analyzer.eu');
+    expect(within(card).getByText('DutchMeshCore hunter')).toBeTruthy();
+    expect(within(card).getByText('DutchMeshCore wardriver')).toBeTruthy();
+    expect(within(card).queryByRole('button', { name: /Remove/ })).toBeNull();
+    expect((within(card).getByLabelText(/Analyzer region/) as HTMLInputElement).value).toBe('nl');
+  });
+
+  it('saves the analyzer region', async () => {
+    mockApi({ config: base });
+    const put = vi
+      .spyOn(api, 'putWardriveConfig')
+      .mockResolvedValue({ ...base, analyzer_region: 'be' });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    fireEvent.change(await within(card).findByLabelText(/Analyzer region/), {
+      target: { value: 'be' },
+    });
+    fireEvent.click(within(card).getByRole('button', { name: 'Save region' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ analyzer_region: 'be' }));
+  });
+
+  it('adds a broker with a password', async () => {
+    mockApi({ config: base });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue({ ...base, brokers: [CLUB] });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    await within(card).findByText('meshcore-analyzer.eu');
+    fireEvent.change(within(card).getByLabelText('Broker name'), {
+      target: { value: 'Club MQTT' },
+    });
+    fireEvent.change(within(card).getByLabelText('Address'), {
+      target: { value: 'wss://mqtt.example.org:8084/mqtt' },
+    });
+    fireEvent.change(within(card).getByLabelText('Sign-in'), { target: { value: 'password' } });
+    fireEvent.change(within(card).getByLabelText('Broker username'), {
+      target: { value: 'club' },
+    });
+    fireEvent.change(within(card).getByLabelText('Broker password'), {
+      target: { value: 's3cret-pass' },
+    });
+    fireEvent.change(within(card).getByLabelText('Region code'), { target: { value: 'ams' } });
+    expect(within(card).getByText(/every wardrive driver/i)).toBeTruthy();
+    fireEvent.click(within(card).getByRole('button', { name: 'Add broker' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ brokers: [CLUB] }));
+    expect(await within(card).findByText('Club MQTT')).toBeTruthy();
+  });
+
+  it('adds a wardrive-format broker with a stream label and no account', async () => {
+    mockApi({ config: base });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue(base);
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    await within(card).findByText('meshcore-analyzer.eu');
+    fireEvent.change(within(card).getByLabelText('Broker name'), { target: { value: 'Ours' } });
+    fireEvent.change(within(card).getByLabelText('Address'), {
+      target: { value: 'wss://c.example.org' },
+    });
+    fireEvent.change(within(card).getByLabelText('Format'), { target: { value: 'wardrive' } });
+    fireEvent.change(within(card).getByLabelText('Stream label'), {
+      target: { value: 'wardriver' },
+    });
+    expect(within(card).queryByLabelText('Broker password')).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: 'Add broker' }));
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith({
+        brokers: [
+          {
+            id: 'ours',
+            name: 'Ours',
+            url: 'wss://c.example.org',
+            auth: 'companion',
+            format: 'wardrive',
+            label: 'wardriver',
+          },
+        ],
+      })
+    );
+  });
+
+  it('removes an added broker', async () => {
+    mockApi({ config: { ...base, brokers: [CLUB] } });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue(base);
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    fireEvent.click(await within(card).findByRole('button', { name: 'Remove Club MQTT' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ brokers: [] }));
+  });
+
+  it('shows the server message when a broker is refused', async () => {
+    mockApi({ config: base });
+    vi.spyOn(api, 'putWardriveConfig').mockRejectedValue(
+      new ApiError('Value error, Use a wss:// address', 422)
+    );
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    await within(card).findByText('meshcore-analyzer.eu');
+    fireEvent.change(within(card).getByLabelText('Broker name'), { target: { value: 'X' } });
+    fireEvent.change(within(card).getByLabelText('Address'), {
+      target: { value: 'http://x.example.org' },
+    });
+    fireEvent.change(within(card).getByLabelText('Region code'), { target: { value: 'nl' } });
+    fireEvent.click(within(card).getByRole('button', { name: 'Add broker' }));
+    expect(await within(card).findByText(/Use a wss:\/\/ address/)).toBeTruthy();
+  });
+});
+
+describe('Settings: wardrive RSSI calibration', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sends the calibration', async () => {
+    const base = { ...NO_BROKERS, hashtag_channels: null, default_hashtag_channels: [] };
+    mockApi({ config: base });
+    const put = vi
+      .spyOn(api, 'putWardriveConfig')
+      .mockResolvedValue({ ...base, rssi_calibration_db: -6 });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-calibration');
+    fireEvent.change(await within(card).findByLabelText(/RSSI calibration/), {
+      target: { value: '-6' },
+    });
+    fireEvent.click(within(card).getByRole('button', { name: 'Save calibration' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ rssi_calibration_db: -6 }));
+  });
+
+  it('refuses a value outside -30 to 30 without asking the server', async () => {
+    const base = { ...NO_BROKERS, hashtag_channels: null, default_hashtag_channels: [] };
+    mockApi({ config: base });
+    const put = vi.spyOn(api, 'putWardriveConfig');
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-calibration');
+    fireEvent.change(await within(card).findByLabelText(/RSSI calibration/), {
+      target: { value: '45' },
+    });
+    expect(
+      (within(card).getByRole('button', { name: 'Save calibration' }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    expect(put).not.toHaveBeenCalled();
   });
 });
 

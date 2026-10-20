@@ -110,6 +110,20 @@ describe('wardrive HUD', () => {
     expect(screen.getByTestId('wardrive-hud-backlog').dataset.alarm).toBe('true');
   });
 
+  it('shows the measured signal coloured by the plotted one, with the offset', () => {
+    renderHud({ shown: { ...entry(), rssi: -95 }, rssiOffset: 20 });
+    expect(screen.getByTestId('wardrive-hud-rssi').textContent).toBe('-95');
+    expect(screen.getByTestId('wardrive-hud-offset').textContent).toBe('+20');
+    expect(screen.getByTestId('wardrive-hud-tier').style.backgroundColor).toBe(
+      hexToRgb(tierColor('hot', false))
+    );
+  });
+
+  it('shows the noise floor', () => {
+    renderHud({ noiseFloor: -112 });
+    expect(screen.getByTestId('wardrive-hud-noise').textContent).toContain('-112');
+  });
+
   it('says why the drive cannot start', () => {
     renderHud({ canStart: false, startHint: 'Log in first' });
     // Its own full-width line, not a narrow column between Start and the counters.
@@ -206,5 +220,28 @@ describe('wardrive HUD', () => {
     expect(on.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(on);
     expect(props.onStand).toHaveBeenLastCalledWith('filtered');
+  });
+
+  it('offers Float only where the browser can float the reading', () => {
+    const onFloat = vi.fn();
+    const { rerender, props } = renderHud({ onFloat });
+    expect(screen.queryByRole('button', { name: /floating window/ })).toBeNull();
+    rerender(
+      <I18nProvider>
+        <Hud {...props} canFloat floatOpen={false} />
+      </I18nProvider>
+    );
+    const button = screen.getByRole('button', { name: /floating window/ });
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(button);
+    expect(onFloat).toHaveBeenCalled();
+    rerender(
+      <I18nProvider>
+        <Hud {...props} canFloat floatOpen />
+      </I18nProvider>
+    );
+    expect(
+      screen.getByRole('button', { name: /floating window/ }).getAttribute('aria-pressed')
+    ).toBe('true');
   });
 });

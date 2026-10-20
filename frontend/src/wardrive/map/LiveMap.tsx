@@ -43,7 +43,9 @@ import {
   isDemTileError,
   terrainPlan,
 } from './terrain';
+import { noiseFeatures } from './noiseLayer';
 import { layerVisibility, pitchTransition, type ViewState } from './viewModes';
+import type { NoiseReading } from '../useRadioStats';
 
 export interface LiveMapProps {
   entries: ViewEntry[];
@@ -57,6 +59,11 @@ export interface LiveMapProps {
   nodePos: NodePosMode;
   nodes: DirectoryNode[];
   exaggeration: number;
+  /** dB added to RSSI for colours and heights (calibration, attenuator). */
+  rssiOffset?: number;
+  /** The radio's noise floor where it was read, and whether to show it. */
+  noiseReadings?: NoiseReading[];
+  noiseOn?: boolean;
   onUserPan(): void;
   onSelect(id: number): void;
 }
@@ -66,6 +73,7 @@ const EMPTY = { type: 'FeatureCollection' as const, features: [] };
 /** One hue per node slot (nodeLayer.hueSlot): only a grouping aid. */
 const NODE_HUES = Array.from({ length: HUE_COUNT }, (_, i) => `hsl(${i * 30}, 80%, 55%)`);
 const SKY_REFRESH_MS = 10 * 60 * 1000;
+const NO_READINGS: NoiseReading[] = [];
 
 // Layer order: hexes under points, node layers over them, own position on top.
 const LAYERS = {
@@ -79,6 +87,7 @@ const LAYERS = {
   drift: 'wd-node-drift',
   advertised: 'wd-node-advertised',
   estimate: 'wd-node-estimate',
+  noise: 'wd-noise',
   points: 'wd-live-points',
   selected: 'wd-live-selected',
   me: 'wd-me',
@@ -103,6 +112,9 @@ export function LiveMap({
   nodePos,
   nodes,
   exaggeration,
+  rssiOffset = 0,
+  noiseReadings = NO_READINGS,
+  noiseOn = false,
   onUserPan,
   onSelect,
 }: LiveMapProps) {
@@ -120,8 +132,8 @@ export function LiveMap({
 
   const rideStart = useMemo(() => currentRideStart(entries.map((e) => e.at)), [entries]);
   const live = useMemo(
-    () => liveGeoJson(entries, selectedId, cvd, rideStart),
-    [entries, selectedId, cvd, rideStart]
+    () => liveGeoJson(entries, selectedId, cvd, rideStart, rssiOffset),
+    [entries, selectedId, cvd, rideStart, rssiOffset]
   );
   const line = useMemo(() => trailGeoJson(trail), [trail]);
   const me = useMemo(
@@ -156,13 +168,13 @@ export function LiveMap({
     [entries]
   );
   const hex = useMemo(
-    () => (hexOn ? buildHexFeatures(hexInputs, res, cvd) : EMPTY),
-    [hexOn, hexInputs, res, cvd]
+    () => (hexOn ? buildHexFeatures(hexInputs, res, cvd, rssiOffset) : EMPTY),
+    [hexOn, hexInputs, res, cvd, rssiOffset]
   );
   const labels = useMemo(() => (vis.hexLabels ? labelPoints(hex) : EMPTY), [vis.hexLabels, hex]);
   const pillars = useMemo(
-    () => (vis.points3d ? pillarFeatures(hexInputs, cvd) : EMPTY),
-    [vis.points3d, hexInputs, cvd]
+    () => (vis.points3d ? pillarFeatures(hexInputs, cvd, rssiOffset) : EMPTY),
+    [vis.points3d, hexInputs, cvd, rssiOffset]
   );
   const nodeData = useMemo(() => {
     if (nodePos === 'off' || !bounds) return null;
@@ -170,10 +182,15 @@ export function LiveMap({
     return nodeFeatures(inView, receptionsByNode(entries, inView), NODE_HUES);
   }, [nodePos, nodes, bounds, entries]);
 
+  const noise = useMemo(
+    () => (noiseOn ? noiseFeatures(noiseReadings, cvd) : EMPTY),
+    [noiseOn, noiseReadings, cvd]
+  );
+
   const gestureRef = useRef(false);
   const pendingPitchRef = useRef<number | null>(null);
-  const dataRef = useRef({ live, line, me, hex, labels, pillars, nodeData });
-  dataRef.current = { live, line, me, hex, labels, pillars, nodeData };
+  const dataRef = useRef({ live, line, me, hex, labels, pillars, nodeData, noise });
+  dataRef.current = { live, line, me, hex, labels, pillars, nodeData, noise };
   const handlersRef = useRef({ onUserPan, onSelect });
   handlersRef.current = { onUserPan, onSelect };
 
@@ -196,6 +213,7 @@ export function LiveMap({
       ['wd-node-drift', d.nodeData?.drift ?? EMPTY],
       ['wd-node-circle', d.nodeData?.circles ?? EMPTY],
       ['wd-node-rays', d.nodeData?.rays ?? EMPTY],
+      ['wd-noise', d.noise],
     ];
     for (const [id, data] of next) {
       if (pushedRef.current.get(id) === data) continue;
@@ -251,6 +269,7 @@ export function LiveMap({
         'wd-node-drift',
         'wd-node-advertised',
         'wd-node-estimate',
+        'wd-noise',
         'wd-live-points',
         'wd-live-selected',
         'wd-me',
@@ -340,6 +359,20 @@ export function LiveMap({
           'circle-color': 'rgba(0,0,0,0)',
           'circle-stroke-width': 2.5,
           'circle-stroke-color': ['get', 'color'],
+        },
+      });
+      // Noise floor readings: rings, so they are not taken for receptions.
+      add({
+        id: LAYERS.noise,
+        type: 'circle',
+        source: 'wd-noise',
+        layout: { visibility: 'none' },
+        paint: {
+          'circle-radius': 7,
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': ['get', 'color'],
+          'circle-stroke-opacity': 0.85,
         },
       });
       // Backlog (earlier rides) shows as faint outlines from zoom 12 and not
@@ -461,7 +494,12 @@ export function LiveMap({
 
   useEffect(() => {
     if (ready && mapRef.current) pushData(mapRef.current);
-  }, [ready, live, line, me, hex, labels, pillars, nodeData, pushData]);
+  }, [ready, live, line, me, hex, labels, pillars, nodeData, noise, pushData]);
+
+  useEffect(() => {
+    const m = mapRef.current as AnyMap;
+    if (ready && m) setVisible(m, LAYERS.noise, noiseOn);
+  }, [ready, styleGen, noiseOn]);
 
   // The view mode's layers.
   useEffect(() => {

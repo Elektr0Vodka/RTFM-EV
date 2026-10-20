@@ -65,7 +65,7 @@ async def test_driver_config_serves_the_default(api):
     assert (await register(api)).status_code == 200
     r = await api.get("/api/wardrive/config")
     assert r.status_code == 200
-    assert r.json() == {"hashtag_channels": ["#test"]}
+    assert r.json()["hashtag_channels"] == ["#test"]
 
 
 async def test_owner_list_is_normalised_sorted_and_served(api):
@@ -73,16 +73,14 @@ async def test_owner_list_is_normalised_sorted_and_served(api):
     await register(api)
     r = await api.put("/api/wardrive-admin/config", json={"hashtag_channels": ["zwolle", "#test"]})
     assert r.status_code == 200
-    assert r.json() == {
-        "hashtag_channels": ["#test", "#zwolle"],
-        "default_hashtag_channels": ["#test"],
-    }
+    assert r.json()["hashtag_channels"] == ["#test", "#zwolle"]
+    assert r.json()["default_hashtag_channels"] == ["#test"]
     assert (await api.get("/api/wardrive-admin/config")).json()["hashtag_channels"] == [
         "#test",
         "#zwolle",
     ]
     driver = await api.get("/api/wardrive/config")
-    assert driver.json() == {"hashtag_channels": ["#test", "#zwolle"]}
+    assert driver.json()["hashtag_channels"] == ["#test", "#zwolle"]
 
 
 async def test_owner_list_sorts_case_insensitively_and_keeps_spelling(api):
@@ -99,7 +97,7 @@ async def test_owner_null_brings_back_the_default(api):
     r = await api.put("/api/wardrive-admin/config", json={"hashtag_channels": None})
     assert r.status_code == 200
     assert r.json()["hashtag_channels"] is None
-    assert (await api.get("/api/wardrive/config")).json() == {"hashtag_channels": ["#test"]}
+    assert (await api.get("/api/wardrive/config")).json()["hashtag_channels"] == ["#test"]
 
 
 async def test_owner_rejects_a_long_name(api):
@@ -125,3 +123,27 @@ async def test_migration_is_idempotent():
         assert cols == {"key", "value", "updated_at"}
     finally:
         await conn.close()
+
+
+async def test_rssi_calibration_defaults_to_zero_and_reaches_drivers(api):
+    assert (await register(api)).status_code == 200
+    r = await api.get("/api/wardrive/config")
+    assert r.json()["rssi_calibration_db"] == 0
+    r = await api.put("/api/wardrive-admin/config", json={"rssi_calibration_db": 12})
+    assert r.status_code == 200, r.text
+    assert r.json()["rssi_calibration_db"] == 12
+    assert (await api.get("/api/wardrive/config")).json()["rssi_calibration_db"] == 12
+
+
+async def test_a_partial_owner_put_leaves_the_rest(api):
+    await api.put("/api/wardrive-admin/config", json={"hashtag_channels": ["#zwolle"]})
+    await api.put("/api/wardrive-admin/config", json={"rssi_calibration_db": -5})
+    body = (await api.get("/api/wardrive-admin/config")).json()
+    assert body["hashtag_channels"] == ["#zwolle"]
+    assert body["rssi_calibration_db"] == -5
+
+
+@pytest.mark.parametrize("value", [31, -31, 2.5])
+async def test_rssi_calibration_is_bounded(api, value):
+    r = await api.put("/api/wardrive-admin/config", json={"rssi_calibration_db": value})
+    assert r.status_code == 422

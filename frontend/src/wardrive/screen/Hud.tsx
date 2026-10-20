@@ -2,7 +2,7 @@
 // arrow, the shown reception's signal (big, with its tier colour) and sender,
 // SNR and age, the speed, the upload backlog, the target tools, Start/Stop and
 // the drive counters. Readable at a glance from a phone in a holder.
-import { Crosshair, EyeOff, Layers, Plus } from 'lucide-react';
+import { Crosshair, EyeOff, Layers, PictureInPicture2, Plus } from 'lucide-react';
 
 import { useCvdMode } from '../../hooks/useCvdColors';
 import { useT, type TFn } from '../../i18n';
@@ -44,6 +44,14 @@ export interface HudProps {
   canTarget: boolean;
   /** The shown sender has an id to ignore. */
   canIgnore: boolean;
+  /** dB added to the measured RSSI for its colour (calibration, attenuator). */
+  rssiOffset?: number;
+  /** The radio's noise floor (dBm), null when not read. */
+  noiseFloor?: number | null;
+  /** This browser can float the reading (float/floatModel.ts floatSupport). */
+  canFloat?: boolean;
+  floatOpen?: boolean;
+  onFloat?(): void;
 }
 
 const TOOL =
@@ -110,6 +118,11 @@ export function Hud({
   onStand,
   canTarget,
   canIgnore,
+  rssiOffset = 0,
+  noiseFloor = null,
+  canFloat = false,
+  floatOpen = false,
+  onFloat,
 }: HudProps) {
   const t = useT();
   const cvd = useCvdMode() !== 'off';
@@ -130,7 +143,9 @@ export function Hud({
           <span
             className="block h-10 w-2 rounded-full bg-muted"
             data-testid="wardrive-hud-tier"
-            style={{ backgroundColor: hasRssi ? tierColor(rssiTier(rssi), cvd) : undefined }}
+            style={{
+              backgroundColor: hasRssi ? tierColor(rssiTier(rssi, rssiOffset), cvd) : undefined,
+            }}
             aria-hidden="true"
           />
           <span
@@ -142,6 +157,15 @@ export function Hud({
           <span className="self-end text-xs text-muted-foreground">
             {t('wardrive_page_hud_dbm')}
           </span>
+          {rssiOffset !== 0 && (
+            <span
+              className="self-start rounded bg-muted px-1 text-xs tabular-nums"
+              data-testid="wardrive-hud-offset"
+              title={t('wardrive_page_hud_offset_title', { offset: rssiOffset })}
+            >
+              {rssiOffset > 0 ? `+${rssiOffset}` : String(rssiOffset)}
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1 truncate pb-1 text-sm" data-testid="wardrive-hud-sender">
           {!shown
@@ -166,6 +190,11 @@ export function Hud({
       </div>
       <div className="mt-1 flex items-center gap-4 text-sm tabular-nums text-muted-foreground">
         <span>{hasSnr ? t('wardrive_page_hud_snr', { value: snr.toFixed(1) }) : '-'}</span>
+        <span data-testid="wardrive-hud-noise">
+          {noiseFloor !== null && Number.isFinite(noiseFloor)
+            ? t('wardrive_page_hud_noise', { value: Math.round(noiseFloor) })
+            : '-'}
+        </span>
         <span>{shown ? formatAge(nowMs - shown.at, t) : '-'}</span>
         <span
           className="ml-auto text-base font-semibold text-foreground"
@@ -204,6 +233,18 @@ export function Hud({
           <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
           {t('wardrive_page_hud_ignore')}
         </button>
+        {canFloat && (
+          <button
+            type="button"
+            className={`${TOOL} ${floatOpen ? 'border-primary bg-primary text-primary-foreground' : ''}`}
+            aria-label={t('wardrive_page_hud_float_aria')}
+            aria-pressed={floatOpen}
+            onClick={onFloat}
+          >
+            <PictureInPicture2 className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('wardrive_page_hud_float')}
+          </button>
+        )}
         <button
           type="button"
           className={`${TOOL} ml-auto ${stand === 'all' ? 'border-primary bg-primary text-primary-foreground' : ''}`}

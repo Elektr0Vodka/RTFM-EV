@@ -22,7 +22,8 @@ from app.repository.wardrive import (
 )
 from app.wardrive import drives, sessions
 from app.wardrive import nodes as wardrive_nodes
-from app.wardrive.config import resolved_hashtag_channels
+from app.wardrive.brokers import served_brokers
+from app.wardrive.config import resolved_hashtag_channels, rssi_calibration
 from app.wardrive.crypto import (
     challenge_message,
     challenges,
@@ -372,7 +373,11 @@ async def wardrive_groups(user: CurrentUser) -> dict[str, Any]:
 @router.get("/config")
 async def wardrive_config(user: CurrentUser) -> dict[str, Any]:
     """Owner settings for the page: the hashtag channel names drivers may decode."""
-    return {"hashtag_channels": await resolved_hashtag_channels()}
+    return {
+        "hashtag_channels": await resolved_hashtag_channels(),
+        "rssi_calibration_db": await rssi_calibration(),
+        "brokers": await served_brokers(),
+    }
 
 
 @router.get("/nodes")

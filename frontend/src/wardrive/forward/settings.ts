@@ -1,32 +1,30 @@
 // The driver's forwarding choices, kept in this browser only: which broker is
-// on for which radio, the on8ar account, and the radio-signed tokens. None of
-// it is sent to RTFM-EV.
+// on for which radio, and the radio-signed tokens. None of it is sent to
+// RTFM-EV. (An older page also kept an on8ar account here; it is dropped.)
 
 const KEY = 'rtfm-wardrive-brokers';
 
 export interface BrokerSettings {
   /** destId (`<broker>@<KEY>`) -> switched on */
   enabled: Record<string, boolean>;
-  on8ar: { username: string; password: string } | null;
-  /** `<host>@<KEY>` -> token */
+  /** `<audience>@<KEY>` -> token */
   tokens: Record<string, string>;
 }
 
-const defaults = (): BrokerSettings => ({ enabled: {}, on8ar: null, tokens: {} });
+const defaults = (): BrokerSettings => ({ enabled: {}, tokens: {} });
 
 export function loadBrokerSettings(): BrokerSettings {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaults();
     const parsed = JSON.parse(raw);
-    return {
+    const settings = {
       enabled: typeof parsed.enabled === 'object' && parsed.enabled ? parsed.enabled : {},
-      on8ar:
-        parsed.on8ar && typeof parsed.on8ar.username === 'string'
-          ? { username: parsed.on8ar.username, password: String(parsed.on8ar.password ?? '') }
-          : null,
       tokens: typeof parsed.tokens === 'object' && parsed.tokens ? parsed.tokens : {},
     };
+    // A stored on8ar password goes now, not at the next save.
+    if ('on8ar' in parsed) saveBrokerSettings(settings);
+    return settings;
   } catch {
     return defaults();
   }

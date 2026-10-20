@@ -4,7 +4,7 @@
 // drive without RTFM-EV still has names.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { wardriveApi } from './api';
+import { wardriveApi, type WardriveConfig } from './api';
 import { isUsableFix } from './capture';
 import { buildChannelKeys, publicChannelKeys, type ChannelKeys } from './decode/channels';
 import type { Fix } from './messages';
@@ -45,7 +45,10 @@ export function useNodeDirectory({
   fix,
   companion,
   cache,
+  onConfig,
 }: {
+  /** Everything else /config serves (calibration, brokers), for the page. */
+  onConfig?: (config: WardriveConfig) => void;
   loggedIn: boolean;
   offline: boolean;
   fix: Fix | null;
@@ -53,6 +56,8 @@ export function useNodeDirectory({
   /** Where to keep the nodes; the browser's IndexedDB when left out. */
   cache?: NodeCache | Promise<NodeCache | null>;
 }): NodeDirectoryState {
+  const onConfigRef = useRef(onConfig);
+  onConfigRef.current = onConfig;
   const [served, setServed] = useState<DirectoryNode[]>([]);
   const [radioNodes, setRadioNodes] = useState<DirectoryNode[]>([]);
   const [channels, setChannels] = useState<string[]>([]);
@@ -124,6 +129,7 @@ export function useNodeDirectory({
         stored.current.channels = c.hashtag_channels;
         setChannels(c.hashtag_channels);
         save();
+        onConfigRef.current?.(c);
       })
       .catch(() => undefined);
     return () => {

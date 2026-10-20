@@ -22,6 +22,11 @@ export const RESP_SIGN_START = 19;
 export const RESP_SIGNATURE = 20;
 /** Data bytes per SIGN_DATA frame: a frame is at most 176 bytes. */
 export const SIGN_CHUNK = 128;
+/** CMD_GET_STATS and its reply (meshcore reader.py RESP_CODE_STATS). */
+export const CMD_GET_STATS = 0x38;
+export const RESP_STATS = 24;
+export const STATS_CORE = 0;
+export const STATS_RADIO = 1;
 
 const int8 = (b: number) => (b < 128 ? b : b - 256);
 const hexUpper = (b: Uint8Array) =>
@@ -88,5 +93,21 @@ export function parseContact(frame: Uint8Array): DirectoryNode | null {
     lat: placed ? lat : null,
     lon: placed ? lon : null,
     seen: lastmod || lastAdvert || null,
+  };
+}
+
+/** RESP_CODE_STATS + STATS_TYPE_CORE (11 bytes, `<B B H I H B`): battery mV. */
+export function parseStatsCore(frame: Uint8Array): { batteryMv: number } | null {
+  if (frame.length < 11 || frame[0] !== RESP_STATS || frame[1] !== STATS_CORE) return null;
+  return {
+    batteryMv: new DataView(frame.buffer, frame.byteOffset, frame.byteLength).getUint16(2, true),
+  };
+}
+
+/** RESP_CODE_STATS + STATS_TYPE_RADIO (14 bytes, `<B B h b b I I`): noise floor dBm. */
+export function parseStatsRadio(frame: Uint8Array): { noiseFloor: number } | null {
+  if (frame.length < 14 || frame[0] !== RESP_STATS || frame[1] !== STATS_RADIO) return null;
+  return {
+    noiseFloor: new DataView(frame.buffer, frame.byteOffset, frame.byteLength).getInt16(2, true),
   };
 }
