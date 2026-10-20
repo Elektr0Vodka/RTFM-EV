@@ -41,6 +41,46 @@ describe('report share buttons', () => {
     expect(dialog.textContent).toContain('Hide my position');
   });
 
+  it('gives the drive card its five figures, nodes heard among them', async () => {
+    render(
+      <I18nProvider>
+        <ReportShare report={report()} brand={brand} />
+      </I18nProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Drive card' }));
+    await waitFor(() => expect(renderReportCard).toHaveBeenCalled());
+    const [, , text] = renderReportCard.mock.calls[0];
+    expect(text.figures.map((f: { label: string }) => f.label)).toEqual([
+      'driven',
+      'on the road',
+      'receptions',
+      'nodes heard',
+      'best signal',
+    ]);
+    expect(text.figures[3].value).toBe('2');
+  });
+
+  it('gives the weak spots card the time in every weak cell and the best node nearby', async () => {
+    render(
+      <I18nProvider>
+        <ReportShare report={report()} brand={brand} />
+      </I18nProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Weak spots card' }));
+    await waitFor(() => expect(renderReportCard).toHaveBeenCalled());
+    const [, , text] = renderReportCard.mock.calls[0];
+    const figures = text.figures as { value: string; label: string }[];
+    expect(figures.map((f) => f.label)).toEqual([
+      'gaps',
+      'weak cells',
+      'time in them',
+      'best node nearby',
+    ]);
+    // weak_spots.track_s (4500 s), not the listed cells' 600 s.
+    expect(figures[2].value).toBe('1 h 15 min');
+    expect(figures[3].value).toBe('~Toren');
+  });
+
   it('turns cards off when there is nothing to draw', () => {
     render(
       <I18nProvider>

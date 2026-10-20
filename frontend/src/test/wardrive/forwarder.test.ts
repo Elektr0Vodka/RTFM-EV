@@ -294,6 +294,69 @@ describe('Forwarder stop', () => {
   });
 });
 
+describe('Forwarder rebuilt for the same broker', () => {
+  /** A client whose publishes wait until released. */
+  class SlowClient extends FakeClient {
+    private releases: (() => void)[] = [];
+    override async publish(topic: string, payload: string) {
+      await new Promise<void>((r) => this.releases.push(r));
+      await super.publish(topic, payload);
+    }
+    release() {
+      this.releases.splice(0).forEach((r) => r());
+    }
+    get waiting() {
+      return this.releases.length;
+    }
+  }
+
+  const make = (client: MqttLike, after?: Promise<unknown>) =>
+    new Forwarder({
+      broker: DMC_W,
+      radioKey: A,
+      queue,
+      companion: fakeCompanion().companion,
+      connect: async () => client,
+      settings: () => ({ enabled: {}, tokens: {} }),
+      saveToken: () => {},
+      nowSec: () => NOW,
+      ...(after ? { after } : {}),
+    });
+
+  it('stops after the row in flight and leaves the mark at that row', async () => {
+    await queue.addObs(A, obs(A, 'o1'));
+    await queue.addObs(A, obs(A, 'o2'));
+    const slow = new SlowClient();
+    const fw = make(slow);
+    const ticking = fw.tick();
+    await vi.waitFor(() => expect(slow.waiting).toBe(1));
+    const stopping = fw.stop();
+    slow.release();
+    await Promise.all([ticking, stopping]);
+    expect(slow.published).toHaveLength(1);
+    const left = await queue.batchForRadio(destId(DMC_W.id, A), 'obs', A, 10);
+    expect(left.map((r) => (r.message as ObsMessage).rx_at)).toEqual(['o2']);
+  });
+
+  it('does not publish a row twice when a new forwarder takes over', async () => {
+    await queue.addObs(A, obs(A, 'o1'));
+    await queue.addObs(A, obs(A, 'o2'));
+    const slow = new SlowClient();
+    const old = make(slow);
+    const ticking = old.tick();
+    await vi.waitFor(() => expect(slow.waiting).toBe(1));
+    const stopped = old.stop();
+    const fresh = new FakeClient();
+    const next = make(fresh, stopped);
+    const nextTick = next.tick();
+    await new Promise((r) => setTimeout(r, 20));
+    slow.release();
+    await Promise.all([ticking, stopped, nextTick]);
+    const all = [...slow.published, ...fresh.published].map((p) => (p.payload as ObsMessage).rx_at);
+    expect(all).toEqual(['o1', 'o2']);
+  });
+});
+
 describe('enableBroker', () => {
   it('switches a broker on from the newest row', async () => {
     await queue.addObs(A, obs(A, 'old'));

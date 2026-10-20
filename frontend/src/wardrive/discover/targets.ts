@@ -56,13 +56,17 @@ export function selectedRepeaterIds(entries: HeardEntry[], selected: Set<string>
   return repeaterIds(entries, (id) => selected.has(id));
 }
 
+const FULL_KEY = /^[0-9a-f]{64}$/;
+
 /** The picked targets a trace cannot reach: everything picked that is not a
- * repeater, compared on full ids. */
+ * repeater, compared on full ids. Only full keys count (unlike rx): a
+ * telemetry ask needs one, and a channel or short id would otherwise bring
+ * an advert each cycle with Introduce my node on. */
 export function selectedCompanionIds(entries: HeardEntry[], selected: Set<string>): string[] {
   if (!selected.size) return [];
   const repeaters = new Set(repeaterReading(entries, (id) => selected.has(id)));
   return [...newestPerSender(entries, (id) => selected.has(id)).keys()].filter(
-    (id) => !repeaters.has(id)
+    (id) => !repeaters.has(id) && FULL_KEY.test(id)
   );
 }
 

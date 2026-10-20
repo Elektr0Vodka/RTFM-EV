@@ -141,3 +141,5 @@ class UploadResult(BaseModel):
     duplicate_obs: int
     accepted_tracks: int
     duplicate_tracks: int
+    # Rows of a drive the driver deleted, sent again by a page's queue.
+    discarded: int = 0

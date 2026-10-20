@@ -35,6 +35,9 @@ export interface UseAutoDiscoverInput {
 export function useAutoDiscover(input: UseAutoDiscoverInput) {
   const [enabled, setEnabled] = useState(false);
   const [cadence, setCadence] = useState<number | null>(null);
+  // The switch works once the engine exists (made in an effect after the
+  // radio connects); a tap before that would do nothing.
+  const [engineReady, setEngineReady] = useState(false);
   const engineRef = useRef<AutoDiscover | null>(null);
   const live = useRef(input);
   live.current = input;
@@ -75,12 +78,14 @@ export function useAutoDiscover(input: UseAutoDiscoverInput) {
       },
     });
     engineRef.current = engine;
+    setEngineReady(true);
     attributeRef.current = (d) => engine.attribute(d);
     // A dropped session may have left a contact zero-hop on this radio.
     void engine.replayRestores();
     return () => {
       engine.dispose();
       engineRef.current = null;
+      setEngineReady(false);
       attributeRef.current = null;
       setEnabled(false);
       setCadence(null);
@@ -100,5 +105,5 @@ export function useAutoDiscover(input: UseAutoDiscoverInput) {
     : picked.repeaters.length || picked.companions.length
       ? 'target'
       : 'on';
-  return { state, cadence, toggle, available: !!radio };
+  return { state, cadence, toggle, available: !!radio && engineReady };
 }

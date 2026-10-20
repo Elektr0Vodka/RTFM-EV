@@ -133,7 +133,7 @@ export function wrapLines(
   return lines;
 }
 
-/** The side panel: kicker, title, quoted text, up to 4 figures, brand and credit. */
+/** The side panel: kicker, title, quoted text, up to 6 figures, brand and credit. */
 export function drawCardChrome(
   ctx: CanvasRenderingContext2D,
   text: CardText,
@@ -168,7 +168,7 @@ export function drawCardChrome(
   y += Math.max(1, titleLines.length) * 42;
 
   // Figures sit in a fixed band above the footer; the quote gets what is left.
-  const figures = text.figures.slice(0, 4);
+  const figures = text.figures.slice(0, 6);
   const figRows = Math.ceil(figures.length / 2);
   const figRowH = 78;
   const footerTop = SIDE_RECT.h - 76;

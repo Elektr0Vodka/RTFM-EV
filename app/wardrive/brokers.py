@@ -95,7 +95,20 @@ class BrokerIn(BaseModel):
         parsed = urlparse(v.strip())
         if parsed.scheme != "wss" or not parsed.hostname:
             raise ValueError("Use a wss:// address")
+        try:
+            port = parsed.port  # raises on a port that is not 0-65535
+        except ValueError:
+            raise ValueError("Use a port from 1 to 65535") from None
+        if port == 0:
+            raise ValueError("Use a port from 1 to 65535")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("Put the account in the username and password fields, not the URL")
         return v.strip()
+
+    @field_validator("region")
+    @classmethod
+    def _region(cls, v: str | None) -> str | None:
+        return v.strip().lower() if v is not None else None
 
     @model_validator(mode="after")
     def _shape(self) -> "BrokerIn":

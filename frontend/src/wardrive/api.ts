@@ -35,6 +35,8 @@ export interface UploadResult {
   duplicate_obs: number;
   accepted_tracks: number;
   duplicate_tracks: number;
+  /** Rows of a drive the driver deleted, sent again (dropped). */
+  discarded?: number;
 }
 
 export interface WardriveDataObs {

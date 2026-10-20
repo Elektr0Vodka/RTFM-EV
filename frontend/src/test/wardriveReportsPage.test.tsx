@@ -62,4 +62,20 @@ describe('Tools: wardrive reports', () => {
       )
     );
   });
+
+  it('forgets the picked drives when a filter changes', async () => {
+    mockApi();
+    render(<WardriveReportsPage />);
+    await screen.findByRole('option', { name: 'anna' });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Pick Anna rit' }));
+    expect(
+      (screen.getByRole('checkbox', { name: 'Pick Anna rit' }) as HTMLInputElement).checked
+    ).toBe(true);
+    fireEvent.change(screen.getByLabelText('User'), { target: { value: '1' } });
+    expect(
+      await screen.findByText(
+        'No drive picked: the report covers every drive the filters above show.'
+      )
+    ).toBeTruthy();
+  });
 });

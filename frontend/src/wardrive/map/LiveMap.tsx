@@ -26,7 +26,7 @@ import {
   nodeFeatures,
   nodesInView,
   receptionsByNode,
-  HUE_COUNT,
+  nodeHues,
   type Bounds,
   type NodePosMode,
 } from './nodeLayer';
@@ -71,7 +71,6 @@ export interface LiveMapProps {
 const NL_CENTER: [number, number] = [5.3, 52.1];
 const EMPTY = { type: 'FeatureCollection' as const, features: [] };
 /** One hue per node slot (nodeLayer.hueSlot): only a grouping aid. */
-const NODE_HUES = Array.from({ length: HUE_COUNT }, (_, i) => `hsl(${i * 30}, 80%, 55%)`);
 const SKY_REFRESH_MS = 10 * 60 * 1000;
 const NO_READINGS: NoiseReading[] = [];
 
@@ -179,8 +178,12 @@ export function LiveMap({
   const nodeData = useMemo(() => {
     if (nodePos === 'off' || !bounds) return null;
     const inView = nodesInView(nodes, bounds, nodePos === 'reach');
-    return nodeFeatures(inView, receptionsByNode(entries, inView), NODE_HUES);
-  }, [nodePos, nodes, bounds, entries]);
+    return nodeFeatures(
+      inView,
+      receptionsByNode(entries, inView, nodes),
+      nodeHues(cvdMode, toneRef.current)
+    );
+  }, [nodePos, nodes, bounds, entries, cvdMode]);
 
   const noise = useMemo(
     () => (noiseOn ? noiseFeatures(noiseReadings, cvd) : EMPTY),
@@ -386,13 +389,7 @@ export function LiveMap({
         paint: {
           'circle-radius': ['case', backlog, 5, 6],
           'circle-color': ['get', 'color'],
-          'circle-opacity': [
-            'step',
-            ['zoom'],
-            ['case', backlog, 0, ['case', ['get', 'kept'], 0.95, 0.45]],
-            BACKLOG_OUTLINE_ZOOM,
-            ['case', backlog, 0, ['case', ['get', 'kept'], 0.95, 0.45]],
-          ],
+          'circle-opacity': ['case', backlog, 0, ['case', ['get', 'kept'], 0.95, 0.45]],
           'circle-stroke-width': ['case', backlog, 1.5, 1],
           'circle-stroke-color': ['case', backlog, ['get', 'color'], '#000000'],
           'circle-stroke-opacity': [
@@ -448,8 +445,12 @@ export function LiveMap({
         if (e.originalEvent) handlersRef.current.onUserPan();
       });
       const pick = (e: MapLayerMouseEvent) => {
-        const id = Number(e.features?.[0]?.properties?.id);
-        if (Number.isFinite(id)) handlersRef.current.onSelect(id);
+        // Backlog points are not drawn below their zoom: not tappable there either.
+        const hidden = map.getZoom() < BACKLOG_OUTLINE_ZOOM;
+        const isBacklog = (v: unknown) => v === true || v === 'true';
+        const hit = (e.features ?? []).find((f) => !(hidden && isBacklog(f.properties?.backlog)));
+        const id = Number(hit?.properties?.id);
+        if (hit && Number.isFinite(id)) handlersRef.current.onSelect(id);
       };
       map.on('click', LAYERS.points, pick);
       map.on('click', LAYERS.pillars, pick);
@@ -585,8 +586,16 @@ export function LiveMap({
     if (!ready || !map) return;
     const next = selectionPan(selectedRef.current, selectedId, entries);
     selectedRef.current = next.last;
-    if (next.pan) map.easeTo({ center: next.pan, duration: 500 });
-  }, [ready, selectedId, entries]);
+    // The padding of the current mode: heading mode's look-ahead must not
+    // outlive it (the pan would land two thirds down).
+    if (next.pan) {
+      map.easeTo({
+        center: next.pan,
+        padding: lookAheadPadding(map.getContainer().clientHeight, compass),
+        duration: 500,
+      });
+    }
+  }, [ready, selectedId, entries, compass]);
 
   // Follow: centred on the fix, turned to the heading in heading mode with the
   // position two thirds down; north up otherwise.

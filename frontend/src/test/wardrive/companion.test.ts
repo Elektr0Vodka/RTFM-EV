@@ -147,7 +147,7 @@ describe('Companion', () => {
     await expect(new Companion(t).sign(new Uint8Array(11))).rejects.toThrow(/too long/i);
   });
 
-  it('reads the contact table and sends only GET_CONTACTS', async () => {
+  it('reads the contact table after asking the radio its time', async () => {
     const t = new FakeTransport();
     t.reply = (frame) => {
       if (frame[0] !== 0x04) return;
@@ -158,7 +158,41 @@ describe('Companion', () => {
     };
     const contacts = await new Companion(t).contacts();
     expect(contacts.map((c) => c.name)).toEqual(['One', 'Two']);
-    expect(t.sent.map((f) => Array.from(f))).toEqual([[0x04]]);
+    expect(t.sent.map((f) => Array.from(f))).toEqual([[0x05], [0x04]]);
+  });
+
+  it('puts the radio clock times of contacts on the page clock', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_792_404_000_000));
+    const t = new FakeTransport();
+    // The radio's clock never set: it thinks it is 1000 s after its epoch.
+    t.reply = (frame) => {
+      if (frame[0] === 0x05) t.push([9, ...new Uint8Array(new Uint32Array([1000]).buffer)]);
+      if (frame[0] !== 0x04) return;
+      t.push(contactFrame({ keyHex: 'aa'.repeat(32), name: 'Heard', lastmod: 900 }));
+      t.push(
+        contactFrame({ keyHex: 'bb'.repeat(32), name: 'Advert only', lastAdvert: 1_792_000_000 })
+      );
+      t.push(contactsEndFrame());
+    };
+    const contacts = await new Companion(t).contacts();
+    expect(contacts.map((c) => c.seen)).toEqual([1_792_404_000 - 100, 1_792_000_000]);
+    expect(t.sent.map((f) => Array.from(f))).toEqual([[0x05], [0x04]]);
+    vi.useRealTimers();
+  });
+
+  it('reads contacts as before from a radio that does not tell its time', async () => {
+    vi.useFakeTimers();
+    const t = new FakeTransport();
+    t.reply = (frame) => {
+      if (frame[0] !== 0x04) return;
+      t.push(contactFrame({ keyHex: 'aa'.repeat(32), name: 'Heard', lastmod: 900 }));
+      t.push(contactsEndFrame());
+    };
+    const pending = new Companion(t).contacts();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect((await pending).map((c) => c.seen)).toEqual([900]);
+    vi.useRealTimers();
   });
 
   it('resolves what it has when the end never comes', async () => {
@@ -171,7 +205,8 @@ describe('Companion', () => {
       t.push(contactFrame({ keyHex: 'bb'.repeat(32), name: 'Two' }));
     };
     const pending = new Companion(t).contacts(8000);
-    await vi.advanceTimersByTimeAsync(8000);
+    // 1.5 s for a time answer that does not come, then 8 s for the contacts.
+    await vi.advanceTimersByTimeAsync(9500);
     expect((await pending).map((c) => c.name)).toEqual(['One', 'Two']);
   });
 
@@ -187,7 +222,7 @@ describe('Companion', () => {
     const signing = c.sign(new Uint8Array(10));
     const contacts = c.contacts();
     await Promise.all([signing, contacts]);
-    expect(t.sent.map((f) => f[0])).toEqual([33, 34, 35, 0x04]);
+    expect(t.sent.map((f) => f[0])).toEqual([33, 34, 35, 0x05, 0x04]);
   });
   it('asks the radio for its core and radio stats', async () => {
     const t = new FakeTransport();

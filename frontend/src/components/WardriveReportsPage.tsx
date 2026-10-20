@@ -59,6 +59,11 @@ export function WardriveReportsPage() {
   };
   const filterKey = `${user}:${group}:${radio}:${days}`;
 
+  // Picked drives belong to the list they were picked from.
+  useEffect(() => {
+    setPicked([]);
+  }, [filterKey]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-border px-4 py-2.5">

@@ -132,3 +132,27 @@ async def test_the_owner_sees_the_built_ins_and_the_custom_list(api):
     ]
     assert body["brokers"] == [custom()]
     assert body["analyzer_region"] == "nl"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "wss://mqtt.example.org:99999/mqtt",
+        "wss://mqtt.example.org:abc/mqtt",
+        "wss://user:pw@mqtt.example.org/mqtt",
+        "wss://user@mqtt.example.org/mqtt",
+    ],
+)
+async def test_a_bad_port_or_an_account_in_the_url_is_refused(api, url):
+    r = await api.put("/api/wardrive-admin/config", json={"brokers": [custom(url=url)]})
+    assert r.status_code == 422
+
+
+async def test_region_codes_are_taken_in_lower_case(api):
+    r = await api.put(
+        "/api/wardrive-admin/config",
+        json={"analyzer_region": " NL ", "brokers": [custom(region="AMS")]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["analyzer_region"] == "nl"
+    assert r.json()["brokers"][0]["region"] == "ams"

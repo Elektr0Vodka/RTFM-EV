@@ -78,19 +78,42 @@ describe('drive api adapters', () => {
     );
   });
 
-  it('the owner reads /api/wardrive-admin and downloads through a link', async () => {
+  it('the owner reads /api/wardrive-admin and saves an export under the server file name', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(okJson({ drives: [], truncated: false }));
+      .mockResolvedValueOnce(okJson({ drives: [], truncated: false }))
+      .mockResolvedValueOnce(
+        new Response('a,b\n', {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': 'attachment; filename="rtfm-ev-wardrive-cells-2026-10-20.csv"',
+          },
+        })
+      );
     await adminDrivesApi.drives({ user_id: 2, since: 5 });
     expect(fetchMock.mock.calls[0][0]).toBe('./api/wardrive-admin/drives?since=5&user_id=2');
-    const hrefs: string[] = [];
+    const clicks: string[] = [];
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
       this: HTMLAnchorElement
     ) {
-      hrefs.push(this.getAttribute('href') ?? '');
+      clicks.push(this.download);
     });
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
     await adminDrivesApi.download('cells.csv', { drive: [3], res: 9 });
-    expect(hrefs).toEqual(['./api/wardrive-admin/export/cells.csv?drive=3&res=9']);
+    expect(fetchMock.mock.calls[1][0]).toBe('./api/wardrive-admin/export/cells.csv?drive=3&res=9');
+    expect(clicks).toEqual(['rtfm-ev-wardrive-cells-2026-10-20.csv']);
+  });
+
+  it('the owner sees a refused export with the server message', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Pick at most 1000 drives for a report' }), {
+        status: 422,
+      })
+    );
+    await expect(adminDrivesApi.download('drives.gpx', { drive: [9] })).rejects.toThrow(
+      'Pick at most 1000 drives for a report'
+    );
   });
 });

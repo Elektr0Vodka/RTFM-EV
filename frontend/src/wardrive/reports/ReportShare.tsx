@@ -12,7 +12,7 @@ import { ShareCardDialog, type ShareBuildOptions } from '../../share/ShareCardDi
 import { getSavedDistanceUnit } from '../../utils/distanceUnits';
 import { formatDistance } from '../../utils/pathUtils';
 import { cardIsEmpty, renderReportCard, type ReportCardKind } from './cards';
-import { formatDbm, formatDuration, formatShare, formatWhen } from './format';
+import { formatDbm, formatDuration, formatShare, formatWhen, nodeLabel } from './format';
 import type { WardriveReport } from './types';
 
 const KINDS: ReportCardKind[] = ['drive', 'coverage', 'weak'];
@@ -45,6 +45,7 @@ export function ReportShare({
         },
         { value: formatDuration(s.drive_seconds, t), label: t('wardrive_card_fig_time') },
         { value: String(s.receptions), label: t('wardrive_card_fig_receptions') },
+        { value: String(s.nodes_heard), label: t('wardrive_card_fig_nodes') },
         { value: formatDbm(s.rssi_best), label: t('wardrive_card_fig_best') },
       ];
     }
@@ -58,12 +59,18 @@ export function ReportShare({
       ];
     }
     const w = report.weak_spots;
-    const there = w.cells.reduce((sum, c) => sum + c.track_s, 0);
+    // The node heard best next to any weak cell (each cell lists its best first).
+    const best = w.cells
+      .flatMap((c) => c.nearby.slice(0, 1))
+      .reduce<(typeof w.cells)[number]['nearby'][number] | null>(
+        (top, n) => (top === null || n.rssi_best > top.rssi_best ? n : top),
+        null
+      );
     return [
       { value: String(w.gaps), label: t('wardrive_card_fig_gaps') },
       { value: String(w.weak), label: t('wardrive_card_fig_weak') },
-      { value: formatDuration(there, t), label: t('wardrive_card_fig_time_there') },
-      { value: String(s.nodes_heard), label: t('wardrive_card_fig_nodes') },
+      { value: formatDuration(w.track_s, t), label: t('wardrive_card_fig_time_there') },
+      { value: best ? nodeLabel(best) : '-', label: t('wardrive_card_fig_best_nearby') },
     ];
   };
 

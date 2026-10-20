@@ -1,6 +1,7 @@
 // The owner's drives and reports (/api/wardrive-admin/, behind the main
 // login) as the DrivesApi the shared drive and report components take.
 import { api } from '../api';
+import { saveExport } from '../wardrive/reports/saveExport';
 import {
   queryString,
   type DrivesApi,
@@ -25,14 +26,11 @@ export const adminDrivesApi: DrivesApi = {
     await api.wardriveAdmin(`/drives/${id}/split`, json('POST', { at }));
   },
   report: (q) => api.wardriveAdmin<WardriveReport>(`/report${queryString(q)}`),
-  // A plain link: the browser carries the main login and saves the file
-  // under the name the server gives it.
-  download: async (kind, q) => {
-    const a = document.createElement('a');
-    a.setAttribute('href', `./api/wardrive-admin/export/${kind}${queryString(q)}`);
-    a.setAttribute('download', '');
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  },
+  // Fetched with the main login, so a refusal shows the server's message.
+  download: (kind, q) =>
+    saveExport(
+      `./api/wardrive-admin/export/${kind}${queryString(q)}`,
+      kind,
+      (message) => new Error(message)
+    ),
 };

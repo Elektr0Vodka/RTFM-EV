@@ -248,3 +248,69 @@ async def test_a_driver_group_filter_stays_inside_visibility(world):
     await login(client, "C")
     # C may see only C: the group filter cannot widen that.
     assert await drives(client, group_id=gid) == []
+
+
+async def test_a_merge_whose_notes_would_be_too_long_is_refused_and_changes_nothing(world):
+    client, _, _, _ = world
+    await login(client, "A")
+    later, earlier = await drives(client)
+    await client.patch(f"/api/wardrive/drives/{earlier['id']}", json={"notes": "a" * 600})
+    await client.patch(f"/api/wardrive/drives/{later['id']}", json={"notes": "b" * 600})
+    r = await client.post("/api/wardrive/drives/merge", json={"ids": [later["id"], earlier["id"]]})
+    assert r.status_code == 422
+    assert "1000" in r.json()["detail"]
+    after = await drives(client)
+    assert [(d["id"], d["obs"], d["notes"]) for d in after] == [
+        (later["id"], 3, "b" * 600),
+        (earlier["id"], 3, "a" * 600),
+    ]
+
+
+async def test_a_refused_split_changes_nothing(world):
+    client, _, _, _ = world
+    await login(client, "A")
+    before = await drives(client)
+    drive = before[1]
+    r = await client.post(
+        f"/api/wardrive/drives/{drive['id']}/split", json={"at": drive["start_ts"] - 10}
+    )
+    assert r.status_code == 422
+    assert await drives(client) == before
+
+
+async def test_a_split_inside_the_span_with_one_side_empty_is_refused(world):
+    client, _, radios, _ = world
+    await login(client, "A")
+    pk = radios["A"]
+    uid = "aaaaaaaa-0000-4000-8000-000000000001"
+    # Receptions at 0 and 60, a track from 100 to 400: nothing starts after 100.
+    rows = [obs(pk, iso(20000 + dt), hash=f"{20000 + dt:016x}") for dt in (0, 60)]
+    r = await client.post(
+        "/api/wardrive/upload",
+        json={
+            "radio_key": pk,
+            "drive_uid": uid,
+            "obs": rows,
+            "tracks": [track(pk, iso(20100), t1=iso(20400))],
+        },
+    )
+    assert r.status_code == 200
+    drive = next(d for d in await drives(client) if d["start_ts"] == BASE + 20000)
+    assert drive["end_ts"] == BASE + 20400
+    r = await client.post(f"/api/wardrive/drives/{drive['id']}/split", json={"at": BASE + 20200})
+    assert r.status_code == 422
+    assert r.json()["detail"] == "Both parts need receptions or track"
+    after = next(d for d in await drives(client) if d["id"] == drive["id"])
+    assert after == drive
+
+
+async def test_control_characters_are_taken_out_of_names_and_notes(world):
+    client, _, _, _ = world
+    await login(client, "A")
+    drive_id = (await drives(client))[0]["id"]
+    r = await client.patch(
+        f"/api/wardrive/drives/{drive_id}",
+        json={"name": "Och\x00tend\x1b", "notes": "line one\nline\ttwo\x07"},
+    )
+    assert r.status_code == 200
+    assert (r.json()["name"], r.json()["notes"]) == ("Ochtend", "line one\nline\ttwo")

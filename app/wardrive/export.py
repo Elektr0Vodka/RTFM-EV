@@ -46,6 +46,9 @@ CELL_COLUMNS = [
 ]
 
 _NUMBER = re.compile(r"^-?\d+(\.\d+)?$")
+# Not allowed in XML 1.0, not even escaped.
+_XML_INVALID = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\ufffe\uffff]")
+TRUNCATED_NOTE = "Truncated: the report hit its row limit, so the oldest rows are left out."
 
 
 def utc(ts: int) -> str:
@@ -147,6 +150,7 @@ def geojson(
     report: dict[str, Any],
     names: Names,
     drive_names: dict[int, str | None],
+    truncated: bool = False,
 ) -> dict[str, Any]:
     features: list[dict[str, Any]] = []
     for o in sorted(obs, key=lambda r: r["rx_ts"]):
@@ -211,11 +215,17 @@ def geojson(
                 },
             }
         )
-    return {"type": "FeatureCollection", "features": features}
+    out: dict[str, Any] = {"type": "FeatureCollection", "features": features}
+    if truncated:
+        out["truncated"] = True
+    return out
 
 
-def gpx(tracks: list[dict[str, Any]], drive_names: dict[int, str | None]) -> str:
-    """GPX 1.1: one track per drive, its points in time order."""
+def gpx(
+    tracks: list[dict[str, Any]], drive_names: dict[int, str | None], truncated: bool = False
+) -> str:
+    """GPX 1.1: one track per drive, its points in time order. A point's time
+    is its fix's (``t1``: a track row's position is where it ended)."""
     by_drive: dict[int, list[dict[str, Any]]] = {}
     for t in sorted(tracks, key=lambda r: r["t0_ts"]):
         by_drive.setdefault(t["drive_id"], []).append(t)
@@ -223,13 +233,15 @@ def gpx(tracks: list[dict[str, Any]], drive_names: dict[int, str | None]) -> str
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<gpx version="1.1" creator="RTFM-EV" xmlns="http://www.topografix.com/GPX/1/1">',
     ]
+    if truncated:
+        parts.append(f"<metadata><desc>{escape(TRUNCATED_NOTE)}</desc></metadata>")
     for drive_id, points in sorted(by_drive.items()):
-        name = drive_names.get(drive_id) or utc(points[0]["t0_ts"])
+        name = _XML_INVALID.sub("", drive_names.get(drive_id) or "") or utc(points[0]["t0_ts"])
         parts.append(f"<trk><name>{escape(name)}</name><trkseg>")
         for p in points:
             parts.append(
                 f"<trkpt lat={quoteattr(str(p['lat']))} lon={quoteattr(str(p['lon']))}>"
-                f"<time>{utc(p['t0_ts'])}</time></trkpt>"
+                f"<time>{utc(p.get('t1_ts') or p['t0_ts'])}</time></trkpt>"
             )
         parts.append("</trkseg></trk>")
     parts.append("</gpx>")

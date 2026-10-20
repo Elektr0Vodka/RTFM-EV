@@ -127,6 +127,23 @@ function reconcile<T extends string>(stored: unknown, all: T[]): T[] {
   return [...valid, ...missing];
 }
 
+// The same, but a newly-added key goes right after its nearest default
+// neighbour that is in the stored order (first when none is), so a new tool
+// shows up where it belongs instead of at the bottom of a customised list.
+function reconcileInPlace<T extends string>(stored: unknown, all: T[]): T[] {
+  if (!Array.isArray(stored)) return [...all];
+  const out = stored.filter((k): k is T => all.includes(k as T));
+  all.forEach((key, i) => {
+    if (out.includes(key)) return;
+    const before = all
+      .slice(0, i)
+      .reverse()
+      .find((k) => out.includes(k));
+    out.splice(before === undefined ? 0 : out.indexOf(before) + 1, 0, key);
+  });
+  return out;
+}
+
 function saveJson(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -152,7 +169,7 @@ export function resolveSectionOrder(
   return reconcile<SidebarSectionKey>(serverValue, all);
 }
 export function resolveToolOrder(serverValue: unknown): SidebarToolKey[] {
-  return reconcile<SidebarToolKey>(serverValue, ALL_TOOL_KEYS);
+  return reconcileInPlace<SidebarToolKey>(serverValue, ALL_TOOL_KEYS);
 }
 export function resolveFavoritesOrder(serverValue: unknown): FavoriteGroupKey[] {
   return reconcile<FavoriteGroupKey>(serverValue, ALL_FAVORITE_GROUP_KEYS);

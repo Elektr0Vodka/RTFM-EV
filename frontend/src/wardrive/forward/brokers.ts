@@ -111,6 +111,23 @@ export function parseBrokers(v: unknown): Broker[] | null {
   return out;
 }
 
+/** What a broker's connection depends on, in a fixed order: the same
+ * broker from the built-in list, the cache or the server gives the same
+ * text, whatever order its keys came in. The display name is left out. */
+export function brokerFingerprint(b: Broker): string {
+  return JSON.stringify([
+    b.id,
+    b.url,
+    b.audience,
+    b.auth,
+    b.format,
+    b.label ?? null,
+    b.region ?? null,
+    b.username ?? null,
+    b.password ?? null,
+  ]);
+}
+
 /** The queue destination of a broker for one radio. */
 export function destId(id: BrokerId, radioKey: string): string {
   return `${id}@${radioKey.toUpperCase()}`;

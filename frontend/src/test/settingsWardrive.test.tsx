@@ -439,13 +439,44 @@ describe('Settings: wardrive brokers', () => {
     );
   });
 
-  it('removes an added broker', async () => {
+  it('removes an added broker after a confirmation', async () => {
     mockApi({ config: { ...base, brokers: [CLUB] } });
     const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue(base);
     render(<SettingsWardriveSection />);
     const card = await screen.findByTestId('wardrive-brokers');
     fireEvent.click(await within(card).findByRole('button', { name: 'Remove Club MQTT' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('Club MQTT');
+    expect(put).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove broker' }));
     await waitFor(() => expect(put).toHaveBeenCalledWith({ brokers: [] }));
+  });
+
+  it('keeps a broker when the removal is cancelled', async () => {
+    mockApi({ config: { ...base, brokers: [CLUB] } });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue(base);
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    fireEvent.click(await within(card).findByRole('button', { name: 'Remove Club MQTT' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('takes region codes in lower case', async () => {
+    mockApi({ config: base });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue(base);
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-brokers');
+    const region = (await within(card).findByLabelText(/Analyzer region/)) as HTMLInputElement;
+    fireEvent.change(region, { target: { value: 'BE' } });
+    expect(region.value).toBe('be');
+    const code = within(card).getByLabelText('Region code') as HTMLInputElement;
+    fireEvent.change(code, { target: { value: 'AMS' } });
+    expect(code.value).toBe('ams');
+    fireEvent.click(within(card).getByRole('button', { name: 'Save region' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ analyzer_region: 'be' }));
   });
 
   it('shows the server message when a broker is refused', async () => {

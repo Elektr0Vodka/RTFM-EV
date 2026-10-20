@@ -177,3 +177,12 @@ async def test_a_cut_report_keeps_one_time_window(world, monkeypatch):
     assert body["truncated"] is True
     assert body["scope"]["cut_ts"] is not None
     assert body["summary"]["first_ts"] >= body["scope"]["cut_ts"]
+
+
+async def test_too_many_picked_drives_are_refused(world):
+    client, _ = world
+    await login(client, "A")
+    for path in ("/api/wardrive/report", "/api/wardrive/export/receptions.csv"):
+        r = await client.get(path, params={"drive": list(range(1, 1002))})
+        assert r.status_code == 422
+        assert "1000" in r.json()["detail"]

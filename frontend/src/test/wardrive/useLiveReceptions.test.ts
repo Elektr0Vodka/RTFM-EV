@@ -8,6 +8,7 @@ import type { Fix, ObsMessage } from '../../wardrive/messages';
 import { hexToBytes } from '../../wardrive/packet';
 import { openQueue, type Queue } from '../../wardrive/queue';
 import type { Companion, RadioReception } from '../../wardrive/radio/companion';
+import type { Attribute } from '../../wardrive/discover/useAutoDiscover';
 import { useLiveReceptions } from '../../wardrive/useLiveReceptions';
 import { TEST_SECRET, groupTextFrame } from './decodeVectors';
 
@@ -164,5 +165,31 @@ describe('useLiveReceptions', () => {
     expect(radio.listeners).toBe(1);
     unmount();
     expect(radio.listeners).toBe(0);
+  });
+
+  it('keeps how well a node answering our ask heard us', async () => {
+    const radio = new FakeCompanion();
+    const { result } = renderHook(() => {
+      const fixRef = useRef<Fix | null>(null);
+      const attributeRef = useRef<Attribute | null>(() => ({
+        sender: { kind: 'trace_reply', id: 'a1', label: null, role: null },
+        heardUsSnr: 6.5,
+      }));
+      return useLiveReceptions(
+        radio as unknown as Companion,
+        fixRef,
+        false,
+        keys,
+        { queue: null, radioKeys: [] },
+        attributeRef
+      );
+    });
+    act(() => radio.hear());
+    await waitFor(() => expect(result.current.latest).not.toBeNull());
+    expect(result.current.latest).toMatchObject({
+      sender: { kind: 'trace_reply', id: 'a1' },
+      heardDirect: true,
+      heardUsSnr: 6.5,
+    });
   });
 });

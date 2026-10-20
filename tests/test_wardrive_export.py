@@ -99,7 +99,7 @@ def test_gpx_escapes_names_and_parses():
     assert trk[0].find(f"{GPX_NS}name").text == "<A&B>"
     points = trk[0].findall(f"{GPX_NS}trkseg/{GPX_NS}trkpt")
     assert len(points) == 2
-    assert points[0].find(f"{GPX_NS}time").text == "2026-10-19T10:00:00Z"
+    assert points[0].find(f"{GPX_NS}time").text == "2026-10-19T10:00:10Z"
 
 
 @pytest.fixture
@@ -175,3 +175,46 @@ async def test_owner_exports_everyone(world):
     r = await world.get("/api/wardrive-admin/export/receptions.csv", params=WINDOW)
     assert {line[1] for line in rows(r.text)[1:]} == {"A", "C"}
     assert (await world.get("/api/wardrive-admin/export/nope.txt")).status_code == 404
+
+
+def test_gpx_points_carry_the_time_of_their_fix():
+    # A track row's position is the fix at its end (t1), not its start.
+    xml = export.gpx([tr(0, dur=10), tr(30, dur=10)], {1: "Ride"})
+    root = ET.fromstring(xml)
+    points = root.findall(f"{GPX_NS}trk/{GPX_NS}trkseg/{GPX_NS}trkpt")
+    assert [p.find(f"{GPX_NS}time").text for p in points] == [
+        "2026-10-19T10:00:10Z",
+        "2026-10-19T10:00:40Z",
+    ]
+
+
+def test_gpx_stays_valid_xml_with_control_characters_in_a_name():
+    xml = export.gpx([tr(0), tr(30)], {1: "Ride\x01 \x1b[31mred\x7f"})
+    root = ET.fromstring(xml)
+    assert root.find(f"{GPX_NS}trk/{GPX_NS}name").text == "Ride [31mred"
+
+
+def test_a_truncated_gpx_and_geojson_say_so():
+    rows = [tr(0), tr(30)]
+    root = ET.fromstring(export.gpx(rows, {}, truncated=True))
+    desc = root.find(f"{GPX_NS}metadata/{GPX_NS}desc")
+    assert desc is not None and "truncated" in desc.text.lower()
+    assert ET.fromstring(export.gpx(rows, {})).find(f"{GPX_NS}metadata") is None
+    report = build_report([], rows, [], 9, True)
+    assert export.geojson([], rows, report, {}, {}, truncated=True)["truncated"] is True
+    assert "truncated" not in export.geojson([], rows, report, {}, {})
+
+
+async def test_a_truncated_export_is_marked(world, monkeypatch):
+    import app.wardrive.drives as drives_module
+
+    client = world
+    client.cookies.clear()
+    r = await client.get("/api/wardrive-admin/export/receptions.csv", params=WINDOW)
+    assert r.headers.get("x-wardrive-truncated") is None
+    assert "-truncated" not in r.headers["content-disposition"]
+    monkeypatch.setattr(drives_module, "REPORT_MAX_ROWS", 1)
+    r = await client.get("/api/wardrive-admin/export/receptions.csv", params=WINDOW)
+    assert r.status_code == 200
+    assert r.headers["x-wardrive-truncated"] == "true"
+    assert r.headers["content-disposition"].endswith('-truncated.csv"')

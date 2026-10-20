@@ -110,6 +110,24 @@ describe('drives panel', () => {
     await waitFor(() => expect(api.split).toHaveBeenCalledWith(1, T0 + 60));
   });
 
+  it('offers the middle of the drive to split at, a time the server accepts', async () => {
+    const api = fakeApi(two);
+    renderPanel(api);
+    const row = (await screen.findByText('Ochtend')).closest('li')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Split' }));
+    const at = within(row).getByLabelText('Split at') as HTMLInputElement;
+    const d = new Date((T0 + 1950) * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    expect(at.value).toBe(
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
+    fireEvent.click(within(row).getByRole('button', { name: 'Split here' }));
+    await waitFor(() => expect(api.split).toHaveBeenCalled());
+    const sent = (api.split.mock.calls[0] as unknown[])[1] as number;
+    expect(sent).toBeGreaterThan(T0);
+    expect(sent).toBeLessThanOrEqual(T0 + 3900);
+  });
+
   it('shows no changes for a drive of someone else', async () => {
     renderPanel(fakeApi([drive({ id: 5, name: 'Bert rit', username: 'bert', can_edit: false })]));
     const row = (await screen.findByText('Bert rit')).closest('li')!;

@@ -6,6 +6,8 @@
 // drift, not error.
 import type { FeatureCollection, LineString, Point, Polygon } from 'geojson';
 
+import type { CvdMode, Tone } from '../../utils/accessibility';
+import { getDataColors } from '../../utils/cvd/palettes';
 import { estimateFor } from '../arrow';
 import { REACH_CAP_KM, distanceKm, type DirectoryNode } from '../names';
 import type { ViewEntry } from '../useReceptionView';
@@ -40,6 +42,14 @@ export function hueSlot(id: string): number {
   h = Math.imul(h, 0x45d9f3b) >>> 0;
   h = (h ^ (h >>> 16)) >>> 0;
   return h % HUE_COUNT;
+}
+
+const PLAIN_HUES = Array.from({ length: HUE_COUNT }, (_, i) => `hsl(${i * 30}, 80%, 55%)`);
+
+/** Node colours: 12 hues 30 degrees apart, or in colourblind mode the
+ * palette's categorical series (fewer colours, but ones that stay apart). */
+export function nodeHues(cvd: CvdMode, tone: Tone): string[] {
+  return cvd === 'off' ? PLAIN_HUES : getDataColors(cvd, tone).series;
 }
 
 export interface Bounds {
@@ -77,7 +87,10 @@ export function nodesInView(nodes: DirectoryNode[], b: Bounds, withReach = false
  * that could be two of them counts for neither. */
 export function receptionsByNode(
   entries: ViewEntry[],
-  nodes: DirectoryNode[]
+  nodes: DirectoryNode[],
+  /** Every known node: a discover prefix shared with one off the map is
+   * ambiguous too. Defaults to the drawn ones. */
+  all: DirectoryNode[] = nodes
 ): Map<string, ViewEntry[]> {
   const keys = new Set(nodes.map((n) => n.publicKey));
   const out = new Map<string, ViewEntry[]>();
@@ -86,13 +99,28 @@ export function receptionsByNode(
     if (list) list.push(e);
     else out.set(key, [e]);
   };
+  // Per prefix length: prefix -> the one key that starts with it, or null
+  // when several do. Built once per length seen, not per reply.
+  const byLength = new Map<number, Map<string, string | null>>();
+  const owner = (prefix: string): string | null => {
+    let index = byLength.get(prefix.length);
+    if (!index) {
+      index = new Map();
+      for (const n of all) {
+        const p = n.publicKey.slice(0, prefix.length);
+        index.set(p, index.has(p) && index.get(p) !== n.publicKey ? null : n.publicKey);
+      }
+      byLength.set(prefix.length, index);
+    }
+    return index.get(prefix) ?? null;
+  };
   for (const e of entries) {
     const { kind, id } = e.sender;
     const lower = id?.toLowerCase() ?? '';
     if (kind === 'advert_pubkey' && keys.has(lower)) add(lower, e);
     else if (kind === 'discover_pubkey' && lower) {
-      const hits = nodes.filter((n) => n.publicKey.startsWith(lower));
-      if (hits.length === 1) add(hits[0].publicKey, e);
+      const key = owner(lower);
+      if (key !== null && keys.has(key)) add(key, e);
     } else if (e.attr?.rule === 'node' && keys.has(e.attr.node.publicKey)) {
       add(e.attr.node.publicKey, e);
     }
@@ -140,7 +168,7 @@ export function nodeFeatures(
   for (const n of nodes) {
     if (n.lat === null || n.lon === null) continue;
     const home = { lat: n.lat, lon: n.lon };
-    const color = hues[hueSlot(n.publicKey)] ?? hues[0];
+    const color = hues[hueSlot(n.publicKey) % hues.length];
     const props = { key: n.publicKey, name: n.name ?? n.publicKey.slice(0, 6), color };
     out.advertised.features.push({
       type: 'Feature',

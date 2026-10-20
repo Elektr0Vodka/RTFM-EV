@@ -10,6 +10,9 @@ export const CMD_APP_START = 0x01;
 export const RESP_SELF_INFO = 0x05;
 export const PUSH_LOG_RX_DATA = 0x88;
 export const CMD_GET_CONTACTS = 0x04;
+/** The radio's clock (RESP_CURR_TIME: uint32 seconds). A local read. */
+export const CMD_GET_DEVICE_TIME = 0x05;
+export const RESP_CURR_TIME = 9;
 export const RESP_CONTACTS_START = 0x02;
 export const RESP_CONTACT = 0x03;
 export const RESP_END_OF_CONTACTS = 0x04;
@@ -78,9 +81,11 @@ const CONTACT_MIN_LENGTH = 144;
 
 /** RESP_CONTACT: the contact's key, advertised name, role, advertised
  * position ((0, 0) is none) and when it was last heard: the radio's own
- * lastmod (its clock) when the frame carries it, else the advert time (the
- * node's clock, which can be far off); 0 is unknown. */
-export function parseContact(frame: Uint8Array): DirectoryNode | null {
+ * lastmod when the frame carries it, else the advert time (the node's clock,
+ * which can be far off); 0 is unknown. lastmod is by the radio's clock, which
+ * nothing may have set: `clockOffsetS` (page clock minus radio clock, from
+ * CMD_GET_DEVICE_TIME) puts it on the page's clock. */
+export function parseContact(frame: Uint8Array, clockOffsetS = 0): DirectoryNode | null {
   if (frame.length < CONTACT_MIN_LENGTH || frame[0] !== RESP_CONTACT) return null;
   const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
   const nameBytes = frame.subarray(100, 132);
@@ -97,7 +102,7 @@ export function parseContact(frame: Uint8Array): DirectoryNode | null {
     role: CONTACT_ROLES[frame[33]] ?? null,
     lat: placed ? lat : null,
     lon: placed ? lon : null,
-    seen: lastmod || lastAdvert || null,
+    seen: lastmod ? lastmod + clockOffsetS : lastAdvert || null,
   };
 }
 

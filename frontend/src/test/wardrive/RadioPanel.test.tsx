@@ -39,9 +39,9 @@ describe('radio panel battery', () => {
     expect(screen.getByTestId('wardrive-battery').textContent).toMatch(/low/i);
   });
 
-  it('shows no battery line before the radio answered', () => {
+  it('shows a dash for the battery before the radio answered', () => {
     renderPanel({ batteryMv: null });
-    expect(screen.queryByTestId('wardrive-battery')).toBeNull();
+    expect(screen.getByTestId('wardrive-battery').textContent).toBe('Battery -');
   });
 
   it('shows no battery line for a radio that cannot measure its battery', () => {

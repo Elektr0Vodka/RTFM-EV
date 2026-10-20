@@ -196,4 +196,14 @@ describe('who is a repeater', () => {
     expect(selectedRepeaterIds(entries, new Set([k]))).toEqual([k]);
     expect(selectedCompanionIds(entries, new Set([k]))).toEqual([]);
   });
+
+  it('takes only full keys as companion targets (a channel or short id gets no ask)', () => {
+    const full = 'c0' + '11'.repeat(31);
+    const entries = [
+      { at: 1, sender: { kind: 'direct_hash' as const, id: 'c0', label: null, role: null } },
+      { at: 2, sender: { kind: 'channel' as const, id: '#wardrive', label: null, role: null } },
+      { at: 3, sender: { kind: 'advert_pubkey' as const, id: full, label: null, role: null } },
+    ] as unknown as HeardEntry[];
+    expect(selectedCompanionIds(entries, new Set(['c0', '#wardrive', full]))).toEqual([full]);
+  });
 });

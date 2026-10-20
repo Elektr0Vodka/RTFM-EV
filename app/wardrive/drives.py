@@ -29,6 +29,12 @@ UID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 MAX_NAME = 64
 MAX_NOTES = 1000
 MAX_MERGE = 50
+# Picked drives per report or export.
+MAX_REPORT_DRIVES = 1000
+# Control characters (tab and newline kept in notes) are not text: they make
+# a GPX file invalid XML and a CSV hard to read.
+_NAME_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+_NOTES_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 
 
 def split_by_gap(times: list[int], gap_s: int = GAP_S) -> list[list[int]]:
@@ -53,7 +59,7 @@ class DriveUpdate(BaseModel):
     def _name(cls, v: str | None) -> str | None:
         if v is None:
             return None
-        v = v.strip()
+        v = _NAME_CONTROL.sub("", v).strip()
         if len(v) > MAX_NAME:
             raise ValueError(f"A drive name has at most {MAX_NAME} characters")
         return v or None
@@ -61,7 +67,7 @@ class DriveUpdate(BaseModel):
     @field_validator("notes")
     @classmethod
     def _notes(cls, v: str | None) -> str | None:
-        return (v.strip() or None) if v is not None else None
+        return (_NOTES_CONTROL.sub("", v).strip() or None) if v is not None else None
 
 
 class MergeBody(BaseModel):
@@ -174,7 +180,7 @@ async def update_drive(
 
 async def delete_drive(drive_id: int, viewer: dict[str, Any] | None) -> dict[str, Any]:
     await _editable(drive_id, viewer)
-    obs, tracks = await WardriveDriveRepository.delete_with_rows(drive_id)
+    obs, tracks = await WardriveDriveRepository.delete_with_rows(drive_id, int(time.time()))
     return {"status": "deleted", "obs": obs, "tracks": tracks}
 
 
@@ -188,7 +194,15 @@ async def merge_drives(body: MergeBody, viewer: dict[str, Any] | None) -> dict[s
     drives.sort(key=lambda d: (d["start_ts"], d["id"]))
     into, others = drives[0], drives[1:]
     notes = "\n\n".join(n for n in (d["notes"] for d in drives) if n) or None
-    await WardriveDriveRepository.merge(into["id"], [d["id"] for d in others], notes)
+    if notes is not None and len(notes) > MAX_NOTES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"The merged notes would be longer than {MAX_NOTES} characters; "
+            "shorten them first",
+        )
+    await WardriveDriveRepository.merge(
+        into["id"], [d["id"] for d in others], notes, int(time.time())
+    )
     return await _listed(into["id"], viewer)
 
 
@@ -229,6 +243,10 @@ def report_query(
     radio_key: str | None = None,
     res: Annotated[int, Query(ge=7, le=11, description="Cell size: 7 = 720 m to 11 = 40 m")] = 9,
 ) -> ReportQuery:
+    if drive and len(drive) > MAX_REPORT_DRIVES:
+        raise HTTPException(
+            status_code=422, detail=f"Pick at most {MAX_REPORT_DRIVES} drives for a report"
+        )
     return ReportQuery(
         drive=drive or [],
         since=since,
@@ -346,19 +364,22 @@ async def make_export(kind: str, q: ReportQuery, viewer: dict[str, Any] | None) 
         if kind == "cells.csv":
             return export.cells_csv(report)
         if kind == "drives.geojson":
-            return json.dumps(export.geojson(obs, tracks, report, names, drive_names))
-        return export.gpx(tracks, drive_names)
+            return json.dumps(
+                export.geojson(obs, tracks, report, names, drive_names, truncated=truncated)
+            )
+        return export.gpx(tracks, drive_names, truncated=truncated)
 
     body = await asyncio.to_thread(render)
     stem, ext = kind.split(".")
     day = datetime.now(UTC).strftime("%Y-%m-%d")
-    return Response(
-        content=body,
-        media_type=EXPORT_MEDIA[kind],
-        headers={
-            "Content-Disposition": f'attachment; filename="rtfm-ev-wardrive-{stem}-{day}.{ext}"'
-        },
-    )
+    # A cut export says so in its name (and inside the GPX and GeoJSON).
+    cut = "-truncated" if truncated else ""
+    headers = {
+        "Content-Disposition": f'attachment; filename="rtfm-ev-wardrive-{stem}-{day}{cut}.{ext}"'
+    }
+    if truncated:
+        headers["X-Wardrive-Truncated"] = "true"
+    return Response(content=body, media_type=EXPORT_MEDIA[kind], headers=headers)
 
 
 async def own_groups(viewer: dict[str, Any]) -> dict[str, Any]:

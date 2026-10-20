@@ -63,7 +63,10 @@ function DriveRow({
   const [mode, setMode] = useState<'view' | 'edit' | 'split'>('view');
   const [name, setName] = useState(drive.name ?? '');
   const [notes, setNotes] = useState(drive.notes ?? '');
-  const [splitAt, setSplitAt] = useState(toLocalInput(drive.start_ts));
+  // The middle: the start minute itself is always refused (nothing before it).
+  const [splitAt, setSplitAt] = useState(
+    toLocalInput(Math.floor((drive.start_ts + drive.end_ts) / 2))
+  );
   const [busy, setBusy] = useState(false);
   const label = driveLabel(drive, locale);
 

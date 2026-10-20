@@ -133,6 +133,7 @@ class WardriveUserRepository:
                 "wardrive_obs",
                 "wardrive_tracks",
                 "wardrive_drives",
+                "wardrive_drive_tombstones",
             ):
                 await conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
             async with conn.execute("DELETE FROM wardrive_users WHERE id = ?", (user_id,)) as cur:
@@ -277,6 +278,77 @@ class WardriveSessionRepository:
             await conn.execute("DELETE FROM wardrive_sessions WHERE user_id = ?", (user_id,))
 
 
+async def _insert_obs(
+    conn: Any, user_id: int, key: str, rows: list[Obs], now: int, drive_id: int | None
+) -> int:
+    """Store receptions in ``drive_id`` on an open write connection; a row
+    already stored (same radio, rx_at, hash) is skipped. Returns accepted."""
+    accepted = 0
+    for o in rows:
+        async with conn.execute(
+            "INSERT OR IGNORE INTO wardrive_obs (user_id, radio_key, rx_at, rx_ts, pub_at, "
+            "hash, raw, len, packet_type, route, payload_len, path, rssi, snr, lat, lon, "
+            "accuracy, src, uploaded_at, drive_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                user_id,
+                key,
+                o.rx_at,
+                iso_to_ts(o.rx_at),
+                o.pub_at,
+                o.hash,
+                o.raw,
+                o.len,
+                o.packet_type,
+                o.route,
+                o.payload_len,
+                json.dumps(o.path),
+                o.RSSI,
+                o.SNR,
+                o.pos.lat,
+                o.pos.lon,
+                o.pos.accuracy,
+                o.pos.src,
+                now,
+                drive_id,
+            ),
+        ) as cursor:
+            accepted += cursor.rowcount
+    return accepted
+
+
+async def _insert_tracks(
+    conn: Any, user_id: int, key: str, rows: list[Track], now: int, drive_id: int | None
+) -> int:
+    """Store listening intervals in ``drive_id`` on an open write connection;
+    same radio and t0 is skipped. Returns accepted."""
+    accepted = 0
+    for t in rows:
+        async with conn.execute(
+            "INSERT OR IGNORE INTO wardrive_tracks (user_id, radio_key, t0, t1, t0_ts, "
+            "t1_ts, lat, lon, accuracy, rx_count, listening, src, uploaded_at, drive_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                user_id,
+                key,
+                t.t0,
+                t.t1,
+                iso_to_ts(t.t0),
+                iso_to_ts(t.t1),
+                t.lat,
+                t.lon,
+                t.accuracy,
+                t.rx_count,
+                1 if t.listening else 0,
+                t.src,
+                now,
+                drive_id,
+            ),
+        ) as cursor:
+            accepted += cursor.rowcount
+    return accepted
+
+
 class WardriveDataRepository:
     """The local copy of drivers' receptions and listening intervals."""
 
@@ -286,39 +358,10 @@ class WardriveDataRepository:
     ) -> tuple[int, int]:
         """Store receptions in ``drive_id``; a row already stored (same radio,
         rx_at, hash) is a duplicate. Returns (accepted, duplicates)."""
-        key = normalize_key(radio_key)
-        accepted = 0
         async with db.tx() as conn:
-            for o in rows:
-                async with conn.execute(
-                    "INSERT OR IGNORE INTO wardrive_obs (user_id, radio_key, rx_at, rx_ts, pub_at, "
-                    "hash, raw, len, packet_type, route, payload_len, path, rssi, snr, lat, lon, "
-                    "accuracy, src, uploaded_at, drive_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        user_id,
-                        key,
-                        o.rx_at,
-                        iso_to_ts(o.rx_at),
-                        o.pub_at,
-                        o.hash,
-                        o.raw,
-                        o.len,
-                        o.packet_type,
-                        o.route,
-                        o.payload_len,
-                        json.dumps(o.path),
-                        o.RSSI,
-                        o.SNR,
-                        o.pos.lat,
-                        o.pos.lon,
-                        o.pos.accuracy,
-                        o.pos.src,
-                        now,
-                        drive_id,
-                    ),
-                ) as cursor:
-                    accepted += cursor.rowcount
+            accepted = await _insert_obs(
+                conn, user_id, normalize_key(radio_key), rows, now, drive_id
+            )
         return accepted, len(rows) - accepted
 
     @staticmethod
@@ -326,32 +369,10 @@ class WardriveDataRepository:
         user_id: int, radio_key: str, rows: list[Track], now: int, drive_id: int | None = None
     ) -> tuple[int, int]:
         """Store listening intervals in ``drive_id``; same radio and t0 is a duplicate."""
-        key = normalize_key(radio_key)
-        accepted = 0
         async with db.tx() as conn:
-            for t in rows:
-                async with conn.execute(
-                    "INSERT OR IGNORE INTO wardrive_tracks (user_id, radio_key, t0, t1, t0_ts, "
-                    "t1_ts, lat, lon, accuracy, rx_count, listening, src, uploaded_at, drive_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        user_id,
-                        key,
-                        t.t0,
-                        t.t1,
-                        iso_to_ts(t.t0),
-                        iso_to_ts(t.t1),
-                        t.lat,
-                        t.lon,
-                        t.accuracy,
-                        t.rx_count,
-                        1 if t.listening else 0,
-                        t.src,
-                        now,
-                        drive_id,
-                    ),
-                ) as cursor:
-                    accepted += cursor.rowcount
+            accepted = await _insert_tracks(
+                conn, user_id, normalize_key(radio_key), rows, now, drive_id
+            )
         return accepted, len(rows) - accepted
 
     @staticmethod
@@ -450,6 +471,77 @@ _DRIVE_COLUMNS = "id, uid, user_id, radio_key, name, notes, start_ts, end_ts, cr
 # A row without a drive uid joins a drive whose span, widened by this on both
 # sides, holds it (rx's ride gap).
 DRIVE_GAP_S = 600
+# Beyond any stored time, for MIN/MAX over subqueries that may be empty.
+_NO_TS = 1 << 62
+
+
+class DriveOfAnotherRadio(Exception):
+    """An upload names a drive uid of another user or radio."""
+
+
+async def _drive_for_gap_row(conn: Any, user_id: int, key: str, ts: int) -> int | None:
+    """The user's drive of this radio whose span, widened by the ride gap on
+    both sides, holds ``ts``; the nearest one when several do."""
+    async with conn.execute(
+        "SELECT id FROM wardrive_drives WHERE user_id = ? AND radio_key = ? "
+        "AND start_ts - ? <= ? AND end_ts + ? >= ? "
+        "ORDER BY MIN(ABS(start_ts - ?), ABS(end_ts - ?)), id LIMIT 1",
+        (user_id, key, DRIVE_GAP_S, ts, DRIVE_GAP_S, ts, ts, ts),
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row["id"] if row else None
+
+
+async def _create_drive(
+    conn: Any, user_id: int, key: str, uid: str | None, start_ts: int, end_ts: int, now: int
+) -> int:
+    async with conn.execute(
+        "INSERT INTO wardrive_drives (uid, user_id, radio_key, start_ts, end_ts, "
+        "created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (uid, user_id, key, start_ts, end_ts, now),
+    ) as cursor:
+        return int(cursor.lastrowid or 0)
+
+
+async def _refresh_span(conn: Any, drive_ids: Iterable[int]) -> None:
+    for drive_id in sorted(set(drive_ids)):
+        async with conn.execute(
+            "SELECT MIN(s), MAX(e) FROM ("
+            "SELECT rx_ts AS s, rx_ts AS e FROM wardrive_obs WHERE drive_id = ? "
+            "UNION ALL SELECT t0_ts, COALESCE(t1_ts, t0_ts) FROM wardrive_tracks "
+            "WHERE drive_id = ?)",
+            (drive_id, drive_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None or row[0] is None:
+            await conn.execute("DELETE FROM wardrive_drives WHERE id = ?", (drive_id,))
+        else:
+            await conn.execute(
+                "UPDATE wardrive_drives SET start_ts = ?, end_ts = ? WHERE id = ?",
+                (row[0], row[1], drive_id),
+            )
+
+
+async def _drive_row(conn: Any, drive_id: int) -> dict[str, Any] | None:
+    async with conn.execute(
+        f"SELECT {_DRIVE_COLUMNS} FROM wardrive_drives WHERE id = ?", (drive_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    return dict(row) if row else None
+
+
+async def _retire_uid(
+    conn: Any, drive: dict[str, Any], kind: str, until_ts: int | None, now: int
+) -> None:
+    """Remember a drive uid the driver deleted ('deleted') or merged away or
+    split ('retired'), so late rows of it do not bring the drive back."""
+    if not drive.get("uid"):
+        return
+    await conn.execute(
+        "INSERT OR REPLACE INTO wardrive_drive_tombstones "
+        "(uid, user_id, radio_key, kind, until_ts, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (drive["uid"], drive["user_id"], drive["radio_key"], kind, until_ts, now),
+    )
 
 
 class WardriveDriveRepository:
@@ -465,48 +557,12 @@ class WardriveDriveRepository:
         return dict(row) if row else None
 
     @staticmethod
-    async def get_by_uid(uid: str) -> dict[str, Any] | None:
-        async with db.readonly() as conn:
-            async with conn.execute(
-                f"SELECT {_DRIVE_COLUMNS} FROM wardrive_drives WHERE uid = ?", (uid,)
-            ) as cursor:
-                row = await cursor.fetchone()
-        return dict(row) if row else None
-
-    @staticmethod
     async def create(
         user_id: int, radio_key: str, uid: str | None, start_ts: int, end_ts: int, now: int
     ) -> int:
         async with db.tx() as conn:
-            async with conn.execute(
-                "INSERT INTO wardrive_drives (uid, user_id, radio_key, start_ts, end_ts, "
-                "created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (uid, user_id, normalize_key(radio_key), start_ts, end_ts, now),
-            ) as cursor:
-                return int(cursor.lastrowid or 0)
-
-    @staticmethod
-    async def drive_for_gap_row(user_id: int, radio_key: str, ts: int) -> int | None:
-        """The user's drive of this radio whose span, widened by the ride gap
-        on both sides, holds ``ts``; the nearest one when several do."""
-        async with db.readonly() as conn:
-            async with conn.execute(
-                "SELECT id FROM wardrive_drives WHERE user_id = ? AND radio_key = ? "
-                "AND start_ts - ? <= ? AND end_ts + ? >= ? "
-                "ORDER BY MIN(ABS(start_ts - ?), ABS(end_ts - ?)), id LIMIT 1",
-                (user_id, normalize_key(radio_key), DRIVE_GAP_S, ts, DRIVE_GAP_S, ts, ts, ts),
-            ) as cursor:
-                row = await cursor.fetchone()
-        return row["id"] if row else None
-
-    @staticmethod
-    async def extend(drive_id: int, start_ts: int, end_ts: int) -> None:
-        """Widen a drive's span to hold ``start_ts..end_ts``."""
-        async with db.tx() as conn:
-            await conn.execute(
-                "UPDATE wardrive_drives SET start_ts = MIN(start_ts, ?), "
-                "end_ts = MAX(end_ts, ?) WHERE id = ?",
-                (start_ts, end_ts, drive_id),
+            return await _create_drive(
+                conn, user_id, normalize_key(radio_key), uid, start_ts, end_ts, now
             )
 
     @staticmethod
@@ -516,22 +572,89 @@ class WardriveDriveRepository:
         if not ids:
             return
         async with db.tx() as conn:
-            for drive_id in ids:
+            await _refresh_span(conn, ids)
+
+    @staticmethod
+    async def store_upload(
+        user_id: int,
+        radio_key: str,
+        uid: str | None,
+        obs: list[Obs],
+        tracks: list[Track],
+        now: int,
+    ) -> dict[str, int]:
+        """Store a batch in its drives in one transaction, so a drive delete
+        cannot land between making a drive and filling it.
+
+        With a live drive uid all rows go to that drive (made on first
+        sight). Without one, or with a uid the driver merged away or split,
+        each row joins the drive the 10-minute gap rule gives or starts one.
+        Rows of a deleted drive up to its end are dropped (``discarded``).
+        Raises DriveOfAnotherRadio for a uid of another user or radio."""
+        key = normalize_key(radio_key)
+        rows: list[tuple[int, int, Obs | Track]] = [(iso_to_ts(o.rx_at), 0, o) for o in obs]
+        rows += [(iso_to_ts(t.t0), 1, t) for t in tracks]
+        rows.sort(key=lambda r: (r[0], r[1]))
+        groups: dict[int, tuple[list[Obs], list[Track]]] = {}
+        discarded = accepted_obs = accepted_tracks = 0
+        async with db.tx() as conn:
+            tomb = drive = None
+            if uid is not None:
                 async with conn.execute(
-                    "SELECT MIN(s), MAX(e) FROM ("
-                    "SELECT rx_ts AS s, rx_ts AS e FROM wardrive_obs WHERE drive_id = ? "
-                    "UNION ALL SELECT t0_ts, COALESCE(t1_ts, t0_ts) FROM wardrive_tracks "
-                    "WHERE drive_id = ?)",
-                    (drive_id, drive_id),
+                    "SELECT user_id, radio_key, kind, until_ts FROM wardrive_drive_tombstones "
+                    "WHERE uid = ?",
+                    (uid,),
                 ) as cursor:
-                    row = await cursor.fetchone()
-                if row is None or row[0] is None:
-                    await conn.execute("DELETE FROM wardrive_drives WHERE id = ?", (drive_id,))
+                    tomb = await cursor.fetchone()
+                async with conn.execute(
+                    "SELECT id, user_id, radio_key FROM wardrive_drives WHERE uid = ?", (uid,)
+                ) as cursor:
+                    drive = await cursor.fetchone()
+                owner = tomb or drive
+                if owner is not None and (owner["user_id"] != user_id or owner["radio_key"] != key):
+                    raise DriveOfAnotherRadio(uid)
+            if uid is not None and tomb is None:
+                if drive is None:
+                    times = [r[0] for r in rows]
+                    start, end = min(times, default=now), max(times, default=now)
+                    drive_id = await _create_drive(conn, user_id, key, uid, start, end, now)
                 else:
-                    await conn.execute(
-                        "UPDATE wardrive_drives SET start_ts = ?, end_ts = ? WHERE id = ?",
-                        (row[0], row[1], drive_id),
-                    )
+                    drive_id = drive["id"]
+                groups[drive_id] = (list(obs), list(tracks))
+            else:
+                for ts, _, row in rows:
+                    if tomb is not None and tomb["kind"] == "deleted" and ts <= tomb["until_ts"]:
+                        discarded += 1
+                        continue
+                    found = await _drive_for_gap_row(conn, user_id, key, ts)
+                    if found is None:
+                        found = await _create_drive(conn, user_id, key, None, ts, ts, now)
+                    else:
+                        await conn.execute(
+                            "UPDATE wardrive_drives SET start_ts = MIN(start_ts, ?), "
+                            "end_ts = MAX(end_ts, ?) WHERE id = ?",
+                            (ts, ts, found),
+                        )
+                    obs_rows, track_rows = groups.setdefault(found, ([], []))
+                    if isinstance(row, Obs):
+                        obs_rows.append(row)
+                    else:
+                        track_rows.append(row)
+            for drive_id, (obs_rows, track_rows) in groups.items():
+                accepted_obs += await _insert_obs(conn, user_id, key, obs_rows, now, drive_id)
+                accepted_tracks += await _insert_tracks(
+                    conn, user_id, key, track_rows, now, drive_id
+                )
+            # Spans follow the rows actually stored; a drive made for
+            # duplicates only goes.
+            await _refresh_span(conn, groups)
+        return {
+            "accepted_obs": accepted_obs,
+            "duplicate_obs": sum(len(g[0]) for g in groups.values()) - accepted_obs,
+            "accepted_tracks": accepted_tracks,
+            "duplicate_tracks": sum(len(g[1]) for g in groups.values()) - accepted_tracks,
+            "discarded": discarded,
+        }
 
     @staticmethod
     async def list_drives(
@@ -595,9 +718,13 @@ class WardriveDriveRepository:
             )
 
     @staticmethod
-    async def delete_with_rows(drive_id: int) -> tuple[int, int]:
-        """Delete a drive and its stored rows. Returns (obs, tracks) deleted."""
+    async def delete_with_rows(drive_id: int, now: int = 0) -> tuple[int, int]:
+        """Delete a drive and its stored rows; rows of its uid that arrive
+        later, up to its end, are dropped. Returns (obs, tracks) deleted."""
         async with db.tx() as conn:
+            drive = await _drive_row(conn, drive_id)
+            if drive is not None:
+                await _retire_uid(conn, drive, "deleted", drive["end_ts"], now)
             async with conn.execute(
                 "DELETE FROM wardrive_obs WHERE drive_id = ?", (drive_id,)
             ) as cursor:
@@ -610,11 +737,16 @@ class WardriveDriveRepository:
         return obs, tracks
 
     @staticmethod
-    async def merge(into_id: int, other_ids: list[int], notes: str | None) -> None:
+    async def merge(into_id: int, other_ids: list[int], notes: str | None, now: int = 0) -> None:
         """Move the rows of ``other_ids`` into ``into_id``, set its notes and
-        delete the others, in one transaction."""
+        delete the others, in one transaction. Late rows of the others' uids
+        join by the gap rule, so they land in the merged drive."""
         marks = ", ".join("?" * len(other_ids))
         async with db.tx() as conn:
+            for other_id in other_ids:
+                other = await _drive_row(conn, other_id)
+                if other is not None:
+                    await _retire_uid(conn, other, "retired", None, now)
             for table in ("wardrive_obs", "wardrive_tracks"):
                 await conn.execute(
                     f"UPDATE {table} SET drive_id = ? WHERE drive_id IN ({marks})",
@@ -624,16 +756,18 @@ class WardriveDriveRepository:
             await conn.execute(
                 "UPDATE wardrive_drives SET notes = ? WHERE id = ?", (notes, into_id)
             )
-        await WardriveDriveRepository.refresh_span([into_id])
+            await _refresh_span(conn, [into_id])
 
     @staticmethod
     async def split(drive_id: int, at_ts: int, now: int) -> int | None:
         """Move rows at or after ``at_ts`` into a new drive of the same user
-        and radio. None (nothing changed) when either side would be empty."""
-        drive = await WardriveDriveRepository.get(drive_id)
-        if drive is None:
-            return None
+        and radio. None (nothing changed) when either side would be empty.
+        The drive's uid is retired: late rows of it join by the gap rule, so
+        each lands in the part its time belongs to."""
         async with db.tx() as conn:
+            drive = await _drive_row(conn, drive_id)
+            if drive is None:
+                return None
             async with conn.execute(
                 "SELECT "
                 "(SELECT COUNT(*) FROM wardrive_obs WHERE drive_id = ? AND rx_ts < ?) + "
@@ -659,7 +793,9 @@ class WardriveDriveRepository:
                 "UPDATE wardrive_tracks SET drive_id = ? WHERE drive_id = ? AND t0_ts >= ?",
                 (new_id, drive_id, at_ts),
             )
-        await WardriveDriveRepository.refresh_span([drive_id, new_id])
+            await _retire_uid(conn, drive, "retired", None, now)
+            await conn.execute("UPDATE wardrive_drives SET uid = NULL WHERE id = ?", (drive_id,))
+            await _refresh_span(conn, [drive_id, new_id])
         return new_id
 
     @staticmethod
@@ -725,7 +861,8 @@ class WardriveDriveRepository:
 
     @staticmethod
     async def delete_empty() -> int:
-        """Delete drives without any stored row (after pruning or deletes)."""
+        """Delete drives without any stored row and fit the others' spans to
+        their rows (after pruning or deletes). Returns drives deleted."""
         async with db.tx() as conn:
             async with conn.execute(
                 "DELETE FROM wardrive_drives WHERE "
@@ -733,4 +870,20 @@ class WardriveDriveRepository:
                 "AND NOT EXISTS "
                 "(SELECT 1 FROM wardrive_tracks t WHERE t.drive_id = wardrive_drives.id)"
             ) as cursor:
-                return cursor.rowcount
+                deleted = cursor.rowcount
+            # Partly pruned drives: the span follows the rows left.
+            await conn.execute(
+                "UPDATE wardrive_drives SET "
+                "start_ts = MIN("
+                "IFNULL((SELECT MIN(rx_ts) FROM wardrive_obs o "
+                "WHERE o.drive_id = wardrive_drives.id), ?), "
+                "IFNULL((SELECT MIN(t0_ts) FROM wardrive_tracks t "
+                "WHERE t.drive_id = wardrive_drives.id), ?)), "
+                "end_ts = MAX("
+                "IFNULL((SELECT MAX(rx_ts) FROM wardrive_obs o "
+                "WHERE o.drive_id = wardrive_drives.id), -1), "
+                "IFNULL((SELECT MAX(COALESCE(t1_ts, t0_ts)) FROM wardrive_tracks t "
+                "WHERE t.drive_id = wardrive_drives.id), -1))",
+                (_NO_TS, _NO_TS),
+            )
+        return deleted

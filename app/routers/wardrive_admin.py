@@ -100,6 +100,7 @@ class ConfigBody(BaseModel):
     @field_validator("analyzer_region")
     @classmethod
     def _region(cls, v: str) -> str:
+        v = v.strip().lower()
         if not REGION_RE.match(v):
             raise ValueError("Use 1 to 16 lower-case letters, digits or '-'")
         return v

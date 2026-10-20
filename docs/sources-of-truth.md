@@ -225,7 +225,14 @@ machine this was authored on and may differ elsewhere.
   (`CMD_GET_CONTACTS` 0x04, `CONTACT_START` 0x02 with the count, `CONTACT`
   0x03, `CONTACT_END` 0x04; contact layout key 32, type, flags,
   out_path_len, out_path 64, name 32, last_advert u32, lat/lon i32 / 1e6)
-  from that package's `reader.py` and `commands/contact.py`.
+  from that package's `reader.py` and `commands/contact.py`. Contact
+  `lastmod` (u32 at byte 144) is the radio's clock when it last heard the
+  contact (MeshCore `src/helpers/BaseChatMesh.cpp`, `getRTCClock()` on
+  advert, path and message receipt) or the value another app wrote
+  (`examples/companion_radio/MyMesh.cpp` CMD_ADD_UPDATE_CONTACT). The page
+  reads the radio's clock first (`CMD_GET_DEVICE_TIME` 0x05 answered by
+  `RESP_CODE_CURR_TIME` 9 with a u32, `MyMesh.cpp`, a local read) and puts
+  `lastmod` on its own clock; it never sets the radio's clock.
 - Wardrive page decoding and naming rules (phase 2): core-hunter
   `upstream/master` 000bb89, `app/src/meshpacket.js` (`classifyReception`),
   `names.js`, `namerules.js`, `attribution.js`, `feed.js`, `targetlist.js`,
@@ -255,7 +262,8 @@ machine this was authored on and may differ elsewhere.
   `upstream/master` 000bb89 (2026-10-02) `app/src/discover.js`,
   `autoping.js`, `airtime.js`, `sweep.js`, `announce.js`, `tracetag.js`,
   `telemetryreq.js`, `anonreq.js`, `contactpath.js`, `feed.js`
-  (`selectedRepeaterIds`, `selectedCompanionIds`, `heardRepeaterIds`) and
+  (`selectedRepeaterIds`, `selectedCompanionIds` (RTFM-EV keeps only full
+  keys as companion targets, unlike rx), `heardRepeaterIds`) and
   `app.js` (`autoPingTick`, `toggleAutoPing`, `stopAutoPing`), read for
   behaviour; `src/test/wardrive/discoverVectors.json` is their output for
   fixed inputs. Companion replies (MeshCore-dev

@@ -2,6 +2,8 @@
 import type { DirectoryNode } from '../names';
 import {
   CMD_GET_CONTACTS,
+  CMD_GET_DEVICE_TIME,
+  RESP_CURR_TIME,
   CMD_GET_STATS,
   RESP_STATS,
   CMD_SIGN_DATA,
@@ -25,6 +27,7 @@ const APP_NAME = 'rtfm-ev-wardrive';
 const START_TIMEOUT_MS = 6000;
 const SIGN_TIMEOUT_MS = 8000;
 const CONTACTS_TIMEOUT_MS = 8000;
+const TIME_TIMEOUT_MS = 1500;
 const STATS_TIMEOUT_MS = 4000;
 const STATS_QUIET_MS = 5 * 60 * 1000;
 const TRANSMIT_TIMEOUT_MS = 3000;
@@ -87,7 +90,29 @@ export class Companion {
     return run;
   }
 
-  private contactsNow(timeoutMs: number): Promise<DirectoryNode[]> {
+  /** The radio's clock in unix seconds, null when it does not answer. */
+  private deviceTimeNow(): Promise<number | null> {
+    return new Promise((resolve) => {
+      const finish = (t: number | null) => {
+        clearTimeout(timer);
+        off();
+        resolve(t);
+      };
+      const timer = setTimeout(() => finish(null), TIME_TIMEOUT_MS);
+      const off = this.transport.onFrame((frame) => {
+        if (frame[0] === RESP_CURR_TIME && frame.length >= 5) {
+          finish(new DataView(frame.buffer, frame.byteOffset, 5).getUint32(1, true));
+        }
+      });
+      this.transport.send(new Uint8Array([CMD_GET_DEVICE_TIME])).catch(() => finish(null));
+    });
+  }
+
+  private async contactsNow(timeoutMs: number): Promise<DirectoryNode[]> {
+    // A contact's last-heard time is by the radio's clock, which may never
+    // have been set: read it, so the times land on the page's clock.
+    const radioNow = await this.deviceTimeNow();
+    const offset = radioNow === null ? 0 : Math.round(Date.now() / 1000) - radioNow;
     return new Promise((resolve) => {
       const found: DirectoryNode[] = [];
       const finish = () => {
@@ -98,7 +123,7 @@ export class Companion {
       const timer = setTimeout(finish, timeoutMs);
       const off = this.transport.onFrame((frame) => {
         if (frame[0] === RESP_CONTACT) {
-          const c = parseContact(frame);
+          const c = parseContact(frame, offset);
           if (c) found.push(c);
         } else if (frame[0] === RESP_END_OF_CONTACTS) {
           finish();

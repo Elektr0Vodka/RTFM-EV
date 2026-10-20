@@ -86,6 +86,7 @@ export function report(over: Partial<WardriveReport> = {}): WardriveReport {
       gaps: 19,
       weak: 6,
       total: 25,
+      track_s: 4500,
       cells: [
         {
           ...cell({ id: '9:3:4', receptions: 0, rssi_best: null, rssi_median: null, band: 'none' }),
@@ -179,7 +180,7 @@ export function emptyReport(): WardriveReport {
       strongest: [],
       weakest: [],
     },
-    weak_spots: { gaps: 0, weak: 0, total: 0, cells: [] },
+    weak_spots: { gaps: 0, weak: 0, total: 0, track_s: 0, cells: [] },
     nodes: [],
     cells: [],
     tracks: [],

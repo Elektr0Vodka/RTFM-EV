@@ -97,7 +97,14 @@ export interface WardriveReport {
     strongest: ReportCell[];
     weakest: ReportCell[];
   };
-  weak_spots: { gaps: number; weak: number; total: number; cells: ReportWeakCell[] };
+  weak_spots: {
+    gaps: number;
+    weak: number;
+    total: number;
+    /** Seconds spent in every weak cell (cells lists only the first 200). */
+    track_s: number;
+    cells: ReportWeakCell[];
+  };
   nodes: ReportNode[];
   cells: ReportCell[];
   tracks: { drive_id: number; points: [number, number, number][] }[];
@@ -133,6 +140,8 @@ export interface DrivesApi {
   split(id: number, at: number): Promise<void>;
   report(q: ReportQuery): Promise<WardriveReport>;
   download(kind: ExportKind, q: ReportQuery): Promise<void>;
+  /** The viewer's own groups (the page's report filter; the owner has a list of all). */
+  groups?(): Promise<{ id: number; name: string }[]>;
 }
 
 /** The query string for /drives, /report and /export (`drive` repeated). */

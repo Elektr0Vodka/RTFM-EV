@@ -32,6 +32,9 @@ export interface ForwarderOptions {
   settings: () => BrokerSettings;
   saveToken: (key: string, token: string) => void;
   nowSec?: () => number;
+  /** The previous forwarder of this destination stopping: the first tick
+   * waits for it, so a row it is still publishing is not sent twice. */
+  after?: Promise<unknown>;
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -39,6 +42,8 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export class Forwarder {
   private client: MqttLike | null = null;
   private running = false;
+  /** The row being published and acked, for stop() to wait on. */
+  private inFlight: Promise<unknown> = Promise.resolve();
   /** Set by stop(): a forwarder is not reused once its broker is switched off. */
   private stopped = false;
   private state: ForwardStatus['state'] = 'off';
@@ -143,13 +148,18 @@ export class Forwarder {
             : kind === 'obs'
               ? withPubAt(row.message as ObsMessage, new Date().toISOString())
               : row.message;
+        const client = this.client;
+        const step = (async () => {
+          await client.publish(topic, JSON.stringify(payload));
+          await queue.ack(this.dest, kind, row.id);
+        })();
+        this.inFlight = step.catch(() => undefined);
         try {
-          await this.client!.publish(topic, JSON.stringify(payload));
+          await step;
         } catch (e) {
           this.lastError = errorText(e);
           return false;
         }
-        await queue.ack(this.dest, kind, row.id);
       }
     }
     return true;
@@ -159,6 +169,10 @@ export class Forwarder {
     if (this.running) return this.status();
     this.running = true;
     try {
+      if (this.opts.after) {
+        await this.opts.after.catch(() => undefined);
+        this.opts.after = undefined;
+      }
       if (!(await this.ensureClient())) {
         if (this.stopped) this.state = 'off';
         return await this.status();
@@ -194,12 +208,15 @@ export class Forwarder {
     };
   }
 
+  /** Resolves once a row in flight is acked or kept (not waiting for a
+   * connection still coming up), so a forwarder taking over starts after it. */
   async stop(): Promise<void> {
     this.stopped = true;
     const client = this.client;
     this.client = null;
     this.state = 'off';
     await client?.end().catch(() => undefined);
+    await this.inFlight;
   }
 }
 

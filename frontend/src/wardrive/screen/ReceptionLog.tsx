@@ -41,7 +41,9 @@ export interface ReceptionLogProps {
 function meta(e: ViewEntry, t: TFn): string {
   if (e.channel && e.text) return `${e.channel}: ${e.text}`;
   if (e.channel) return e.channel;
-  return packetTypeLabel(e.packetType, t);
+  const type = packetTypeLabel(e.packetType, t);
+  if (typeof e.heardUsSnr !== 'number') return type;
+  return `${type}, ${t('wardrive_page_log_heard_us', { snr: e.heardUsSnr.toFixed(1) })}`;
 }
 
 const LogRow = memo(function LogRow({

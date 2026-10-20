@@ -259,4 +259,98 @@ describe('AutoDiscover', () => {
     await ad.replayRestores();
     expect(sent.map((s) => [s.frame[0], s.frame[35]])).toEqual([[9, 2]]);
   });
+
+  it('keeps a live ping when another one is refused', async () => {
+    const fake = fakeCompanion();
+    const inner = fake.companion.transmit;
+    // The ping to a1 waits 2 s in the radio's queue, then is refused.
+    fake.companion.transmit = vi.fn(async (frame: Uint8Array, ...rest: unknown[]) => {
+      if (frame[0] === 0x24 && frame[10] === 0xa1) {
+        await new Promise((r) => setTimeout(r, 2000));
+        return { sent: false, reply: null };
+      }
+      return (inner as (...a: unknown[]) => ReturnType<typeof inner>)(frame, ...rest);
+    }) as typeof inner;
+    let k = 1;
+    const { ad } = engine(
+      {
+        targets: () => ({ repeaters: ['a1', 'c3'], companions: [] }),
+        random: (n) => new Uint8Array(n).fill(k++),
+      },
+      fake
+    );
+    ad.start();
+    await vi.advanceTimersByTimeAsync(4000);
+    // Discover used 01; a1's ping 02 (refused), c3's ping 03 (sent).
+    expect(
+      ad.attribute({
+        packetType: 'Trace',
+        sender: { kind: null, id: null, label: null, role: null },
+        traceTag: '03030303',
+        heardUsSnr: 2,
+      })?.sender.id
+    ).toBe('c3');
+    ad.stop();
+  });
+
+  it('starts no cycle while a frame of the last one still waits to go out', async () => {
+    const fake = fakeCompanion();
+    const inner = fake.companion.transmit;
+    let first = true;
+    fake.companion.transmit = vi.fn(async (frame: Uint8Array, ...rest: unknown[]) => {
+      if (first) {
+        first = false;
+        // The first Discover waits 12 s behind other work in the radio chain.
+        await new Promise((r) => setTimeout(r, 12000));
+      }
+      return (inner as (...a: unknown[]) => ReturnType<typeof inner>)(frame, ...rest);
+    }) as typeof inner;
+    const { ad, sent } = engine({}, fake);
+    ad.start();
+    await vi.advanceTimersByTimeAsync(11000);
+    expect(sent).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent).toHaveLength(1);
+    // The next cycle comes after the floor that Discover bought, not at 10 s.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(sent).toHaveLength(2);
+    ad.stop();
+  });
+
+  it('leaves a restore owed when the radio goes between the override and the ask', async () => {
+    const fake = fakeCompanion();
+    const inner = fake.companion.request;
+    let writes = 0;
+    let gone = false;
+    let ad: AutoDiscover | null = null;
+    fake.companion.request = vi.fn(
+      async (frame: Uint8Array, accept: (b: Uint8Array) => unknown) => {
+        if (gone) {
+          fake.sent.push({ frame, at: Date.now() });
+          return null;
+        }
+        if (frame[0] === 9 && ++writes === 1) {
+          const r = await (inner as (...a: unknown[]) => Promise<unknown>)(frame, accept);
+          // The link drops right after the zero-hop override was acked.
+          gone = true;
+          ad?.dispose();
+          return r;
+        }
+        return (inner as (...a: unknown[]) => Promise<unknown>)(frame, accept);
+      }
+    ) as typeof inner;
+    const made = engine({ targets: () => ({ repeaters: [], companions: [COMPANION] }) }, fake);
+    ad = made.ad;
+    ad.start();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(codes(fake.sent)).not.toContain(39);
+    expect(
+      localStorage.getItem(`rtfm-wardrive-contact-restore:${SELF}:${COMPANION}`)
+    ).not.toBeNull();
+    const next = engine();
+    await next.ad.replayRestores();
+    expect(next.sent.map((s) => [s.frame[0], s.frame[35]])).toEqual([[9, 0xff]]);
+  });
 });

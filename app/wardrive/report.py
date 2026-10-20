@@ -363,6 +363,8 @@ def build_report(
             "gaps": sum(1 for c in cell_out.values() if c["receptions"] == 0),
             "weak": sum(1 for c in covered if c["band"] == "weak"),
             "total": len(weak_cells),
+            # Time in every weak cell (the cards' figure), not only those listed.
+            "track_s": sum(c["track_s"] for c in weak_cells),
             "cells": weak_out,
         },
         "nodes": node_out,
@@ -373,7 +375,9 @@ def build_report(
         "tracks": [
             {
                 "drive_id": drive_id,
-                "points": _sample([[t["lon"], t["lat"], t["t0_ts"]] for t in pts], per_drive),
+                "points": _sample(
+                    [[t["lon"], t["lat"], t.get("t1_ts") or t["t0_ts"]] for t in pts], per_drive
+                ),
             }
             for drive_id, pts in sorted(by_drive.items())
         ],

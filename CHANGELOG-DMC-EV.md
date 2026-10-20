@@ -11,6 +11,48 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (wardrive deferred minors, feat/wardrive-plugin)
+
+Migration **_163** (`wardrive_drive_tombstones`: drive ids the driver deleted,
+merged away or split). No new dependency. Nothing new goes over the radio.
+
+### Wardrive
+- Drives: an upload is stored in one transaction. A deleted drive no longer
+  comes back when a phone sends its rows again (they are dropped and counted
+  as `discarded`); late rows of a merged or split drive land in the drive
+  their time belongs to. Retention pruning fits partly pruned drives to the
+  rows left. A merge whose notes would pass 1000 characters is refused
+  instead of making later saves fail. Names and notes lose control
+  characters. Split starts at the middle of the drive.
+- Reports: at most 1000 picked drives. GPX points and report track points
+  carry the time of their position fix. A file from a cut report says so
+  (`-truncated` in the name, a GeoJSON flag, a GPX note). The Drive card
+  shows nodes heard; the Weak spots card shows the time in every weak cell
+  and the best node nearby. The page's Reports tab can narrow to one of the
+  driver's groups. Picked drives are cleared on a filter change (Tools) and
+  when another driver logs in (page). A refused export on the Tools page now
+  shows the server's message. A new tool in a customised sidebar order goes
+  next to its default neighbour instead of the end.
+- Brokers: removing one in Settings asks first; region codes are taken in
+  lower case; an address with a bad port or an account in it is refused. A
+  served list that says the same as the built-in one no longer restarts the
+  DutchMeshCore forwarders, and a forwarder rebuilt for the same broker no
+  longer sends a row twice. A served RSSI calibration outside -30..30 dB is
+  ignored.
+- Page: contact last-heard times are put on the page's clock (the radio's
+  clock is read, never set). Node colours follow colourblind mode. Discover
+  replies are matched against every known node (faster, and ambiguous with
+  a node off the map). Selection pans no longer keep heading mode's
+  look-ahead. Backlog points below zoom 12 cannot be tapped. "Battery -"
+  until the radio answers.
+- Auto-discover: frames still in the radio's queue hold the next cycle, and
+  a held-up cycle buys its airtime floor from its first frame out; a refused
+  trace ping no longer drops another live one; only full keys count as
+  companion targets (a channel or short id no longer brings an advert each
+  cycle); the log says how well a node answering our trace heard us. The
+  switch works once its engine exists (fixes a test flake). Not tested on a
+  real radio.
+
 ## Update 2026-10-20 (wardrive page Auto-discover, feat/wardrive-plugin)
 
 No migration, no new dependency. The page now has one transmitting function,

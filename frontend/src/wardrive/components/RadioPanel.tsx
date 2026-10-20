@@ -56,6 +56,13 @@ export function RadioPanel({
           )}
         </div>
       )}
+      {info && batteryMv === null && (
+        // Not answered yet (or older firmware): unknown, not hidden. A radio
+        // that cannot measure (0 mV) shows no line at all.
+        <p className="text-sm text-muted-foreground" data-testid="wardrive-battery">
+          {t('wardrive_page_battery_unknown')}
+        </p>
+      )}
       {hasBattery && (
         <p
           className={`text-sm ${isLowBattery(batteryMv) ? 'text-destructive' : 'text-muted-foreground'}`}

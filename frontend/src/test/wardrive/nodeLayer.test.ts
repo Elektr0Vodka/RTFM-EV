@@ -6,11 +6,13 @@ import {
   hueSlot,
   nextNodePosMode,
   nodeFeatures,
+  nodeHues,
   nodesInView,
   parseNodePosMode,
   receptionsByNode,
 } from '../../wardrive/map/nodeLayer';
 import type { ViewEntry } from '../../wardrive/useReceptionView';
+import { getDataColors } from '../../utils/cvd/palettes';
 import type { Sender } from '../../wardrive/decode/reception';
 
 const KEY_A = 'a1' + '11'.repeat(31);
@@ -119,6 +121,25 @@ describe('node positions layer', () => {
     expect([...byNode.values()].flat()).toEqual([]);
   });
 
+  it('counts a discover prefix for neither when a node off the map shares it', () => {
+    const drawn = node('ab' + '11'.repeat(31));
+    const offMap = node('ab' + '22'.repeat(31), { lat: 40, lon: 2 });
+    const e = entry({ kind: 'discover_pubkey', id: 'ab' }, null);
+    expect([...receptionsByNode([e], [drawn], [drawn, offMap]).values()].flat()).toEqual([]);
+    expect(receptionsByNode([e], [drawn], [drawn]).get(drawn.publicKey)).toHaveLength(1);
+  });
+
+  it('attributes many discover replies against many nodes quickly', () => {
+    const all = Array.from({ length: 3000 }, (_, i) => node(i.toString(16).padStart(64, '0')));
+    const entries = Array.from({ length: 5000 }, (_, i) =>
+      entry({ kind: 'discover_pubkey', id: (i % 3000).toString(16).padStart(64, '0') }, null)
+    );
+    const t0 = performance.now();
+    const byNode = receptionsByNode(entries, all, all);
+    expect(performance.now() - t0).toBeLessThan(500);
+    expect([...byNode.values()].flat()).toHaveLength(5000);
+  });
+
   it('draws an estimate, a drift line and a circle when they are far apart', () => {
     const a = node(KEY_A);
     const heard = [0, 1, 2].map((i) =>
@@ -159,5 +180,21 @@ describe('node positions layer', () => {
     expect(nodeFeatures([a], receptionsByNode(lots, [a]), HUES).rays.features).toHaveLength(
       MAX_RAYS
     );
+  });
+
+  it('takes the colourblind palette for node hues when colourblind mode is on', () => {
+    expect(nodeHues('off', 'dark')).toHaveLength(12);
+    const deutan = nodeHues('deutan', 'dark');
+    expect(deutan).toEqual(getDataColors('deutan', 'dark').series);
+    // Every slot lands on a palette colour, not just the first one.
+    const keys = Array.from({ length: 40 }, (_, i) =>
+      `${i.toString(16).padStart(2, '0')}`.repeat(32)
+    );
+    const colours = new Set(
+      keys.map(
+        (k) => nodeFeatures([node(k)], new Map(), deutan).advertised.features[0].properties?.color
+      )
+    );
+    expect(colours).toEqual(new Set(deutan));
   });
 });

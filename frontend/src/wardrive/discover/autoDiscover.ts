@@ -103,6 +103,11 @@ export class AutoDiscover {
   private lastFireAt: number | null = null;
   private lastPos: { lat: number; lon: number } | null = null;
   private pending: ReturnType<typeof setTimeout>[] = [];
+  /** Frames handed to the radio chain and not answered yet. */
+  private inFlight = 0;
+  /** When this cycle's first frame went out: a cycle held up in the radio
+   * chain buys its airtime floor from then, not from when it was planned. */
+  private cycleFirstSentAt: number | null = null;
   private sentBytes: number[] = [];
   private pings: Ping[] = [];
   private telemetryAsks: Ask[] = [];
@@ -196,13 +201,20 @@ export class AutoDiscover {
 
   private async send(frame: Uint8Array, accept: 'ok' | 'sent', bytes: number, kind: SentKind) {
     // Asked again inside the chain: a frame queued while on is dropped once off.
-    const r = await this.opts.companion.transmit(
-      frame,
-      accept,
-      undefined,
-      () => this.enabled && !this.disposed
-    );
+    this.inFlight++;
+    let r: Awaited<ReturnType<AutoDiscoverOptions['companion']['transmit']>>;
+    try {
+      r = await this.opts.companion.transmit(
+        frame,
+        accept,
+        undefined,
+        () => this.enabled && !this.disposed
+      );
+    } finally {
+      this.inFlight--;
+    }
     if (!r.sent) return r;
+    this.cycleFirstSentAt ??= Date.now();
     this.sentBytes.push(bytes);
     this.opts.onSent(kind);
     this.opts.onChange();
@@ -213,6 +225,13 @@ export class AutoDiscover {
     if (!this.enabled) return;
     const now = Date.now();
     if (this.lastFireAt === null && now < this.holdUntil) return;
+    if (
+      this.cycleFirstSentAt !== null &&
+      this.lastFireAt !== null &&
+      this.cycleFirstSentAt > this.lastFireAt &&
+      now - this.cycleFirstSentAt < this.floorMs()
+    )
+      return;
     const pos = this.opts.position();
     const fire = shouldAutoFire({
       lastFireAt: this.lastFireAt,
@@ -221,7 +240,9 @@ export class AutoDiscover {
       now,
       lat: pos?.lat ?? null,
       lon: pos?.lon ?? null,
-      pendingTargets: this.pending.length,
+      // Pings still to come and frames still waiting in the radio chain:
+      // the next cycle counts only its own frames.
+      pendingTargets: this.pending.length + this.inFlight,
       minPeriodMs: this.floorMs(),
     });
     if (!fire) return;
@@ -229,6 +250,7 @@ export class AutoDiscover {
     if (pos) this.lastPos = pos;
     // Counted as frames go out, not as they are planned.
     this.sentBytes = [];
+    this.cycleFirstSentAt = null;
     void this.send(buildDiscoverFrame(this.random(4)), 'ok', DISCOVER_BYTES, 'discover');
     const { repeaters, companions } = this.opts.targets();
     if (
@@ -283,11 +305,12 @@ export class AutoDiscover {
     const tag = (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0;
     // Remembered before it goes: the retransmission echoes the tag, and that
     // is all that ties the reception to the node asked.
-    const before = this.pings;
     this.pings = rememberPing(this.pings, tag, id, Date.now());
+    const mine = this.pings[this.pings.length - 1];
     const r = await this.send(buildTracePathFrame(tag, 0, [byte]), 'sent', TRACE_BYTES, 'trace');
     if (!r.sent) {
-      this.pings = before;
+      // Only this ping goes: others may have been remembered meanwhile.
+      this.pings = this.pings.filter((p) => p !== mine);
       return;
     }
     if (sweeping) {

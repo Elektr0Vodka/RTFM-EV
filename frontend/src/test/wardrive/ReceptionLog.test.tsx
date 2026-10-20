@@ -77,6 +77,12 @@ describe('wardrive live log', () => {
     expect(screen.getByText('3 rx')).toBeTruthy();
   });
 
+  it('says how well a node answering our ask heard us', () => {
+    renderLog({ entries: [entry(1, -90, { heardUsSnr: 6.5 }), entry(2, -90)] });
+    expect(rows()[0].textContent).toContain('heard us at 6.5 dB');
+    expect(rows()[1].textContent).not.toContain('heard us');
+  });
+
   it('shows a channel message with its channel', () => {
     renderLog({
       entries: [

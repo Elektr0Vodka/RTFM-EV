@@ -168,6 +168,12 @@ const NODEPOS_KEY = 'rtfm-wardrive-nodepos';
 const EXAGGERATION_KEY = 'rtfm-wardrive-exaggeration';
 const ATTENUATOR_KEY = 'rtfm-wardrive-attenuator';
 const CALIBRATION_KEY = 'rtfm-wardrive-calibration';
+/** The owner's calibration: a whole number of dB within -30..30, else 0
+ * (the server checks the same; a broken value must not fade every tier). */
+function parseCalibration(v: unknown): number {
+  const n = Number(v);
+  return Number.isInteger(n) && Math.abs(n) <= 30 ? n : 0;
+}
 const NOISE_MAP_KEY = 'rtfm-wardrive-noise-map';
 const INTRODUCE_KEY = 'rtfm-wardrive-introduce';
 
@@ -219,10 +225,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   );
   const [attenuator, setAttenuator] = useState(() => parseAttenuator(readRaw(ATTENUATOR_KEY)));
   // The owner's RSSI calibration, kept for offline use.
-  const [calibration, setCalibration] = useState(() => {
-    const v = Number(readRaw(CALIBRATION_KEY));
-    return Number.isInteger(v) && Math.abs(v) <= 30 ? v : 0;
-  });
+  const [calibration, setCalibration] = useState(() => parseCalibration(readRaw(CALIBRATION_KEY)));
   const rssiOffset = plotOffset(calibration, attenuator);
   const [noiseMap, setNoiseMap] = useState(() => readRaw(NOISE_MAP_KEY) === '1');
   const changeNoiseMap = (on: boolean) => {
@@ -237,6 +240,11 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   const [menuTab, setMenuTab] = useState<MenuTab>('status');
   // Drives picked in the Drives tab, reported on in the Reports tab.
   const [pickedDrives, setPickedDrives] = useState<number[]>([]);
+  // They belong to the driver who picked them.
+  const meId = me?.user_id ?? null;
+  useEffect(() => {
+    setPickedDrives([]);
+  }, [meId]);
   const [startShown, setStartShown] = useState(() => startScreenWanted(false));
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [unit] = useState(getSavedDistanceUnit);
@@ -275,7 +283,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     companion: radio?.companion ?? null,
     cache: nodeCache,
     onConfig: (c) => {
-      const cal = c.rssi_calibration_db ?? 0;
+      const cal = parseCalibration(c.rssi_calibration_db ?? 0);
       setCalibration(cal);
       writePref(CALIBRATION_KEY, String(cal));
       // An older server sends no list: keep what the page has.

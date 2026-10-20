@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from app.repository.wardrive import (
+    DriveOfAnotherRadio,
     RadioTaken,
     UsernameTaken,
     WardriveDataRepository,
@@ -31,7 +32,7 @@ from app.wardrive.crypto import (
     normalize_key,
     verify_password,
 )
-from app.wardrive.models import MAX_TS, Obs, Track, UploadBody, UploadResult, iso_to_ts
+from app.wardrive.models import MAX_TS, UploadBody, UploadResult
 from app.wardrive.visibility import visible_user_ids
 
 router = APIRouter(prefix="/wardrive", tags=["wardrive"])
@@ -198,44 +199,6 @@ async def wardrive_add_radio(
     return await _me(user)
 
 
-async def _drive_groups(
-    user_id: int, key: str, body: UploadBody, now: int
-) -> dict[int, tuple[list[Obs], list[Track]]]:
-    """The batch's rows per drive. With the page's drive uid, all go to that
-    drive (made on first sight); without one, each row joins the drive the
-    10-minute gap rule gives, or starts a new one."""
-    groups: dict[int, tuple[list[Obs], list[Track]]] = {}
-    if body.drive_uid is not None:
-        drive = await WardriveDriveRepository.get_by_uid(body.drive_uid)
-        if drive is None:
-            times = [iso_to_ts(o.rx_at) for o in body.obs] + [iso_to_ts(t.t0) for t in body.tracks]
-            start = min(times, default=now)
-            drive_id = await WardriveDriveRepository.create(
-                user_id, key, body.drive_uid, start, max(times, default=now), now
-            )
-        elif drive["user_id"] != user_id or drive["radio_key"] != key:
-            raise HTTPException(status_code=422, detail="This drive belongs to another radio")
-        else:
-            drive_id = drive["id"]
-        groups[drive_id] = (list(body.obs), list(body.tracks))
-        return groups
-    rows: list[tuple[int, int, Obs | Track]] = [(iso_to_ts(o.rx_at), 0, o) for o in body.obs]
-    rows += [(iso_to_ts(t.t0), 1, t) for t in body.tracks]
-    rows.sort(key=lambda r: (r[0], r[1]))
-    for ts, _, row in rows:
-        found = await WardriveDriveRepository.drive_for_gap_row(user_id, key, ts)
-        if found is None:
-            found = await WardriveDriveRepository.create(user_id, key, None, ts, ts, now)
-        else:
-            await WardriveDriveRepository.extend(found, ts, ts)
-        obs_rows, track_rows = groups.setdefault(found, ([], []))
-        if isinstance(row, Obs):
-            obs_rows.append(row)
-        else:
-            track_rows.append(row)
-    return groups
-
-
 @router.post("/upload", response_model=UploadResult)
 async def wardrive_upload(body: UploadBody, user: CurrentUser) -> UploadResult:
     """Store a batch of the page's receptions and listening intervals.
@@ -256,24 +219,13 @@ async def wardrive_upload(body: UploadBody, user: CurrentUser) -> UploadResult:
             raise HTTPException(
                 status_code=422, detail="Every origin_id must be the radio of the batch"
             )
-    now = int(time.time())
-    groups = await _drive_groups(user["id"], key, body, now)
-    accepted_obs = duplicate_obs = accepted_tracks = duplicate_tracks = 0
-    for drive_id, (obs_rows, track_rows) in groups.items():
-        a, d = await WardriveDataRepository.insert_obs(user["id"], key, obs_rows, now, drive_id)
-        accepted_obs, duplicate_obs = accepted_obs + a, duplicate_obs + d
-        a, d = await WardriveDataRepository.insert_tracks(
-            user["id"], key, track_rows, now, drive_id
+    try:
+        counts = await WardriveDriveRepository.store_upload(
+            user["id"], key, body.drive_uid, list(body.obs), list(body.tracks), int(time.time())
         )
-        accepted_tracks, duplicate_tracks = accepted_tracks + a, duplicate_tracks + d
-    # Spans follow the rows actually stored; a drive made for duplicates only goes.
-    await WardriveDriveRepository.refresh_span(groups)
-    return UploadResult(
-        accepted_obs=accepted_obs,
-        duplicate_obs=duplicate_obs,
-        accepted_tracks=accepted_tracks,
-        duplicate_tracks=duplicate_tracks,
-    )
+    except DriveOfAnotherRadio:
+        raise HTTPException(status_code=422, detail="This drive belongs to another radio") from None
+    return UploadResult(**counts)
 
 
 DEFAULT_WINDOW_S = 86400

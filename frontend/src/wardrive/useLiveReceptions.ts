@@ -119,7 +119,14 @@ export function useLiveReceptions(
           traceTag: d.traceTag ?? null,
           heardUsSnr: d.heardUsSnr ?? null,
         });
-        const named = asked ? { ...d, sender: asked.sender, heardDirect: true } : d;
+        const named = asked
+          ? {
+              ...d,
+              sender: asked.sender,
+              heardDirect: true,
+              heardUsSnr: asked.heardUsSnr ?? null,
+            }
+          : { ...d, heardUsSnr: null };
         // The frame walk's hop count stands even when the payload is unreadable.
         logRef.current.push({ ...named, ...heard });
         flushRef.current();

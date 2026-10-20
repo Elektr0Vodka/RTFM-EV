@@ -82,6 +82,12 @@ class FakeRadio implements RadioTransport {
         for (const c of this.contacts) this.frames.emit(c);
         this.frames.emit(contactsEndFrame());
       });
+    } else if (frame[0] === 0x05) {
+      // GET_DEVICE_TIME: the radio's clock, in step with the page's.
+      const f = new Uint8Array(5);
+      f[0] = 9;
+      new DataView(f.buffer).setUint32(1, Math.floor(Date.now() / 1000), true);
+      queueMicrotask(() => this.frames.emit(f));
     } else if (frame[0] === 0x01) {
       const b = new Uint8Array(61);
       b[0] = 0x05;
@@ -526,7 +532,10 @@ describe('wardrive page', () => {
     const { radio } = setup();
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
-    fireEvent.click(screen.getByRole('button', { name: 'Auto-discover: off' }));
+    const button = screen.getByRole('button', { name: 'Auto-discover: off' }) as HTMLButtonElement;
+    // The switch works once the engine for this radio exists.
+    await waitFor(() => expect(button.disabled).toBe(false));
+    fireEvent.click(button);
     await waitFor(() => expect(radio.sent).toContain(0x37));
     expect(await screen.findByRole('button', { name: 'Auto-discover: on' })).toBeTruthy();
     await openMenu();
@@ -786,8 +795,8 @@ describe('wardrive page reading what it hears', () => {
     const { radio } = await connected();
     await waitFor(() => expect(radio.sent).toContain(0x04));
     await hearChannelMessage(radio);
-    // APP_START, GET_CONTACTS and GET_STATS: none of them goes over the air.
-    expect(new Set(radio.sent)).toEqual(new Set([0x01, 0x04, 0x38]));
+    // APP_START, GET_DEVICE_TIME, GET_CONTACTS and GET_STATS: none goes over the air.
+    expect(new Set(radio.sent)).toEqual(new Set([0x01, 0x05, 0x04, 0x38]));
   });
 
   it('shows the noise floor the radio reports', async () => {
@@ -937,5 +946,97 @@ describe('wardrive page reading what it hears', () => {
     await waitFor(() => expect(api.report).toHaveBeenCalledWith({ drive: [7, 8], res: 9 }));
     expect(await screen.findByRole('heading', { name: 'What was driven' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Drive card' })).toBeTruthy();
+  });
+
+  it('forgets the picked drives when another driver logs in', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    vi.spyOn(wardriveApi, 'logout').mockResolvedValue(undefined);
+    vi.spyOn(wardriveApi, 'login').mockResolvedValue({ ...me([]), user_id: 2, username: 'bert' });
+    const api = fakeApi([drive({ id: 7, name: 'Ochtend' })]);
+    setup({ drivesApi: api });
+    await openMenu();
+    const tab = (name: string) => {
+      const el = screen.getByRole('tab', { name });
+      fireEvent.mouseDown(el);
+      fireEvent.click(el);
+    };
+    tab('Drives');
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Pick Ochtend' }));
+    tab('Status');
+    fireEvent.click(await screen.findByRole('button', { name: 'Log out' }));
+    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'bert' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'correct horse' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    expect(await screen.findByText(/Logged in as bert/)).toBeTruthy();
+    tab('Reports');
+    await waitFor(() => expect(api.report).toHaveBeenCalled());
+    const calls = api.report.mock.calls as unknown[][];
+    const last = calls[calls.length - 1][0] as { drive?: number[] };
+    expect(last.drive).toBeUndefined();
+  });
+
+  it('ignores a calibration from the server outside -30..30 dB', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    const config = vi.spyOn(wardriveApi, 'config').mockResolvedValue({
+      hashtag_channels: [],
+      rssi_calibration_db: 400,
+    });
+    localStorage.setItem('rtfm-wardrive-calibration', '6');
+    setup();
+    await waitFor(() => expect(config).toHaveBeenCalled());
+    await waitFor(() => expect(localStorage.getItem('rtfm-wardrive-calibration')).toBe('0'));
+  });
+
+  it('keeps a DMC forwarder running when the served list says the same as the built-in one', async () => {
+    localStorage.setItem(
+      'rtfm-wardrive-brokers',
+      JSON.stringify({ enabled: { [`dmc-hunter@${KEY}`]: true }, tokens: {} })
+    );
+    let serve: (c: WardriveConfig) => void = () => {};
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    vi.spyOn(wardriveApi, 'config').mockReturnValue(new Promise((r) => (serve = r)));
+    const end = vi.fn(async () => {});
+    const connectMqtt = vi.fn<WardriveDeps['connectMqtt']>(async () => ({
+      publish: async () => {},
+      end,
+      onClose: () => {},
+    }));
+    setup({ connectMqtt });
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    await waitFor(() => expect(connectMqtt).toHaveBeenCalledTimes(1));
+    // The server's own key order (app/wardrive/brokers.py), same values.
+    const served = DEFAULT_BROKERS.map(({ id, name, url, auth, format, label, audience }) => ({
+      id,
+      name,
+      url,
+      auth,
+      format,
+      label,
+      audience,
+      builtin: true,
+    }));
+    await act(async () => serve({ hashtag_channels: [], brokers: served as never }));
+    await act(async () => {});
+    expect(end).not.toHaveBeenCalled();
+    expect(connectMqtt).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps offering the cached broker list when the config cannot be read', async () => {
+    localStorage.setItem(
+      'rtfm-wardrive-served-brokers',
+      JSON.stringify([...DEFAULT_BROKERS, SERVED_CLUB])
+    );
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    const config = vi
+      .spyOn(wardriveApi, 'config')
+      .mockRejectedValue(new WardriveApiError('down', 503));
+    setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    await waitFor(() => expect(config).toHaveBeenCalled());
+    await openMenu();
+    expect(await screen.findByLabelText(/Club MQTT/)).toBeTruthy();
+    expect(screen.getByLabelText(/DutchMeshCore wardriver/)).toBeTruthy();
   });
 });

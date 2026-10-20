@@ -43,6 +43,7 @@ async def test_upload_stores_obs_and_tracks(api, test_db):
         "duplicate_obs": 0,
         "accepted_tracks": 1,
         "duplicate_tracks": 0,
+        "discarded": 0,
     }
     async with test_db.readonly() as conn:
         async with conn.execute(
@@ -75,6 +76,7 @@ async def test_upload_same_batch_twice_counts_duplicates(api, test_db):
         "duplicate_obs": 1,
         "accepted_tracks": 0,
         "duplicate_tracks": 1,
+        "discarded": 0,
     }
     assert await _count(test_db, "wardrive_obs") == 1
     assert await _count(test_db, "wardrive_tracks") == 1

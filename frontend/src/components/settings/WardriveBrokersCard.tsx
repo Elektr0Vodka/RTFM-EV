@@ -5,6 +5,14 @@ import { useT } from '../../i18n';
 import type { WardriveAdminConfig, WardriveBrokerIn } from '../../types';
 import { RESERVED_BROKER_IDS } from '../../wardrive/forward/brokers';
 import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 
@@ -62,6 +70,7 @@ export function WardriveBrokersCard() {
   const [region, setRegion] = useState('');
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<WardriveBrokerIn | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -144,7 +153,7 @@ export function WardriveBrokersCard() {
               size="sm"
               className="h-6 px-1.5"
               aria-label={t('settings_wardrive_brokers_remove', { name: b.name })}
-              onClick={() => void save({ brokers: custom.filter((c) => c.id !== b.id) })}
+              onClick={() => setRemoving(b)}
             >
               <span aria-hidden="true">×</span>
             </Button>
@@ -160,7 +169,7 @@ export function WardriveBrokersCard() {
           <Input
             id="wardrive-analyzer-region"
             value={region}
-            onChange={(e) => setRegion(e.target.value)}
+            onChange={(e) => setRegion(e.target.value.toLowerCase())}
             className="w-24"
           />
         </div>
@@ -223,7 +232,7 @@ export function WardriveBrokersCard() {
               id="wardrive-broker-region"
               value={draft.region}
               placeholder="nl"
-              onChange={(e) => set({ region: e.target.value })}
+              onChange={(e) => set({ region: e.target.value.toLowerCase() })}
             />
           </div>
         )}
@@ -283,6 +292,32 @@ export function WardriveBrokersCard() {
           {error}
         </p>
       )}
+      <Dialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('settings_wardrive_brokers_remove_title')}</DialogTitle>
+            <DialogDescription>
+              {t('settings_wardrive_brokers_remove_body', { name: removing?.name ?? '' })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRemoving(null)}>
+              {t('settings_wardrive_brokers_remove_cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                const target = removing;
+                setRemoving(null);
+                if (target) void save({ brokers: custom.filter((c) => c.id !== target.id) });
+              }}
+            >
+              {t('settings_wardrive_brokers_remove_confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

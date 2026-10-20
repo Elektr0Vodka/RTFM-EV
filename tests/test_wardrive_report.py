@@ -93,7 +93,7 @@ def test_an_empty_scope_gives_zeros():
     assert s["distance_m"] == 0 and s["drive_seconds"] == 0
     assert r["coverage"]["covered_share"] is None
     assert r["coverage"]["cells_driven"] == 0
-    assert r["weak_spots"] == {"gaps": 0, "weak": 0, "total": 0, "cells": []}
+    assert r["weak_spots"] == {"gaps": 0, "weak": 0, "total": 0, "track_s": 0, "cells": []}
     assert r["nodes"] == [] and r["cells"] == [] and r["points"] == [] and r["tracks"] == []
     assert r["truncated"] is False
 
@@ -265,8 +265,8 @@ def test_tracks_keep_at_most_two_thousand_points_with_both_ends():
     r = report(tracks=[tr(i * 10, lat=LAT + i * 1e-5) for i in range(5000)])
     points = r["tracks"][0]["points"]
     assert len(points) <= 2000
-    assert points[0][2] == BASE
-    assert points[-1][2] == BASE + 49990
+    assert points[0][2] == BASE + 10
+    assert points[-1][2] == BASE + 50000
 
 
 def test_via_uses_the_nodes_own_signal_not_the_cells_best():
@@ -321,3 +321,21 @@ def test_tracks_and_cells_are_capped_in_total(monkeypatch):
     assert all(len(t["points"]) >= 2 for t in r["tracks"])
     assert len(r["cells"]) == 10
     assert r["coverage"]["cells_driven"] > 10
+
+
+def test_track_points_carry_the_time_of_their_fix():
+    # A track row's position is the fix at its end (t1).
+    r = report(tracks=[tr(0, dur=10), tr(30, lat=LAT + 1e-3, dur=10)])
+    assert [p[2] for p in r["tracks"][0]["points"]] == [BASE + 10, BASE + 40]
+
+
+def test_weak_spot_time_counts_every_weak_cell_not_only_those_listed(monkeypatch):
+    import app.wardrive.report as report_module
+
+    monkeypatch.setattr(report_module, "MAX_WEAK_CELLS", 1)
+    lats = [LAT + i * 0.01 for i in range(3)]
+    r = report(tracks=[tr(i * 100, lat=lat, dur=20) for i, lat in enumerate(lats)])
+    ws = r["weak_spots"]
+    assert ws["gaps"] == 3
+    assert len(ws["cells"]) == 1
+    assert ws["track_s"] == 60

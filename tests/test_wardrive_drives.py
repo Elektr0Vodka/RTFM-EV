@@ -181,3 +181,107 @@ async def test_retention_prune_removes_drives_it_emptied(api, test_db):
     result = await retention_pruner.prune_once(now=BASE + 31 * 86400)
     assert result["wardrive_drives"] == 1
     assert await _drives(test_db) == []
+
+
+async def _drive_id(test_db, uid: str | None = None) -> int:
+    return next(d["id"] for d in await _drives(test_db) if uid is None or d["uid"] == uid)
+
+
+async def test_rows_of_a_deleted_drive_do_not_come_back(api, test_db):
+    radio = make_radio()
+    await register(api, radio=radio)
+    pk = radio[1]
+    await _up(api, pk, UID_A, [o(pk, 0), o(pk, 60)])
+    r = await api.delete(f"/api/wardrive/drives/{await _drive_id(test_db, UID_A)}")
+    assert r.status_code == 200
+    # The page's queue still held a row of that drive and sends it again.
+    r = await _up(api, pk, UID_A, [o(pk, 30)])
+    assert r.status_code == 200
+    assert r.json()["accepted_obs"] == 0
+    assert r.json()["discarded"] == 1
+    assert await _drives(test_db) == []
+    assert await _drive_of(test_db, "wardrive_obs") == []
+    # Driving on after the delete: later rows are a drive again.
+    await _up(api, pk, UID_A, [o(pk, 900)])
+    drives = await _drives(test_db)
+    assert [(d["uid"], d["start_ts"]) for d in drives] == [(None, BASE + 900)]
+
+
+async def test_rows_of_a_merged_drive_join_the_merged_drive(api, test_db):
+    radio = make_radio()
+    await register(api, radio=radio)
+    pk = radio[1]
+    await _up(api, pk, UID_A, [o(pk, 0)])
+    await _up(api, pk, UID_B, [o(pk, 3600)])
+    ids = [d["id"] for d in await _drives(test_db)]
+    assert (await api.post("/api/wardrive/drives/merge", json={"ids": ids})).status_code == 200
+    await _up(api, pk, UID_B, [o(pk, 3660)])
+    drives = await _drives(test_db)
+    assert [d["id"] for d in drives] == [ids[0]]
+    assert drives[0]["end_ts"] == BASE + 3660
+    assert await _drive_of(test_db, "wardrive_obs") == [ids[0]] * 3
+
+
+async def test_rows_of_a_split_drive_follow_their_time(api, test_db):
+    radio = make_radio()
+    await register(api, radio=radio)
+    pk = radio[1]
+    await _up(api, pk, UID_A, [o(pk, 0), o(pk, 60), o(pk, 120), o(pk, 180)])
+    first = await _drive_id(test_db, UID_A)
+    r = await api.post(f"/api/wardrive/drives/{first}/split", json={"at": BASE + 120})
+    assert r.status_code == 200
+    second = r.json()["new_drive"]["id"]
+    await _up(api, pk, UID_A, [o(pk, 30, 1), o(pk, 170, 1)])
+    assert await _drive_of(test_db, "wardrive_obs") == [first, first, second, second] + [
+        first,
+        second,
+    ]
+    assert len(await _drives(test_db)) == 2
+
+
+async def test_an_upload_is_one_write_transaction(api, test_db, monkeypatch):
+    radio = make_radio()
+    await register(api, radio=radio)
+    pk = radio[1]
+    real_tx = test_db.tx
+    calls = []
+
+    def counting_tx():
+        calls.append(1)
+        return real_tx()
+
+    monkeypatch.setattr(test_db, "tx", counting_tx)
+    r = await _up(api, pk, UID_A, [o(pk, 0)], [tr(pk, 5)])
+    assert r.status_code == 200
+    assert len(calls) == 1
+    calls.clear()
+    r = await _up(api, pk, None, [o(pk, 900), o(pk, 5000)], [tr(pk, 905)])
+    assert r.status_code == 200
+    assert len(calls) == 1
+    assert len(await _drives(test_db)) == 3
+
+
+async def test_a_uid_upload_of_rows_stored_under_a_derived_drive_adds_no_drive(api, test_db):
+    radio = make_radio()
+    await register(api, radio=radio)
+    pk = radio[1]
+    await _up(api, pk, None, [o(pk, 0), o(pk, 60)])
+    derived = await _drive_id(test_db)
+    r = await _up(api, pk, UID_A, [o(pk, 0), o(pk, 60)])
+    assert r.json()["duplicate_obs"] == 2
+    drives = await _drives(test_db)
+    assert [(d["id"], d["uid"]) for d in drives] == [(derived, None)]
+    assert await _drive_of(test_db, "wardrive_obs") == [derived, derived]
+
+
+async def test_retention_prune_shrinks_a_partly_pruned_drive(api, test_db):
+    radio = make_radio()
+    await register(api, radio=radio)
+    pk = radio[1]
+    day = 86400
+    await _up(api, pk, UID_A, [o(pk, 0), o(pk, 40 * day)])
+    assert len(await _drives(test_db)) == 1
+    await AppSettingsRepository.update(wardrive_retention_days=30)
+    await retention_pruner.prune_once(now=BASE + 50 * day)
+    drives = await _drives(test_db)
+    assert [(d["start_ts"], d["end_ts"]) for d in drives] == [(BASE + 40 * day, BASE + 40 * day)]

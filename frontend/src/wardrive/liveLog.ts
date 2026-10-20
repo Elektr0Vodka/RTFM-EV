@@ -30,6 +30,8 @@ export interface LiveEntry {
   text: string | null;
   /** Loaded from this browser's queue, not heard during this page load. */
   stored: boolean;
+  /** An answer to our trace ping: the SNR at which that node heard us. */
+  heardUsSnr?: number | null;
 }
 
 /** Most receptions kept of this page load, and again of the stored ones. */

@@ -225,4 +225,35 @@ describe('live map glue', () => {
     const data = calls[calls.length - 1][0];
     expect(data.features).toHaveLength(1);
   });
+
+  it('drops the look-ahead padding once heading mode is left', async () => {
+    const p = props({ compass: 'heading', heading: 90 });
+    const { rerender } = mount(p);
+    await flush();
+    const last = () => map.easeTo.mock.calls[map.easeTo.mock.calls.length - 1][0];
+    expect(last().padding.top).toBe(300);
+    rerender({ ...p, compass: 'static', entries: [entry(1), entry(2, 52.6)], selectedId: 2 });
+    await flush();
+    expect(last().center).toEqual([6, 52.6]);
+    expect(last().padding).toEqual({ top: 0, bottom: 0, left: 0, right: 0 });
+  });
+
+  it('does not pick a backlog point below the zoom it shows at', async () => {
+    const p = props();
+    mount(p);
+    await flush();
+    map.getZoom = () => 10;
+    map.fire('click:wd-live-points', { features: [{ properties: { id: 1, backlog: true } }] });
+    expect(p.onSelect).not.toHaveBeenCalled();
+    map.fire('click:wd-live-points', {
+      features: [
+        { properties: { id: 1, backlog: true } },
+        { properties: { id: 2, backlog: false } },
+      ],
+    });
+    expect(p.onSelect).toHaveBeenCalledWith(2);
+    map.getZoom = () => 13;
+    map.fire('click:wd-live-points', { features: [{ properties: { id: 1, backlog: true } }] });
+    expect(p.onSelect).toHaveBeenLastCalledWith(1);
+  });
 });

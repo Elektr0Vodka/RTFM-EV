@@ -5,7 +5,7 @@
 // back on if the owner serves it again.
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { destId, type Broker, type BrokerId } from './forward/brokers';
+import { brokerFingerprint, destId, type Broker, type BrokerId } from './forward/brokers';
 import type { MqttCredentials, MqttLike } from './forward/client';
 import { Forwarder, disableBroker, enableBroker, type ForwardStatus } from './forward/forwarder';
 import { loadBrokerSettings, saveBrokerSettings, type BrokerSettings } from './forward/settings';
@@ -31,6 +31,8 @@ export function useForwarding(
   const forwarders = useRef(new Map<string, Forwarder>());
   /** dest -> the served entry its forwarder was built from */
   const builtFor = useRef(new Map<string, string>());
+  /** dest -> the stop of its last forwarder (the next one waits for it) */
+  const stopping = useRef(new Map<string, Promise<void>>());
   const brokersRef = useRef(brokers);
   brokersRef.current = brokers;
 
@@ -59,21 +61,29 @@ export function useForwarding(
   }, []);
 
   // A broker whose served entry changed (URL, account, region) gets a new
-  // forwarder: the key carries the entry, not only its id.
+  // forwarder: the key carries the entry, not only its id, in a fixed form
+  // (the built-in list and the server's list order their keys differently).
   const enabledKey = radioKey
-    ? JSON.stringify(brokers.filter((b) => settings.enabled[destId(b.id, radioKey)]))
+    ? JSON.stringify(
+        brokers
+          .filter((b) => settings.enabled[destId(b.id, radioKey)])
+          .map((b) => [brokerFingerprint(b), b])
+      )
     : '[]';
 
   // Keep one forwarder per broker switched on for the connected radio.
   useEffect(() => {
-    const wantedBrokers = JSON.parse(enabledKey) as Broker[];
+    const pairs = JSON.parse(enabledKey) as [string, Broker][];
+    const wantedBrokers = pairs.map(([, b]) => b);
     const wanted = new Map(
-      radioKey ? wantedBrokers.map((b) => [destId(b.id, radioKey), JSON.stringify(b)]) : []
+      radioKey ? pairs.map(([print, b]) => [destId(b.id, radioKey), print]) : []
     );
     const removed: string[] = [];
     for (const [dest, fw] of forwarders.current) {
       if (wanted.get(dest) !== builtFor.current.get(dest) || !companion || !queue) {
-        void fw.stop();
+        // A forwarder rebuilt for this destination starts after this one's
+        // row in flight, so that row is not published twice.
+        stopping.current.set(dest, fw.stop());
         forwarders.current.delete(dest);
         builtFor.current.delete(dest);
         removed.push(dest);
@@ -95,6 +105,7 @@ export function useForwarding(
             companion,
             connect,
             settings: () => settingsRef.current,
+            after: stopping.current.get(dest),
             saveToken: (key, token) =>
               setSettings({
                 ...settingsRef.current,
