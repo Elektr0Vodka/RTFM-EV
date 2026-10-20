@@ -7,6 +7,7 @@ hours old or older. With no subscription it does nothing and contacts nobody.
 import asyncio
 import logging
 
+from app.perf.recorders import loops as perf_loops
 from app.services.bot_lists import bot_lists
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,8 @@ async def _refresh_loop() -> None:
     await asyncio.sleep(FIRST_CHECK_SECONDS)
     while True:
         try:
-            await run_bot_list_refresh_once()
+            with perf_loops.tick("bot_list_refresh", CHECK_INTERVAL_SECONDS):
+                await run_bot_list_refresh_once()
         except asyncio.CancelledError:
             raise
         except Exception as e:

@@ -52,6 +52,10 @@ from app.frontend_static import (
     register_first_available_frontend_static_routes,
     register_frontend_missing_fallback,
 )
+from app.perf.loopwatch import loop_watch
+from app.perf.middleware import PerfRouteMiddleware
+from app.perf.recorders import log_tail
+from app.perf.sampler import sampler as perf_sampler
 from app.radio import RadioDisconnectedError
 from app.radio_sync import (
     stop_background_contact_reconciliation,
@@ -86,6 +90,7 @@ from app.routers import (
     openhop,
     packets,
     partial_resolution,
+    perf,
     push,
     radio,
     radio_identities,
@@ -154,6 +159,11 @@ async def lifespan(app: FastAPI):
             await asyncio.to_thread(apply_pending_restore, db.db_path)
         except Exception:
             logger.exception("Applying a staged database restore failed")
+    # Performance page: watch the event loop and keep the warnings tail from
+    # the start, so a slow startup is visible too.
+    logging.getLogger().addHandler(log_tail)
+    loop_watch.start()
+
     await db.connect()
     logger.info("Database connected")
 
@@ -172,6 +182,7 @@ async def lifespan(app: FastAPI):
 
     await ensure_default_channels()
     await start_radio_stats_sampling()
+    perf_sampler.start()
 
     # Arm the new-node notification startup warm-up before the radio connects
     # and starts syncing/hearing adverts, so an empty database suppresses the
@@ -295,6 +306,9 @@ async def lifespan(app: FastAPI):
     if radio_manager.meshcore:
         await radio_manager.meshcore.stop_auto_message_fetching()
     await radio_manager.disconnect()
+    await perf_sampler.stop()
+    await loop_watch.stop()
+    logging.getLogger().removeHandler(log_tail)
     await db.disconnect()
 
 
@@ -311,6 +325,7 @@ register_api_docs_routes(app)
 add_optional_basic_auth_middleware(app, server_settings)
 add_optional_worker_token_middleware(app, server_settings)
 app.add_middleware(GZipMiddleware, minimum_size=500)
+app.add_middleware(PerfRouteMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -350,6 +365,7 @@ app.include_router(health.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
 app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
+app.include_router(perf.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
 app.include_router(companion_filter.router, prefix="/api")

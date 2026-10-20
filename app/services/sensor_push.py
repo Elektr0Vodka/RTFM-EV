@@ -29,6 +29,7 @@ from meshcore.lpp_json_encoder import my_lpp_types
 from meshcore.parsing import lpp_parse
 
 from app.models import LppSensor
+from app.perf.recorders import loops as perf_loops
 from app.repository import ContactRepository
 from app.repository.sensor_push import SensorPushRepository
 from app.routers.contacts import _ensure_on_radio, _record_and_forward_lpp_telemetry
@@ -292,7 +293,8 @@ _loop_task: asyncio.Task | None = None
 async def _loop() -> None:
     while True:
         try:
-            await renew_due(_now())
+            with perf_loops.tick("sensor_push", LOOP_INTERVAL_SECS):
+                await renew_due(_now())
         except Exception:
             logger.warning("Sensor push loop error", exc_info=True)
         await asyncio.sleep(LOOP_INTERVAL_SECS)

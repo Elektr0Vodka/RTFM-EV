@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import aiosqlite
 
 from app.config import settings
+from app.perf.recorders import db_calls
 from app.reaction_payloads import is_reaction_text
 
 logger = logging.getLogger(__name__)
@@ -267,17 +269,29 @@ class Database:
         is alive during the commit. Nested calls will deadlock - factor shared
         SQL into helpers that accept ``conn`` and do not re-enter ``tx()``.
         """
+        waited = time.perf_counter()
         async with self._lock:
             if self._connection is None:
                 raise RuntimeError("Database not connected")
             conn = self._connection
+            held = time.perf_counter()
+            failed = False
             try:
                 yield conn
             except BaseException:
+                failed = True
                 await conn.rollback()
                 raise
             else:
                 await conn.commit()
+            finally:
+                done = time.perf_counter()
+                db_calls.record_here(
+                    "write",
+                    wait_ms=(held - waited) * 1000,
+                    hold_ms=(done - held) * 1000,
+                    error=failed,
+                )
 
     @asynccontextmanager
     async def readonly(self) -> AsyncIterator[aiosqlite.Connection]:
@@ -290,23 +304,42 @@ class Database:
         and holds back WAL checkpoints.
         """
         pool = self._reader_pool
+        waited = time.perf_counter()
+        failed = False
         if pool is not None:
             conn = await pool.get()
+            held = time.perf_counter()
             try:
                 yield conn
+            except BaseException:
+                failed = True
+                raise
             finally:
                 pool.put_nowait(conn)
+                self._record_read(waited, held, failed)
             return
 
         async with self._lock:
             if self._connection is None:
                 raise RuntimeError("Database not connected")
             conn = self._connection
+            held = time.perf_counter()
             await conn.execute("PRAGMA query_only = ON")
             try:
                 yield conn
+            except BaseException:
+                failed = True
+                raise
             finally:
                 await conn.execute("PRAGMA query_only = OFF")
+                self._record_read(waited, held, failed)
+
+    @staticmethod
+    def _record_read(waited: float, held: float, failed: bool) -> None:
+        done = time.perf_counter()
+        db_calls.record_here(
+            "read", wait_ms=(held - waited) * 1000, hold_ms=(done - held) * 1000, error=failed
+        )
 
     async def backup_to(self, target_path: str) -> None:
         """Write a consistent snapshot of the database to ``target_path``.
@@ -419,6 +452,13 @@ class Database:
             await self._connection.close()
             self._connection = None
             logger.debug("Database connection closed")
+
+    def reader_pool_status(self) -> tuple[int, int]:
+        """(reader connections, readers busy right now) for the Performance page."""
+        pool = self._reader_pool
+        if pool is None:
+            return 0, 0
+        return len(self._readers), max(0, len(self._readers) - pool.qsize())
 
     @property
     def conn(self) -> aiosqlite.Connection:

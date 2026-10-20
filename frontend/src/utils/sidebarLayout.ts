@@ -53,6 +53,7 @@ export type SidebarToolKey =
   | 'lan-scan'
   | 'fleet'
   | 'spam-guard'
+  | 'performance'
   | 'raw'
   | 'packet-history'
   | 'analyze'
@@ -74,6 +75,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'lan-scan',
   'fleet',
   'spam-guard',
+  'performance',
   'raw',
   'packet-history',
   'analyze',

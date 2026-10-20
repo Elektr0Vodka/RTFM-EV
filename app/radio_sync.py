@@ -30,6 +30,7 @@ from app.models import (
     apply_remote_cli,
     apply_telemetry_perms,
 )
+from app.perf.recorders import loops as perf_loops
 from app.radio import RadioOperationBusyError
 from app.repository import (
     AdvertEventRepository,
@@ -678,36 +679,40 @@ async def _message_poll_loop():
                 MESSAGE_POLL_INTERVAL if aggressive_fallback else MESSAGE_POLL_AUDIT_INTERVAL
             )
 
-            if radio_manager.is_connected and not is_polling_paused():
-                try:
-                    async with radio_manager.radio_operation(
-                        "message_poll_loop",
-                        blocking=False,
-                        suspend_auto_fetch=True,
-                    ) as mc:
-                        count = await poll_for_messages(mc)
-                        await audit_channel_send_cache(mc)
-                        if count > 0:
-                            if aggressive_fallback:
-                                logger.warning(
-                                    "Poll loop caught %d message(s) missed by auto-fetch",
-                                    count,
-                                )
-                            else:
-                                logger.error(
-                                    "[RADIO SYNC ERROR] Periodic radio audit caught %d message(s) that were not "
-                                    "surfaced via event subscription. This means that the method of event (new contacts, messages, etc.) awareness we want isn't giving us everything. There is a fallback method available; see README.md and consider "
-                                    "setting MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true to "
-                                    "enable active radio polling every few seconds.",
-                                    count,
-                                )
-                                broadcast_error(
-                                    "A periodic poll task has discovered radio inconsistencies.",
-                                    "Please check the logs for recommendations (search "
-                                    "'MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK').",
-                                )
-                except RadioOperationBusyError:
-                    logger.debug("Skipping message poll: radio busy")
+            with perf_loops.tick(
+                "radio_sync.message_poll",
+                MESSAGE_POLL_INTERVAL if aggressive_fallback else MESSAGE_POLL_AUDIT_INTERVAL,
+            ):
+                if radio_manager.is_connected and not is_polling_paused():
+                    try:
+                        async with radio_manager.radio_operation(
+                            "message_poll_loop",
+                            blocking=False,
+                            suspend_auto_fetch=True,
+                        ) as mc:
+                            count = await poll_for_messages(mc)
+                            await audit_channel_send_cache(mc)
+                            if count > 0:
+                                if aggressive_fallback:
+                                    logger.warning(
+                                        "Poll loop caught %d message(s) missed by auto-fetch",
+                                        count,
+                                    )
+                                else:
+                                    logger.error(
+                                        "[RADIO SYNC ERROR] Periodic radio audit caught %d message(s) that were not "
+                                        "surfaced via event subscription. This means that the method of event (new contacts, messages, etc.) awareness we want isn't giving us everything. There is a fallback method available; see README.md and consider "
+                                        "setting MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true to "
+                                        "enable active radio polling every few seconds.",
+                                        count,
+                                    )
+                                    broadcast_error(
+                                        "A periodic poll task has discovered radio inconsistencies.",
+                                        "Please check the logs for recommendations (search "
+                                        "'MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK').",
+                                    )
+                    except RadioOperationBusyError:
+                        logger.debug("Skipping message poll: radio busy")
 
         except asyncio.CancelledError:
             break
@@ -821,17 +826,18 @@ async def _periodic_advert_loop():
         try:
             await asyncio.sleep(ADVERT_CHECK_INTERVAL)
 
-            # Try to send - send_advertisement() handles all checks
-            # (disabled, throttled, not connected)
-            if radio_manager.is_connected:
-                try:
-                    async with radio_manager.radio_operation(
-                        "periodic_advertisement",
-                        blocking=False,
-                    ) as mc:
-                        await send_advertisement(mc)
-                except RadioOperationBusyError:
-                    logger.debug("Skipping periodic advertisement: radio busy")
+            with perf_loops.tick("radio_sync.periodic_advert", ADVERT_CHECK_INTERVAL):
+                # Try to send - send_advertisement() handles all checks
+                # (disabled, throttled, not connected)
+                if radio_manager.is_connected:
+                    try:
+                        async with radio_manager.radio_operation(
+                            "periodic_advertisement",
+                            blocking=False,
+                        ) as mc:
+                            await send_advertisement(mc)
+                    except RadioOperationBusyError:
+                        logger.debug("Skipping periodic advertisement: radio busy")
 
         except asyncio.CancelledError:
             logger.info("Periodic advertisement task cancelled")
@@ -1050,20 +1056,21 @@ async def _periodic_sync_loop():
     while True:
         try:
             await asyncio.sleep(SYNC_INTERVAL)
-            cleanup_expired_acks()
-            if not radio_manager.is_connected:
-                continue
+            with perf_loops.tick("radio_sync.periodic_sync", SYNC_INTERVAL):
+                cleanup_expired_acks()
+                if not radio_manager.is_connected:
+                    continue
 
-            try:
-                async with radio_manager.radio_operation(
-                    "periodic_sync",
-                    blocking=False,
-                ) as mc:
-                    if await should_run_full_periodic_sync(mc):
-                        await sync_and_offload_all(mc)
-                    await sync_radio_time(mc, warn_on_failure=False)
-            except RadioOperationBusyError:
-                logger.debug("Skipping periodic sync: radio busy")
+                try:
+                    async with radio_manager.radio_operation(
+                        "periodic_sync",
+                        blocking=False,
+                    ) as mc:
+                        if await should_run_full_periodic_sync(mc):
+                            await sync_and_offload_all(mc)
+                        await sync_radio_time(mc, warn_on_failure=False)
+                except RadioOperationBusyError:
+                    logger.debug("Skipping periodic sync: radio busy")
         except asyncio.CancelledError:
             logger.info("Periodic sync task cancelled")
             break
@@ -2532,12 +2539,13 @@ async def _telemetry_collect_loop() -> None:
     while True:
         try:
             await _sleep_until_next_schedule_minute()
-            now = datetime.now(UTC)
-            this_hour = now.replace(minute=0, second=0, microsecond=0)
-            if this_hour == evaluated_hour:
-                continue
-            evaluated_hour = this_hour
-            await _maybe_run_scheduled_cycle(now)
+            with perf_loops.tick("radio_sync.telemetry_collect", 3600):
+                now = datetime.now(UTC)
+                this_hour = now.replace(minute=0, second=0, microsecond=0)
+                if this_hour == evaluated_hour:
+                    continue
+                evaluated_hour = this_hour
+                await _maybe_run_scheduled_cycle(now)
 
         except asyncio.CancelledError:
             logger.info("Telemetry collect task cancelled")

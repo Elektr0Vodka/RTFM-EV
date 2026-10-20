@@ -25,6 +25,11 @@ API_TAGS_METADATA: list[dict[str, Any]] = [
         "description": "Connection state, build info, database size, radio stats, and fanout health.",
     },
     {
+        "name": "perf",
+        "description": "Performance page: the backend's own CPU, memory, event loop, background "
+        "loops, packet pipeline, database, radio link, outputs and API timings, live and history.",
+    },
+    {
         "name": "debug",
         "description": "Support snapshots for logs, live radio probes, drift audits, and version data.",
     },

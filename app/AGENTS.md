@@ -31,6 +31,7 @@ app/
 ├── channel_constants.py # Public/default channel constants shared across sync/send logic
 ├── database.py          # SQLite writer connection (tx(), locked) + reader pool (readonly(), WAL, query_only) + base schema + migration runner
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
+├── perf/                # Performance page self-monitoring: metrics.py (histograms), recorders.py (hot-path recorders), loopwatch.py (lag + stall watchdog), process.py (/proc stats), sampler.py (10 s ring, perf_samples), health.py, snapshot.py, middleware.py
 ├── snmp/                # Small SNMPv2c implementation for observer firmware nodes: ber.py (BER codec), message.py (framing), mib.py (the MeshCore OID table, single source for keys/units), client.py (async UDP GET), agent.py (read-only GET/GETNEXT/GETBULK responder, pure `handle_request` + UDP protocol), address.py (host validation, wifi.status parsing). Read-only, no dependency. LAN only, never the radio.
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
@@ -432,11 +433,27 @@ With `MESHCORE_MULTI_RADIO=true`, `app.asgi:app` serves the gateway instead of t
 - **Gateway API** (not under `/api`, which belongs to the workers): `GET/POST /gateway/api/radios`, `PATCH/DELETE /gateway/api/radios/{id}` (`delete_data=true` removes only `<data dir>/radios/<id>/`), `POST /gateway/api/radios/{id}/start|stop|restart`, `GET /gateway/api/radios/{id}/log`. The BLE PIN is never returned.
 - Do not import `app.main` or `app.database` from `app/gateway/`: the gateway must not open a radio or a database itself. That also rules out `app.frontend_static` (it reads the brand name from the database); the manifest code lives in `app/web_manifest.py` for that reason.
 
+### Performance self-monitoring (`app/perf/`)
+
+The Performance page reads the backend's own state. Everything is in memory and bounded; one row per minute goes to `perf_samples` (migration `_159`, 30 days, pruned by the sampler).
+
+- **Recorders** (`recorders.py`, one module-level instance each): `loops`, `pipeline`, `db_calls`, `radio_ops`, `outputs`, `routes`, `log_tail`. Every `record` is wrapped in `metrics.safe` and must never raise into the code it measures. Per-key tables are capped at 300 keys.
+- **Hooks:** `process_raw_packet` (stage timings parse / store / process / broadcast), `Database.tx()` and `readonly()` (wait and hold time per calling function, found by `caller_name()`, which skips `database.py`, `contextlib` and `app/perf/` frames), `RadioManager.radio_operation()` (lock wait and hold per operation name) and `reconnect()`, `FanoutManager._run_handler()` (per module: ok / timeout / error), `PerfRouteMiddleware` (`/api` HTTP requests by `scope["route"].path`; `/api/ws` and static files skipped), and `PerfLogHandler` on the root logger (last 200 WARNING+ records).
+- **Background loops:** wrap one iteration (not the sleep) in `with perf_loops.tick("<name>", every_s):` (`from app.perf.recorders import loops as perf_loops`). `every_s=None` for an on-demand loop. Overdue = not running and `now - last_start > max(2 * every, every + 60)`. A new long-running loop should get a tick, or it is invisible on the page.
+- **Event loop:** `loopwatch.LoopWatch` beats every 100 ms; a daemon thread checks every 50 ms and, when the beat is more than 180 ms late, reads `sys._current_frames()` for the loop thread plus `asyncio.current_task(loop)`. Each lag of 100 ms or more is a stall with that stack; 1 s or more is also logged.
+- **Process:** `process.process_stats()` uses `time.process_time()` for CPU (share of one core) and `/proc/self/status`, `/proc/self/fd`, `/proc/meminfo`, cgroup `memory.max` for the rest; `None` off Linux. No psutil.
+- **Health** (`health.evaluate`): `ok` / `degraded` / `critical` with stable reason keys (`loop_overdue`, `loop_failing`, `stall` (>= 500 ms in 5 min), `lag_high` (p95 >= 100 ms), `output_error`, `radio_disconnected`, `memory_high` (>= 90% of the limit, critical)). The frontend words them as `perf_reason_<key>`.
+- The sampler, the watchdog and the log handler start in the lifespan before the database opens (watchdog, log handler) or right after it (sampler) and stop at shutdown.
+
 ## API Surface (all under `/api`)
 
 ### Health
 - `GET /health`
   - `radio_identity`: the active (most recently connected) radio `{id, public_key, name, status, pending_reason, owned_keys}` or null. `status: "pending"` drives the connect-time prompt; `owned_keys` (the radio plus predecessors linked with `carry_owned`) drive the sidebar Owned section.
+
+### Performance
+- `GET /perf/snapshot`: `{generated_at, health, process, latest, loop, tasks, asyncio_tasks, pipeline, database, radio, outputs, routes, logs}`.
+- `GET /perf/history?range=live|15m|1h|6h|24h|7d|30d`: `{range, step_s, points}`. Up to `1h` from the 10 s ring; longer ranges from `perf_samples`, bucketed to at most 720 points (`avg` for cpu / lag p50 / pkts, `max` for the p95s, rss and tasks, `sum` for stalls and warnings). Unknown range: 422.
 
 ### Radio identities (plan 18)
 - `GET /radio-identities` - `{radios, has_unassigned_history}`, newest connect first
