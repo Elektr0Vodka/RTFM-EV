@@ -7,8 +7,8 @@ import type { WardriveGroup, WardriveUser } from '../types';
 import type { WardriveData } from '../wardrive/api';
 
 vi.mock('../wardrive/map/WardriveMap', () => ({
-  WardriveMap: ({ data }: { data: WardriveData }) => (
-    <div data-testid="fake-map">{`${data.obs.length} obs`}</div>
+  WardriveMap: ({ data, fill }: { data: WardriveData; fill?: boolean }) => (
+    <div data-testid="fake-map" data-fill={fill ? 'yes' : 'no'}>{`${data.obs.length} obs`}</div>
   ),
 }));
 
@@ -80,5 +80,11 @@ describe('Tools: wardrive map', () => {
     vi.spyOn(api, 'getWardriveUsers').mockRejectedValue(new Error('Not Found'));
     render(<WardriveMapPage />);
     expect(await screen.findByText(/Not Found/)).toBeTruthy();
+  });
+
+  it('gives the map the height left on the page', async () => {
+    mockApi();
+    render(<WardriveMapPage />);
+    expect((await screen.findByTestId('fake-map')).getAttribute('data-fill')).toBe('yes');
   });
 });

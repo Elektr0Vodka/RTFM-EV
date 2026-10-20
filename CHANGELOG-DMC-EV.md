@@ -27,6 +27,8 @@ off at every start.
   not tested on a real radio.
 - The About and start screen now say the page transmits only while
   Auto-discover is on.
+- Tools > Wardrive map: the map takes the window's height below the filters
+  instead of a fixed 320 px strip (716 px on a 1910 x 965 window).
 
 ## Update 2026-10-20 (wardrive page radio, signal and brokers, feat/wardrive-plugin)
 

@@ -13,12 +13,15 @@ export function WardriveMapView({
   load,
   filters,
   reloadKey = '',
+  fill = false,
 }: {
   load: (range: { since: number; until: number }) => Promise<WardriveData>;
   /** Extra controls next to the window picker (the owner's user/group). */
   filters?: ReactNode;
   /** Changes when a filter changes, to load again. */
   reloadKey?: string;
+  /** Let the map take the height left (the owner's full-page map). */
+  fill?: boolean;
 }) {
   const t = useT();
   const [windowId, setWindowId] = useState<WindowId>('24h');
@@ -43,7 +46,7 @@ export function WardriveMapView({
   }, [windowId, reloadKey]);
 
   return (
-    <div className="space-y-2">
+    <div className={fill ? 'flex min-h-0 flex-1 flex-col gap-2' : 'space-y-2'}>
       <div className="flex flex-wrap items-end gap-2">
         <label className="space-y-1 text-sm">
           <span className="block text-xs text-muted-foreground">{t('wardrive_map_window')}</span>
@@ -81,7 +84,7 @@ export function WardriveMapView({
             <p className="text-xs text-muted-foreground">{t('wardrive_map_truncated')}</p>
           )}
           <Suspense fallback={<p className="text-sm">{t('wardrive_map_loading')}</p>}>
-            <WardriveMap data={data} />
+            <WardriveMap data={data} fill={fill} />
           </Suspense>
         </>
       )}

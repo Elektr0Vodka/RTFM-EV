@@ -86,13 +86,16 @@ describe('broker list', () => {
 describe('companion token', () => {
   it('verifies with the library the collector uses', async () => {
     const radio = await softwareRadio();
-    const token = await buildToken(radio.key, 'collector2.dutchmeshcore.nl', NOW, radio.sign);
+    // The library checks expiry against the real clock: a fixed time would
+    // make this test fail one day after it was written.
+    const now = Math.floor(Date.now() / 1000);
+    const token = await buildToken(radio.key, 'collector2.dutchmeshcore.nl', now, radio.sign);
     const claims = await verifyAuthToken(token, radio.key);
     expect(claims).toMatchObject({
       publicKey: radio.key,
       aud: 'collector2.dutchmeshcore.nl',
-      iat: NOW,
-      exp: NOW + 86400,
+      iat: now,
+      exp: now + 86400,
     });
   });
 

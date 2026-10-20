@@ -18,7 +18,17 @@ const LEGEND: [number | null, string][] = [
   [-115, '< -110'],
 ];
 
-export function WardriveMap({ data, className }: { data: WardriveData; className?: string }) {
+/** `fill`: take the height the parent leaves (a flex column), at least 320 px;
+ * otherwise a fixed 320 px box. */
+export function WardriveMap({
+  data,
+  className,
+  fill = false,
+}: {
+  data: WardriveData;
+  className?: string;
+  fill?: boolean;
+}) {
   const t = useT();
   const mapRef = useRef<MlMap | null>(null);
   const popupRef = useRef<MlPopup | null>(null);
@@ -118,8 +128,10 @@ export function WardriveMap({ data, className }: { data: WardriveData; className
   );
 
   return (
-    <div className={className}>
-      <div className="h-80 overflow-hidden rounded border border-border">
+    <div className={`${fill ? 'flex min-h-0 flex-1 flex-col' : ''} ${className ?? ''}`.trim()}>
+      <div
+        className={`${fill ? 'min-h-80 flex-1' : 'h-80'} overflow-hidden rounded border border-border`}
+      >
         <MiniMap
           zoom={11}
           center={[5.3, 52.1]}

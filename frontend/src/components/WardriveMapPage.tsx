@@ -46,13 +46,15 @@ export function WardriveMapPage() {
         <h2 className="text-base font-semibold text-foreground">{t('nav_wardrive_map')}</h2>
         <p className="text-xs text-muted-foreground">{t('wardrive_map_page_intro')}</p>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      {/* A flex column, so the map takes the height below the filters. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
         {error && (
           <p className="text-xs text-destructive" role="status">
             {error}
           </p>
         )}
         <WardriveMapView
+          fill
           reloadKey={`${mapUser}:${mapGroup}:${mapRadio}`}
           load={(range) =>
             api.getWardriveAdminData({

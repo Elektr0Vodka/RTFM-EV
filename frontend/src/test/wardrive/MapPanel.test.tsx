@@ -6,8 +6,8 @@ import { wardriveApi, type WardriveData } from '../../wardrive/api';
 import { MapPanel } from '../../wardrive/components/MapPanel';
 
 vi.mock('../../wardrive/map/WardriveMap', () => ({
-  WardriveMap: ({ data }: { data: WardriveData }) => (
-    <div data-testid="fake-map">{`${data.obs.length} obs`}</div>
+  WardriveMap: ({ data, fill }: { data: WardriveData; fill?: boolean }) => (
+    <div data-testid="fake-map" data-fill={fill ? 'yes' : 'no'}>{`${data.obs.length} obs`}</div>
   ),
 }));
 
@@ -53,6 +53,8 @@ describe('wardrive page map', () => {
     expect(data).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Show map' }));
     expect(await screen.findByTestId('fake-map')).toHaveTextContent('1 obs');
+    // In the menu sheet the map keeps its fixed height.
+    expect(screen.getByTestId('fake-map').getAttribute('data-fill')).toBe('no');
     const params = data.mock.calls[0][0]!;
     expect(params.until! - params.since!).toBe(86400);
   });
