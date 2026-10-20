@@ -177,3 +177,12 @@ async def test_capped_to_the_newest(driver, monkeypatch):
     body = await _nodes(driver)
     assert [n["public_key"] for n in body["nodes"]] == [KEY_B, KEY_C]
     assert body["truncated"] is True
+
+
+async def test_seen_is_when_rtfm_ev_heard_it_not_the_nodes_own_clock(driver):
+    # A node whose clock runs a year ahead must not win "newer" by it.
+    await _contact(KEY_A, name="Skewed", last_advert=2_000_000_000, last_seen=1000)
+    await _contact(KEY_B, name="NoSeen", last_advert=1500)
+    nodes = _by_key(await _nodes(driver))
+    assert nodes[KEY_A]["seen"] == 1000
+    assert nodes[KEY_B]["seen"] == 1500

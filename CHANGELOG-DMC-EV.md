@@ -11,6 +11,21 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (wardrive page map functions, feat/wardrive-plugin)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### Wardrive
+- The page's map gets rx's functions: five views (2D points, 2D hexes and
+  points, 3D hexes, 3D points, 3D hexes and points), live hex cells with
+  labels, 3D cells and pillars by signal, rides (earlier rides faint), terrain
+  with hillshade and a terrain setting (1x to 10x), a time-of-day sky, compass
+  modes (off, follow north up, follow heading with look-ahead) and a node
+  positions layer (advertised, our estimate, drift, reach lines).
+- Names: "newer" now uses RTFM-EV's own last-seen time and the radio's own
+  contact time instead of the node's clock.
+- The HUD's start hint has its own line on a phone.
+
 ## Update 2026-10-20 (wardrive drives and reports, feat/wardrive-plugin)
 
 Migration **_162** (`wardrive_drives`; `drive_id` on wardrive receptions and

@@ -1,18 +1,24 @@
-// The round buttons at the right edge, above the HUD: 3D view, follow my
-// position (north up), and sound.
-import { Box, LocateFixed, Volume2, VolumeX } from 'lucide-react';
+// The round buttons at the right edge, above the HUD (rx's rail): the map view
+// (five modes), the compass (static, follow north up, follow heading), sound,
+// and the node positions layer. Each button's name says its current state.
+import { Box, Compass, LocateFixed, LocateOff, MapPin, Volume2, VolumeX } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { useT } from '../../i18n';
+import type { CompassMode } from '../map/compassMode';
+import type { NodePosMode } from '../map/nodeLayer';
+import { viewKey, type ViewState } from '../map/viewModes';
 import type { SoundMode } from '../useWardriveSound';
 
 export interface RightRailProps {
-  tilt3D: boolean;
-  onTilt(): void;
-  follow: boolean;
-  onFollow(): void;
+  view: ViewState;
+  onView(): void;
+  compass: CompassMode;
+  onCompass(): void;
   sound: SoundMode;
   onSound(): void;
+  nodePos: NodePosMode;
+  onNodePos(): void;
 }
 
 function RoundButton({
@@ -44,15 +50,42 @@ function RoundButton({
   );
 }
 
-export function RightRail({ tilt3D, onTilt, follow, onFollow, sound, onSound }: RightRailProps) {
+export function RightRail({
+  view,
+  onView,
+  compass,
+  onCompass,
+  sound,
+  onSound,
+  nodePos,
+  onNodePos,
+}: RightRailProps) {
   const t = useT();
+  const key = viewKey(view);
   return (
     <nav className="flex flex-col gap-2">
-      <RoundButton label={t('wardrive_page_rail_3d')} pressed={tilt3D} onClick={onTilt}>
-        <Box className="h-5 w-5" aria-hidden="true" />
+      <RoundButton
+        label={t('wardrive_page_rail_view', { state: t(`wardrive_page_view_${key}`) })}
+        pressed={view.mode3D}
+        onClick={onView}
+      >
+        <span className="flex flex-col items-center leading-none" aria-hidden="true">
+          <Box className="h-4 w-4" />
+          <span className="text-[9px] font-semibold">{view.mode3D ? '3D' : '2D'}</span>
+        </span>
       </RoundButton>
-      <RoundButton label={t('wardrive_page_rail_follow')} pressed={follow} onClick={onFollow}>
-        <LocateFixed className="h-5 w-5" aria-hidden="true" />
+      <RoundButton
+        label={t('wardrive_page_rail_compass', { state: t(`wardrive_page_compass_${compass}`) })}
+        pressed={compass !== 'static'}
+        onClick={onCompass}
+      >
+        {compass === 'heading' ? (
+          <Compass className="h-5 w-5" aria-hidden="true" />
+        ) : compass === 'north' ? (
+          <LocateFixed className="h-5 w-5" aria-hidden="true" />
+        ) : (
+          <LocateOff className="h-5 w-5" aria-hidden="true" />
+        )}
       </RoundButton>
       <RoundButton label={t('wardrive_page_rail_sound')} pressed={sound === 'rx'} onClick={onSound}>
         {sound === 'rx' ? (
@@ -60,6 +93,13 @@ export function RightRail({ tilt3D, onTilt, follow, onFollow, sound, onSound }: 
         ) : (
           <VolumeX className="h-5 w-5" aria-hidden="true" />
         )}
+      </RoundButton>
+      <RoundButton
+        label={t('wardrive_page_rail_nodepos', { state: t(`wardrive_page_nodepos_${nodePos}`) })}
+        pressed={nodePos !== 'off'}
+        onClick={onNodePos}
+      >
+        <MapPin className="h-5 w-5" aria-hidden="true" />
       </RoundButton>
     </nav>
   );

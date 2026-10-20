@@ -47,7 +47,9 @@ async def _contacts() -> list[dict[str, Any]]:
                 "role": _CONTACT_ROLES.get(row["type"]),
                 "lat": lat,
                 "lon": lon,
-                "seen": row["last_advert"],
+                # RTFM-EV's own clock when it has one: last_advert is the
+                # node's clock, which can be far off and would win "newer".
+                "seen": row["last_seen"] or row["last_advert"],
             }
         )
     return nodes

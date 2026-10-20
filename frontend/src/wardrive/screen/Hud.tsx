@@ -215,7 +215,7 @@ export function Hud({
           {t('wardrive_page_hud_all')}
         </button>
       </div>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         {running ? (
           <Button type="button" variant="destructive" onClick={onStop}>
             {t('wardrive_page_stop')}
@@ -224,9 +224,6 @@ export function Hud({
           <Button type="button" onClick={onStart} disabled={!canStart}>
             {t('wardrive_page_start')}
           </Button>
-        )}
-        {!running && !canStart && startHint && (
-          <span className="min-w-0 flex-1 text-xs text-muted-foreground">{startHint}</span>
         )}
         <div className="ml-auto flex gap-4">
           <Counter label={t('wardrive_page_heard')} value={counts.heard} testId="wardrive-heard" />
@@ -241,6 +238,11 @@ export function Hud({
             testId="wardrive-no-position"
           />
         </div>
+        {/* Its own line: squeezed between Start and the counters it wrapped
+            into a narrow column on a phone. */}
+        {!running && !canStart && startHint && (
+          <span className="basis-full text-xs text-muted-foreground">{startHint}</span>
+        )}
       </div>
     </section>
   );

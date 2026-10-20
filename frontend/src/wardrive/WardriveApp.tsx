@@ -79,6 +79,11 @@ import { SpeedTracker } from './speed';
 import { TARGET_KINDS, senderRows } from './targets';
 import { Trail } from './trail';
 import { useDrive } from './useDrive';
+import { ExaggerationSetting } from './components/ExaggerationSetting';
+import { nextCompassMode, parseCompassMode, type CompassMode } from './map/compassMode';
+import { nextNodePosMode, parseNodePosMode, type NodePosMode } from './map/nodeLayer';
+import { parseExaggeration } from './map/terrain';
+import { VIEW_STATES, nextViewIndex, parseViewKey, viewKey } from './map/viewModes';
 import { DrivesPanel } from './reports/DrivesPanel';
 import { pageDrivesApi } from './reports/pageDrivesApi';
 import type { DrivesApi } from './reports/types';
@@ -137,6 +142,19 @@ function readPref<T extends string>(key: string, allowed: readonly T[], fallback
   }
 }
 
+function readRaw(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+const VIEW_KEY = 'rtfm-wardrive-view';
+const COMPASS_KEY = 'rtfm-wardrive-compass';
+const NODEPOS_KEY = 'rtfm-wardrive-nodepos';
+const EXAGGERATION_KEY = 'rtfm-wardrive-exaggeration';
+
 function writePref(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
@@ -174,8 +192,15 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   const trailRef = useRef(new Trail());
   const [trail, setTrail] = useState<[number, number][]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [follow, setFollow] = useState(true);
-  const [tilt3D, setTilt3D] = useState(false);
+  // Map view, compass mode, node positions and terrain: kept in this browser.
+  const [viewIndex, setViewIndex] = useState(() => parseViewKey(readRaw(VIEW_KEY)));
+  const [compassMode, setCompassMode] = useState<CompassMode>(() =>
+    parseCompassMode(readRaw(COMPASS_KEY))
+  );
+  const [nodePos, setNodePos] = useState<NodePosMode>(() => parseNodePosMode(readRaw(NODEPOS_KEY)));
+  const [exaggeration, setExaggeration] = useState(() =>
+    parseExaggeration(readRaw(EXAGGERATION_KEY))
+  );
   const [sound, setSound] = useState<SoundMode>(() => readPref(SOUND_KEY, ['off', 'rx'], 'off'));
   const [logSize, setLogSize] = useState<LogSize>(() =>
     readPref(LOG_SIZE_KEY, ['full', 'three', 'one', 'hidden'], 'three')
@@ -538,6 +563,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   };
 
   const clearSelection = useCallback(() => setSelectedId(null), []);
+  const directoryNodes = useMemo(() => nodes.directory.all(), [nodes.directory]);
 
   // One handler for the whole page life: the memoised log rows keep it, so a
   // clock tick does not render every row again. It reads the latest state.
@@ -549,7 +575,9 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     setSelectedId(next);
     const entry = all.find((e) => e.id === id);
     // Looking at a reception elsewhere: the map stops following.
-    if (next !== null && entry?.lat !== null && entry?.lat !== undefined) setFollow(false);
+    if (next !== null && entry?.lat !== null && entry?.lat !== undefined) {
+      setCompassMode('static');
+    }
   }, []);
 
   const toggleSound = () => {
@@ -558,6 +586,36 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     if (next === 'rx') soundCtl.enable();
     setSound(next);
     writePref(SOUND_KEY, next);
+  };
+
+  const cycleView = () => {
+    const next = nextViewIndex(viewIndex);
+    setViewIndex(next);
+    writePref(VIEW_KEY, viewKey(VIEW_STATES[next]));
+  };
+
+  const cycleCompass = () => {
+    const next = nextCompassMode(compassMode);
+    // Heading mode turns the map with the phone: an iPhone asks for the
+    // compass only from a tap.
+    if (next === 'heading') {
+      void requestCompassPermission().then((ok) => {
+        if (ok) setCompassOn(true);
+      });
+    }
+    setCompassMode(next);
+    writePref(COMPASS_KEY, next);
+  };
+
+  const cycleNodePos = () => {
+    const next = nextNodePosMode(nodePos);
+    setNodePos(next);
+    writePref(NODEPOS_KEY, next);
+  };
+
+  const changeExaggeration = (x: number) => {
+    setExaggeration(x);
+    writePref(EXAGGERATION_KEY, String(x));
   };
 
   const changeLogSize = (size: LogSize) => {
@@ -575,9 +633,16 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
               selectedId={selectedId}
               fix={fix}
               trail={trail}
-              follow={follow}
-              tilt3D={tilt3D}
-              onUserPan={() => setFollow(false)}
+              view={VIEW_STATES[viewIndex]}
+              compass={compassMode}
+              heading={heading}
+              nodePos={nodePos}
+              nodes={directoryNodes}
+              exaggeration={exaggeration}
+              onUserPan={() => {
+                // A drag looks away; before the first fix there is nothing to leave.
+                if (fixRef.current) setCompassMode('static');
+              }}
               onSelect={selectEntry}
             />
           </Suspense>
@@ -650,12 +715,14 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       }
       rail={
         <RightRail
-          tilt3D={tilt3D}
-          onTilt={() => setTilt3D((v) => !v)}
-          follow={follow}
-          onFollow={() => setFollow((v) => !v)}
+          view={VIEW_STATES[viewIndex]}
+          onView={cycleView}
+          compass={compassMode}
+          onCompass={cycleCompass}
           sound={sound}
           onSound={toggleSound}
+          nodePos={nodePos}
+          onNodePos={cycleNodePos}
         />
       }
       start={
@@ -753,6 +820,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
             <>
               <ThemeSelector />
               <AccessibilitySettings compact />
+              <ExaggerationSetting value={exaggeration} onChange={changeExaggeration} />
             </>
           }
           drives={

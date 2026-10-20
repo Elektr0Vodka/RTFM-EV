@@ -440,7 +440,7 @@ class WardriveNodeRepository:
         its name is the owner's own label."""
         async with db.readonly() as conn:
             async with conn.execute(
-                "SELECT public_key, name, type, lat, lon, last_advert FROM contacts "
+                "SELECT public_key, name, type, lat, lon, last_advert, last_seen FROM contacts "
                 "WHERE length(public_key) = 64 AND last_advert > 0"
             ) as cursor:
                 return [dict(r) for r in await cursor.fetchall()]

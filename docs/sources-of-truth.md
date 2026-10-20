@@ -202,6 +202,7 @@ machine this was authored on and may differ elsewhere.
   (`meshcore/{label}/{PUBKEY}/wardriver/obs|track`, labels `hunter` and
   `wardriver`), that the topic key is the authenticated key, and that the
   payload `origin_id` matches it. It does not define the obs/track fields.
+- Wardrive page map functions (phase 3): core-hunter `app/src/{maplayers,hexlabels,rides,trail,terrain,sky,rotation,nodelayer,nodeposmode,coverage}.js` (behaviour, written fresh); terrain from the AWS Open Data terrarium tiles `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` (key-free, z10, attribution "DEM: Mapzen / AWS Open Data").
 - Wardrive report cells: CoreScope's server hex grid (`cmd/server/hexgrid.go`,
   the grid of the analyzer coverage maps), as ported in core-hunter
   `app/src/hexgrid.js`; `tests/fixtures/wardrive_hex_vectors.json` was made by

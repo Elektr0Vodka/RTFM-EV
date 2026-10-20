@@ -19,8 +19,23 @@ import { T0, drive, fakeApi } from './reports/fixtures';
 // MapLibre does not run in jsdom; the live map is checked in a real browser.
 // The stand-in shows how many receptions the page gives it.
 vi.mock('../../wardrive/map/LiveMap', () => ({
-  LiveMap: ({ entries }: { entries: unknown[] }) => (
-    <div data-testid="live-map" data-count={entries.length} />
+  LiveMap: (p: {
+    entries: unknown[];
+    view: { mode: string; mode3D: boolean };
+    compass: string;
+    nodePos: string;
+    exaggeration: number;
+    nodes: unknown[];
+  }) => (
+    <div
+      data-testid="live-map"
+      data-count={p.entries.length}
+      data-view={`${p.view.mode}${p.view.mode3D ? '3d' : '2d'}`}
+      data-compass={p.compass}
+      data-nodepos={p.nodePos}
+      data-exaggeration={p.exaggeration}
+      data-nodes={p.nodes.length}
+    />
   ),
 }));
 
@@ -648,6 +663,52 @@ describe('wardrive page reading what it hears', () => {
     expect(logRows()[0].textContent).toContain('Anna');
     expect(screen.getByRole('button', { name: 'Targets: Anna' })).toBeTruthy();
   });
+  it('cycles the map view and keeps it for next time', async () => {
+    vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
+    setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'View: 2D, points' }));
+    expect(screen.getByRole('button', { name: 'View: 2D, hex and points' })).toBeTruthy();
+    expect(localStorage.getItem('rtfm-wardrive-view')).toBe('both2d');
+    expect((await screen.findByTestId('live-map')).dataset.view).toBe('both2d');
+  });
+
+  it('starts at 2D points when the stored view is unknown', async () => {
+    localStorage.setItem('rtfm-wardrive-view', 'garbage');
+    vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
+    setup();
+    expect(await screen.findByRole('button', { name: 'View: 2D, points' })).toBeTruthy();
+  });
+
+  it('cycles the compass and the node positions and keeps them', async () => {
+    vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
+    setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Compass: follow, north up' }));
+    expect(screen.getByRole('button', { name: 'Compass: follow, heading' })).toBeTruthy();
+    expect(localStorage.getItem('rtfm-wardrive-compass')).toBe('heading');
+    fireEvent.click(screen.getByRole('button', { name: 'Node positions: off' }));
+    expect(localStorage.getItem('rtfm-wardrive-nodepos')).toBe('positions');
+    const map = await screen.findByTestId('live-map');
+    expect(map.dataset.compass).toBe('heading');
+    expect(map.dataset.nodepos).toBe('positions');
+  });
+
+  it('sets the terrain exaggeration in the Settings tab', async () => {
+    vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
+    setup();
+    await openMenu();
+    const settings = screen.getByRole('tab', { name: 'Settings' });
+    fireEvent.mouseDown(settings);
+    fireEvent.click(settings);
+    const seven = await screen.findByRole('radio', { name: '7x' });
+    expect((seven as HTMLInputElement).checked).toBe(true);
+    for (const x of ['1x', '2x', '4x', '10x'])
+      expect(screen.getByRole('radio', { name: x })).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: '4x' }));
+    expect(localStorage.getItem('rtfm-wardrive-exaggeration')).toBe('4');
+    await closeMenu();
+    expect((await screen.findByTestId('live-map')).dataset.exaggeration).toBe('4');
+  });
+
   it('asks a logged-out driver to log in for drives and reports', async () => {
     vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
     setup();

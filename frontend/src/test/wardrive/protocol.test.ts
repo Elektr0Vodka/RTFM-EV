@@ -86,6 +86,16 @@ describe('USB serial framing', () => {
 });
 
 describe('parseContact', () => {
+  it('dates a contact by the radio clock (lastmod), not the node clock', () => {
+    const frame = contactFrame({ keyHex: 'ab'.repeat(32), lastAdvert: 5000, lastmod: 1000 });
+    expect(parseContact(frame)?.seen).toBe(1000);
+    // A frame without lastmod (or 0) keeps the advert time.
+    expect(parseContact(frame.subarray(0, 144))?.seen).toBe(5000);
+    expect(parseContact(contactFrame({ keyHex: 'ab'.repeat(32), lastAdvert: 5000 }))?.seen).toBe(
+      5000
+    );
+  });
+
   it('reads a contact with its role and advertised position', () => {
     const frame = contactFrame({
       keyHex: 'ab'.repeat(32),

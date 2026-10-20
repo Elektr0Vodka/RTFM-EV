@@ -112,7 +112,8 @@ describe('wardrive HUD', () => {
 
   it('says why the drive cannot start', () => {
     renderHud({ canStart: false, startHint: 'Log in first' });
-    expect(screen.getByText('Log in first')).toBeTruthy();
+    // Its own full-width line, not a narrow column between Start and the counters.
+    expect(screen.getByText('Log in first').className).toContain('basis-full');
   });
 
   it('starts and stops the drive', () => {

@@ -10,6 +10,8 @@ export function contactFrame(c: {
   lastAdvert?: number;
   lat?: number;
   lon?: number;
+  /** When the radio last updated the contact, by the radio's clock. */
+  lastmod?: number;
 }): Uint8Array {
   const f = new Uint8Array(1 + 32 + 3 + 64 + 32 + 16);
   const view = new DataView(f.buffer);
@@ -21,6 +23,7 @@ export function contactFrame(c: {
   view.setUint32(132, c.lastAdvert ?? 0, true);
   view.setInt32(136, Math.round((c.lat ?? 0) * 1e6), true);
   view.setInt32(140, Math.round((c.lon ?? 0) * 1e6), true);
+  view.setUint32(144, c.lastmod ?? 0, true);
   return f;
 }
 

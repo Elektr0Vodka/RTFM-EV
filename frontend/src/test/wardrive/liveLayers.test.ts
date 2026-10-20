@@ -59,14 +59,17 @@ describe('wardrive live layers', () => {
   });
 
   it('follow zooms in from country zoom and keeps a zoom the driver chose', () => {
-    expect(followView(8, false)).toEqual({ zoom: 15, pitch: 0, bearing: 0 });
-    expect(followView(14, false).zoom).toBe(14);
-    expect(followView(17, false).zoom).toBe(17);
+    // The pitch belongs to the view mode and the bearing to the compass mode.
+    expect(followView(8)).toEqual({ zoom: 15 });
+    expect(followView(14).zoom).toBe(14);
+    expect(followView(17).zoom).toBe(17);
   });
 
-  it('follow keeps the 3D pitch so it does not cut the tilt short', () => {
-    expect(followView(15, true).pitch).toBe(60);
-    expect(followView(15, false).pitch).toBe(0);
+  it('marks what was heard before the current ride as backlog', () => {
+    const g = liveGeoJson([entry(1, { at: 100 }), entry(2, { at: 900000 })], null, false, 900000);
+    expect(g.points.features.map((f) => f.properties?.backlog)).toEqual([true, false]);
+    const none = liveGeoJson([entry(1, { at: 100 })], null, false, null);
+    expect(none.points.features[0].properties?.backlog).toBe(false);
   });
 
   it('pans to a newly selected reception, and again after the selection was cleared', () => {

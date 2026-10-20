@@ -67,7 +67,9 @@ const CONTACT_ROLES: Record<number, string> = {
 const CONTACT_MIN_LENGTH = 144;
 
 /** RESP_CONTACT: the contact's key, advertised name, role, advertised
- * position ((0, 0) is none) and last advert time (0 is unknown). */
+ * position ((0, 0) is none) and when it was last heard: the radio's own
+ * lastmod (its clock) when the frame carries it, else the advert time (the
+ * node's clock, which can be far off); 0 is unknown. */
 export function parseContact(frame: Uint8Array): DirectoryNode | null {
   if (frame.length < CONTACT_MIN_LENGTH || frame[0] !== RESP_CONTACT) return null;
   const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
@@ -75,6 +77,7 @@ export function parseContact(frame: Uint8Array): DirectoryNode | null {
   const end = nameBytes.indexOf(0);
   const name = new TextDecoder().decode(end < 0 ? nameBytes : nameBytes.subarray(0, end)).trim();
   const lastAdvert = view.getUint32(132, true);
+  const lastmod = frame.length >= CONTACT_MIN_LENGTH + 4 ? view.getUint32(144, true) : 0;
   const lat = view.getInt32(136, true) / 1e6;
   const lon = view.getInt32(140, true) / 1e6;
   const placed = lat !== 0 || lon !== 0;
@@ -84,6 +87,6 @@ export function parseContact(frame: Uint8Array): DirectoryNode | null {
     role: CONTACT_ROLES[frame[33]] ?? null,
     lat: placed ? lat : null,
     lon: placed ? lon : null,
-    seen: lastAdvert || null,
+    seen: lastmod || lastAdvert || null,
   };
 }

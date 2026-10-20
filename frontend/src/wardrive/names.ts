@@ -67,6 +67,11 @@ export class NodeDirectory {
     return this.keys.size;
   }
 
+  /** Every node, one per key (the map's node positions layer). */
+  all(): DirectoryNode[] {
+    return [...this.keys.values()];
+  }
+
   byKey(key: string): DirectoryNode | null {
     return this.keys.get(key.toLowerCase()) ?? null;
   }
