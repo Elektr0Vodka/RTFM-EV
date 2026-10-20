@@ -70,6 +70,7 @@ describe('wardrive map helpers', () => {
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [5.1, 52.1] },
         properties: {
+          i: 0,
           color: '#f97316',
           rssi: -85,
           snr: 6,

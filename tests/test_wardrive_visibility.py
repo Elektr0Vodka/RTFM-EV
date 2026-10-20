@@ -135,6 +135,18 @@ async def test_obs_row_shape(world):
         "lat",
         "lon",
         "accuracy",
+        # Every other stored field and who it came through (the map's popup).
+        "radio_name",
+        "pub_at",
+        "uploaded_at",
+        "len",
+        "payload_len",
+        "src",
+        "drive_id",
+        "drive_name",
+        "heard_id",
+        "heard_name",
+        "heard_guess",
     }
     assert row["path"] == ["a1", "b2"]
 

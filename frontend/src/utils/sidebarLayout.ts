@@ -53,8 +53,7 @@ export type SidebarToolKey =
   | 'lan-scan'
   | 'fleet'
   | 'spam-guard'
-  | 'wardrive-map'
-  | 'wardrive-reports'
+  | 'wardrive'
   | 'performance'
   | 'raw'
   | 'packet-history'
@@ -77,8 +76,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'lan-scan',
   'fleet',
   'spam-guard',
-  'wardrive-map',
-  'wardrive-reports',
+  'wardrive',
   'performance',
   'raw',
   'packet-history',
@@ -132,7 +130,7 @@ function reconcile<T extends string>(stored: unknown, all: T[]): T[] {
 // shows up where it belongs instead of at the bottom of a customised list.
 function reconcileInPlace<T extends string>(stored: unknown, all: T[]): T[] {
   if (!Array.isArray(stored)) return [...all];
-  const out = stored.filter((k): k is T => all.includes(k as T));
+  const out = [...new Set(renameTools(stored))].filter((k): k is T => all.includes(k as T));
   all.forEach((key, i) => {
     if (out.includes(key)) return;
     const before = all
@@ -168,6 +166,16 @@ export function resolveSectionOrder(
   const all: SidebarSectionKey[] = [...ALL_SECTION_KEYS, ...groupIds.map(groupSectionKey)];
   return reconcile<SidebarSectionKey>(serverValue, all);
 }
+// Tools that became one: the first old key takes the new key's place.
+const RENAMED_TOOLS: Record<string, string> = {
+  'wardrive-map': 'wardrive',
+  'wardrive-reports': 'wardrive',
+};
+
+function renameTools(keys: unknown[]): unknown[] {
+  return keys.map((k) => (typeof k === 'string' ? (RENAMED_TOOLS[k] ?? k) : k));
+}
+
 export function resolveToolOrder(serverValue: unknown): SidebarToolKey[] {
   return reconcileInPlace<SidebarToolKey>(serverValue, ALL_TOOL_KEYS);
 }
@@ -202,7 +210,11 @@ export function resolveHidden(serverValue: unknown): SidebarHidden {
     Array.isArray(value) ? value.filter((k): k is T => all.includes(k as T)) : [];
   return {
     sections: keep(obj.sections, ALL_SECTION_KEYS),
-    tools: keep(obj.tools, ALL_TOOL_KEYS),
+    tools: [
+      ...new Set(
+        keep(Array.isArray(obj.tools) ? renameTools(obj.tools) : obj.tools, ALL_TOOL_KEYS)
+      ),
+    ],
     favorites: keep(obj.favorites, ALL_FAVORITE_GROUP_KEYS),
   };
 }

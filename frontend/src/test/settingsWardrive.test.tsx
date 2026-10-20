@@ -544,7 +544,7 @@ describe('Settings: wardrive coverage map', () => {
     await screen.findByTestId('wardrive-user');
     expect(screen.queryByTestId('fake-map')).toBeNull();
     expect(data).not.toHaveBeenCalled();
-    expect(screen.getByText(/Tools > Wardrive map/)).toBeTruthy();
+    expect(screen.getByText(/Tools > Wardrive, Map tab/)).toBeTruthy();
   });
 });
 

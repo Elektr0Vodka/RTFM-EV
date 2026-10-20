@@ -1,6 +1,6 @@
 import { captureBasemap } from './basemapCapture';
 import { CARD_H, CARD_W, VISUAL_RECT, cardPalette, type CardTone } from './cardChrome';
-import { fitProjector, type LatLon, type Projector } from './geo';
+import { fitProjector, mercatorProjector, type LatLon, type Projector } from './geo';
 import type { ShareBuildOptions } from './ShareCardDialog';
 
 const MAP_PADDING = 48;
@@ -25,21 +25,24 @@ export interface MapView {
  */
 export async function prepareMapView(
   located: LatLon[],
-  opts: Pick<ShareBuildOptions, 'hidePosition' | 'noMap'>
+  opts: Pick<ShareBuildOptions, 'hidePosition' | 'noMap' | 'view'>
 ): Promise<MapView> {
+  const size = { w: VISUAL_RECT.w, h: VISUAL_RECT.h };
   if (opts.hidePosition) {
     return { project: null, mapImage: null, tone: 'dark', diagram: true, hideNames: true };
   }
   if (opts.noMap || located.length === 0) {
     return {
-      project: fitProjector(located, VISUAL_RECT, MAP_PADDING),
+      project: opts.view
+        ? mercatorProjector(opts.view.center, opts.view.zoom, size)
+        : fitProjector(located, VISUAL_RECT, MAP_PADDING),
       mapImage: null,
       tone: 'dark',
       diagram: false,
       hideNames: false,
     };
   }
-  const cap = await captureBasemap(located, { w: VISUAL_RECT.w, h: VISUAL_RECT.h }, MAP_PADDING);
+  const cap = await captureBasemap(located, size, MAP_PADDING, undefined, opts.view);
   return {
     project: cap.project,
     mapImage: cap.image,

@@ -185,3 +185,93 @@ async def test_admin_data_window_out_of_range_is_a_validation_error(api):
     for query in (f"since={2**63}", f"until={2**63}", "since=-1"):
         r = await api.get(f"/api/wardrive-admin/data?{query}")
         assert r.status_code == 422, query
+
+
+async def _contact(test_db, key: str, name: str, lat: float, lon: float) -> None:
+    async with test_db.tx() as conn:
+        await conn.execute(
+            "INSERT INTO contacts (public_key, name, type, lat, lon, last_advert) "
+            "VALUES (?, ?, 2, ?, ?, ?)",
+            (key, name, lat, lon, NOW_TS),
+        )
+
+
+async def test_admin_data_carries_every_stored_field_and_who_was_heard(api, test_db):
+    from tests.wardrive_helpers import track
+
+    radio = make_radio()
+    pk = radio[1]
+    await register(api, username="anna", radio=radio)
+    await _contact(test_db, "b2" + "00" * 31, "Toren", 52.1, 5.1)
+    r = await api.post(
+        "/api/wardrive/upload",
+        json={
+            "radio_key": pk,
+            "drive_uid": "0b6f3c1e-2a4d-4e8f-9a1b-3c5d7e9f1a2b",
+            "obs": [obs(pk, NOW_ISO)],
+            "tracks": [track(pk, NOW_ISO)],
+        },
+    )
+    assert r.status_code == 200
+    drive_id = (await api.get("/api/wardrive/drives")).json()["drives"][0]["id"]
+    await api.patch(f"/api/wardrive/drives/{drive_id}", json={"name": "Ochtend"})
+    body = (
+        await api.get(
+            "/api/wardrive-admin/data", params={"since": NOW_TS - 60, "until": NOW_TS + 60}
+        )
+    ).json()
+    [o] = body["obs"]
+    assert o["drive_id"] == drive_id
+    assert o["drive_name"] == "Ochtend"
+    assert o["radio_name"] == "car"
+    assert o["pub_at"] == "2026-10-19T10:00:01.000Z"
+    assert o["src"] == "phone"
+    assert (o["len"], o["payload_len"]) == (6, 4)
+    assert isinstance(o["uploaded_at"], int)
+    assert (o["heard_id"], o["heard_name"], o["heard_guess"]) == ("b2", "Toren", True)
+    assert "raw" not in o
+    [t] = body["tracks"]
+    assert t["drive_id"] == drive_id
+    assert t["drive_name"] == "Ochtend"
+
+
+async def test_live_lists_the_drivers_who_uploaded_lately(api):
+    from datetime import UTC, datetime
+
+    from tests.wardrive_helpers import track
+
+    radio = make_radio()
+    pk = radio[1]
+    await register(api, username="anna", radio=radio)
+    now = int(datetime.now(UTC).timestamp())
+
+    def iso(ts: int) -> str:
+        return (
+            datetime.fromtimestamp(ts, UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+
+    r = await api.post(
+        "/api/wardrive/upload",
+        json={
+            "radio_key": pk,
+            "drive_uid": "1c7a4d2f-3b5e-4f90-8b2c-4d6e8fa02b3c",
+            "obs": [obs(pk, iso(now - 30), hash="00000000000000a1", RSSI=-97, SNR=3.5)],
+            "tracks": [track(pk, iso(now - 20), t1=iso(now - 10), lat=52.3, lon=5.3)],
+        },
+    )
+    assert r.status_code == 200
+    # bert stored rows long ago: not live.
+    await _user(api, "bert")
+    live = (await api.get("/api/wardrive-admin/live")).json()
+    assert live["window_s"] == 600
+    [d] = live["drivers"]
+    assert (d["username"], d["radio_key"], d["radio_name"]) == ("anna", pk, "car")
+    # The newest row in time is the track that ended 10 s ago.
+    assert (d["lat"], d["lon"]) == (52.3, 5.3)
+    assert d["last_ts"] == now - 10
+    assert (d["last_rssi"], d["last_snr"]) == (-97, 3.5)
+    assert d["receptions"] == 1
+    assert d["drive_id"] is not None
+    assert d["last_upload_at"] >= now - 5

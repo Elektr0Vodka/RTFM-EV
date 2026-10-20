@@ -22,8 +22,7 @@ interface ParsedHashConversation {
     | 'lan-scan'
     | 'fleet'
     | 'spam-guard'
-    | 'wardrive-map'
-    | 'wardrive-reports'
+    | 'wardrive'
     | 'performance'
     | 'analyze'
     | 'packet-history'
@@ -115,12 +114,14 @@ export function parseHashConversation(): ParsedHashConversation | null {
     return { type: 'lan-scan', name: 'lan-scan' };
   }
 
-  if (hash === 'wardrive-map') {
-    return { type: 'wardrive-map', name: 'wardrive-map' };
+  // Tools > Wardrive: #wardrive (Map tab) and #wardrive/reports. The two
+  // pages it replaced keep working as links to their tab.
+  if (hash === 'wardrive' || hash === 'wardrive-map') {
+    return { type: 'wardrive', name: 'map' };
   }
 
-  if (hash === 'wardrive-reports') {
-    return { type: 'wardrive-reports', name: 'wardrive-reports' };
+  if (hash === 'wardrive/reports' || hash === 'wardrive-reports') {
+    return { type: 'wardrive', name: 'reports' };
   }
 
   // SNMP page of one node: #snmp/<public key>
@@ -299,8 +300,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'spam-guard') return '#spam-guard';
   if (conv.type === 'performance') return '#performance';
   if (conv.type === 'lan-scan') return '#lan-scan';
-  if (conv.type === 'wardrive-map') return '#wardrive-map';
-  if (conv.type === 'wardrive-reports') return '#wardrive-reports';
+  if (conv.type === 'wardrive') return conv.id === 'reports' ? '#wardrive/reports' : '#wardrive';
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;

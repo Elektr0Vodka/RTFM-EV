@@ -21,7 +21,13 @@ from app.repository.wardrive import WardriveDriveRepository, WardriveGroupReposi
 from app.wardrive import export
 from app.wardrive import nodes as wardrive_nodes
 from app.wardrive.crypto import normalize_key
-from app.wardrive.report import REPORT_MAX_ROWS, build_report, trim_to_common_window
+from app.wardrive.report import (
+    REPORT_MAX_ROWS,
+    NodeNames,
+    build_report,
+    heard_id,
+    trim_to_common_window,
+)
 from app.wardrive.visibility import visible_user_ids
 
 GAP_S = 600
@@ -323,6 +329,41 @@ async def report_nodes(obs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         min(180.0, max(lons) + 0.2),
     )
     return box["nodes"]
+
+
+async def with_heard(data: dict[str, Any]) -> dict[str, Any]:
+    """The map's receptions with who each came through (``heard_id``) and
+    that node's name by the report's rules (``heard_name``, ``heard_guess``
+    for a name from a short id), judged at the reception's own position. The
+    frame read for the advert check is not sent on."""
+    obs = data["obs"]
+    nodes = await report_nodes(obs)
+
+    def work() -> None:
+        names = NodeNames(nodes)
+        cache: dict[tuple[Any, ...], tuple[str | None, bool]] = {}
+        for o in obs:
+            who = heard_id(o)
+            o.pop("raw", None)
+            if who is None:
+                o["heard_id"], o["heard_name"], o["heard_guess"] = None, None, False
+                continue
+            ident, full = who
+            # A 1-byte id is named by the nodes within reach of where it was
+            # heard; longer ids do not depend on the place.
+            key: tuple[Any, ...] = (
+                (ident, full, round(o["lat"], 3), round(o["lon"], 3))
+                if len(ident) <= 2
+                else (ident, full)
+            )
+            if key not in cache:
+                _, name, guess = names.resolve(ident, full, (o["lat"], o["lon"]))
+                cache[key] = (name, bool(name and guess))
+            o["heard_id"] = ident
+            o["heard_name"], o["heard_guess"] = cache[key]
+
+    await asyncio.to_thread(work)
+    return data
 
 
 async def make_report(q: ReportQuery, viewer: dict[str, Any] | None) -> dict[str, Any]:

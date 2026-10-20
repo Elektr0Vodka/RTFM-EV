@@ -244,7 +244,29 @@ async def wardrive_admin_data(
     if user_id is not None:
         user_ids = {user_id} if user_ids is None else user_ids & {user_id}
     key = _key_or_404(radio_key) if radio_key else None
-    return await WardriveDataRepository.query(user_ids, start, end, key)
+    return await drives.with_heard(await WardriveDataRepository.query(user_ids, start, end, key))
+
+
+LIVE_WINDOW_S = 600
+
+
+@router.get("/live")
+async def wardrive_admin_live(
+    user_id: int | None = None,
+    group_id: int | None = None,
+) -> dict[str, Any]:
+    """Drivers on the road now: whose page uploaded in the last 10 minutes,
+    with their newest position, last signal and drive."""
+    user_ids: set[int] | None = None
+    if group_id is not None:
+        user_ids = set((await _group_or_404(group_id))["member_ids"])
+    if user_id is not None:
+        user_ids = {user_id} if user_ids is None else user_ids & {user_id}
+    since = int(time.time()) - LIVE_WINDOW_S
+    return {
+        "window_s": LIVE_WINDOW_S,
+        "drivers": await WardriveDataRepository.live_drivers(since, user_ids),
+    }
 
 
 @router.get("/drives")

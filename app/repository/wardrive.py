@@ -395,19 +395,31 @@ class WardriveDataRepository:
             where.append("d.radio_key = ?")
             params.append(normalize_key(radio_key))
         clause = " AND ".join(where)
+        # Every stored field for the map's popup, with the radio's and the
+        # drive's names. The frame only for zero-hop adverts (the signature
+        # check that names who was heard); it is not sent on.
         async with db.readonly() as conn:
             async with conn.execute(
-                "SELECT d.user_id, u.username, d.radio_key, d.rx_at, d.hash, d.packet_type, "
-                "d.route, d.path, d.rssi, d.snr, d.lat, d.lon, d.accuracy "
+                "SELECT d.user_id, u.username, d.radio_key, r.name AS radio_name, d.rx_at, "
+                "d.pub_at, d.uploaded_at, d.hash, d.len, d.packet_type, d.route, d.payload_len, "
+                "d.path, d.rssi, d.snr, d.lat, d.lon, d.accuracy, d.src, d.drive_id, "
+                "dr.name AS drive_name, "
+                "CASE WHEN d.packet_type = 4 AND (d.path IS NULL OR d.path = '[]') "
+                "THEN d.raw END AS raw "
                 "FROM wardrive_obs d JOIN wardrive_users u ON u.id = d.user_id "
+                "LEFT JOIN wardrive_radios r ON r.public_key = d.radio_key "
+                "LEFT JOIN wardrive_drives dr ON dr.id = d.drive_id "
                 f"WHERE {clause.format(ts='d.rx_ts')} ORDER BY d.rx_ts DESC, d.id DESC LIMIT ?",
                 (*params, limit + 1),
             ) as cursor:
                 obs_rows = list(await cursor.fetchall())
             async with conn.execute(
-                "SELECT d.user_id, u.username, d.radio_key, d.t0, d.t1, d.lat, d.lon, "
-                "d.accuracy, d.rx_count, d.listening "
+                "SELECT d.user_id, u.username, d.radio_key, r.name AS radio_name, d.t0, d.t1, "
+                "d.lat, d.lon, d.accuracy, d.rx_count, d.listening, d.src, d.uploaded_at, "
+                "d.drive_id, dr.name AS drive_name "
                 "FROM wardrive_tracks d JOIN wardrive_users u ON u.id = d.user_id "
+                "LEFT JOIN wardrive_radios r ON r.public_key = d.radio_key "
+                "LEFT JOIN wardrive_drives dr ON dr.id = d.drive_id "
                 f"WHERE {clause.format(ts='d.t0_ts')} ORDER BY d.t0_ts DESC, d.id DESC LIMIT ?",
                 (*params, limit + 1),
             ) as cursor:
@@ -422,6 +434,84 @@ class WardriveDataRepository:
             "tracks": tracks,
             "truncated": len(obs_rows) > limit or len(track_rows) > limit,
         }
+
+    @staticmethod
+    async def live_drivers(
+        uploaded_since: int, user_ids: set[int] | None = None
+    ) -> list[dict[str, Any]]:
+        """Per user and radio that uploaded since ``uploaded_since``: the
+        newest position (track end or reception, whichever is later), the
+        last reception's signal, its drive and how many receptions came in."""
+        where = ""
+        params: list[Any] = [uploaded_since, uploaded_since]
+        if user_ids is not None:
+            ids = sorted(user_ids)
+            if not ids:
+                return []
+            where = f"WHERE user_id IN ({', '.join('?' * len(ids))})"
+            params.extend(ids)
+        out: list[dict[str, Any]] = []
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT user_id, radio_key, MAX(uploaded_at) AS last_upload_at, "
+                "SUM(is_obs) AS receptions FROM ("
+                "SELECT user_id, radio_key, uploaded_at, 1 AS is_obs FROM wardrive_obs "
+                "WHERE uploaded_at >= ? "
+                "UNION ALL SELECT user_id, radio_key, uploaded_at, 0 FROM wardrive_tracks "
+                f"WHERE uploaded_at >= ?) {where} GROUP BY user_id, radio_key",
+                params,
+            ) as cursor:
+                groups = [dict(r) for r in await cursor.fetchall()]
+            for g in groups:
+                key = (g["user_id"], g["radio_key"])
+                async with conn.execute(
+                    "SELECT rx_ts, lat, lon, accuracy, rssi, snr, drive_id FROM wardrive_obs "
+                    "WHERE user_id = ? AND radio_key = ? ORDER BY rx_ts DESC, id DESC LIMIT 1",
+                    key,
+                ) as cursor:
+                    last_obs = await cursor.fetchone()
+                async with conn.execute(
+                    "SELECT COALESCE(t1_ts, t0_ts) AS ts, lat, lon, accuracy, drive_id "
+                    "FROM wardrive_tracks WHERE user_id = ? AND radio_key = ? "
+                    "ORDER BY COALESCE(t1_ts, t0_ts) DESC, id DESC LIMIT 1",
+                    key,
+                ) as cursor:
+                    last_track = await cursor.fetchone()
+                if last_track is not None and (
+                    last_obs is None or last_track["ts"] >= last_obs["rx_ts"]
+                ):
+                    newest = dict(last_track)
+                elif last_obs is not None:
+                    newest = {**dict(last_obs), "ts": last_obs["rx_ts"]}
+                else:
+                    continue
+                async with conn.execute(
+                    "SELECT u.username, r.name AS radio_name, dr.name AS drive_name "
+                    "FROM wardrive_users u LEFT JOIN wardrive_radios r ON r.public_key = ? "
+                    "LEFT JOIN wardrive_drives dr ON dr.id = ? WHERE u.id = ?",
+                    (g["radio_key"], newest["drive_id"], g["user_id"]),
+                ) as cursor:
+                    who = await cursor.fetchone()
+                out.append(
+                    {
+                        "user_id": g["user_id"],
+                        "username": who["username"] if who else None,
+                        "radio_key": g["radio_key"],
+                        "radio_name": who["radio_name"] if who else None,
+                        "last_upload_at": g["last_upload_at"],
+                        "last_ts": newest["ts"],
+                        "lat": newest["lat"],
+                        "lon": newest["lon"],
+                        "accuracy": newest["accuracy"],
+                        "last_rssi": last_obs["rssi"] if last_obs else None,
+                        "last_snr": last_obs["snr"] if last_obs else None,
+                        "drive_id": newest["drive_id"],
+                        "drive_name": who["drive_name"] if who else None,
+                        "receptions": g["receptions"] or 0,
+                    }
+                )
+        out.sort(key=lambda d: -d["last_upload_at"])
+        return out
 
 
 class WardriveConfigRepository:

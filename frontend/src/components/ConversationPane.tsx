@@ -60,11 +60,8 @@ const SpamGuardView = lazy(() =>
   import('./SpamGuardView').then((m) => ({ default: m.SpamGuardView }))
 );
 const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
-const WardriveMapPage = lazy(() =>
-  import('./WardriveMapPage').then((m) => ({ default: m.WardriveMapPage }))
-);
-const WardriveReportsPage = lazy(() =>
-  import('./WardriveReportsPage').then((m) => ({ default: m.WardriveReportsPage }))
+const WardrivePage = lazy(() =>
+  import('./WardrivePage').then((m) => ({ default: m.WardrivePage }))
 );
 const PerformanceView = lazy(() =>
   import('./PerformanceView').then((m) => ({ default: m.PerformanceView }))
@@ -571,18 +568,15 @@ export function ConversationPane({
     );
   }
 
-  if (activeConversation.type === 'wardrive-reports') {
+  if (activeConversation.type === 'wardrive') {
     return (
-      <Suspense fallback={<LoadingPane label={t('common_loading_wardrive_reports')} />}>
-        <WardriveReportsPage />
-      </Suspense>
-    );
-  }
-
-  if (activeConversation.type === 'wardrive-map') {
-    return (
-      <Suspense fallback={<LoadingPane label={t('common_loading_wardrive_map')} />}>
-        <WardriveMapPage />
+      <Suspense fallback={<LoadingPane label={t('common_loading_wardrive')} />}>
+        <WardrivePage
+          tab={activeConversation.id}
+          onTab={(tab) =>
+            onSelectConversation({ type: 'wardrive', id: tab, name: t('nav_wardrive') })
+          }
+        />
       </Suspense>
     );
   }

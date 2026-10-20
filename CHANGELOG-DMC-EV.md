@@ -11,6 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (Tools > Wardrive, feat/wardrive-plugin)
+
+No migration, no new dependency.
+
+### Wardrive
+- Tools > Wardrive map and Tools > Wardrive reports are one page, **Tools >
+  Wardrive**, with a Map and a Reports tab (`#wardrive`, `#wardrive/reports`;
+  old links open their tab; a customised sidebar keeps the tool's place).
+- Map tab: **On the road now**, the drivers whose page uploaded in the last
+  10 minutes, listed and on the map with their name (new
+  `GET /api/wardrive-admin/live`), refreshed every 30 seconds.
+- A tap on a reception (Tools and the page) shows every stored field,
+  including who it came through, named by the reports' rules.
+- Share cards of the reports: **Frame the map** pans and zooms the view the
+  card and its GIF are drawn on.
+
 ## Update 2026-10-20 (wardrive page on a phone, feat/wardrive-plugin)
 
 No migration, no new dependency. From the owner's phone test.

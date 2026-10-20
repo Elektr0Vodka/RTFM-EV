@@ -19,7 +19,7 @@ function errorMessage(err: unknown): string {
 }
 
 /**
- * Tools > Wardrive reports (shown only when MESHCORE_WARDRIVE is on): every
+ * Tools > Wardrive, Reports tab: every
  * driver's drives, managed by the owner, and reports, share cards and
  * exports over the picked drives or a filter. Reads through /api/wardrive-admin.
  */
@@ -66,11 +66,8 @@ export function WardriveReportsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border px-4 py-2.5">
-        <h2 className="text-base font-semibold text-foreground">{t('nav_wardrive_reports')}</h2>
-        <p className="text-xs text-muted-foreground">{t('wardrive_reports_page_intro')}</p>
-      </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        <p className="text-xs text-muted-foreground">{t('wardrive_reports_page_intro')}</p>
         {error && (
           <p className="text-xs text-destructive" role="status">
             {error}

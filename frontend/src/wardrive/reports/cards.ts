@@ -210,6 +210,8 @@ export async function renderReportCard(
   const map = await prepareMapView(card.model.located, {
     hidePosition: false,
     noMap: opts.noMap || opts.hidePosition,
+    // The view framed by hand in the dialog, for the picture and the GIF.
+    view: opts.hidePosition ? null : (opts.view ?? null),
   });
   const view: View = { ...map, hideNames: opts.hidePosition, cvd: opts.cvd };
   const cardText: CardText = { ...text, credit: map.credit };
@@ -221,4 +223,9 @@ export async function renderReportCard(
 /** Whether a card has anything to draw. */
 export function cardIsEmpty(kind: ReportCardKind, report: WardriveReport): boolean {
   return modelFor(kind, report).model.empty;
+}
+
+/** The points a card's map fits by default (the framing map starts there). */
+export function cardLocated(kind: ReportCardKind, report: WardriveReport): LatLon[] {
+  return modelFor(kind, report).model.located;
 }

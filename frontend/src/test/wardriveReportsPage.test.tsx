@@ -41,7 +41,7 @@ describe('Tools: wardrive reports', () => {
   it('lists every driver and reports on the picked drives', async () => {
     const calls = mockApi();
     render(<WardriveReportsPage />);
-    expect(screen.getByRole('heading', { name: 'Wardrive reports' })).toBeTruthy();
+    expect(screen.getByText(/Every driver's drives/)).toBeTruthy();
     expect(await screen.findByText('Bert rit')).toBeTruthy();
     expect(screen.getByText('bert')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Pick Anna rit' }));

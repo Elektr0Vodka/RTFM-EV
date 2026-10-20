@@ -114,7 +114,7 @@ def _sample(items: list[Any], limit: int) -> list[Any]:
     return [items[round(i * step)] for i in range(limit)]
 
 
-class _Names:
+class NodeNames:
     """Names for heard ids from RTFM-EV's nodes (phase 2's rules): a full key
     by its node; a prefix only when every node with it has one name, marked
     as a guess at 3 bytes or shorter; a 1-byte id only through one node with
@@ -227,7 +227,7 @@ def build_report(
             }
         return c
 
-    names = _Names(nodes)
+    names = NodeNames(nodes)
     heard: dict[str, dict[str, Any]] = {}
     attributed = 0
     for o in obs:

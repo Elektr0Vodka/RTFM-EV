@@ -685,6 +685,8 @@ Router `routers/wardrive.py`, registered only when the module is active.
 - `GET /wardrive/groups` - `{groups: [{id, name}]}`: the user's own groups
 - `GET /wardrive/report?drive=&drive=...|since&until&user_id&group_id&radio_key&res` - the report (picked drives, or the window, default the last 30 days; `res` 7..11)
 - `GET /wardrive/export/{receptions.csv|cells.csv|drives.geojson|drives.gpx}` with the report's query - an attachment `rtfm-ev-wardrive-<kind>-<date>.<ext>`
+- `/wardrive/data` and `/wardrive-admin/data` receptions carry every stored field (`radio_name`, `pub_at`, `uploaded_at`, `len`, `payload_len`, `src`, `drive_id`, `drive_name`) plus `heard_id`, `heard_name`, `heard_guess` (`drives.with_heard`: `report.heard_id` and `report.NodeNames` at the reception's own position, nodes from `report_nodes`; `raw` is read only for zero-hop adverts and never returned); tracks carry `radio_name`, `src`, `uploaded_at`, `drive_id`, `drive_name`
+- `GET /wardrive-admin/live?user_id&group_id` - `{window_s: 600, drivers: [...]}`: per user and radio with an upload (`uploaded_at`) in the last 600 s, the newest position (track end or reception, whichever is later), last reception RSSI/SNR, drive id and name, receptions uploaded in the window (`WardriveDataRepository.live_drivers`)
 - Owner: the same `drives`, `report` and `export` paths under `/api/wardrive-admin/` (everything, `can_edit` always true)
 
 ### Wardrive admin (owner, behind the main login)

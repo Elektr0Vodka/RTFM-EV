@@ -60,10 +60,8 @@ function resolveConversationFromHash(
       return { type: 'snmp', id: hashConv.name, name: 'SNMP' };
     case 'lan-scan':
       return { type: 'lan-scan', id: 'lan-scan', name: 'Network scan' };
-    case 'wardrive-map':
-      return { type: 'wardrive-map', id: 'wardrive-map', name: 'Wardrive map' };
-    case 'wardrive-reports':
-      return { type: 'wardrive-reports', id: 'wardrive-reports', name: 'Wardrive reports' };
+    case 'wardrive':
+      return { type: 'wardrive', id: hashConv.name, name: 'Wardrive' };
     case 'fleet':
       return { type: 'fleet', id: hashConv.name, name: 'Fleet' };
     case 'spam-guard':
@@ -245,21 +243,8 @@ export function useConversationRouter({
       hasSetDefaultConversation.current = true;
       return;
     }
-    if (hashConv?.type === 'wardrive-reports') {
-      setActiveConversationState({
-        type: 'wardrive-reports',
-        id: 'wardrive-reports',
-        name: 'Wardrive reports',
-      });
-      hasSetDefaultConversation.current = true;
-      return;
-    }
-    if (hashConv?.type === 'wardrive-map') {
-      setActiveConversationState({
-        type: 'wardrive-map',
-        id: 'wardrive-map',
-        name: 'Wardrive map',
-      });
+    if (hashConv?.type === 'wardrive') {
+      setActiveConversationState({ type: 'wardrive', id: hashConv.name, name: 'Wardrive' });
       hasSetDefaultConversation.current = true;
       return;
     }

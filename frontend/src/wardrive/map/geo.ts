@@ -43,12 +43,14 @@ export function toGeoJson(data: WardriveData): {
     maxLat = Math.max(maxLat, lat);
   };
 
-  const points: Feature<Point>[] = data.obs.map((o) => {
+  const points: Feature<Point>[] = data.obs.map((o, i) => {
     extend(o.lon, o.lat);
     return {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [o.lon, o.lat] },
       properties: {
+        // The popup reads the row itself (every stored field).
+        i,
         color: rssiColor(o.rssi),
         rssi: o.rssi,
         snr: o.snr,

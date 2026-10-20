@@ -4,7 +4,7 @@
 import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 
 import { useT } from '../../i18n';
-import type { WardriveData } from '../api';
+import type { WardriveData, WardriveLiveDriver } from '../api';
 import { WINDOWS, windowRange, type WindowId } from './geo';
 
 const WardriveMap = lazy(() => import('./WardriveMap').then((m) => ({ default: m.WardriveMap })));
@@ -14,6 +14,8 @@ export function WardriveMapView({
   filters,
   reloadKey = '',
   fill = false,
+  live,
+  focus,
 }: {
   load: (range: { since: number; until: number }) => Promise<WardriveData>;
   /** Extra controls next to the window picker (the owner's user/group). */
@@ -22,6 +24,9 @@ export function WardriveMapView({
   reloadKey?: string;
   /** Let the map take the height left (the owner's full-page map). */
   fill?: boolean;
+  /** Drivers on the road now and where to fly (the owner's map). */
+  live?: WardriveLiveDriver[];
+  focus?: { lat: number; lon: number; nonce: number } | null;
 }) {
   const t = useT();
   const [windowId, setWindowId] = useState<WindowId>('24h');
@@ -84,7 +89,7 @@ export function WardriveMapView({
             <p className="text-xs text-muted-foreground">{t('wardrive_map_truncated')}</p>
           )}
           <Suspense fallback={<p className="text-sm">{t('wardrive_map_loading')}</p>}>
-            <WardriveMap data={data} fill={fill} />
+            <WardriveMap data={data} fill={fill} live={live} focus={focus} />
           </Suspense>
         </>
       )}

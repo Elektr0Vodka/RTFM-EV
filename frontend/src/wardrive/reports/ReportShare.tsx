@@ -11,7 +11,7 @@ import { shareFilename } from '../../share/filename';
 import { ShareCardDialog, type ShareBuildOptions } from '../../share/ShareCardDialog';
 import { getSavedDistanceUnit } from '../../utils/distanceUnits';
 import { formatDistance } from '../../utils/pathUtils';
-import { cardIsEmpty, renderReportCard, type ReportCardKind } from './cards';
+import { cardIsEmpty, cardLocated, renderReportCard, type ReportCardKind } from './cards';
 import { formatDbm, formatDuration, formatShare, formatWhen, nodeLabel } from './format';
 import type { WardriveReport } from './types';
 
@@ -122,6 +122,7 @@ export function ReportShare({
           onClose={() => setOpen(null)}
           title={t(`wardrive_card_${open}`)}
           supportsHidePosition
+          framing={{ located: cardLocated(open, report) }}
           build={build(open)}
         />
       )}

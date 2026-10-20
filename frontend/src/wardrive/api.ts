@@ -53,6 +53,40 @@ export interface WardriveDataObs {
   lat: number;
   lon: number;
   accuracy: number | null;
+  // Every other stored field (RTFM-EV after the Tools > Wardrive tabs; an
+  // older server leaves them out).
+  radio_name?: string | null;
+  pub_at?: string | null;
+  uploaded_at?: number | null;
+  len?: number | null;
+  payload_len?: number | null;
+  src?: string | null;
+  drive_id?: number | null;
+  drive_name?: string | null;
+  /** Who it came through (the report's rules) and that node's name. */
+  heard_id?: string | null;
+  heard_name?: string | null;
+  heard_guess?: boolean;
+}
+
+/** GET /api/wardrive-admin/live: a driver whose page uploaded lately. */
+export interface WardriveLiveDriver {
+  user_id: number;
+  username: string | null;
+  radio_key: string;
+  radio_name: string | null;
+  last_upload_at: number;
+  /** When the newest position was taken (unix seconds). */
+  last_ts: number;
+  lat: number;
+  lon: number;
+  accuracy: number | null;
+  last_rssi: number | null;
+  last_snr: number | null;
+  drive_id: number | null;
+  drive_name: string | null;
+  /** Receptions uploaded in the window. */
+  receptions: number;
 }
 
 export interface WardriveDataTrack {

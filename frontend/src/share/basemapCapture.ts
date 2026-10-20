@@ -43,15 +43,17 @@ export async function captureBasemap(
   points: LatLon[],
   size: { w: number; h: number },
   paddingPx: number,
-  timeoutMs = VECTOR_LOAD_TIMEOUT_MS
+  timeoutMs = VECTOR_LOAD_TIMEOUT_MS,
+  /** A view the user framed; without it the map fits the points. */
+  view?: { center: LatLon; zoom: number } | null
 ): Promise<BasemapCapture> {
   try {
-    return await captureOnce(points, size, paddingPx, timeoutMs);
+    return await captureOnce(points, size, paddingPx, timeoutMs, view ?? null);
   } catch (err) {
     if (!(err instanceof EmptyCopyError)) throw err;
   }
   try {
-    return await captureOnce(points, size, paddingPx, timeoutMs);
+    return await captureOnce(points, size, paddingPx, timeoutMs, view ?? null);
   } catch (err) {
     if (!(err instanceof EmptyCopyError)) throw err;
     console.warn('Share card: the base map copy came out empty twice', err.details);
@@ -82,7 +84,8 @@ function captureOnce(
   points: LatLon[],
   size: { w: number; h: number },
   paddingPx: number,
-  timeoutMs: number
+  timeoutMs: number,
+  view: { center: LatLon; zoom: number } | null
 ): Promise<BasemapCapture> {
   const entry = resolveBasemapEntry(getSavedBasemapId());
   const container = document.createElement('div');
@@ -179,7 +182,9 @@ function captureOnce(
     };
 
     const frame = () => {
-      if (points.length === 1 || samePoint(points)) {
+      if (view) {
+        map.jumpTo({ center: [view.center.lon, view.center.lat], zoom: view.zoom });
+      } else if (points.length === 1 || samePoint(points)) {
         map.jumpTo({ center: [points[0].lon, points[0].lat], zoom: 11 });
       } else {
         const lons = points.map((p) => p.lon);

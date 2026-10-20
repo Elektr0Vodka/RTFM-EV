@@ -1,5 +1,5 @@
 // The coverage map's size: a fixed 320 px box inside the page's Drives tab, and
-// all the height left on the owner's Tools > Wardrive map page.
+// all the height left on the owner's Tools > Wardrive Map tab.
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 

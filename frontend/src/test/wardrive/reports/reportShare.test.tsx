@@ -81,6 +81,19 @@ describe('report share buttons', () => {
     expect(figures[3].value).toBe('~Toren');
   });
 
+  it('lets the driver frame the map of a card and builds with that view', async () => {
+    render(
+      <I18nProvider>
+        <ReportShare report={report()} brand={brand} />
+      </I18nProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Coverage card' }));
+    expect(await screen.findByRole('button', { name: 'Frame the map' })).toBeTruthy();
+    await waitFor(() => expect(renderReportCard).toHaveBeenCalled());
+    const [, , , , opts] = renderReportCard.mock.calls[0];
+    expect(opts).toMatchObject({ view: null });
+  });
+
   it('turns cards off when there is nothing to draw', () => {
     render(
       <I18nProvider>

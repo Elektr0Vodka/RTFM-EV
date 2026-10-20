@@ -27,7 +27,6 @@ import {
   Radar,
   Router,
   Car,
-  FileChartColumn,
   ScanSearch,
   ShieldCheck,
   Cpu,
@@ -573,8 +572,7 @@ export function Sidebar({
       | 'lan-scan'
       | 'fleet'
       | 'spam-guard'
-      | 'wardrive-map'
-      | 'wardrive-reports'
+      | 'wardrive'
       | 'performance'
       | 'analyze'
       | 'packet-history'
@@ -1466,32 +1464,15 @@ export function Sidebar({
             }),
           iconOnly,
         });
-      case 'wardrive-map':
+      case 'wardrive':
         return renderSidebarActionRow({
-          key: 'tool-wardrive-map',
-          active: isActive('wardrive-map', 'wardrive-map'),
+          key: 'tool-wardrive',
+          // Current on both tabs (#wardrive and #wardrive/reports).
+          active: activeConversation?.type === 'wardrive',
           icon: <Car className="h-4 w-4" />,
-          label: t('nav_wardrive_map'),
+          label: t('nav_wardrive'),
           onClick: () =>
-            handleSelectConversation({
-              type: 'wardrive-map',
-              id: 'wardrive-map',
-              name: t('nav_wardrive_map'),
-            }),
-          iconOnly,
-        });
-      case 'wardrive-reports':
-        return renderSidebarActionRow({
-          key: 'tool-wardrive-reports',
-          active: isActive('wardrive-reports', 'wardrive-reports'),
-          icon: <FileChartColumn className="h-4 w-4" />,
-          label: t('nav_wardrive_reports'),
-          onClick: () =>
-            handleSelectConversation({
-              type: 'wardrive-reports',
-              id: 'wardrive-reports',
-              name: t('nav_wardrive_reports'),
-            }),
+            handleSelectConversation({ type: 'wardrive', id: 'map', name: t('nav_wardrive') }),
           iconOnly,
         });
       case 'fleet':
@@ -1699,10 +1680,7 @@ export function Sidebar({
 
   // A tool that belongs to a switched-off feature is not offered at all.
   const availableToolOrder = toolOrder.filter(
-    (k) =>
-      (k !== 'spam-guard' || spamGuardEnabled) &&
-      (k !== 'wardrive-map' || wardriveEnabled) &&
-      (k !== 'wardrive-reports' || wardriveEnabled)
+    (k) => (k !== 'spam-guard' || spamGuardEnabled) && (k !== 'wardrive' || wardriveEnabled)
   );
   const visibleToolOrder = availableToolOrder.filter((k) => !hiddenToolSet.has(k));
   const toolRows = !query ? visibleToolOrder.map((k) => buildToolRow(k, false)) : [];
@@ -2084,8 +2062,7 @@ export function Sidebar({
     'lan-scan': t('nav_lan_scan'),
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
-    'wardrive-map': t('nav_wardrive_map'),
-    'wardrive-reports': t('nav_wardrive_reports'),
+    wardrive: t('nav_wardrive'),
     performance: t('nav_performance'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),

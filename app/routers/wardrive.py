@@ -246,7 +246,8 @@ async def wardrive_data(
     end = until if until is not None else int(time.time())
     start = since if since is not None else end - DEFAULT_WINDOW_S
     key = _key_or_400(radio_key) if radio_key else None
-    return await WardriveDataRepository.query(await visible_user_ids(user), start, end, key)
+    data = await WardriveDataRepository.query(await visible_user_ids(user), start, end, key)
+    return await drives.with_heard(data)
 
 
 @router.get("/drives")

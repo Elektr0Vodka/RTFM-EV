@@ -222,6 +222,7 @@ import type {
 } from './types';
 import { reportHttpFailure } from './utils/authRedirect';
 import { fleetVaultHeaders } from './utils/fleetVault';
+import type { WardriveLiveDriver } from './wardrive/api';
 
 const API_BASE = './api';
 
@@ -1980,6 +1981,15 @@ export const api = {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
     return fetchJson<WardriveData>(`/wardrive-admin/data?${q.toString()}`);
+  },
+  /** Drivers whose page uploaded in the last 10 minutes. */
+  getWardriveAdminLive: (params: { user_id?: number; group_id?: number } = {}) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    const qs = q.toString();
+    return fetchJson<{ window_s: number; drivers: WardriveLiveDriver[] }>(
+      `/wardrive-admin/live${qs ? `?${qs}` : ''}`
+    );
   },
   getWardriveConfig: () => fetchJson<WardriveAdminConfig>('/wardrive-admin/config'),
   /** Partial: only the keys sent change. */

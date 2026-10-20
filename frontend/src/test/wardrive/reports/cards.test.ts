@@ -157,6 +157,13 @@ describe('report card frames', () => {
     expect(captureBasemap).not.toHaveBeenCalled();
   });
 
+  it('captures the basemap at the view framed by hand', async () => {
+    const view = { center: { lat: 52.3, lon: 5.2 }, zoom: 12 };
+    await renderReportCard('coverage', report(), text, brand, { ...opts, view });
+    expect(captureBasemap).toHaveBeenCalled();
+    expect(captureBasemap.mock.calls[captureBasemap.mock.calls.length - 1][4]).toEqual(view);
+  });
+
   it('draws without the basemap when asked', async () => {
     await renderReportCard('coverage', report(), text, brand, { ...opts, noMap: true });
     expect(captureBasemap).not.toHaveBeenCalled();

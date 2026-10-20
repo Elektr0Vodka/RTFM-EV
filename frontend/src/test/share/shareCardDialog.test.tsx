@@ -18,6 +18,24 @@ vi.mock('../../share/shareActions', () => ({
   downloadBlob: (b: Blob, n: string) => downloadBlob(b, n),
 }));
 
+const framingMap = {
+  getSource: () => undefined,
+  addSource: () => {},
+  addLayer: () => {},
+  getCenter: () => ({ lat: 52.3, lng: 5.2 }),
+  getZoom: () => 11,
+  getContainer: () => ({ clientWidth: 345 }),
+};
+vi.mock('../../map/MiniMap', async () => {
+  const { useEffect } = await import('react');
+  return {
+    MiniMap: ({ onReady }: { onReady?: (m: unknown) => void }) => {
+      useEffect(() => onReady?.(framingMap), [onReady]);
+      return <div data-testid="framing-map" />;
+    },
+  };
+});
+
 import { I18nProvider } from '../../i18n/I18nProvider';
 import { ShareCardDialog, type ShareCardResult } from '../../share/ShareCardDialog';
 import { BasemapLoadError } from '../../share/basemapCapture';
@@ -60,14 +78,71 @@ beforeEach(() => {
   caps.copy = true;
   vi.clearAllMocks();
   localStorage.clear();
-  vi.stubGlobal('URL', {
-    ...URL,
-    createObjectURL: vi.fn(() => 'blob:preview'),
-    revokeObjectURL: vi.fn(),
-  });
+  // Still a URL class (the lazy framing map's import needs one), with blob URLs stubbed.
+  vi.stubGlobal(
+    'URL',
+    Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => 'blob:preview'),
+      revokeObjectURL: vi.fn(),
+    })
+  );
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('ShareCardDialog framing', () => {
+  function renderFramed(build: (o: unknown) => Promise<ShareCardResult>) {
+    return render(
+      <I18nProvider>
+        <ShareCardDialog
+          open
+          onClose={() => {}}
+          title="Drive card"
+          supportsHidePosition
+          framing={{
+            located: [
+              { lat: 52, lon: 5 },
+              { lat: 52.5, lon: 5.5 },
+            ],
+          }}
+          build={build}
+        />
+      </I18nProvider>
+    );
+  }
+
+  it('builds with the view framed on a map, scaled to the card', async () => {
+    const build = vi.fn().mockResolvedValue(result());
+    renderFramed(build);
+    await screen.findByRole('button', { name: 'Download image' });
+    expect(build).toHaveBeenLastCalledWith(expect.objectContaining({ view: null }));
+    await userEvent.click(screen.getByRole('button', { name: 'Frame the map' }));
+    expect(await screen.findByTestId('framing-map')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Use this view' }));
+    // The framing map is 345 px wide, the card's map 690 px: one zoom level more.
+    await waitFor(() =>
+      expect(build).toHaveBeenLastCalledWith(
+        expect.objectContaining({ view: { center: { lat: 52.3, lon: 5.2 }, zoom: 12 } })
+      )
+    );
+    expect(screen.queryByTestId('framing-map')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Fit to the data' }));
+    await waitFor(() =>
+      expect(build).toHaveBeenLastCalledWith(expect.objectContaining({ view: null }))
+    );
+  });
+
+  it('offers no framing without a map', async () => {
+    const build = vi.fn().mockResolvedValue(result());
+    renderFramed(build);
+    await screen.findByRole('button', { name: 'Download image' });
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Hide my position' }));
+    await waitFor(() =>
+      expect(build).toHaveBeenLastCalledWith(expect.objectContaining({ hidePosition: true }))
+    );
+    expect(screen.queryByRole('button', { name: 'Frame the map' })).toBeNull();
+  });
 });
 
 describe('ShareCardDialog', () => {
