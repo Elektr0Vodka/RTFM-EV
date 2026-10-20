@@ -169,6 +169,7 @@ const PAGE_HELP_SECTIONS: Partial<Record<PageType, string>> = {
   snmp: 'tools',
   'lan-scan': 'tools',
   fleet: 'tools',
+  'wardrive-map': 'tools',
   analyze: 'tools',
   'packet-history': 'tools',
   'knowledge-base': 'tools',

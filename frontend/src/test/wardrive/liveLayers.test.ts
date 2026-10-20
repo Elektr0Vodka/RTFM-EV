@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LiveEntry } from '../../wardrive/liveLog';
-import { followView, liveGeoJson, trailGeoJson } from '../../wardrive/map/liveLayers';
+import { followView, liveGeoJson, selectionPan, trailGeoJson } from '../../wardrive/map/liveLayers';
 import { tierColor } from '../../wardrive/signal';
 
 const entry = (id: number, over: Partial<LiveEntry> = {}): LiveEntry => ({
@@ -16,6 +16,12 @@ const entry = (id: number, over: Partial<LiveEntry> = {}): LiveEntry => ({
   lat: 52,
   lon: 5,
   kept: true,
+  packetType: 'GroupText',
+  heardDirect: false,
+  sender: { kind: null, id: null, label: null, role: null },
+  channel: null,
+  text: null,
+  stored: false,
   ...over,
 });
 
@@ -61,5 +67,14 @@ describe('wardrive live layers', () => {
   it('follow keeps the 3D pitch so it does not cut the tilt short', () => {
     expect(followView(15, true).pitch).toBe(60);
     expect(followView(15, false).pitch).toBe(0);
+  });
+
+  it('pans to a newly selected reception, and again after the selection was cleared', () => {
+    const entries = [entry(1, { lat: 52.5, lon: 6.5 }), entry(2, { lat: null, lon: null })];
+    expect(selectionPan(null, 1, entries)).toEqual({ pan: [6.5, 52.5], last: 1 });
+    expect(selectionPan(1, 1, entries)).toEqual({ pan: null, last: 1 });
+    expect(selectionPan(1, null, entries)).toEqual({ pan: null, last: null });
+    expect(selectionPan(null, 1, entries).pan).toEqual([6.5, 52.5]);
+    expect(selectionPan(null, 2, entries)).toEqual({ pan: null, last: 2 });
   });
 });

@@ -65,3 +65,19 @@ export function followView(
     bearing: 0,
   };
 }
+
+/** Where to pan for a selection in the live log: to a newly selected
+ * reception with a position. A cleared selection is forgotten, so picking the
+ * same reception again pans again. */
+export function selectionPan(
+  last: number | null,
+  selectedId: number | null,
+  entries: LiveEntry[]
+): { pan: [number, number] | null; last: number | null } {
+  if (selectedId === null) return { pan: null, last: null };
+  if (selectedId === last) return { pan: null, last };
+  const entry = entries.find((e) => e.id === selectedId);
+  const pan: [number, number] | null =
+    entry && entry.lat !== null && entry.lon !== null ? [entry.lon, entry.lat] : null;
+  return { pan, last: selectedId };
+}

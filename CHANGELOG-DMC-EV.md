@@ -13,11 +13,25 @@ the change. Upstream development is on hold; the fork is the active repository.
 
 ## Update 2026-10-19 (wardrive plugin, feat/wardrive-plugin)
 
-Opt-in: nothing changes unless `MESHCORE_WARDRIVE=true`. Migration `_159`. New
+Opt-in: nothing changes unless `MESHCORE_WARDRIVE=true`. Migrations `_159`, `_160`. New
 dependencies: `mqtt` (the page's broker client) and `fake-indexeddb` (tests). Nothing is sent over the
 radio and the home radio is never used.
 
 ### Wardrive page
+- **Reads what it hears** (phase 2 of the HUD design): receptions are
+  decoded on the phone (packet type, hops, sender, channel and channel
+  text; forged adverts lose their identity) and named from RTFM-EV's own
+  nodes and the driver radio's contacts (`~` marks a guess). Targets
+  (search, Top list), an ignore list, filters (time window, 14 packet
+  types, sender id kind, No path) and a Filtered/All switch shared by the
+  map, the log and the HUD; a direction arrow toward the shown sender
+  (compass when slow, GPS course when moving). The log keeps up to 5000
+  receptions plus what the browser stored in the last 7 days, rows render
+  only when they change, Space no longer scrolls, Back to live returns to
+  the newest, and re-picking a row pans again. A USB GPS's speed and
+  course now reach the fix. The page asks the radio for its contact list
+  (a local exchange, nothing over the air) and now ships the packet
+  decoder (wardrive chunk 633 kB to 802 kB, 195 kB to 247 kB gzip).
 - **Map-first screen** (phases 0 and 1 of the HUD design): a full-screen
   live map with trail and receptions, top bar with status dots, notes,
   a live log of what the radio hears (also when not driving), a HUD
@@ -44,8 +58,9 @@ radio and the home radio is never used.
   what is heard from then on; the radio signs the sign-in token itself.
   on8ar's EMQX only with the driver's own account. Settings stay in the
   browser. New dependency: `mqtt` (MQTT over WebSocket in the browser).
-- **Maps**: the page shows the driver's visible data and Settings >
-  Wardrive a coverage map of everything (user, group, radio, 24 h / 7 d /
+- **Maps**: the page shows the driver's visible data and **Tools >
+  Wardrive map** (moved out of Settings > Wardrive, shown only with the
+  module on) a coverage map of everything (user, group, radio, 24 h / 7 d /
   30 d): receptions coloured by RSSI and the track lines.
 - **Start driving sticks**: a drive started right as the page finished
   loading could end at once (an older cleanup stopped it); only leaving
@@ -70,6 +85,14 @@ radio and the home radio is never used.
   status.
 
 ### Wardrive server side
+- **Channels and names for drivers** (phase 2, migration `_160`
+  `wardrive_config`): `GET /api/wardrive/config` serves the hashtag channel
+  names drivers decode (names only, never keys; private channels never),
+  set by the owner in Settings > Wardrive (default: the home radio's
+  hashtag channels) through `GET/PUT /api/wardrive-admin/config`.
+  `GET /api/wardrive/nodes` serves names, roles and advertised positions
+  of RTFM-EV's contacts and imported map nodes in a box (public advert
+  data only).
 - **Module switch.** `MESHCORE_WARDRIVE=true` registers the wardrive API and
   shows **Settings > Wardrive**. Health reports `wardrive_enabled` and
   `wardrive_unprotected`. Not available in multi-radio mode.

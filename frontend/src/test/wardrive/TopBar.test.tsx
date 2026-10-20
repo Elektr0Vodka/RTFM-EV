@@ -43,12 +43,54 @@ describe('wardrive status dots', () => {
 
 describe('wardrive top bar', () => {
   const dots = { radio: 'on', brokers: 'all', upload: 'ok' } as const;
+  const bar = {
+    dots,
+    targetLabel: 'All senders',
+    onTargets: () => {},
+    filterCount: 0,
+    onFilters: () => {},
+  };
+
+  it('shows the target chip and the filters pill with a count', () => {
+    const onTargets = vi.fn();
+    const onFilters = vi.fn();
+    render(
+      <I18nProvider>
+        <TopBar
+          {...bar}
+          targetLabel="2 targets"
+          onTargets={onTargets}
+          filterCount={3}
+          onFilters={onFilters}
+          logHidden={false}
+          onShowLog={() => {}}
+          onMenu={() => {}}
+        />
+      </I18nProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: /2 targets/ }));
+    expect(onTargets).toHaveBeenCalled();
+    const pill = screen.getByRole('button', { name: /Filters/ });
+    expect(pill.textContent).toContain('3');
+    fireEvent.click(pill);
+    expect(onFilters).toHaveBeenCalled();
+  });
+
+  it('shows no badge without filters', () => {
+    render(
+      <I18nProvider>
+        <TopBar {...bar} logHidden={false} onShowLog={() => {}} onMenu={() => {}} />
+      </I18nProvider>
+    );
+    expect(screen.getByRole('button', { name: /All senders/ })).toBeTruthy();
+    expect(screen.queryByTestId('wardrive-filter-count')).toBeNull();
+  });
 
   it('opens the menu', () => {
     const onMenu = vi.fn();
     render(
       <I18nProvider>
-        <TopBar dots={dots} logHidden={false} onShowLog={() => {}} onMenu={onMenu} />
+        <TopBar {...bar} logHidden={false} onShowLog={() => {}} onMenu={onMenu} />
       </I18nProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
@@ -60,7 +102,7 @@ describe('wardrive top bar', () => {
     const onShowLog = vi.fn();
     render(
       <I18nProvider>
-        <TopBar dots={dots} logHidden onShowLog={onShowLog} onMenu={() => {}} />
+        <TopBar {...bar} logHidden onShowLog={onShowLog} onMenu={() => {}} />
       </I18nProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'Show the log' }));

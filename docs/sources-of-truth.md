@@ -214,7 +214,17 @@ machine this was authored on and may differ elsewhere.
   (RX log push 0x88: SNR int8 / 4, RSSI int8, raw), `companionsign.js`
   (sign 33/34/35); USB serial framing from the `meshcore` Python package this
   repo pins (`serial_cx.py`: host 0x3c, radio 0x3e, uint16 LE length, frames
-  over 300 bytes are invalid; 115200 baud).
+  over 300 bytes are invalid; 115200 baud). The contact table
+  (`CMD_GET_CONTACTS` 0x04, `CONTACT_START` 0x02 with the count, `CONTACT`
+  0x03, `CONTACT_END` 0x04; contact layout key 32, type, flags,
+  out_path_len, out_path 64, name 32, last_advert u32, lat/lon i32 / 1e6)
+  from that package's `reader.py` and `commands/contact.py`.
+- Wardrive page decoding and naming rules (phase 2): core-hunter
+  `upstream/master` 000bb89, `app/src/meshpacket.js` (`classifyReception`),
+  `names.js`, `namerules.js`, `attribution.js`, `feed.js`, `targetlist.js`,
+  `filters.js`, `arrow.js`, read for behaviour only; the decoder is
+  `@michaelhart/meshcore-decoder` (the patched multibyte build the app
+  pins).
 - Wardrive brokers (`frontend/src/wardrive/forward/brokers.ts`): the
   `brokers` list in rx.mesh-hunter.eu's live `config.json` (read
   2026-10-19): DutchMeshCore `wss://collector1.dutchmeshcore.nl:443` label

@@ -209,4 +209,18 @@ describe('wardrive queue', () => {
       ['p']
     );
   });
+
+  it('reads stored receptions of given radios added before a time, newest first', async () => {
+    const q = await openQueue(dbName);
+    await q.addObs(A, obs('a1'), 10);
+    await q.addObs(B, { ...obs('b1'), origin_id: B }, 20);
+    await q.addObs(A, obs('a2'), 30);
+    await q.addObs('CC'.repeat(32), obs('c1'), 35);
+    await q.addObs(A, obs('a3'), 50);
+    const rows = await q.obsBefore([A, B], 40, 10);
+    expect(rows.map((r) => r.message.rx_at)).toEqual(['a2', 'b1', 'a1']);
+    expect(rows[0]).toMatchObject({ radioKey: A, addedAt: 30 });
+    expect((await q.obsBefore([A, B], 40, 2)).map((r) => r.message.rx_at)).toEqual(['a2', 'b1']);
+    expect(await q.obsBefore([], 40, 10)).toEqual([]);
+  });
 });

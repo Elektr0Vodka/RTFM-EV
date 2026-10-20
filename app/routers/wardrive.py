@@ -19,7 +19,9 @@ from app.repository.wardrive import (
     WardriveRadioRepository,
     WardriveUserRepository,
 )
+from app.wardrive import nodes as wardrive_nodes
 from app.wardrive import sessions
+from app.wardrive.config import resolved_hashtag_channels
 from app.wardrive.crypto import (
     challenge_message,
     challenges,
@@ -248,3 +250,29 @@ async def wardrive_data(
     start = since if since is not None else end - DEFAULT_WINDOW_S
     key = _key_or_400(radio_key) if radio_key else None
     return await WardriveDataRepository.query(await visible_user_ids(user), start, end, key)
+
+
+@router.get("/config")
+async def wardrive_config(user: CurrentUser) -> dict[str, Any]:
+    """Owner settings for the page: the hashtag channel names drivers may decode."""
+    return {"hashtag_channels": await resolved_hashtag_channels()}
+
+
+@router.get("/nodes")
+async def wardrive_nodes_in_box(
+    user: CurrentUser,
+    min_lat: float = Query(ge=-90, le=90),
+    max_lat: float = Query(ge=-90, le=90),
+    min_lon: float = Query(ge=-180, le=180),
+    max_lon: float = Query(ge=-180, le=180),
+) -> dict[str, Any]:
+    """Names, roles and advertised positions of the nodes RTFM-EV knows: every
+    contact with a full key and the imported map nodes inside the box."""
+    if min_lat > max_lat or min_lon > max_lon:
+        raise HTTPException(status_code=422, detail="The box is upside down")
+    if (
+        max_lat - min_lat > wardrive_nodes.MAX_SPAN_LAT
+        or max_lon - min_lon > wardrive_nodes.MAX_SPAN_LON
+    ):
+        raise HTTPException(status_code=422, detail="The box is too big")
+    return await wardrive_nodes.nodes_in_box(min_lat, max_lat, min_lon, max_lon)

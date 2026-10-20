@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { LIVE_LOG_MAX, LiveLog, type LiveEntry } from '../../wardrive/liveLog';
+import { LiveLog, STORE_MAX, type LiveEntry } from '../../wardrive/liveLog';
 
 const entry = (at: number): Omit<LiveEntry, 'id'> => ({
   at,
@@ -13,18 +13,43 @@ const entry = (at: number): Omit<LiveEntry, 'id'> => ({
   lat: null,
   lon: null,
   kept: false,
+  packetType: 'GroupText',
+  heardDirect: false,
+  sender: { kind: null, id: null, label: null, role: null },
+  channel: null,
+  text: null,
+  stored: false,
 });
 
 describe('wardrive live log', () => {
-  it('keeps the newest 200, newest first', () => {
+  it('keeps the newest 5000, newest first', () => {
     const log = new LiveLog();
-    for (let i = 0; i < 250; i++) log.push(entry(i));
+    for (let i = 0; i < 5100; i++) log.push(entry(i));
     const all = log.entries();
-    expect(LIVE_LOG_MAX).toBe(200);
-    expect(all).toHaveLength(200);
-    expect(all[0].at).toBe(249);
-    expect(all[199].at).toBe(50);
+    expect(STORE_MAX).toBe(5000);
+    expect(all).toHaveLength(5000);
+    expect(all[0].at).toBe(5099);
+    expect(all[4999].at).toBe(100);
     expect(all[0].id).toBeGreaterThan(all[1].id);
+  });
+
+  it('puts stored receptions after the live ones', () => {
+    const log = new LiveLog();
+    log.push(entry(100));
+    log.addHistory([
+      { ...entry(50), stored: true },
+      { ...entry(40), stored: true },
+    ]);
+    log.push(entry(101));
+    expect(log.entries().map((e) => e.at)).toEqual([101, 100, 50, 40]);
+    log.clearHistory();
+    expect(log.entries().map((e) => e.at)).toEqual([101, 100]);
+  });
+
+  it('caps the stored receptions too', () => {
+    const log = new LiveLog();
+    log.addHistory(Array.from({ length: 5100 }, (_, i) => entry(10000 - i)));
+    expect(log.entries()).toHaveLength(5000);
   });
 
   it('gives every entry its own id', () => {

@@ -139,6 +139,45 @@ export class Queue {
     return rows;
   }
 
+  /** Stored receptions of these radios added before `untilMs`, newest first,
+   * at most `limit`: what the page shows of earlier drives on this browser. */
+  async obsBefore(
+    radioKeys: string[],
+    untilMs: number,
+    limit: number
+  ): Promise<{ radioKey: string; message: ObsMessage; addedAt: number }[]> {
+    const found: { id: number; radioKey: string; message: ObsMessage; addedAt: number }[] = [];
+    for (const radioKey of radioKeys) {
+      const tx = this.db.transaction(STORES.obs, 'readonly');
+      const index = tx.objectStore(STORES.obs).index(RADIO_INDEX);
+      const range = IDBKeyRange.bound([radioKey, -Infinity], [radioKey, Infinity]);
+      let taken = 0;
+      await new Promise<void>((resolve, reject) => {
+        const cursorReq = index.openCursor(range, 'prev');
+        cursorReq.onerror = () => reject(cursorReq.error);
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (!cursor || taken >= limit) return resolve();
+          const value = cursor.value as StoredRow;
+          if (value.addedAt < untilMs) {
+            found.push({
+              id: Number(cursor.primaryKey),
+              radioKey,
+              message: value.message as ObsMessage,
+              addedAt: value.addedAt,
+            });
+            taken++;
+          }
+          cursor.continue();
+        };
+      });
+    }
+    return found
+      .sort((a, b) => b.addedAt - a.addedAt || b.id - a.id)
+      .slice(0, limit)
+      .map(({ radioKey, message, addedAt }) => ({ radioKey, message, addedAt }));
+  }
+
   /** Index range: one radio's rows after `dest`'s watermark. */
   private async radioRange(dest: string, kind: QueueKind, radioKey: string) {
     const after = await this.mark(dest, kind);

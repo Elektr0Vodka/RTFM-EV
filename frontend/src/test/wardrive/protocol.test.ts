@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { appStartFrame, parseRxLog, parseSelfInfo } from '../../wardrive/radio/protocol';
+import {
+  CMD_GET_CONTACTS,
+  appStartFrame,
+  parseContact,
+  parseRxLog,
+  parseSelfInfo,
+} from '../../wardrive/radio/protocol';
 import { SerialFrameDecoder, encodeSerialFrame } from '../../wardrive/radio/serialFraming';
+import { contactFrame } from './radioFrames';
 
 const KEY = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -75,5 +82,42 @@ describe('USB serial framing', () => {
   it('resyncs after a length above 300', () => {
     const d = new SerialFrameDecoder();
     expect(d.push(new Uint8Array([0x3e, 0xff, 0x7f, ...wire]))).toEqual([frame]);
+  });
+});
+
+describe('parseContact', () => {
+  it('reads a contact with its role and advertised position', () => {
+    const frame = contactFrame({
+      keyHex: 'ab'.repeat(32),
+      type: 2,
+      name: 'Toren',
+      lastAdvert: 1792404000,
+      lat: 52.5,
+      lon: 6.1,
+    });
+    expect(parseContact(frame)).toEqual({
+      publicKey: 'ab'.repeat(32),
+      name: 'Toren',
+      role: 'Repeater',
+      lat: 52.5,
+      lon: 6.1,
+      seen: 1792404000,
+    });
+  });
+
+  it('takes (0, 0) as no position and an empty name as none', () => {
+    const c = parseContact(contactFrame({ keyHex: 'cd'.repeat(32), type: 9 }));
+    expect(c).toMatchObject({ name: null, role: null, lat: null, lon: null, seen: null });
+  });
+
+  it('refuses a short frame or another code', () => {
+    expect(parseContact(contactFrame({ keyHex: 'ab'.repeat(32) }).subarray(0, 100))).toBeNull();
+    const other = contactFrame({ keyHex: 'ab'.repeat(32) });
+    other[0] = 0x05;
+    expect(parseContact(other)).toBeNull();
+  });
+
+  it('asks for contacts with one byte', () => {
+    expect(CMD_GET_CONTACTS).toBe(0x04);
   });
 });

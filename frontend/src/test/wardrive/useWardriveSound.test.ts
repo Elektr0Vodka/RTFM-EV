@@ -17,6 +17,12 @@ const entry = (id: number, snr = 2): LiveEntry => ({
   lat: null,
   lon: null,
   kept: false,
+  packetType: 'GroupText',
+  heardDirect: false,
+  sender: { kind: null, id: null, label: null, role: null },
+  channel: null,
+  text: null,
+  stored: false,
 });
 
 function fakeEngine() {

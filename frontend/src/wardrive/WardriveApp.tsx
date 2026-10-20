@@ -1,6 +1,9 @@
 // The wardrive page: account, the driver's own radio, a position source and
 // the drive, on a map-first screen (live map, top bar, banners, live log,
-// HUD, button rail, start screen, menu). The browser adapters come in through
+// HUD, button rail, start screen, menu). What the radio hears is decoded and
+// named (RTFM-EV's nodes, the radio's contacts), then filtered (targets,
+// ignore list, filters, the filtered/all stand) into one view the map, the
+// log and the HUD share. The browser adapters come in through
 // `deps` so the page can be tested without a radio or a GPS; the defaults are
 // the real ones.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,17 +11,39 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AccessibilitySettings } from '../components/settings/AccessibilitySettings';
 import { ThemeSelector } from '../components/settings/ThemeSelector';
 import { useT } from '../i18n';
+import {
+  arrowFor,
+  arrowTarget,
+  courseHeading,
+  headingFor,
+  nextHeadingSource,
+  type HeadingSource,
+} from './arrow';
 import { getSavedDistanceUnit } from '../utils/distanceUnits';
 import { loadMe, radioState, rememberMe, signedRadio } from './account';
 import { WardriveApiError, wardriveApi, type WardriveMe } from './api';
 import { MAX_ACCURACY_M, isUsableFix } from './capture';
+import { requestCompassPermission, watchCompass } from './compass';
 import { AccountPanel, type RegisterInput } from './components/AccountPanel';
 import { ForwardPanel } from './components/ForwardPanel';
 import { MapPanel } from './components/MapPanel';
 import { PositionPanel } from './components/PositionPanel';
 import { RadioPanel } from './components/RadioPanel';
 import { UploadPanel } from './components/UploadPanel';
+import {
+  activeFilterCount,
+  loadFilter,
+  loadIgnore,
+  loadStand,
+  saveFilter,
+  saveIgnore,
+  saveStand,
+  type Filter,
+  type Stand,
+} from './filters';
 import type { Fix } from './messages';
+import { senderLine } from './names';
+import { openNodeCache, type NodeCache } from './nodeSources';
 import {
   DevicePosition,
   UsbGpsPosition,
@@ -42,15 +67,20 @@ import { Hud } from './screen/Hud';
 import { MapErrorBoundary } from './screen/MapErrorBoundary';
 import { MenuSheet, type MenuTab } from './screen/MenuSheet';
 import { LOG_SIZE_KEY, ReceptionLog, type LogSize } from './screen/ReceptionLog';
+import { FilterSheet } from './screen/FilterSheet';
 import { RightRail } from './screen/RightRail';
 import { StartScreen, dismissStartScreen, startScreenWanted } from './screen/StartScreen';
 import { brokerDot, radioDot, uploadDot } from './screen/StatusDots';
+import { TargetSheet } from './screen/TargetSheet';
 import { TopBar } from './screen/TopBar';
 import { WardriveScreen } from './screen/WardriveScreen';
 import { SpeedTracker } from './speed';
+import { TARGET_KINDS, senderRows } from './targets';
 import { Trail } from './trail';
 import { useDrive } from './useDrive';
 import { useLiveReceptions } from './useLiveReceptions';
+import { useNodeDirectory } from './useNodeDirectory';
+import { useReceptionView } from './useReceptionView';
 import { SOUND_KEY, useWardriveSound, type SoundMode } from './useWardriveSound';
 import { useWakeLock } from './wakeLock';
 import { useForwarding, type ConnectMqtt } from './useForwarding';
@@ -59,6 +89,7 @@ export interface WardriveDeps {
   makeTransport(kind: 'ble' | 'usb'): RadioTransport;
   makePosition(kind: 'device' | 'usb-gps'): PositionSource;
   openQueue(): Promise<Queue>;
+  openNodeCache(): Promise<NodeCache>;
   bleSupported(): boolean;
   serialSupported(): boolean;
   deviceLocationAllowed(): boolean;
@@ -69,6 +100,7 @@ export const defaultDeps: WardriveDeps = {
   makeTransport: (kind) => (kind === 'ble' ? new BleTransport() : new SerialTransport()),
   makePosition: (kind) => (kind === 'device' ? new DevicePosition() : new UsbGpsPosition()),
   openQueue: () => openQueue(),
+  openNodeCache: () => openNodeCache(),
   bleSupported,
   serialSupported,
   deviceLocationAllowed,
@@ -105,6 +137,10 @@ function writePref(key: string, value: string): void {
     // Not kept: the default comes back next time.
   }
 }
+/** The compass may move the arrow this often, not on every reading. */
+const COMPASS_UI_MS = 200;
+const unique = (list: string[]) => [...new Set(list)];
+
 /** How often the page looks whether RTFM-EV is back while offline. */
 const RECHECK_MS = 30000;
 
@@ -157,8 +193,74 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   );
   const destsForRef = useRef(forwarding.destsFor);
   destsForRef.current = forwarding.destsFor;
-  const live = useLiveReceptions(radio?.companion ?? null, fixRef, drive.running);
+  const nodeCache = useMemo(() => deps.openNodeCache().catch(() => null), [deps]);
+  const nodes = useNodeDirectory({
+    loggedIn: !!me,
+    offline,
+    fix,
+    companion: radio?.companion ?? null,
+    cache: nodeCache,
+  });
+  // Receptions this browser stored earlier: the account's radios, or the
+  // connected radio when logged out.
+  const historyRadios = me
+    ? me.radios.map((r) => r.public_key)
+    : radio
+      ? [radio.info.publicKey]
+      : [];
+  const live = useLiveReceptions(
+    radio?.companion ?? null,
+    fixRef,
+    drive.running,
+    nodes.channelKeys,
+    {
+      queue,
+      radioKeys: historyRadios,
+    }
+  );
   const soundCtl = useWardriveSound(sound, live.entries);
+
+  const [filter, setFilterState] = useState<Filter>(loadFilter);
+  const [stand, setStandState] = useState<Stand>(loadStand);
+  const [ignoreList, setIgnoreList] = useState<string[]>(loadIgnore);
+  const [targetsOpen, setTargetsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const setFilter = (f: Filter) => {
+    setFilterState(f);
+    saveFilter(f);
+  };
+  const setStand = (s: Stand) => {
+    setStandState(s);
+    saveStand(s);
+  };
+  const setIgnore = (ids: string[]) => {
+    setIgnoreList(ids);
+    saveIgnore(ids);
+  };
+  const ignore = useMemo(() => new Set(ignoreList.map((id) => id.toLowerCase())), [ignoreList]);
+  const view = useReceptionView({
+    entries: live.entries,
+    directory: nodes.directory,
+    filter,
+    stand,
+    ignore,
+    nowMs,
+  });
+
+  // Heading for the arrow: the compass when slow, the GPS course from 2 m/s.
+  const [compassOn, setCompassOn] = useState(false);
+  const [compass, setCompass] = useState<{ deg: number; at: number } | null>(null);
+  const [headingSrc, setHeadingSrc] = useState<HeadingSource>('compass');
+  const [course, setCourse] = useState<number | null>(null);
+  useEffect(() => {
+    if (!compassOn) return;
+    let last = 0;
+    return watchCompass((deg, at) => {
+      if (at - last < COMPASS_UI_MS) return;
+      last = at;
+      setCompass({ deg, at });
+    });
+  }, [compassOn]);
 
   // A drive pauses when the page goes to the background (the phone stops
   // listening); say so, and for a moment after coming back.
@@ -328,13 +430,79 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
 
   const startDrive = useCallback(() => {
     if (!radio) return;
+    // From the tap: iPhones only ask for the compass from a user gesture.
+    void requestCompassPermission().then((ok) => {
+      if (ok) setCompassOn(true);
+    });
     keepQueue();
     start(radio.companion, radio.info.publicKey);
   }, [radio, start]);
 
   const shown =
-    (selectedId !== null ? live.entries.find((e) => e.id === selectedId) : undefined) ??
-    live.latest;
+    (selectedId !== null ? view.all.find((e) => e.id === selectedId) : undefined) ??
+    view.shown[0] ??
+    null;
+  const speedMps = speedRef.current.speedMps(nowMs);
+  useEffect(() => {
+    setHeadingSrc((src) => nextHeadingSource(src, speedMps));
+    setCourse((last) => courseHeading(fix?.headingDeg ?? null, last, speedMps));
+  }, [fix, speedMps]);
+  const heading = headingFor(headingSrc, course, compass, nowMs);
+  const arrow = useMemo(() => {
+    if (!shown) return null;
+    const id = shown.sender.id;
+    const same = id ? view.shown.filter((e) => e.sender.id === id) : [];
+    return arrowFor(
+      arrowTarget(shown.sender, shown.attr, nodes.directory, same),
+      fix,
+      heading,
+      nowMs
+    );
+  }, [shown, view.shown, nodes.directory, fix, heading, nowMs]);
+  const sender = shown
+    ? senderLine(shown.sender, shown.attr, nodes.directory, shown.packetType, t)
+    : { prefix: '', name: '', note: '' };
+  const shownId = shown?.sender.id ?? null;
+  const canTarget = !!shownId && !!shown?.sender.kind && TARGET_KINDS.includes(shown.sender.kind);
+  const canIgnore = !!shownId && !!shown?.sender.kind;
+
+  const targetRows = useMemo(() => senderRows(view.all, ignore), [view.all, ignore]);
+  const nameOf = (id: string) => {
+    const row = targetRows.find((r) => r.id.toLowerCase() === id.toLowerCase());
+    return row?.name.name ? `${row.name.mark}${row.name.name}` : id;
+  };
+  const targetLabel =
+    filter.targets.length === 0
+      ? t('wardrive_page_targets_all')
+      : filter.targets.length === 1
+        ? nameOf(filter.targets[0])
+        : t('wardrive_page_targets_count', { count: filter.targets.length });
+  // Ignored senders are not in the target rows: their names come from the receptions.
+  const ignoreNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const id of ignoreList) {
+      const e = view.all.find((x) => x.sender.id?.toLowerCase() === id);
+      if (e?.name.name) names[id] = `${e.name.mark}${e.name.name}`;
+    }
+    return names;
+  }, [ignoreList, view.all]);
+
+  const toggleTarget = (id: string) =>
+    setFilter({
+      ...filter,
+      targets: filter.targets.includes(id)
+        ? filter.targets.filter((x) => x !== id)
+        : [...filter.targets, id],
+    });
+  const addShownTarget = () => {
+    if (canTarget && shownId)
+      setFilter({ ...filter, targets: unique([...filter.targets, shownId]) });
+  };
+  const ignoreShown = () => {
+    if (!canIgnore || !shownId) return;
+    setIgnore(unique([...ignoreList, shownId.toLowerCase()]));
+    setSelectedId(null);
+  };
   const usableNow = isUsableFix(fix, nowMs);
   const fixTooPoor = fix && fix.accM !== null && fix.accM > MAX_ACCURACY_M ? fix.accM : null;
   const enabledDests = radio
@@ -360,13 +528,20 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     else setMenuOpen(true);
   };
 
-  const selectEntry = (id: number) => {
-    const next = id === selectedId ? null : id;
+  const clearSelection = useCallback(() => setSelectedId(null), []);
+
+  // One handler for the whole page life: the memoised log rows keep it, so a
+  // clock tick does not render every row again. It reads the latest state.
+  const selectionRef = useRef({ selectedId, all: view.all });
+  selectionRef.current = { selectedId, all: view.all };
+  const selectEntry = useCallback((id: number) => {
+    const { selectedId: current, all } = selectionRef.current;
+    const next = id === current ? null : id;
     setSelectedId(next);
-    const entry = live.entries.find((e) => e.id === id);
+    const entry = all.find((e) => e.id === id);
     // Looking at a reception elsewhere: the map stops following.
     if (next !== null && entry?.lat !== null && entry?.lat !== undefined) setFollow(false);
-  };
+  }, []);
 
   const toggleSound = () => {
     const next: SoundMode = sound === 'off' ? 'rx' : 'off';
@@ -387,7 +562,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         <MapErrorBoundary onRetry={() => setMapAttempt((n) => n + 1)}>
           <Suspense fallback={<div className="h-full w-full bg-muted" />}>
             <LiveMap
-              entries={live.entries}
+              entries={view.shown}
               selectedId={selectedId}
               fix={fix}
               trail={trail}
@@ -406,6 +581,10 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
             brokers: brokerDot(enabledDests, forwarding.statuses),
             upload: uploadDot(upload, offline),
           }}
+          targetLabel={targetLabel}
+          onTargets={() => setTargetsOpen(true)}
+          filterCount={activeFilterCount(filter)}
+          onFilters={() => setFiltersOpen(true)}
           logHidden={logSize === 'hidden'}
           onShowLog={() => changeLogSize('three')}
           onMenu={() => setMenuOpen(true)}
@@ -427,9 +606,10 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       }
       log={
         <ReceptionLog
-          entries={live.entries}
+          entries={view.shown}
           selectedId={selectedId}
           onSelect={selectEntry}
+          onClearSelection={clearSelection}
           size={logSize}
           onSize={changeLogSize}
           nowMs={nowMs}
@@ -439,7 +619,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         <Hud
           shown={shown}
           nowMs={nowMs}
-          speedMps={speedRef.current.speedMps(nowMs)}
+          speedMps={speedMps}
           unit={unit}
           pending={upload?.pendingObs ?? 0}
           running={drive.running}
@@ -448,6 +628,15 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
           counts={drive.counts}
           onStart={startDrive}
           onStop={drive.stop}
+          arrow={arrow}
+          sender={sender}
+          onTargets={() => setTargetsOpen(true)}
+          onAddTarget={addShownTarget}
+          onIgnore={ignoreShown}
+          stand={stand}
+          onStand={setStand}
+          canTarget={canTarget}
+          canIgnore={canIgnore}
         />
       }
       rail={
@@ -479,6 +668,31 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
             }}
           />
         ) : null
+      }
+      sheets={
+        <>
+          <TargetSheet
+            open={targetsOpen}
+            onOpenChange={setTargetsOpen}
+            rows={targetRows}
+            selected={filter.targets}
+            nowMs={nowMs}
+            onToggle={toggleTarget}
+            onClear={() => setFilter({ ...filter, targets: [] })}
+          />
+          <FilterSheet
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            filter={filter}
+            onChange={setFilter}
+            ignore={ignoreList}
+            ignoreNames={ignoreNames}
+            onUnignore={(id) => setIgnore(ignoreList.filter((x) => x !== id))}
+            channels={nodes.channels}
+            driverChannels={nodes.driverChannels}
+            onDriverChannels={nodes.setDriverChannels}
+          />
+        </>
       }
       menu={
         <MenuSheet

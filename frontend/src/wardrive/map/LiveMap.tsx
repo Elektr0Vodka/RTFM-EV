@@ -1,7 +1,8 @@
 // The wardrive screen's map: the app's MapSurface (saved basemap, theme tone,
 // 3D buildings) filling the screen, without its own button stack (the screen
-// has its own rail). Shows the trail, this session's receptions coloured by
-// signal tier, the selected reception and the own position. Follow keeps the
+// has its own rail). Shows the trail, the receptions the view shows (the
+// stand's set) coloured by signal tier, the selected reception and the own
+// position. Follow keeps the
 // own position centred, north up; a drag by the user hands control back.
 import type { Map as MlMap, MapLayerMouseEvent } from 'maplibre-gl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,7 +13,7 @@ import { setBuildings3D } from '../../map/engine/buildings3D';
 import { setMapLock2D } from '../../map/engine/mapLock2D';
 import type { LiveEntry } from '../liveLog';
 import type { Fix } from '../messages';
-import { PITCH_3D, followView, liveGeoJson, trailGeoJson } from './liveLayers';
+import { PITCH_3D, followView, liveGeoJson, selectionPan, trailGeoJson } from './liveLayers';
 
 export interface LiveMapProps {
   entries: LiveEntry[];
@@ -158,15 +159,13 @@ export function LiveMap({
   }, [ready, live, line, me, pushData]);
 
   // A reception picked in the live log: show where it was heard.
-  const selectedRef = useRef(selectedId);
+  const selectedRef = useRef<number | null>(null);
   useEffect(() => {
     const map = mapRef.current;
-    if (!ready || !map || selectedId === null || selectedId === selectedRef.current) return;
-    selectedRef.current = selectedId;
-    const entry = entries.find((e) => e.id === selectedId);
-    if (entry && entry.lat !== null && entry.lon !== null) {
-      map.easeTo({ center: [entry.lon, entry.lat], duration: 500 });
-    }
+    if (!ready || !map) return;
+    const next = selectionPan(selectedRef.current, selectedId, entries);
+    selectedRef.current = next.last;
+    if (next.pan) map.easeTo({ center: next.pan, duration: 500 });
   }, [ready, selectedId, entries]);
 
   useEffect(() => {

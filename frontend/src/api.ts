@@ -191,6 +191,7 @@ import type {
   SnmpNodeOverview,
   SnmpAgentSettings,
   SnmpAgentState,
+  WardriveAdminConfig,
   WardriveAdminStatus,
   WardriveData,
   WardriveGroup,
@@ -1975,6 +1976,12 @@ export const api = {
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
     return fetchJson<WardriveData>(`/wardrive-admin/data?${q.toString()}`);
   },
+  getWardriveConfig: () => fetchJson<WardriveAdminConfig>('/wardrive-admin/config'),
+  putWardriveConfig: (body: { hashtag_channels: string[] | null }) =>
+    fetchJson<WardriveAdminConfig>('/wardrive-admin/config', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   setWardriveGroupMembers: (groupId: number, userIds: number[]) =>
     fetchJson<WardriveGroup>(`/wardrive-admin/groups/${groupId}/members`, {
       method: 'PUT',

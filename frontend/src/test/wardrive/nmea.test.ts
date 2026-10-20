@@ -60,4 +60,27 @@ describe('NMEA', () => {
     expect(b.line(GGA, 1000)?.accM).toBeCloseTo(4.5, 6);
     expect(b.line(RMC, 2000)).toEqual(expect.objectContaining({ accM: 4.5, at: 2000 }));
   });
+
+  it('carries an RMC speed and course into the GGA fix that follows', () => {
+    const b = new NmeaFixBuilder();
+    b.line(sentence('GPRMC,123519,A,4807.038,N,01131.000,E,010.0,090.0,230394,003.1,W'), 1000);
+    const fix = b.line(GGA, 1500);
+    expect(fix?.speedMps).toBeCloseTo(5.14, 2);
+    expect(fix?.headingDeg).toBe(90);
+  });
+
+  it('drops a carried speed and course after 2 s', () => {
+    const b = new NmeaFixBuilder();
+    b.line(sentence('GPRMC,123519,A,4807.038,N,01131.000,E,010.0,090.0,230394,003.1,W'), 1000);
+    const fix = b.line(GGA, 4000);
+    expect(fix?.speedMps).toBeUndefined();
+    expect(fix?.headingDeg).toBeUndefined();
+  });
 });
+
+/** A sentence with its checksum. */
+function sentence(body: string): string {
+  let x = 0;
+  for (const ch of body) x ^= ch.charCodeAt(0);
+  return `$${body}*${x.toString(16).toUpperCase().padStart(2, '0')}`;
+}

@@ -11,7 +11,7 @@ import type {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { WardriveMapView } from '../../wardrive/map/WardriveMapView';
+import { WardriveChannelsCard } from './WardriveChannelsCard';
 
 const VISIBILITIES: WardriveVisibility[] = ['own', 'groups', 'all'];
 
@@ -22,7 +22,8 @@ function errorMessage(err: unknown): string {
 /**
  * Wardrive plugin owner admin (shown only when MESHCORE_WARDRIVE is on):
  * the page address, a warning when the main login is off, wardrive users
- * with their radios, visibility and groups, and the groups themselves.
+ * with their radios, visibility and groups, and the groups themselves. The
+ * coverage map is in Tools > Wardrive map (WardriveMapPage).
  * Self-contained: it loads and saves through /api/wardrive-admin.
  */
 export function SettingsWardriveSection({ className }: { className?: string }) {
@@ -39,9 +40,6 @@ export function SettingsWardriveSection({ className }: { className?: string }) {
   };
   const [newGroup, setNewGroup] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [mapUser, setMapUser] = useState('');
-  const [mapGroup, setMapGroup] = useState('');
-  const [mapRadio, setMapRadio] = useState('');
 
   const reload = useCallback(async () => {
     try {
@@ -166,6 +164,8 @@ export function SettingsWardriveSection({ className }: { className?: string }) {
           </p>
         )}
 
+        <WardriveChannelsCard />
+
         <h4 className="text-sm font-semibold">{t('settings_wardrive_users_heading')}</h4>
         {users.length === 0 && (
           <p className="text-xs text-muted-foreground">{t('settings_wardrive_no_users')}</p>
@@ -260,80 +260,7 @@ export function SettingsWardriveSection({ className }: { className?: string }) {
           ))}
         </div>
 
-        <h4 className="text-sm font-semibold">{t('settings_wardrive_map_heading')}</h4>
-        <WardriveMapView
-          reloadKey={`${mapUser}:${mapGroup}:${mapRadio}`}
-          load={(range) =>
-            api.getWardriveAdminData({
-              ...range,
-              user_id: mapUser ? Number(mapUser) : undefined,
-              group_id: mapGroup ? Number(mapGroup) : undefined,
-              radio_key: mapRadio || undefined,
-            })
-          }
-          filters={
-            <>
-              <label className="space-y-1 text-sm">
-                <span className="block text-xs text-muted-foreground">
-                  {t('wardrive_map_user')}
-                </span>
-                <select
-                  aria-label={t('wardrive_map_user')}
-                  value={mapUser}
-                  onChange={(e) => setMapUser(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                >
-                  <option value="">{t('wardrive_map_all_users')}</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={String(u.id)}>
-                      {u.username}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="block text-xs text-muted-foreground">
-                  {t('wardrive_map_group')}
-                </span>
-                <select
-                  aria-label={t('wardrive_map_group')}
-                  value={mapGroup}
-                  onChange={(e) => setMapGroup(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                >
-                  <option value="">{t('wardrive_map_all_groups')}</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={String(g.id)}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="block text-xs text-muted-foreground">
-                  {t('wardrive_map_radio')}
-                </span>
-                <select
-                  aria-label={t('wardrive_map_radio')}
-                  value={mapRadio}
-                  onChange={(e) => setMapRadio(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                >
-                  <option value="">{t('wardrive_map_all_radios')}</option>
-                  {users
-                    .filter((u) => !mapUser || String(u.id) === mapUser)
-                    .flatMap((u) =>
-                      u.radios.map((r) => (
-                        <option key={r.public_key} value={r.public_key}>
-                          {`${r.name || r.public_key.slice(0, 8)} (${u.username})`}
-                        </option>
-                      ))
-                    )}
-                </select>
-              </label>
-            </>
-          }
-        />
+        <p className="text-xs text-muted-foreground">{t('settings_wardrive_map_moved')}</p>
 
         <h4 className="text-sm font-semibold">{t('settings_wardrive_groups_heading')}</h4>
         <div className="space-y-2">

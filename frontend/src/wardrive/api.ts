@@ -72,6 +72,23 @@ export interface WardriveData {
   truncated: boolean;
 }
 
+/** A node RTFM-EV knows (GET /api/wardrive/nodes): public advert data only. */
+export interface ServedNode {
+  public_key: string;
+  name: string | null;
+  role: string | null;
+  lat: number | null;
+  lon: number | null;
+  seen: number | null;
+}
+
+export interface NodeBox {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
@@ -112,6 +129,12 @@ export const wardriveApi = {
   addRadio: (body: SignedRadio & { name?: string }) => post<WardriveMe>('/radios', body),
   upload: (body: { radio_key: string; obs: ObsMessage[]; tracks: TrackMessage[] }) =>
     post<UploadResult>('/upload', body),
+  /** Owner settings for the page: the hashtag channel names to decode. */
+  config: () => call<{ hashtag_channels: string[] }>('/config'),
+  nodes: (box: NodeBox) =>
+    call<{ nodes: ServedNode[]; truncated: boolean }>(
+      `/nodes?min_lat=${box.minLat}&max_lat=${box.maxLat}&min_lon=${box.minLon}&max_lon=${box.maxLon}`
+    ),
   data: (params: { since?: number; until?: number; radio_key?: string } = {}) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));

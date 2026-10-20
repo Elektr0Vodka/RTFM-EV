@@ -1,10 +1,15 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { CommandPalette } from '../components/CommandPalette';
 import { SettingsWardriveSection } from '../components/settings/SettingsWardriveSection';
-import type { WardriveAdminStatus, WardriveGroup, WardriveUser } from '../types';
+import type {
+  WardriveAdminConfig,
+  WardriveAdminStatus,
+  WardriveGroup,
+  WardriveUser,
+} from '../types';
 import type { WardriveData } from '../wardrive/api';
 
 vi.mock('../wardrive/map/WardriveMap', () => ({
@@ -33,14 +38,17 @@ function mockApi({
   status = { active: true, unprotected: false, page_path: '/wardrive/' },
   users = [makeUser()],
   groups = [] as WardriveGroup[],
+  config = { hashtag_channels: null, default_hashtag_channels: [] } as WardriveAdminConfig,
 }: {
   status?: WardriveAdminStatus;
   users?: WardriveUser[];
   groups?: WardriveGroup[];
+  config?: WardriveAdminConfig;
 } = {}) {
   vi.spyOn(api, 'getWardriveAdminStatus').mockResolvedValue(status);
   vi.spyOn(api, 'getWardriveUsers').mockResolvedValue(users);
   vi.spyOn(api, 'getWardriveGroups').mockResolvedValue(groups);
+  vi.spyOn(api, 'getWardriveConfig').mockResolvedValue(config);
   return vi
     .spyOn(api, 'getWardriveAdminData')
     .mockResolvedValue({ obs: [], tracks: [], truncated: false });
@@ -204,43 +212,86 @@ describe('Settings: wardrive group membership', () => {
   });
 });
 
+describe('Settings: wardrive channels for drivers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('lists the radio default and says where it comes from', async () => {
+    mockApi({ config: { hashtag_channels: null, default_hashtag_channels: ['#test'] } });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-channels');
+    await within(card).findByText('#test');
+    expect(within(card).getByText(/from your radio/i)).toBeTruthy();
+    expect(within(card).getByText(/only the names/i)).toBeTruthy();
+  });
+
+  it('adds a channel on top of the list in use', async () => {
+    mockApi({ config: { hashtag_channels: null, default_hashtag_channels: ['#test'] } });
+    const put = vi.spyOn(api, 'putWardriveConfig').mockResolvedValue({
+      hashtag_channels: ['#test', '#zwolle'],
+      default_hashtag_channels: ['#test'],
+    });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-channels');
+    await within(card).findByText('#test');
+    fireEvent.change(within(card).getByLabelText('Channel name'), { target: { value: 'zwolle' } });
+    fireEvent.click(within(card).getByRole('button', { name: 'Add channel' }));
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith({ hashtag_channels: ['#test', 'zwolle'] })
+    );
+    expect(await within(card).findByText('#zwolle')).toBeTruthy();
+  });
+
+  it('removes a channel from the owner list', async () => {
+    mockApi({ config: { hashtag_channels: ['#a', '#test'], default_hashtag_channels: [] } });
+    const put = vi
+      .spyOn(api, 'putWardriveConfig')
+      .mockResolvedValue({ hashtag_channels: ['#a'], default_hashtag_channels: [] });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-channels');
+    fireEvent.click(await within(card).findByRole('button', { name: 'Remove #test' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ hashtag_channels: ['#a'] }));
+  });
+
+  it('goes back to the radio channels', async () => {
+    mockApi({ config: { hashtag_channels: ['#a'], default_hashtag_channels: ['#test'] } });
+    const put = vi
+      .spyOn(api, 'putWardriveConfig')
+      .mockResolvedValue({ hashtag_channels: null, default_hashtag_channels: ['#test'] });
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-channels');
+    fireEvent.click(
+      await within(card).findByRole('button', { name: "Use my radio's hashtag channels" })
+    );
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ hashtag_channels: null }));
+  });
+
+  it('shows the server message when a name is refused', async () => {
+    mockApi({ config: { hashtag_channels: [], default_hashtag_channels: [] } });
+    vi.spyOn(api, 'putWardriveConfig').mockRejectedValue(
+      new ApiError('Value error, Not a usable channel name', 422)
+    );
+    render(<SettingsWardriveSection />);
+    const card = await screen.findByTestId('wardrive-channels');
+    fireEvent.change(within(card).getByLabelText('Channel name'), { target: { value: '#' } });
+    fireEvent.click(within(card).getByRole('button', { name: 'Add channel' }));
+    expect(await within(card).findByText(/Not a usable channel name/)).toBeTruthy();
+  });
+});
+
 describe('Settings: wardrive coverage map', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('loads all wardrive data for the last 24 hours', async () => {
+  it('is no longer in Settings and says where it went', async () => {
     const data = mockApi();
     render(<SettingsWardriveSection />);
-    expect(await screen.findByTestId('fake-map')).toBeTruthy();
-    const params = data.mock.calls[0][0];
-    expect(params.until - params.since).toBe(86400);
-    expect(params.user_id).toBeUndefined();
-    expect(params.group_id).toBeUndefined();
-  });
-
-  it('filters by radio', async () => {
-    const data = mockApi();
-    render(<SettingsWardriveSection />);
-    await screen.findByTestId('fake-map');
-    fireEvent.change(screen.getByLabelText('Radio'), { target: { value: KEY } });
-    await waitFor(() =>
-      expect(data.mock.calls[data.mock.calls.length - 1]?.[0]).toMatchObject({ radio_key: KEY })
-    );
-  });
-
-  it('filters by user and by group', async () => {
-    const data = mockApi({ groups: [{ id: 5, name: 'crew', created_at: 1, member_ids: [1] }] });
-    render(<SettingsWardriveSection />);
-    await screen.findByTestId('fake-map');
-    fireEvent.change(screen.getByLabelText('User'), { target: { value: '1' } });
-    await waitFor(() =>
-      expect(data.mock.calls[data.mock.calls.length - 1]?.[0]).toMatchObject({ user_id: 1 })
-    );
-    fireEvent.change(screen.getByLabelText('Group'), { target: { value: '5' } });
-    await waitFor(() =>
-      expect(data.mock.calls[data.mock.calls.length - 1]?.[0]).toMatchObject({ group_id: 5 })
-    );
+    await screen.findByTestId('wardrive-user');
+    expect(screen.queryByTestId('fake-map')).toBeNull();
+    expect(data).not.toHaveBeenCalled();
+    expect(screen.getByText(/Tools > Wardrive map/)).toBeTruthy();
   });
 });
 

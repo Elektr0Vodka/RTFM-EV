@@ -60,6 +60,9 @@ const SpamGuardView = lazy(() =>
   import('./SpamGuardView').then((m) => ({ default: m.SpamGuardView }))
 );
 const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
+const WardriveMapPage = lazy(() =>
+  import('./WardriveMapPage').then((m) => ({ default: m.WardriveMapPage }))
+);
 const MeshDiscoveryView = lazy(() =>
   import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
@@ -550,6 +553,14 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_lan_scan')} />}>
         <LanScanView onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'wardrive-map') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_wardrive_map')} />}>
+        <WardriveMapPage />
       </Suspense>
     );
   }

@@ -26,6 +26,7 @@ import {
   Plus,
   Radar,
   Router,
+  Car,
   ScanSearch,
   ShieldCheck,
   Search as SearchIcon,
@@ -225,6 +226,8 @@ function loadCollapsedState(): CollapseState {
 interface SidebarProps {
   /** Spam Guard master switch: its tool row only exists while it is on. */
   spamGuardEnabled?: boolean;
+  /** Wardrive module (MESHCORE_WARDRIVE): the Wardrive map tool only exists while it is on. */
+  wardriveEnabled?: boolean;
   contacts: Contact[];
   channels: Channel[];
   activeConversation: Conversation | null;
@@ -293,6 +296,7 @@ function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
 
 export function Sidebar({
   spamGuardEnabled = false,
+  wardriveEnabled = false,
   contacts,
   channels,
   activeConversation,
@@ -567,6 +571,7 @@ export function Sidebar({
       | 'lan-scan'
       | 'fleet'
       | 'spam-guard'
+      | 'wardrive-map'
       | 'analyze'
       | 'packet-history'
       | 'manual'
@@ -1457,6 +1462,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'wardrive-map':
+        return renderSidebarActionRow({
+          key: 'tool-wardrive-map',
+          active: isActive('wardrive-map', 'wardrive-map'),
+          icon: <Car className="h-4 w-4" />,
+          label: t('nav_wardrive_map'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'wardrive-map',
+              id: 'wardrive-map',
+              name: t('nav_wardrive_map'),
+            }),
+          iconOnly,
+        });
       case 'fleet':
         return renderSidebarActionRow({
           key: 'tool-fleet',
@@ -1647,7 +1666,9 @@ export function Sidebar({
   const hiddenFavoriteSet = new Set<string>(hidden.favorites);
 
   // A tool that belongs to a switched-off feature is not offered at all.
-  const availableToolOrder = toolOrder.filter((k) => k !== 'spam-guard' || spamGuardEnabled);
+  const availableToolOrder = toolOrder.filter(
+    (k) => (k !== 'spam-guard' || spamGuardEnabled) && (k !== 'wardrive-map' || wardriveEnabled)
+  );
   const visibleToolOrder = availableToolOrder.filter((k) => !hiddenToolSet.has(k));
   const toolRows = !query ? visibleToolOrder.map((k) => buildToolRow(k, false)) : [];
   const toolIconRows = visibleToolOrder.map((k) => buildToolRow(k, true));
@@ -2028,6 +2049,7 @@ export function Sidebar({
     'lan-scan': t('nav_lan_scan'),
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
+    'wardrive-map': t('nav_wardrive_map'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),

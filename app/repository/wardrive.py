@@ -396,3 +396,46 @@ class WardriveDataRepository:
             "tracks": tracks,
             "truncated": len(obs_rows) > limit or len(track_rows) > limit,
         }
+
+
+class WardriveConfigRepository:
+    """Owner settings for the wardrive page, one JSON value per key."""
+
+    @staticmethod
+    async def get_json(key: str) -> Any | None:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT value FROM wardrive_config WHERE key = ?", (key,)
+            ) as cursor:
+                row = await cursor.fetchone()
+        return json.loads(row["value"]) if row else None
+
+    @staticmethod
+    async def set_json(key: str, value: Any, now: int) -> None:
+        async with db.tx() as conn:
+            await conn.execute(
+                "INSERT INTO wardrive_config (key, value, updated_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+                "updated_at = excluded.updated_at",
+                (key, json.dumps(value), now),
+            )
+
+    @staticmethod
+    async def delete(key: str) -> None:
+        async with db.tx() as conn:
+            await conn.execute("DELETE FROM wardrive_config WHERE key = ?", (key,))
+
+
+class WardriveNodeRepository:
+    @staticmethod
+    async def full_key_contacts() -> list[dict[str, Any]]:
+        """Public advert data of every contact with a full key that was heard
+        advertising: key, advertised name, type, advertised position and last
+        advert. Nothing else; a contact added by hand (no advert) is left out,
+        its name is the owner's own label."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT public_key, name, type, lat, lon, last_advert FROM contacts "
+                "WHERE length(public_key) = 64 AND last_advert > 0"
+            ) as cursor:
+                return [dict(r) for r in await cursor.fetchall()]

@@ -373,6 +373,10 @@ Zoekt MeshCore-apparaten op je lokale netwerk (wifi of bekabeld), gecontroleerd 
 
 Elk gevonden apparaat staat in de lijst met zijn adres, waarop het antwoordde en zijn firmware. Een apparaat dat bij een van je contacten hoort (op de publieke sleutel, of op een naam die maar één contact heeft) linkt naar dat contact, en **SNMP instellen** slaat het gevonden adres op bij het contact, met uitlezen op schema uit; de community die je invulde gaat mee. Andere SNMP-apparaten, zoals printers of routers, zijn verborgen tot je **Andere apparaten tonen** aanvinkt. De laatste resultaten blijven staan tot de volgende scan of een herstart van de server.
 
+### Wardrive-kaart
+
+Alleen aanwezig als de wardrive-plugin aan staat (`MESHCORE_WARDRIVE=true`). Toont alles wat de wardrive-rijders hebben opgeslagen: hun ontvangsten, gekleurd naar signaal, en hun sporen. Kies de laatste 24 uur, 7 dagen of 30 dagen, en beperk het tot één gebruiker, één groep of één radio. Gebruikers, groepen en de kanalen die rijders kunnen lezen beheer je in **Instellingen > Wardrive**.
+
 ### Vloot
 
 Het apparatenregister: één rij per apparaat dat je bijhoudt, met wat alleen jij ervan weet. Dat is je eigen label, het serienummer van de organisatie, het serienummer van de hardware, model, rol, wifi- en bluetooth-MAC-adres, aan wie het is toegewezen, de locatie, een status en notities. De status is **Op voorraad**, **Geplaatst**, **Onderhoud**, **Kwijt**, **Gestolen** of **Buiten gebruik**. Niets op deze pagina gebruikt de radio.

@@ -1,7 +1,8 @@
 // The wardrive screen's layout: the map fills the screen; over it the top bar,
 // banners and live log at the top, the button rail at the right above the HUD,
 // the HUD at the bottom. Everything stays inside the safe areas (notch, home
-// bar). The start screen and the menu sheet lie on top when open.
+// bar). The start screen, the menu and the target and filter sheets lie on
+// top when open.
 import { useEffect, useRef, type ReactNode } from 'react';
 
 import './screen.css';
@@ -15,6 +16,8 @@ export interface WardriveScreenProps {
   rail: ReactNode;
   start: ReactNode | null;
   menu: ReactNode;
+  /** The target and filter sheets (portals, like the menu). */
+  sheets?: ReactNode;
 }
 
 export function WardriveScreen({
@@ -26,6 +29,7 @@ export function WardriveScreen({
   rail,
   start,
   menu,
+  sheets = null,
 }: WardriveScreenProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
@@ -65,7 +69,7 @@ export function WardriveScreen({
       >
         <div className="wd-top-stack flex w-full flex-col items-center gap-2" data-region="top">
           {/* Only the bars and cards take touches; the map stays draggable around them. */}
-          <div className="pointer-events-auto self-end">{topBar}</div>
+          <div className="pointer-events-auto w-full">{topBar}</div>
           <div className="pointer-events-auto flex w-full max-w-md flex-col items-center gap-2">
             {banners}
             {log}
@@ -95,6 +99,7 @@ export function WardriveScreen({
       </div>
       {start}
       {menu}
+      {sheets}
     </div>
   );
 }

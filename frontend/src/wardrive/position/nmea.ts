@@ -73,21 +73,41 @@ export class NmeaLineReader {
   }
 }
 
-/** Turns sentences into fixes; an RMC keeps the last GGA accuracy. */
+/** How long an RMC's speed and course still hold for the GGA fixes after it. */
+export const RMC_CARRY_MS = 2000;
+
+/** Turns sentences into fixes; an RMC keeps the last GGA accuracy, and a GGA
+ * keeps the speed and course of an RMC from the last 2 s. */
 export class NmeaFixBuilder {
   private lastAccM: number | null = null;
+  private lastMotion: { speedMps?: number | null; headingDeg?: number | null; at: number } | null =
+    null;
 
   line(line: string, nowMs: number): Fix | null {
     const parsed = parseNmea(line);
     if (!parsed || parsed.lat === undefined || parsed.lon === undefined) return null;
     if (parsed.accM !== undefined) this.lastAccM = parsed.accM;
+    const fromRmc = parsed.speedMps !== undefined || parsed.headingDeg !== undefined;
+    if (fromRmc) {
+      this.lastMotion = {
+        ...(parsed.speedMps !== undefined ? { speedMps: parsed.speedMps } : {}),
+        ...(parsed.headingDeg !== undefined ? { headingDeg: parsed.headingDeg } : {}),
+        at: nowMs,
+      };
+    }
+    const carried =
+      !fromRmc && this.lastMotion && nowMs - this.lastMotion.at <= RMC_CARRY_MS
+        ? this.lastMotion
+        : null;
+    const speedMps = parsed.speedMps ?? carried?.speedMps;
+    const headingDeg = parsed.headingDeg ?? carried?.headingDeg;
     return {
       lat: parsed.lat,
       lon: parsed.lon,
       accM: parsed.accM ?? this.lastAccM,
       at: nowMs,
-      ...(parsed.speedMps !== undefined ? { speedMps: parsed.speedMps } : {}),
-      ...(parsed.headingDeg !== undefined ? { headingDeg: parsed.headingDeg } : {}),
+      ...(speedMps !== undefined ? { speedMps } : {}),
+      ...(headingDeg !== undefined ? { headingDeg } : {}),
     };
   }
 }

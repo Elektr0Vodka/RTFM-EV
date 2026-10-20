@@ -14,11 +14,20 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
 from app.repository.wardrive import (
+    WardriveConfigRepository,
     WardriveDataRepository,
     WardriveGroupRepository,
     WardriveRadioRepository,
     WardriveSessionRepository,
     WardriveUserRepository,
+)
+from app.wardrive.config import (
+    HASHTAG_CHANNELS,
+    MAX_HASHTAG_CHANNELS,
+    default_hashtag_channels,
+    normalize_hashtag,
+    owner_hashtag_channels,
+    sort_names,
 )
 from app.wardrive.crypto import normalize_key
 from app.wardrive.models import MAX_TS
@@ -48,6 +57,27 @@ class GroupBody(BaseModel):
 
 class GroupMembers(BaseModel):
     user_ids: list[int]
+
+
+class ConfigBody(BaseModel):
+    hashtag_channels: list[str] | None = Field(
+        description="Hashtag channel names drivers may decode; null uses the home radio's"
+    )
+
+    @field_validator("hashtag_channels")
+    @classmethod
+    def _channels(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        if len(v) > MAX_HASHTAG_CHANNELS:
+            raise ValueError(f"At most {MAX_HASHTAG_CHANNELS} channels")
+        names: list[str] = []
+        for raw in v:
+            name = normalize_hashtag(raw)
+            if name is None:
+                raise ValueError(f"Not a usable channel name: {raw!r}")
+            names.append(name)
+        return sort_names(names)
 
 
 def _public_user(row: dict[str, Any]) -> dict[str, Any]:
@@ -174,3 +204,28 @@ async def wardrive_admin_data(
         user_ids = {user_id} if user_ids is None else user_ids & {user_id}
     key = _key_or_404(radio_key) if radio_key else None
     return await WardriveDataRepository.query(user_ids, start, end, key)
+
+
+async def _config() -> dict[str, Any]:
+    return {
+        "hashtag_channels": await owner_hashtag_channels(),
+        "default_hashtag_channels": await default_hashtag_channels(),
+    }
+
+
+@router.get("/config")
+async def wardrive_admin_config() -> dict[str, Any]:
+    """The channel list served to drivers: the owner's list (null when unset)
+    and the home radio's hashtag channels used when it is unset."""
+    return await _config()
+
+
+@router.put("/config")
+async def wardrive_admin_set_config(body: ConfigBody) -> dict[str, Any]:
+    if body.hashtag_channels is None:
+        await WardriveConfigRepository.delete(HASHTAG_CHANNELS)
+    else:
+        await WardriveConfigRepository.set_json(
+            HASHTAG_CHANNELS, body.hashtag_channels, int(time.time())
+        )
+    return await _config()

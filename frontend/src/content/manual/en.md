@@ -373,6 +373,10 @@ Looks for MeshCore devices on your local network (WiFi or wired), checked by the
 
 Each device found is listed with its address, what it answered on and its firmware. A device that matches one of your contacts (on its public key, or on a name only one contact has) links to that contact, and **Set up SNMP** stores the address found on the contact, with polling off; the community you entered goes with it. Other SNMP devices, such as printers or routers, are hidden until you tick **Show other devices**. The last results stay until the next scan or a server restart.
 
+### Wardrive map
+
+Only there when the wardrive plugin is on (`MESHCORE_WARDRIVE=true`). Shows everything the wardrive drivers stored: their receptions, coloured by signal, and their track lines. Pick the last 24 hours, 7 days or 30 days, and narrow it to one user, one group or one radio. Users, groups and the channels drivers can read are managed in **Settings > Wardrive**.
+
 ### Fleet
 
 The asset register: one row per device you keep track of, with what only you know about it. That is your own label, the organisation serial, the hardware serial, model, role, Wi-Fi and Bluetooth MAC address, who it is assigned to, the site, a status and notes. The status is one of **In stock**, **Deployed**, **Maintenance**, **Lost**, **Stolen** or **Retired**. Nothing on this page uses the radio.

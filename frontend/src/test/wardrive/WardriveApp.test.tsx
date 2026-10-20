@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { I18nProvider } from '../../i18n';
@@ -9,12 +9,32 @@ import type { Fix } from '../../wardrive/messages';
 import type { PositionSource } from '../../wardrive/position/sources';
 import type { MqttLike } from '../../wardrive/forward/client';
 import { openQueue } from '../../wardrive/queue';
+import { openNodeCache } from '../../wardrive/nodeSources';
+import { hexToBytes } from '../../wardrive/packet';
 import { Listeners, type RadioTransport } from '../../wardrive/radio/transport';
+import { TEST_SECRET, groupTextFrame } from './decodeVectors';
+import { contactFrame, contactsEndFrame, contactsStartFrame } from './radioFrames';
 
 // MapLibre does not run in jsdom; the live map is checked in a real browser.
+// The stand-in shows how many receptions the page gives it.
 vi.mock('../../wardrive/map/LiveMap', () => ({
-  LiveMap: () => <div data-testid="live-map" />,
+  LiveMap: ({ entries }: { entries: unknown[] }) => (
+    <div data-testid="live-map" data-count={entries.length} />
+  ),
 }));
+
+// The live log as the page renders it, recording the select handler it gets.
+const logSelects: unknown[] = [];
+vi.mock('../../wardrive/screen/ReceptionLog', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../wardrive/screen/ReceptionLog')>();
+  return {
+    ...real,
+    ReceptionLog: (props: Parameters<typeof real.ReceptionLog>[0]) => {
+      logSelects.push(props.onSelect);
+      return real.ReceptionLog(props);
+    },
+  };
+});
 
 const KEY = 'AB'.repeat(32);
 const OTHER = 'CD'.repeat(32);
@@ -24,11 +44,21 @@ class FakeRadio implements RadioTransport {
   kind = 'ble' as const;
   frames = new Listeners<Uint8Array>();
   closes = new Listeners<void>();
+  sent: number[] = [];
+  /** RESP_CONTACT frames the radio answers GET_CONTACTS with. */
+  contacts: Uint8Array[] = [];
   constructor(private key: string) {}
   async connect() {}
   async disconnect() {}
   async send(frame: Uint8Array) {
-    if (frame[0] === 0x01) {
+    this.sent.push(frame[0]);
+    if (frame[0] === 0x04) {
+      queueMicrotask(() => {
+        this.frames.emit(contactsStartFrame(this.contacts.length));
+        for (const c of this.contacts) this.frames.emit(c);
+        this.frames.emit(contactsEndFrame());
+      });
+    } else if (frame[0] === 0x01) {
       const b = new Uint8Array(61);
       b[0] = 0x05;
       for (let i = 0; i < 32; i++) b[4 + i] = parseInt(this.key.slice(i * 2, i * 2 + 2), 16);
@@ -53,6 +83,10 @@ class FakeRadio implements RadioTransport {
   /** An RX log push; `rssi` is the signed byte (0xa6 = -90 dBm). */
   hear(rssi = 0xa6) {
     this.frames.emit(new Uint8Array([0x88, 0x10, rssi, 0x15, 0x02, 0xa1, 0xb2, 0xc0, 0xff]));
+  }
+  /** An RX log push of a raw frame given as hex, at -90 dBm. */
+  hearRaw(hex: string, rssi = 0xa6) {
+    this.frames.emit(new Uint8Array([0x88, 0x10, rssi, ...hexToBytes(hex)]));
   }
 }
 
@@ -91,6 +125,7 @@ function setup(over: Partial<WardriveDeps> = {}) {
     makeTransport: () => radio,
     makePosition: () => position,
     openQueue: () => openQueue(`app-${n++}`),
+    openNodeCache: () => openNodeCache(`app-nodes-${n++}`),
     bleSupported: () => true,
     serialSupported: () => false,
     deviceLocationAllowed: () => true,
@@ -103,6 +138,12 @@ function setup(over: Partial<WardriveDeps> = {}) {
     </I18nProvider>
   );
   return { radio, position };
+}
+
+/** The live log's rows (each a button inside a list item). */
+function logRows(): HTMLElement[] {
+  const log = screen.getByRole('region', { name: 'Receptions' });
+  return within(within(log).getByRole('list')).queryAllByRole('button');
 }
 
 /** The account, radio, position and forwarding panels live in the menu. */
@@ -126,6 +167,8 @@ beforeEach(() => {
     accepted_tracks: 0,
     duplicate_tracks: 0,
   });
+  vi.spyOn(wardriveApi, 'config').mockResolvedValue({ hashtag_channels: ['#test'] });
+  vi.spyOn(wardriveApi, 'nodes').mockResolvedValue({ nodes: [], truncated: false });
 });
 
 afterEach(() => {
@@ -338,9 +381,22 @@ describe('wardrive page', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
     act(() => radio.hear());
-    expect(await screen.findByText('1 rx')).toBeTruthy();
+    expect(await screen.findByText('1 rx', undefined, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByTestId('wardrive-hud-rssi').textContent).toBe('-90');
     expect(screen.getByTestId('wardrive-stored').textContent).toBe('0');
+  });
+
+  it('hands the live log the same select handler on every clock tick', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    const { radio } = setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    act(() => radio.hear());
+    await screen.findByText('1 rx', undefined, { timeout: 5000 });
+    logSelects.length = 0;
+    // The page's clock ticks every second; each tick renders the log again.
+    await waitFor(() => expect(logSelects.length).toBeGreaterThan(2), { timeout: 5000 });
+    expect(new Set(logSelects).size).toBe(1);
   });
 
   it('shows a reception picked in the live log in the HUD', async () => {
@@ -349,11 +405,11 @@ describe('wardrive page', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
     act(() => radio.hear(0xa6));
-    await screen.findByText('1 rx');
+    await screen.findByText('1 rx', undefined, { timeout: 5000 });
     act(() => radio.hear(0xb0));
-    await screen.findByText('2 rx');
+    await screen.findByText('2 rx', undefined, { timeout: 5000 });
     expect(screen.getByTestId('wardrive-hud-rssi').textContent).toBe('-80');
-    const rows = screen.getAllByRole('listitem');
+    const rows = logRows();
     fireEvent.click(rows[1]);
     expect(screen.getByTestId('wardrive-hud-rssi').textContent).toBe('-90');
   });
@@ -491,5 +547,95 @@ describe('wardrive page when RTFM-EV refuses a radio', () => {
     setup({ openQueue: async () => queue });
     await waitFor(() => expect(meCall).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(/1 reception of another account/)).toBeTruthy();
+  });
+});
+
+describe('wardrive page reading what it hears', () => {
+  const TOREN_KEY = 'a1b2' + 'ee'.repeat(30);
+
+  async function connected(contacts: Uint8Array[] = []) {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    const ctx = setup();
+    ctx.radio.contacts = contacts;
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    fireEvent.click(screen.getByRole('button', { name: 'Use this device location' }));
+    await waitFor(() => expect(wardriveApi.config).toHaveBeenCalled());
+    // The owner's channel list reaches the decoder.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    return ctx;
+  }
+
+  async function hearChannelMessage(radio: FakeRadio) {
+    act(() => radio.hearRaw(groupTextFrame(TEST_SECRET, 'Mike', 'hello')));
+    await waitFor(() => expect(logRows().length).toBe(1));
+  }
+
+  it('decodes a channel message for the log and the HUD', async () => {
+    const { radio } = await connected();
+    await hearChannelMessage(radio);
+    expect(logRows()[0].textContent).toContain('#test: hello');
+    expect(logRows()[0].textContent).toContain('Mike');
+    expect(screen.getByTestId('wardrive-hud-sender').textContent).toBe('Mike');
+  });
+
+  it('names a relay after the matching contact on the radio', async () => {
+    const toren = contactFrame({ keyHex: TOREN_KEY, type: 2, name: 'Toren', lat: 52.11, lon: 5.1 });
+    const { radio } = await connected([toren]);
+    await waitFor(() => expect(radio.sent).toContain(0x04));
+    act(() => radio.hearRaw(groupTextFrame(TEST_SECRET, 'Mike', 'hi', 'a1b2', 2)));
+    await waitFor(() =>
+      expect(screen.getByTestId('wardrive-hud-sender').textContent).toBe('via ~Toren')
+    );
+  });
+
+  it('asks the radio for its contacts and sends nothing else of its own', async () => {
+    const { radio } = await connected();
+    await waitFor(() => expect(radio.sent).toContain(0x04));
+    await hearChannelMessage(radio);
+    expect(radio.sent).toEqual([0x01, 0x04]);
+  });
+
+  it('filters by packet type, counts it on the pill, and All brings the rest back', async () => {
+    const { radio } = await connected();
+    await hearChannelMessage(radio);
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Advert' }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(logRows()).toHaveLength(0));
+    expect(screen.getByTestId('live-map').dataset.count).toBe('0');
+    expect(screen.getByTestId('wardrive-filter-count').textContent).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: 'Show all receptions' }));
+    await waitFor(() => expect(logRows()).toHaveLength(1));
+    expect(logRows()[0].getAttribute('title')).toBe('outside filter');
+  });
+
+  it('ignores the shown sender in both stands and lists it among the ignored', async () => {
+    const { radio } = await connected();
+    await hearChannelMessage(radio);
+    fireEvent.click(screen.getByRole('button', { name: 'Ignore the shown sender' }));
+    await waitFor(() => expect(logRows()).toHaveLength(0));
+    fireEvent.click(screen.getByRole('button', { name: 'Show all receptions' }));
+    expect(logRows()).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    expect(await screen.findByRole('button', { name: 'Stop ignoring Mike' })).toBeTruthy();
+  });
+
+  it('narrows the log to a target picked in the target sheet', async () => {
+    const { radio } = await connected();
+    await hearChannelMessage(radio);
+    act(() => radio.hearRaw(groupTextFrame(TEST_SECRET, 'Anna', 'hoi')));
+    await waitFor(() => expect(logRows()).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Targets: All senders' }));
+    const list = await screen.findByTestId('wardrive-target-list');
+    fireEvent.click(within(list).getByRole('button', { name: /Anna/ }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(logRows()).toHaveLength(1));
+    expect(logRows()[0].textContent).toContain('Anna');
+    expect(screen.getByRole('button', { name: 'Targets: Anna' })).toBeTruthy();
   });
 });

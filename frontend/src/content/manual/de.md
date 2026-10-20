@@ -373,6 +373,10 @@ Sucht MeshCore-Geräte in deinem lokalen Netzwerk (WLAN oder Kabel), geprüft vo
 
 Jedes gefundene Gerät steht mit Adresse, der Antwortstelle und Firmware in der Liste. Ein Gerät, das zu einem deiner Kontakte passt (über den öffentlichen Schlüssel oder einen Namen, den nur ein Kontakt hat), verlinkt auf diesen Kontakt, und **SNMP einrichten** speichert die gefundene Adresse beim Kontakt, mit ausgeschalteter Abfrage nach Zeitplan; die eingegebene Community wird mitgespeichert. Andere SNMP-Geräte wie Drucker oder Router bleiben verborgen, bis du **Andere Geräte zeigen** ankreuzt. Die letzten Ergebnisse bleiben bis zum nächsten Scan oder einem Neustart des Servers.
 
+### Wardrive-Karte
+
+Nur vorhanden, wenn das Wardrive-Plugin an ist (`MESHCORE_WARDRIVE=true`). Zeigt alles, was die Wardrive-Fahrer gespeichert haben: ihre Empfänge, nach Signal gefärbt, und ihre Spuren. Wähle die letzten 24 Stunden, 7 Tage oder 30 Tage und beschränke es auf einen Benutzer, eine Gruppe oder ein Funkgerät. Benutzer, Gruppen und die Kanäle, die Fahrer lesen können, verwaltest du unter **Einstellungen > Wardrive**.
+
 ### Flotte
 
 Das Geräteregister: eine Zeile pro Gerät, das du verwaltest, mit dem, was nur du darüber weißt. Das sind deine eigene Bezeichnung, die Seriennummer der Organisation, die Hardware-Seriennummer, Modell, Rolle, WLAN- und Bluetooth-MAC-Adresse, wem es zugewiesen ist, der Standort, ein Status und Notizen. Der Status ist **Auf Lager**, **Im Einsatz**, **Wartung**, **Verloren**, **Gestohlen** oder **Außer Betrieb**. Nichts auf dieser Seite nutzt das Funkgerät.

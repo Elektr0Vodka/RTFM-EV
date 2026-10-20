@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Companion } from '../../wardrive/radio/companion';
 import type { RadioTransport } from '../../wardrive/radio/transport';
+import { contactFrame, contactsEndFrame, contactsStartFrame } from './radioFrames';
 
 class FakeTransport implements RadioTransport {
   kind = 'ble' as const;
@@ -144,5 +145,48 @@ describe('Companion', () => {
     const t = new FakeTransport();
     signingRadio(t, { maxLen: 10 });
     await expect(new Companion(t).sign(new Uint8Array(11))).rejects.toThrow(/too long/i);
+  });
+
+  it('reads the contact table and sends only GET_CONTACTS', async () => {
+    const t = new FakeTransport();
+    t.reply = (frame) => {
+      if (frame[0] !== 0x04) return;
+      t.push(contactsStartFrame(2));
+      t.push(contactFrame({ keyHex: 'aa'.repeat(32), name: 'One' }));
+      t.push(contactFrame({ keyHex: 'bb'.repeat(32), name: 'Two' }));
+      t.push(contactsEndFrame());
+    };
+    const contacts = await new Companion(t).contacts();
+    expect(contacts.map((c) => c.name)).toEqual(['One', 'Two']);
+    expect(t.sent.map((f) => Array.from(f))).toEqual([[0x04]]);
+  });
+
+  it('resolves what it has when the end never comes', async () => {
+    vi.useFakeTimers();
+    const t = new FakeTransport();
+    t.reply = (frame) => {
+      if (frame[0] !== 0x04) return;
+      t.push(contactsStartFrame(3));
+      t.push(contactFrame({ keyHex: 'aa'.repeat(32), name: 'One' }));
+      t.push(contactFrame({ keyHex: 'bb'.repeat(32), name: 'Two' }));
+    };
+    const pending = new Companion(t).contacts(8000);
+    await vi.advanceTimersByTimeAsync(8000);
+    expect((await pending).map((c) => c.name)).toEqual(['One', 'Two']);
+  });
+
+  it('does not read contacts while a signing runs', async () => {
+    const t = new FakeTransport();
+    signingRadio(t);
+    const signAnswer = t.reply;
+    t.reply = (frame, tr) => {
+      if (frame[0] === 0x04) tr.push(contactsEndFrame());
+      else signAnswer(frame, tr);
+    };
+    const c = new Companion(t);
+    const signing = c.sign(new Uint8Array(10));
+    const contacts = c.contacts();
+    await Promise.all([signing, contacts]);
+    expect(t.sent.map((f) => f[0])).toEqual([33, 34, 35, 0x04]);
   });
 });

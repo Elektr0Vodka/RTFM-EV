@@ -1063,6 +1063,7 @@ type ConversationType =
   | 'lan-scan'
   | 'fleet'
   | 'spam-guard'
+  | 'wardrive-map'
   | 'analyze'
   | 'packet-history'
   | 'manual'
@@ -2222,6 +2223,14 @@ export interface WardriveGroup {
 
 /** Stored wardrive receptions and tracks (GET /api/wardrive-admin/data). */
 export type { WardriveData } from './wardrive/api';
+
+/** The hashtag channels drivers may decode (GET/PUT /api/wardrive-admin/config). */
+export interface WardriveAdminConfig {
+  /** The owner's list; null when unset (drivers then get the default). */
+  hashtag_channels: string[] | null;
+  /** The home radio's hashtag channels whose key follows from the name. */
+  default_hashtag_channels: string[];
+}
 
 export interface WardriveAdminStatus {
   active: boolean;

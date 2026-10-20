@@ -1,14 +1,19 @@
 // The driver's companion radio: its identity, what it hears, and signing.
+import type { DirectoryNode } from '../names';
 import {
+  CMD_GET_CONTACTS,
   CMD_SIGN_DATA,
   CMD_SIGN_FINISH,
   CMD_SIGN_START,
+  RESP_CONTACT,
+  RESP_END_OF_CONTACTS,
   RESP_ERR,
   RESP_OK,
   RESP_SIGNATURE,
   RESP_SIGN_START,
   SIGN_CHUNK,
   appStartFrame,
+  parseContact,
   parseRxLog,
   parseSelfInfo,
 } from './protocol';
@@ -17,6 +22,7 @@ import type { RadioTransport } from './transport';
 const APP_NAME = 'rtfm-ev-wardrive';
 const START_TIMEOUT_MS = 6000;
 const SIGN_TIMEOUT_MS = 8000;
+const CONTACTS_TIMEOUT_MS = 8000;
 
 export interface RadioReception {
   snr: number;
@@ -25,6 +31,8 @@ export interface RadioReception {
 }
 
 export class Companion {
+  // Signing and reading the contact table both hold a conversation with the
+  // radio, so they take turns.
   private signing: Promise<unknown> = Promise.resolve();
   // Set when a sign step timed out: its answer may still come. The radio
   // answers in order, so once the next signing's start is answered all late
@@ -59,6 +67,36 @@ export class Companion {
     return this.transport.onFrame((frame) => {
       const r = parseRxLog(frame);
       if (r) cb(r);
+    });
+  }
+
+  /** The radio's own contacts (names and advertised positions). A local
+   * exchange with the companion, nothing goes over the air. Resolves with
+   * what arrived when the end does not come in time. */
+  contacts(timeoutMs = CONTACTS_TIMEOUT_MS): Promise<DirectoryNode[]> {
+    const run = this.signing.then(() => this.contactsNow(timeoutMs));
+    this.signing = run.catch(() => undefined);
+    return run;
+  }
+
+  private contactsNow(timeoutMs: number): Promise<DirectoryNode[]> {
+    return new Promise((resolve) => {
+      const found: DirectoryNode[] = [];
+      const finish = () => {
+        clearTimeout(timer);
+        off();
+        resolve(found);
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      const off = this.transport.onFrame((frame) => {
+        if (frame[0] === RESP_CONTACT) {
+          const c = parseContact(frame);
+          if (c) found.push(c);
+        } else if (frame[0] === RESP_END_OF_CONTACTS) {
+          finish();
+        }
+      });
+      this.transport.send(new Uint8Array([CMD_GET_CONTACTS])).catch(finish);
     });
   }
 

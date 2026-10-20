@@ -21,6 +21,12 @@ const entry = (over: Partial<LiveEntry> = {}): LiveEntry => ({
   lat: 52,
   lon: 5,
   kept: true,
+  packetType: 'GroupText',
+  heardDirect: false,
+  sender: { kind: null, id: null, label: null, role: null },
+  channel: null,
+  text: null,
+  stored: false,
   ...over,
 });
 
@@ -41,6 +47,15 @@ function renderHud(over: Partial<ComponentProps<typeof Hud>> = {}) {
     counts: { heard: 0, stored: 0, noPosition: 0 },
     onStart: vi.fn(),
     onStop: vi.fn(),
+    arrow: null,
+    sender: { prefix: '', name: '', note: '' },
+    onTargets: vi.fn(),
+    onAddTarget: vi.fn(),
+    onIgnore: vi.fn(),
+    stand: 'filtered',
+    onStand: vi.fn(),
+    canTarget: false,
+    canIgnore: false,
     ...over,
   };
   const view = render(
@@ -79,40 +94,17 @@ describe('wardrive HUD', () => {
   });
 
   it('flags a backlog from 25 and alarms from 250', () => {
-    const { rerender } = renderHud({ pending: 24 });
+    const { props, rerender } = renderHud({ pending: 24 });
     expect(screen.queryByTestId('wardrive-hud-backlog')).toBeNull();
-    const props = { pending: 25 };
     rerender(
       <I18nProvider>
-        <Hud
-          shown={null}
-          nowMs={NOW}
-          speedMps={null}
-          unit="metric"
-          running={false}
-          canStart
-          counts={{ heard: 0, stored: 0, noPosition: 0 }}
-          onStart={() => {}}
-          onStop={() => {}}
-          {...props}
-        />
+        <Hud {...props} pending={25} />
       </I18nProvider>
     );
     expect(screen.getByTestId('wardrive-hud-backlog').dataset.alarm).toBe('false');
     rerender(
       <I18nProvider>
-        <Hud
-          shown={null}
-          nowMs={NOW}
-          speedMps={null}
-          unit="metric"
-          running={false}
-          canStart
-          counts={{ heard: 0, stored: 0, noPosition: 0 }}
-          onStart={() => {}}
-          onStop={() => {}}
-          pending={250}
-        />
+        <Hud {...props} pending={250} />
       </I18nProvider>
     );
     expect(screen.getByTestId('wardrive-hud-backlog').dataset.alarm).toBe('true');
@@ -142,5 +134,76 @@ describe('wardrive HUD', () => {
     expect(screen.getByTestId('wardrive-heard').textContent).toBe('3');
     expect(screen.getByTestId('wardrive-stored').textContent).toBe('2');
     expect(screen.getByTestId('wardrive-no-position').textContent).toBe('1');
+  });
+
+  it('turns the arrow toward the sender, outlined for an estimate', () => {
+    renderHud({ shown: entry(), arrow: { angle: 90, kind: 'estimate' } });
+    const arrow = screen.getByTestId('wardrive-hud-arrow');
+    expect(arrow.style.transform).toBe('rotate(90deg)');
+    expect(arrow.dataset.kind).toBe('estimate');
+    expect(arrow.getAttribute('fill')).toBe('none');
+  });
+
+  it('fills the arrow for an advertised position', () => {
+    renderHud({ shown: entry(), arrow: { angle: -30, kind: 'advertised' } });
+    const arrow = screen.getByTestId('wardrive-hud-arrow');
+    expect(arrow.style.transform).toBe('rotate(-30deg)');
+    expect(arrow.getAttribute('fill')).toBe('currentColor');
+  });
+
+  it('draws no arrow without one', () => {
+    renderHud({ shown: entry(), arrow: null });
+    expect(screen.queryByTestId('wardrive-hud-arrow')).toBeNull();
+  });
+
+  it('reads the sender line', () => {
+    renderHud({ shown: entry(), sender: { prefix: 'via ~', name: 'Toren', note: '' } });
+    expect(screen.getByTestId('wardrive-hud-sender').textContent).toBe('via ~Toren');
+  });
+
+  it('reads a note when there is nobody to name', () => {
+    renderHud({ shown: entry(), sender: { prefix: '', name: '', note: 'Trace, no sender id' } });
+    expect(screen.getByTestId('wardrive-hud-sender').textContent).toBe('Trace, no sender id');
+  });
+
+  it('shows no NaN or undefined anywhere for an empty HUD', () => {
+    const { container } = renderHud({ arrow: null });
+    expect(container.textContent).not.toMatch(/NaN|undefined/);
+    expect(container.innerHTML).not.toMatch(/NaN|undefined/);
+  });
+
+  it('offers the target tools', () => {
+    const { props } = renderHud({ shown: entry(), canTarget: true, canIgnore: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Targets' }));
+    expect(props.onTargets).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Add the shown sender to the targets' }));
+    expect(props.onAddTarget).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Ignore the shown sender' }));
+    expect(props.onIgnore).toHaveBeenCalled();
+  });
+
+  it('greys Add and Ignore without a sender to use', () => {
+    renderHud({ shown: entry(), canTarget: false, canIgnore: false });
+    const add = screen.getByRole('button', { name: 'Add the shown sender to the targets' });
+    const ignore = screen.getByRole('button', { name: 'Ignore the shown sender' });
+    expect((add as HTMLButtonElement).disabled).toBe(true);
+    expect((ignore as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('switches between Filtered and All', () => {
+    const { props, rerender } = renderHud({ stand: 'filtered' });
+    const all = screen.getByRole('button', { name: 'Show all receptions' });
+    expect(all.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(all);
+    expect(props.onStand).toHaveBeenCalledWith('all');
+    rerender(
+      <I18nProvider>
+        <Hud {...props} stand="all" />
+      </I18nProvider>
+    );
+    const on = screen.getByRole('button', { name: 'Show all receptions' });
+    expect(on.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(on);
+    expect(props.onStand).toHaveBeenLastCalledWith('filtered');
   });
 });

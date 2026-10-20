@@ -1,12 +1,15 @@
-// The heads-up display at the bottom of the wardrive screen: the shown
-// reception's signal (big, in its tier colour), SNR and age, the speed, the
-// upload backlog, Start/Stop and the drive counters. Readable at a glance from
-// a phone in a holder.
+// The heads-up display at the bottom of the wardrive screen: the direction
+// arrow, the shown reception's signal (big, with its tier colour) and sender,
+// SNR and age, the speed, the upload backlog, the target tools, Start/Stop and
+// the drive counters. Readable at a glance from a phone in a holder.
+import { Crosshair, EyeOff, Layers, Plus } from 'lucide-react';
+
 import { useCvdMode } from '../../hooks/useCvdColors';
 import { useT, type TFn } from '../../i18n';
 import { Button } from '../../components/ui/button';
 import type { DistanceUnit } from '../../utils/distanceUnits';
 import type { CaptureCounts } from '../capture';
+import type { Stand } from '../filters';
 import type { LiveEntry } from '../liveLog';
 import { rssiTier, tierColor } from '../signal';
 import { formatSpeed } from '../speed';
@@ -28,6 +31,44 @@ export interface HudProps {
   counts: CaptureCounts;
   onStart(): void;
   onStop(): void;
+  /** Where the sender is, relative to the way the driver faces; null draws none. */
+  arrow: { angle: number; kind: 'advertised' | 'estimate' } | null;
+  /** The sender line: `prefix + name`, or a note when nobody can be named. */
+  sender: { prefix: string; name: string; note: string };
+  onTargets(): void;
+  onAddTarget(): void;
+  onIgnore(): void;
+  stand: Stand;
+  onStand(s: Stand): void;
+  /** The shown sender can be a target. */
+  canTarget: boolean;
+  /** The shown sender has an id to ignore. */
+  canIgnore: boolean;
+}
+
+const TOOL =
+  'flex h-8 items-center gap-1 rounded-full border border-border px-2.5 text-xs disabled:opacity-40';
+
+function Arrow({ arrow }: { arrow: NonNullable<HudProps['arrow']> }) {
+  const t = useT();
+  const estimate = arrow.kind === 'estimate';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-10 w-10 shrink-0 text-foreground"
+      role="img"
+      aria-label={t(estimate ? 'wardrive_page_hud_arrow_estimate' : 'wardrive_page_hud_arrow')}
+      data-testid="wardrive-hud-arrow"
+      data-kind={arrow.kind}
+      fill={estimate ? 'none' : 'currentColor'}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinejoin="round"
+      style={{ transform: `rotate(${arrow.angle}deg)` }}
+    >
+      <path d="M12 2 L20 21 L12 16 L4 21 Z" />
+    </svg>
+  );
 }
 
 export function formatAge(ms: number, t: TFn): string {
@@ -60,6 +101,15 @@ export function Hud({
   counts,
   onStart,
   onStop,
+  arrow,
+  sender,
+  onTargets,
+  onAddTarget,
+  onIgnore,
+  stand,
+  onStand,
+  canTarget,
+  canIgnore,
 }: HudProps) {
   const t = useT();
   const cvd = useCvdMode() !== 'off';
@@ -74,6 +124,7 @@ export function Hud({
       aria-label={t('wardrive_page_hud_rssi')}
     >
       <div className="flex items-end gap-3">
+        {arrow && Number.isFinite(arrow.angle) && <Arrow arrow={arrow} />}
         <div className="flex items-center gap-2">
           {/* The tier as a swatch; the digits stay in the text colour, readable on any theme. */}
           <span
@@ -92,8 +143,12 @@ export function Hud({
             {t('wardrive_page_hud_dbm')}
           </span>
         </div>
-        <div className="min-w-0 flex-1 truncate pb-1 text-sm">
-          {shown ? shown.typeName : t('wardrive_page_hud_no_reception')}
+        <div className="min-w-0 flex-1 truncate pb-1 text-sm" data-testid="wardrive-hud-sender">
+          {!shown
+            ? t('wardrive_page_hud_no_reception')
+            : sender.name
+              ? `${sender.prefix}${sender.name}`
+              : sender.note}
         </div>
         {pending >= BACKLOG_SHOW && (
           <span
@@ -118,6 +173,47 @@ export function Hud({
         >
           {formatSpeed(speedMps, unit)}
         </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          className={TOOL}
+          aria-label={t('wardrive_page_hud_targets')}
+          onClick={onTargets}
+        >
+          <Crosshair className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('wardrive_page_hud_targets')}
+        </button>
+        <button
+          type="button"
+          className={TOOL}
+          aria-label={t('wardrive_page_hud_add_aria')}
+          onClick={onAddTarget}
+          disabled={!canTarget}
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('wardrive_page_hud_add')}
+        </button>
+        <button
+          type="button"
+          className={TOOL}
+          aria-label={t('wardrive_page_hud_ignore_aria')}
+          onClick={onIgnore}
+          disabled={!canIgnore}
+        >
+          <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('wardrive_page_hud_ignore')}
+        </button>
+        <button
+          type="button"
+          className={`${TOOL} ml-auto ${stand === 'all' ? 'border-primary bg-primary text-primary-foreground' : ''}`}
+          aria-label={t('wardrive_page_hud_all_aria')}
+          aria-pressed={stand === 'all'}
+          onClick={() => onStand(stand === 'all' ? 'filtered' : 'all')}
+        >
+          <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('wardrive_page_hud_all')}
+        </button>
       </div>
       <div className="mt-2 flex items-center gap-3">
         {running ? (

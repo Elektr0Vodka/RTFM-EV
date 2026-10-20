@@ -493,6 +493,29 @@ describe('lan-scan (Tools > Network scan) route', () => {
   });
 });
 
+describe('wardrive-map (Tools > Wardrive map) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #wardrive-map', () => {
+    window.location.hash = '#wardrive-map';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive-map', name: 'wardrive-map' });
+  });
+
+  it('builds #wardrive-map', () => {
+    expect(
+      getConversationHash({ type: 'wardrive-map', id: 'wardrive-map', name: 'Wardrive map' })
+    ).toBe('#wardrive-map');
+  });
+});
+
 describe('fleet (Tools > Fleet) route', () => {
   let originalHash: string;
 
