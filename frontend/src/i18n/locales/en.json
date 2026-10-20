@@ -2150,7 +2150,7 @@
   "wardrive_page_hud_noise": "noise {value} dBm",
   "wardrive_page_hud_offset_title": "Colours are {offset} dB off the measured value (calibration and attenuator)",
   "wardrive_page_attenuator_heading": "Attenuator",
-  "wardrive_page_attenuator_hint": "With an attenuator between radio and antenna, pick its value: colours, hexes and sound add the loss back. The numbers shown stay as measured; nothing stored or forwarded changes.",
+  "wardrive_page_attenuator_hint": "With an attenuator between radio and antenna, pick its value: colours, hexes and pillars add the loss back. The numbers shown and the sound stay as measured; nothing stored or forwarded changes.",
   "wardrive_page_attenuator_none": "None",
   "wardrive_page_attenuator_step": "{db} dB",
   "wardrive_page_dot_low": "battery low",

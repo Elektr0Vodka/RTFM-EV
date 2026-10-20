@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { LOW_BATTERY_MV, batteryPercent, isLowBattery } from '../../wardrive/radio/battery';
+import {
+  batteryKnown,
+  LOW_BATTERY_MV,
+  batteryPercent,
+  isLowBattery,
+} from '../../wardrive/radio/battery';
 
 describe('companion battery', () => {
   it('maps volts like the firmware does', () => {
@@ -18,5 +23,13 @@ describe('companion battery', () => {
     expect(isLowBattery(3499)).toBe(true);
     expect(isLowBattery(3500)).toBe(false);
     expect(isLowBattery(null)).toBe(false);
+  });
+
+  it('treats 0 mV (a board without battery sensing) as unknown, not empty', () => {
+    expect(batteryKnown(0)).toBe(false);
+    expect(batteryKnown(999)).toBe(false);
+    expect(batteryKnown(3000)).toBe(true);
+    expect(batteryPercent(0)).toBeNull();
+    expect(isLowBattery(0)).toBe(false);
   });
 });

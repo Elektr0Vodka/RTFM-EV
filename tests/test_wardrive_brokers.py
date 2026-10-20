@@ -96,6 +96,7 @@ async def test_a_companion_broker_needs_no_password(api):
         custom(url="http://mqtt.example.org/mqtt"),
         custom(url="wss://"),
         custom(id="dmc-hunter"),
+        custom(id="rtfm"),
         custom(id="Bad Id"),
         custom(password=None),
         custom(format="wardrive", label=None),

@@ -141,6 +141,22 @@ export function useForwarding(
     [queue, radioKey, setSettings]
   );
 
+  /** The server's broker list arrived: switches of brokers it no longer
+   * serves go, so one served again later (or a new broker given the same id)
+   * starts off, from what is heard then, like any broker switched on. */
+  const keepOnly = useCallback(
+    (ids: string[]) => {
+      const served = new Set(ids);
+      const enabled = settingsRef.current.enabled;
+      const kept = Object.fromEntries(
+        Object.entries(enabled).filter(([dest]) => served.has(dest.slice(0, dest.lastIndexOf('@'))))
+      );
+      if (Object.keys(kept).length !== Object.keys(enabled).length)
+        setSettings({ ...settingsRef.current, enabled: kept });
+    },
+    [setSettings]
+  );
+
   /** On log out: the radio-signed tokens let anyone with this browser
    * publish, so they go. The switches stay. */
   const forgetCredentials = useCallback(
@@ -148,5 +164,5 @@ export function useForwarding(
     [setSettings]
   );
 
-  return { settings, statuses, toggle, sendNow: tickAll, destsFor, forgetCredentials };
+  return { settings, statuses, toggle, sendNow: tickAll, destsFor, forgetCredentials, keepOnly };
 }

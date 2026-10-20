@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from '../api';
 import { CommandPalette } from '../components/CommandPalette';
 import { SettingsWardriveSection } from '../components/settings/SettingsWardriveSection';
+import { brokerIdFor } from '../components/settings/WardriveBrokersCard';
 import type {
   WardriveAdminConfig,
   WardriveAdminStatus,
@@ -546,5 +547,10 @@ describe('Settings: wardrive section visibility', () => {
   it('is listed when wardrive is on', () => {
     renderPalette(true);
     expect(screen.getByText('Wardrive')).toBeTruthy();
+  });
+
+  it('never makes the id of RTFM-EV own upload destination', () => {
+    expect(brokerIdFor('RTFM', new Set())).not.toBe('rtfm');
+    expect(brokerIdFor('Club', new Set(['club']))).toBe('club-2');
   });
 });

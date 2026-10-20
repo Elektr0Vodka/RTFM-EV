@@ -53,6 +53,9 @@ BUILTIN_BROKERS: list[dict[str, Any]] = [
     },
 ]
 BUILTIN_IDS = {b["id"] for b in BUILTIN_BROKERS}
+# The page's own upload queue destination is rtfm@<KEY> (uploader.ts
+# localDest): a broker with that id would share its watermark.
+RESERVED_IDS = BUILTIN_IDS | {"rtfm"}
 
 
 def audience_of(url: str) -> str:
@@ -74,8 +77,8 @@ class BrokerIn(BaseModel):
     @field_validator("id")
     @classmethod
     def _id(cls, v: str) -> str:
-        if not _ID.match(v) or v in BUILTIN_IDS:
-            raise ValueError("Use 2 to 32 lower-case letters, digits or '-', not a built-in id")
+        if not _ID.match(v) or v in RESERVED_IDS:
+            raise ValueError("Use 2 to 32 lower-case letters, digits or '-', not a reserved id")
         return v
 
     @field_validator("name")

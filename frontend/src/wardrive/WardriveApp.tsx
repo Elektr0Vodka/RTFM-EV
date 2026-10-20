@@ -245,6 +245,13 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   useWakeLock(drive.running);
   // The brokers the owner serves; the last list is kept for offline starts.
   const [brokers, setBrokers] = useState<Broker[]>(() => loadServedBrokers() ?? DEFAULT_BROKERS);
+  // An owner's broker account is for logged-in drivers only: it goes from
+  // this browser on log out or when the server says nobody is logged in.
+  const dropAccountBrokers = useCallback(() => {
+    setBrokers((prev) => prev.filter((b) => b.auth !== 'password'));
+    const cached = loadServedBrokers();
+    if (cached) saveServedBrokers(cached.filter((b) => b.auth !== 'password'));
+  }, []);
   const forwarding = useForwarding(
     queue,
     radio?.companion ?? null,
@@ -255,6 +262,8 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   );
   const destsForRef = useRef(forwarding.destsFor);
   destsForRef.current = forwarding.destsFor;
+  const forwardingRef = useRef(forwarding);
+  forwardingRef.current = forwarding;
   const nodeCache = useMemo(() => deps.openNodeCache().catch(() => null), [deps]);
   const nodes = useNodeDirectory({
     loggedIn: !!me,
@@ -271,6 +280,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       if (served) {
         setBrokers(served);
         saveServedBrokers(served);
+        forwardingRef.current.keepOnly(served.map((b) => b.id));
       }
     },
   });
@@ -359,6 +369,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     void loadMe().then(({ me: loaded, offline: off }) => {
       setMe(loaded);
       setOffline(off);
+      if (!loaded && !off) dropAccountBrokers();
     });
     let cancelled = false;
     let uploader: Uploader | null = null;
@@ -374,7 +385,9 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         // A 403: a radio left the account or the account was disabled.
         () =>
           void loadMe().then(({ me: loaded, offline: off }) => {
-            if (!off) setMe(loaded);
+            if (off) return;
+            setMe(loaded);
+            if (!loaded) dropAccountBrokers();
           })
       );
       uploader.start((s) => {
@@ -391,6 +404,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         if (off) return;
         setMe(loaded);
         setOffline(false);
+        if (!loaded) dropAccountBrokers();
       });
     }, RECHECK_MS);
     return () => {
@@ -399,7 +413,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       clearInterval(clock);
       clearInterval(recheck);
     };
-  }, [deps]);
+  }, [deps, dropAccountBrokers]);
 
   const run = async (action: () => Promise<void>) => {
     try {
@@ -474,6 +488,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     run(async () => {
       drive.stop();
       forwarding.forgetCredentials();
+      dropAccountBrokers();
       await wardriveApi.logout();
       adoptMe(null);
     });

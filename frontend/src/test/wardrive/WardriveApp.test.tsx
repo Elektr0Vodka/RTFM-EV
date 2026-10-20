@@ -418,6 +418,46 @@ describe('wardrive page', () => {
     await openMenu();
     await screen.findByLabelText(/DutchMeshCore wardriver/);
     expect(screen.queryByLabelText('meshcore-analyzer.eu')).toBeNull();
+    // Its switch goes too: a broker served again later (or a new one with
+    // the same id) starts off, with what is heard from then on.
+    const stored = JSON.parse(localStorage.getItem('rtfm-wardrive-brokers') ?? '{}');
+    expect(stored.enabled).toEqual({});
+  });
+
+  it('forgets the owner broker accounts on log out', async () => {
+    localStorage.setItem(
+      'rtfm-wardrive-served-brokers',
+      JSON.stringify([...DEFAULT_BROKERS, SERVED_CLUB])
+    );
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    vi.spyOn(wardriveApi, 'config').mockResolvedValue({
+      hashtag_channels: [],
+      brokers: [...DEFAULT_BROKERS, SERVED_CLUB],
+    });
+    vi.spyOn(wardriveApi, 'logout').mockResolvedValue(undefined);
+    setup();
+    await openMenu();
+    fireEvent.click(await screen.findByRole('button', { name: 'Log out' }));
+    await screen.findByRole('button', { name: 'Log in' });
+    const cached = localStorage.getItem('rtfm-wardrive-served-brokers') ?? '';
+    expect(cached).not.toContain('s3cret-pass');
+    expect(cached).toContain('dmc-wardriver');
+  });
+
+  it('drops cached broker accounts when the server says nobody is logged in', async () => {
+    localStorage.setItem(
+      'rtfm-wardrive-served-brokers',
+      JSON.stringify([...DEFAULT_BROKERS, SERVED_CLUB])
+    );
+    vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
+    setup();
+    await openMenu();
+    await screen.findByRole('button', { name: 'Log in' });
+    await waitFor(() =>
+      expect(localStorage.getItem('rtfm-wardrive-served-brokers') ?? '').not.toContain(
+        's3cret-pass'
+      )
+    );
   });
 
   it('publishes a reception to a broker that is switched on', async () => {

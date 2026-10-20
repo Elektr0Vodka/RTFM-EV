@@ -22,6 +22,9 @@ import {
 
 /** Nodes are fetched again at most this often, and only after the driver
  * left the middle half of the last box. */
+/** How often the page asks for the owner's settings again. */
+export const CONFIG_REFRESH_MS = 10 * 60 * 1000;
+
 export const NODE_REFETCH_MS = 10 * 60 * 1000;
 
 /** What the hook needs of the radio: its contact table. */
@@ -118,22 +121,28 @@ export function useNodeDirectory({
     };
   }, [getCache]);
 
+  // Asked on login and every CONFIG_REFRESH_MS after, so an owner's change
+  // (a broker removed, a calibration) reaches pages that stay open.
   useEffect(() => {
     if (!loggedIn || offline) return;
     let cancelled = false;
-    wardriveApi
-      .config()
-      .then((c) => {
-        if (cancelled) return;
-        fetchedChannels.current = true;
-        stored.current.channels = c.hashtag_channels;
-        setChannels(c.hashtag_channels);
-        save();
-        onConfigRef.current?.(c);
-      })
-      .catch(() => undefined);
+    const load = () =>
+      wardriveApi
+        .config()
+        .then((c) => {
+          if (cancelled) return;
+          fetchedChannels.current = true;
+          stored.current.channels = c.hashtag_channels;
+          setChannels(c.hashtag_channels);
+          save();
+          onConfigRef.current?.(c);
+        })
+        .catch(() => undefined);
+    void load();
+    const timer = setInterval(() => void load(), CONFIG_REFRESH_MS);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, [loggedIn, offline, save]);
 

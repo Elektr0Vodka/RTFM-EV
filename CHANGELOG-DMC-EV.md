@@ -32,6 +32,10 @@ the page reads are a local question to the radio.
   more (observer packets or wardrive messages, radio-signed token or an
   account). Observer brokers get packets in RTFM-EV's own community MQTT
   shape. on8ar is removed, with the account an older page kept for it.
+  The page asks for the list every 10 minutes; a broker no longer served
+  stops and loses its switch. Owner broker accounts are removed from the
+  browser on log out. A radio reporting 0 mV (no battery sensing) shows no
+  battery line.
 
 ## Update 2026-10-20 (wardrive page map functions, feat/wardrive-plugin)
 

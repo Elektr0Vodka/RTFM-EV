@@ -87,4 +87,23 @@ describe('useRadioStats', () => {
     expect(second.result.current.batteryMv).toBeNull();
     expect(second.result.current.noiseFloor).toBeNull();
   });
+
+  it('forgets the readings when the radio goes or another one connects', async () => {
+    const first = fakeRadio(3400, -100);
+    const { result, rerender } = renderHook(
+      ({ c }: { c: ReturnType<typeof fakeRadio> | null }) => useRadioStats(c, fixAt(52)),
+      { initialProps: { c: first as ReturnType<typeof fakeRadio> | null } }
+    );
+    await tick(0);
+    expect(result.current.batteryMv).toBe(3400);
+    expect(result.current.noiseFloor).toBe(-100);
+    rerender({ c: null });
+    await tick(0);
+    expect(result.current).toEqual({ batteryMv: null, noiseFloor: null, noiseReadings: [] });
+    // A radio on older firmware does not answer stats.
+    const silent = { calls: [], stats: vi.fn(async () => null) };
+    rerender({ c: silent as unknown as ReturnType<typeof fakeRadio> });
+    await tick(0);
+    expect(result.current.batteryMv).toBeNull();
+  });
 });

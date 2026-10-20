@@ -69,6 +69,8 @@ describe('broker list', () => {
       { ...good, id: 'noregion', region: undefined },
       { ...good, id: 'nolabel', format: 'wardrive' },
       { ...good, id: 'nopass', auth: 'password' },
+      // RTFM-EV's own upload destination is rtfm@<KEY>.
+      { ...good, id: 'rtfm' },
       'junk',
     ]);
     expect(list?.map((b) => b.id)).toEqual(['meshcore-analyzer']);

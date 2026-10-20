@@ -60,6 +60,8 @@ export function useRadioStats(companion: Pick<Companion, 'stats'> | null, fix: F
     return () => {
       live = false;
       clearInterval(timer);
+      // Readings belong to the radio they came from.
+      setBatteryMv(null);
     };
   }, [companion]);
 
@@ -67,7 +69,12 @@ export function useRadioStats(companion: Pick<Companion, 'stats'> | null, fix: F
     if (!companion) return;
     void readNoise();
     const timer = setInterval(() => void readNoise(), NOISE_EVERY_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      setNoiseFloor(null);
+      setNoiseReadings([]);
+      lastPos.current = null;
+    };
   }, [companion, readNoise]);
 
   // Moved 50 m since the last placed reading: read again now.

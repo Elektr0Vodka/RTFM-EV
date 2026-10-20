@@ -43,4 +43,9 @@ describe('radio panel battery', () => {
     renderPanel({ batteryMv: null });
     expect(screen.queryByTestId('wardrive-battery')).toBeNull();
   });
+
+  it('shows no battery line for a radio that cannot measure its battery', () => {
+    renderPanel({ batteryMv: 0 });
+    expect(screen.queryByTestId('wardrive-battery')).toBeNull();
+  });
 });

@@ -52,6 +52,10 @@ export const DEFAULT_BROKERS: Broker[] = [
 
 const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 
+/** The upload to RTFM-EV is queue destination rtfm@<KEY> (uploader.ts): a
+ * broker with that id would share its watermark. */
+export const RESERVED_BROKER_IDS = new Set(['rtfm']);
+
 function hostOf(url: string): string | null {
   try {
     const u = new URL(url);
@@ -65,6 +69,7 @@ function parseBroker(v: unknown): Broker | null {
   if (!v || typeof v !== 'object') return null;
   const b = v as Record<string, unknown>;
   if (!str(b.id) || !str(b.name) || !str(b.url)) return null;
+  if (RESERVED_BROKER_IDS.has(b.id)) return null;
   const host = hostOf(b.url);
   if (!host) return null;
   if (b.auth !== 'companion' && b.auth !== 'password') return null;

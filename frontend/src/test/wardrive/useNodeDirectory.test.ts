@@ -223,4 +223,27 @@ describe('useNodeDirectory', () => {
     });
     expect(result.current.channelKeys).toBe(built);
   });
+
+  it('asks for the config again every 10 minutes, so an owner change reaches open pages', async () => {
+    vi.useFakeTimers();
+    try {
+      const config = vi.spyOn(wardriveApi, 'config').mockResolvedValue({ hashtag_channels: [] });
+      vi.spyOn(wardriveApi, 'nodes').mockResolvedValue({ nodes: [], truncated: false });
+      renderHook(() =>
+        useNodeDirectory({
+          loggedIn: true,
+          offline: false,
+          fix: null,
+          companion: null,
+          cache: memoryCache(),
+        })
+      );
+      await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+      expect(config).toHaveBeenCalledTimes(1);
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10 * MIN)));
+      expect(config).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

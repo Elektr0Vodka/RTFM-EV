@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useT } from '../../i18n';
 import type { WardriveAdminConfig, WardriveBrokerIn } from '../../types';
+import { RESERVED_BROKER_IDS } from '../../wardrive/forward/brokers';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -24,7 +25,7 @@ export function brokerIdFor(name: string, taken: Set<string>): string {
       .slice(0, 28) || 'broker';
   const start = base.length < 2 ? `${base}-broker` : base;
   let id = start;
-  for (let n = 2; taken.has(id); n++) id = `${start}-${n}`;
+  for (let n = 2; taken.has(id) || RESERVED_BROKER_IDS.has(id); n++) id = `${start}-${n}`;
   return id;
 }
 

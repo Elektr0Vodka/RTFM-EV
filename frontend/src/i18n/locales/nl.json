@@ -2152,7 +2152,7 @@
   "wardrive_page_hud_noise": "ruis {value} dBm",
   "wardrive_page_hud_offset_title": "Kleuren liggen {offset} dB naast de gemeten waarde (kalibratie en verzwakker)",
   "wardrive_page_attenuator_heading": "Verzwakker",
-  "wardrive_page_attenuator_hint": "Zit er een verzwakker tussen radio en antenne, kies dan zijn waarde: kleuren, zeshoeken en geluid tellen het verlies er weer bij. De getoonde getallen blijven zoals gemeten; wat wordt opgeslagen of doorgestuurd verandert niet.",
+  "wardrive_page_attenuator_hint": "Zit er een verzwakker tussen radio en antenne, kies dan zijn waarde: kleuren, zeshoeken en zuilen tellen het verlies er weer bij. De getoonde getallen en het geluid blijven zoals gemeten; wat wordt opgeslagen of doorgestuurd verandert niet.",
   "wardrive_page_attenuator_none": "Geen",
   "wardrive_page_attenuator_step": "{db} dB",
   "wardrive_page_dot_low": "batterij bijna leeg",

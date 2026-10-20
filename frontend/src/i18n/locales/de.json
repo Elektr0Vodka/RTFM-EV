@@ -2152,7 +2152,7 @@
   "wardrive_page_hud_noise": "Rauschen {value} dBm",
   "wardrive_page_hud_offset_title": "Farben liegen {offset} dB neben dem gemessenen Wert (Kalibrierung und Dämpfungsglied)",
   "wardrive_page_attenuator_heading": "Dämpfungsglied",
-  "wardrive_page_attenuator_hint": "Sitzt ein Dämpfungsglied zwischen Funkgerät und Antenne, wähle seinen Wert: Farben, Sechsecke und Ton rechnen den Verlust wieder hinzu. Die angezeigten Zahlen bleiben gemessen; Gespeichertes und Weitergeleitetes ändert sich nicht.",
+  "wardrive_page_attenuator_hint": "Sitzt ein Dämpfungsglied zwischen Funkgerät und Antenne, wähle seinen Wert: Farben, Sechsecke und Säulen rechnen den Verlust wieder hinzu. Die angezeigten Zahlen und der Ton bleiben gemessen; Gespeichertes und Weitergeleitetes ändert sich nicht.",
   "wardrive_page_attenuator_none": "Keins",
   "wardrive_page_attenuator_step": "{db} dB",
   "wardrive_page_dot_low": "Akku schwach",

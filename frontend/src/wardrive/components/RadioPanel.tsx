@@ -1,6 +1,6 @@
 import { useT } from '../../i18n';
 import { Button } from '../../components/ui/button';
-import { batteryPercent, isLowBattery } from '../radio/battery';
+import { batteryKnown, batteryPercent, isLowBattery } from '../radio/battery';
 
 export function RadioPanel({
   info,
@@ -21,7 +21,7 @@ export function RadioPanel({
   batteryMv?: number | null;
 }) {
   const t = useT();
-  const hasBattery = !!info && batteryMv !== null && Number.isFinite(batteryMv);
+  const hasBattery = !!info && batteryKnown(batteryMv);
   const percent = hasBattery ? batteryPercent(batteryMv) : null;
   const volts = hasBattery ? (batteryMv / 1000).toFixed(2) : '';
   return (
