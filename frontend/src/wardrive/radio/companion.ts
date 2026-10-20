@@ -140,14 +140,23 @@ export class Companion {
 
   /** A command that makes the radio transmit (only Auto-discover sends
    * these). In the one-at-a-time chain, so its OK cannot be taken for a sign
-   * step's. `sent`: the radio answered OK (`'ok'`) or SENT (`'sent'`), or did
-   * not answer in time (it may have gone out); false on ERR or a link error. */
+   * step's. `allowed` is asked inside the chain, right before the frame goes:
+   * a frame queued while Auto-discover was on is dropped once it is off.
+   * `sent`: the radio answered OK (`'ok'`) or SENT (`'sent'`), or did not
+   * answer in time (it may have gone out); false on ERR, a link error or not
+   * allowed. While an earlier reply may still come (`lateReplies`), an OK or
+   * ERR cannot be told apart from it and counts as sent. */
   transmit(
     frame: Uint8Array,
     accept: 'ok' | 'sent',
-    timeoutMs = TRANSMIT_TIMEOUT_MS
+    timeoutMs = TRANSMIT_TIMEOUT_MS,
+    allowed: () => boolean = () => true
   ): Promise<{ sent: boolean; reply: Uint8Array | null }> {
-    const run = this.signing.then(() => this.transmitNow(frame, accept, timeoutMs));
+    const run = this.signing.then(() =>
+      allowed()
+        ? this.transmitNow(frame, accept, timeoutMs)
+        : { sent: false, reply: null as Uint8Array | null }
+    );
     this.signing = run.catch(() => undefined);
     return run;
   }
@@ -157,27 +166,41 @@ export class Companion {
     accept: 'ok' | 'sent',
     timeoutMs: number
   ): Promise<{ sent: boolean; reply: Uint8Array | null }> {
-    const want = accept === 'ok' ? RESP_OK : RESP_SENT;
+    const late = this.lateReplies;
     return new Promise((resolve) => {
       const finish = (r: { sent: boolean; reply: Uint8Array | null }) => {
         clearTimeout(timer);
         off();
         resolve(r);
       };
-      const timer = setTimeout(() => finish({ sent: true, reply: null }), timeoutMs);
+      const timer = setTimeout(() => {
+        this.lateReplies = true;
+        finish({ sent: true, reply: null });
+      }, timeoutMs);
       const off = this.transport.onFrame((reply) => {
-        if (reply[0] === want) finish({ sent: true, reply });
-        else if (reply[0] === RESP_ERR) finish({ sent: false, reply: null });
+        if (accept === 'sent' && reply[0] === RESP_SENT && reply.length >= 10) {
+          // Its own code: every earlier reply is behind it.
+          this.lateReplies = false;
+          finish({ sent: true, reply });
+        } else if (accept === 'ok' && (reply[0] === RESP_OK || reply[0] === RESP_ERR) && late) {
+          finish({ sent: true, reply: null });
+        } else if (accept === 'ok' && reply[0] === RESP_OK) {
+          finish({ sent: true, reply });
+        } else if (reply[0] === RESP_ERR && !late) {
+          finish({ sent: false, reply: null });
+        }
       });
       this.transport.send(frame).catch(() => finish({ sent: false, reply: null }));
     });
   }
 
   /** One local command and the first reply `accept` reads (the contact read
-   * and write of a directed ask), null on a timeout. In the chain. */
+   * and write of a directed ask), null on a timeout. In the chain. `late`
+   * tells `accept` that an OK or ERR may answer an earlier command that timed
+   * out; a reply with a code of its own clears that. */
   request<T>(
     frame: Uint8Array,
-    accept: (reply: Uint8Array) => T | null,
+    accept: (reply: Uint8Array, late: boolean) => T | null,
     timeoutMs: number
   ): Promise<T | null> {
     const run = this.signing.then(
@@ -188,10 +211,15 @@ export class Companion {
             off();
             resolve(v);
           };
-          const timer = setTimeout(() => finish(null), timeoutMs);
+          const timer = setTimeout(() => {
+            this.lateReplies = true;
+            finish(null);
+          }, timeoutMs);
           const off = this.transport.onFrame((reply) => {
-            const v = accept(reply);
-            if (v !== null) finish(v);
+            const v = accept(reply, this.lateReplies);
+            if (v === null) return;
+            if (reply[0] !== RESP_OK && reply[0] !== RESP_ERR) this.lateReplies = false;
+            finish(v);
           });
           this.transport.send(frame).catch(() => finish(null));
         })

@@ -114,6 +114,9 @@ export class AutoDiscover {
   private busy = false;
   private sweep: SweepState = { attempts: new Map(), lastAskedAt: new Map(), cursor: 0 };
   private readonly io: ContactIo;
+  private disposed = false;
+  /** Off and on again does not buy a fresh cycle inside the floor. */
+  private holdUntil = 0;
   private readonly offPush: () => void;
 
   constructor(private readonly opts: AutoDiscoverOptions) {
@@ -122,17 +125,21 @@ export class AutoDiscover {
       getContact: (pk) =>
         c.request(
           buildGetContactByKey(pk),
-          (b) => {
+          (b, late) => {
             const parsed = parseContactReply(b);
             if (!parsed) return null;
-            return parsed.found && parsed.pubkey !== pk ? null : parsed;
+            // A not-found ERR may be a late answer to something else.
+            if (!parsed.found) return late ? null : parsed;
+            return parsed.pubkey !== pk ? null : parsed;
           },
           CONTACT_TIMEOUT_MS
         ),
+      // While a late OK/ERR may come, an ack proves nothing: read as not
+      // acked, so no ask goes out and an unacked restore stays owed.
       writeContact: (frame) =>
         c.request(
           frame,
-          (b) => (b[0] === 0 ? true : b[0] === 1 ? false : null),
+          (b, late) => (b[0] !== 0 && b[0] !== 1 ? null : late ? false : b[0] === 0),
           CONTACT_TIMEOUT_MS
         ),
     };
@@ -158,8 +165,9 @@ export class AutoDiscover {
   }
 
   start(): void {
-    if (this.enabled) return;
+    if (this.enabled || this.disposed) return;
     this.enabled = true;
+    if (this.lastFireAt !== null) this.holdUntil = this.lastFireAt + this.floorMs();
     this.lastFireAt = null;
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.tick();
@@ -181,12 +189,19 @@ export class AutoDiscover {
 
   /** The radio is gone or the page closes. */
   dispose(): void {
+    this.disposed = true;
     this.stop();
     this.offPush();
   }
 
   private async send(frame: Uint8Array, accept: 'ok' | 'sent', bytes: number, kind: SentKind) {
-    const r = await this.opts.companion.transmit(frame, accept);
+    // Asked again inside the chain: a frame queued while on is dropped once off.
+    const r = await this.opts.companion.transmit(
+      frame,
+      accept,
+      undefined,
+      () => this.enabled && !this.disposed
+    );
     if (!r.sent) return r;
     this.sentBytes.push(bytes);
     this.opts.onSent(kind);
@@ -197,6 +212,7 @@ export class AutoDiscover {
   private tick(): void {
     if (!this.enabled) return;
     const now = Date.now();
+    if (this.lastFireAt === null && now < this.holdUntil) return;
     const pos = this.opts.position();
     const fire = shouldAutoFire({
       lastFireAt: this.lastFireAt,

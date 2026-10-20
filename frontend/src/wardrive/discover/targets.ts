@@ -29,7 +29,14 @@ function repeaterReading(entries: HeardEntry[], wanted: (id: string) => boolean)
   const out: string[] = [];
   for (const [id, e] of newestPerSender(entries, wanted)) {
     const s = e.sender;
-    if (s.role === 'Repeater' || s.kind === 'relay' || s.kind === 'trace_reply') out.push(id);
+    // Only repeaters are sent anonymous asks, so their answer counts too.
+    if (
+      s.role === 'Repeater' ||
+      s.kind === 'relay' ||
+      s.kind === 'trace_reply' ||
+      s.kind === 'anon_reply'
+    )
+      out.push(id);
   }
   return out;
 }

@@ -186,4 +186,14 @@ describe('who is a repeater', () => {
     expect(selectedCompanionIds(entries, selected)).toEqual(['a1ff' + '00'.repeat(30)]);
     expect(selectedRepeaterIds(entries, new Set())).toEqual([]);
   });
+
+  it('keeps a repeater a repeater after it answered an anonymous ask', () => {
+    const k = 'b1' + '22'.repeat(31);
+    const entries = [
+      { at: 1, sender: { kind: 'relay' as const, id: k, label: null, role: null } },
+      { at: 2, sender: { kind: 'anon_reply' as const, id: k, label: null, role: null } },
+    ];
+    expect(selectedRepeaterIds(entries, new Set([k]))).toEqual([k]);
+    expect(selectedCompanionIds(entries, new Set([k]))).toEqual([]);
+  });
 });
