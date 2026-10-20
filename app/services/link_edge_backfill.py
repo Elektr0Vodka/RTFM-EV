@@ -10,6 +10,7 @@ import asyncio
 import logging
 
 from app.decoder import parse_packet
+from app.perf.recorders import loops as perf_loops
 from app.repository.link_edges import LinkEdgesRepository
 from app.services.link_edges import current_self_node, record_packet_edges
 from app.services.traffic_links import KnownNode
@@ -52,7 +53,9 @@ async def _loop() -> None:
             if me is None:
                 await asyncio.sleep(SELF_WAIT_SECONDS)
                 continue
-            if await run_backfill_batch(me):
+            with perf_loops.tick("link_edge_backfill", None):
+                done = await run_backfill_batch(me)
+            if done:
                 logger.info("Link edge backfill complete")
                 return
             await asyncio.sleep(0)  # yield between batches

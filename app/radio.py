@@ -3,6 +3,7 @@ import glob
 import logging
 import platform
 import re
+import time
 from collections import OrderedDict
 from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
@@ -12,6 +13,7 @@ from serial.serialutil import SerialException
 
 from app.config import settings
 from app.keystore import clear_keys
+from app.perf.recorders import radio_ops
 
 logger = logging.getLogger(__name__)
 MAX_FRONTEND_RECONNECT_ERROR_BROADCASTS = 3
@@ -272,7 +274,10 @@ class RadioManager:
             RadioDisconnectedError: If the radio disconnected before the lock
                 was acquired (``_meshcore`` is ``None``).
         """
+        waited = time.perf_counter()
         await self._acquire_operation_lock(name, blocking=blocking)
+        held = time.perf_counter()
+        failure: BaseException | None = None
 
         mc = self._meshcore
         if mc is None:
@@ -293,7 +298,17 @@ class RadioManager:
                     await mc.stop_auto_message_fetching()
                     auto_fetch_paused = True
                 yield mc
+        except Exception as exc:
+            failure = exc
+            raise
         finally:
+            radio_ops.record(
+                name,
+                wait_ms=(held - waited) * 1000,
+                hold_ms=(time.perf_counter() - held) * 1000,
+                error=failure is not None,
+                error_text=f"{type(failure).__name__}: {failure}" if failure else None,
+            )
             try:
                 if auto_fetch_paused:
                     try:
@@ -674,15 +689,18 @@ class RadioManager:
 
                 if self.is_connected:
                     logger.info("Radio reconnected successfully at %s", self._connection_info)
+                    radio_ops.note_reconnect(ok=True)
                     self._reset_reconnect_error_broadcasts()
                     if broadcast_on_success:
                         broadcast_health(True, self._connection_info)
                     return True
                 else:
                     logger.warning("Reconnection failed: not connected after connect()")
+                    radio_ops.note_reconnect(ok=False)
                     return False
 
             except Exception as e:
+                radio_ops.note_reconnect(ok=False)
                 log_message, frontend_detail, include_traceback = _format_reconnect_failure(e)
                 logger.warning(log_message, exc_info=include_traceback)
                 self._broadcast_reconnect_error_if_needed(frontend_detail)

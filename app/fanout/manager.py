@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from app.decoder import TXT_TYPE_CLI_COMMAND, TXT_TYPE_GROUP_DATA
 from app.fanout.base import FanoutModule
 from app.meshcomod_contact import is_meshcomod_command_contact
+from app.perf.recorders import outputs as perf_outputs
 
 logger = logging.getLogger(__name__)
 _DISPATCH_TIMEOUT_SECONDS = 30.0
@@ -217,11 +219,14 @@ class FanoutManager:
         log_label: str,
     ) -> None:
         """Run one module handler with per-module exception isolation."""
+        started = time.perf_counter()
         try:
             handler = getattr(module, handler_name)
             await asyncio.wait_for(handler(data), timeout=_DISPATCH_TIMEOUT_SECONDS)
+            perf_outputs.record(config_id, (time.perf_counter() - started) * 1000, "ok")
             self._clear_module_error(config_id)
         except TimeoutError:
+            perf_outputs.record(config_id, (time.perf_counter() - started) * 1000, "timeout")
             timeout_error = f"{handler_name} timed out after {_DISPATCH_TIMEOUT_SECONDS:.1f}s"
             self._set_module_error(config_id, timeout_error)
             logger.error(
@@ -232,6 +237,7 @@ class FanoutManager:
             )
             await self._restart_module(config_id, module)
         except Exception as exc:
+            perf_outputs.record(config_id, (time.perf_counter() - started) * 1000, "error")
             self._set_module_error(config_id, _format_error_detail(exc))
             logger.exception("Fanout %s %s error", config_id, log_label)
 

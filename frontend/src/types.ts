@@ -1064,6 +1064,7 @@ type ConversationType =
   | 'fleet'
   | 'spam-guard'
   | 'wardrive-map'
+  | 'performance'
   | 'analyze'
   | 'packet-history'
   | 'manual'

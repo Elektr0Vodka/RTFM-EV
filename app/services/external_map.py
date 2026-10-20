@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 import httpx
 
 from app.models import ExternalMapNode
+from app.perf.recorders import loops as perf_loops
 from app.repository.external_map import ExternalMapRepository
 from app.repository.settings import AppSettingsRepository
 from app.version_info import user_agent
@@ -227,7 +228,8 @@ async def _sync_loop() -> None:
     while True:
         try:
             await _sleep_until_next_utc_top_of_hour()
-            await _run_periodic_cycle(datetime.now(UTC))
+            with perf_loops.tick("external_map.sync", 3600):
+                await _run_periodic_cycle(datetime.now(UTC))
         except asyncio.CancelledError:
             break
         except Exception as exc:

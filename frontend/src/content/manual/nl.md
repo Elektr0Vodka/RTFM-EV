@@ -320,6 +320,21 @@ De grafieken voor batterij, ruisvloer en zendtijd tonen de huidige radio plus de
 
 **Repeaters Ontdekken**, **Sensoren Ontdekken** of **Beide Ontdekken** verstuurt een kort detectieverzoek via RF en toont de nodes die antwoorden. **Regio's Ontdekken** vraagt repeaters in de buurt welke regio's ze floodden, zodat je die aan je bekende regio's kunt toevoegen.
 
+### Prestaties
+
+Wat RTFM-EV zelf doet. **Overzicht** toont de algemene status (met de reden als er iets mis is), uptime, het proces en de host, tegels voor CPU, geheugen, event loop vertraging, asyncio-taken, pakketten per minuut, database- en radiotijden en te late achtergrondtaken, en daaronder grafieken en kaarten. De andere tabbladen tonen één kaart volledig:
+
+- **Event loop:** de vertraging (hoe lang een klaarstaande taak wacht) en elke blokkade van 100 ms of meer. Bij een langere blokkade toont de pagina wat het proces op dat moment deed, als korte stack.
+- **Achtergrondtaken:** elke doorlopende lus met status (gezond, bezig, te laat, inactief, mislukt), interval, laatste run, duur en een strook van 24 uur, plus alle asyncio-taken van dit moment.
+- **Pakketverwerking:** pakketten per minuut en de tijd per stap (ontleden, opslaan, verwerken, uitzenden), met dubbele, ontsleutelde en niet te ontsleutelen pakketten.
+- **Database:** grootte van het bestand en de WAL, bezette lezers, wachttijd op het slot en de traagste database-aanroepen van het laatste uur.
+- **Radioverbinding:** hoe lang radio-operaties de radio bezet houden, fouten, herverbindingen en de traagste operaties.
+- **Uitvoer:** MQTT en de andere fanout-modules, WebSocket-clients, TAK Stream en webpush.
+- **Verzoeken:** de drukste API-routes met hun tijden en serverfouten.
+- **Logs:** de laatste waarschuwingen en fouten uit de backend-log.
+
+De pagina ververst elke 5 seconden. Live, 15m en 1h komen uit het geheugen, per 10 seconden; voor langere vensters wordt 30 dagen lang één regel per minuut bewaard. CPU is het aandeel van één core. Geheugen, threads, open bestanden en de containerlimiet komen uit Linux en tonen "–" op andere systemen. Meten kost heel weinig en er wordt niets via de radio verstuurd.
+
 ### Spam Guard
 
 Spam Guard stopt kanaalspam bij je repeater. Het kijkt naar gedrag, nooit naar mensen of meningen: dezelfde tekst onder meerdere verzonnen namen, stortvloeden van kopieën en repeaters waarlangs spam het mesh binnenkomt. Zet het aan in **Instellingen > Lokale configuratie > Spambescherming**; de pagina verschijnt dan onder Tools.

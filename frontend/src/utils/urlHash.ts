@@ -23,6 +23,7 @@ interface ParsedHashConversation {
     | 'fleet'
     | 'spam-guard'
     | 'wardrive-map'
+    | 'performance'
     | 'analyze'
     | 'packet-history'
     | 'manual'
@@ -103,6 +104,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'spam-guard') {
     return { type: 'spam-guard', name: 'spam-guard' };
+  }
+
+  if (hash === 'performance') {
+    return { type: 'performance', name: 'performance' };
   }
 
   if (hash === 'lan-scan') {
@@ -287,6 +292,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-trends') return '#mesh-trends';
   if (conv.type === 'mesh-discovery') return '#mesh-discovery';
   if (conv.type === 'spam-guard') return '#spam-guard';
+  if (conv.type === 'performance') return '#performance';
   if (conv.type === 'lan-scan') return '#lan-scan';
   if (conv.type === 'wardrive-map') return '#wardrive-map';
   if (conv.type === 'snmp') {

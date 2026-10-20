@@ -30,6 +30,7 @@ import time
 
 from meshcore.events import EventType
 
+from app.perf.recorders import loops as perf_loops
 from app.repository import ContactRepository
 from app.services.host_repeater import HostRepeaterRuntime, host_repeater
 from app.services.host_repeater_link import radio_snapshot
@@ -102,7 +103,8 @@ class NeighbourPoller:
         while True:
             await asyncio.sleep(TICK_SECONDS)
             try:
-                await self.tick()
+                with perf_loops.tick("host_repeater.neighbor_poll", TICK_SECONDS):
+                    await self.tick()
             except asyncio.CancelledError:
                 raise
             except Exception:

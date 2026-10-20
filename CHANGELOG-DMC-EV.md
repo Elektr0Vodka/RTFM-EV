@@ -11,9 +11,55 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (pull translations from rtfm-ev-i18n, pull-translations)
+
+No migration, no new dependency.
+
+### Internationalization
+- New `scripts/i18n/pull_translations.py` (standard library only) downloads the
+  latest rtfm-ev-i18n release, checks the tarball against its `.sha256` asset,
+  and rewrites `nl.json` and `de.json` in `en.json`'s key order. Per key it uses
+  the release translation, else the current app value, else English. A value
+  whose shape or `{placeholders}` no longer match English is skipped. `en.json`
+  is never written. `--dry-run` prints the counts without writing.
+- nl and de are now pulled from the latest release; `_meta` records the
+  release tag.
+
+## Update 2026-10-20 (Performance page, feat/performance-page)
+
+Migration **_159** (`perf_samples`). No new dependency (no psutil: CPU from
+`time.process_time()`, the rest from `/proc` and cgroup files on Linux).
+Nothing is sent over the radio. The unmerged wardrive branch also has a `_159`
+and must renumber.
+
+### Tools
+- **Performance** page (`#performance`): RTFM-EV watching itself. Overview with
+  the overall state and its reasons, uptime, process and host, tiles (CPU,
+  memory, event-loop lag, asyncio tasks, packets per minute, database and radio
+  timing, overdue tasks), charts and cards. Tabs for the event loop (lag chart,
+  stalls with the stack of what was running), background tasks (every
+  long-running loop with state, interval, last run, duration, 24-hour strip;
+  all asyncio tasks), packet pipeline (time per step, duplicates, decrypted),
+  database (file and WAL size, readers busy, lock waits, slowest calls per
+  repository function), radio link (slowest radio operations, errors,
+  reconnects), outputs (fanout modules, WebSocket, TAK Stream, web push), API
+  routes and the latest warnings and errors. Refreshes every 5 s; Live, 15m and
+  1h from memory at 10 s detail, 6h to 30d from stored one-minute rows.
+
+### Backend
+- `app/perf/`: bounded in-memory recorders fed by hooks in `process_raw_packet`,
+  `Database.tx()` / `readonly()`, `RadioManager.radio_operation()` /
+  `reconnect()`, `FanoutManager._run_handler()`, an ASGI middleware for `/api`
+  routes and a `loops.tick()` wrapper around 17 background loop iterations. A
+  watchdog thread captures the event-loop thread's stack when the loop is
+  blocked; a loop stall of 1 s or more is also logged as a warning. A 10 s
+  sampler keeps an hour in memory and writes one row per minute (30 days).
+- `GET /api/perf/snapshot`, `GET /api/perf/history?range=live|15m|1h|6h|24h|7d|30d`.
+
 ## Update 2026-10-19 (wardrive plugin, feat/wardrive-plugin)
 
-Opt-in: nothing changes unless `MESHCORE_WARDRIVE=true`. Migrations `_159`, `_160`. New
+Opt-in: nothing changes unless `MESHCORE_WARDRIVE=true`. Migrations `_160`, `_161`
+(renumbered after main's `_159` perf_samples). New
 dependencies: `mqtt` (the page's broker client) and `fake-indexeddb` (tests). Nothing is sent over the
 radio and the home radio is never used.
 
@@ -85,7 +131,7 @@ radio and the home radio is never used.
   status.
 
 ### Wardrive server side
-- **Channels and names for drivers** (phase 2, migration `_160`
+- **Channels and names for drivers** (phase 2, migration `_161`
   `wardrive_config`): `GET /api/wardrive/config` serves the hashtag channel
   names drivers decode (names only, never keys; private channels never),
   set by the owner in Settings > Wardrive (default: the home radio's

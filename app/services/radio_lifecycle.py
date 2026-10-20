@@ -2,6 +2,8 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 
+from app.perf.recorders import loops as perf_loops
+
 logger = logging.getLogger(__name__)
 
 POST_CONNECT_SETUP_TIMEOUT_SECONDS = 300
@@ -412,54 +414,55 @@ async def connection_monitor_loop(radio_manager) -> None:
         try:
             await asyncio.sleep(check_interval_seconds)
 
-            current_connected = radio_manager.is_connected
-            connection_desired = radio_manager.connection_desired
+            with perf_loops.tick("radio.connection_monitor", check_interval_seconds):
+                current_connected = radio_manager.is_connected
+                connection_desired = radio_manager.connection_desired
 
-            if radio_manager._last_connected and not current_connected:
-                logger.warning("Radio connection lost, broadcasting status change")
-                broadcast_health(False, radio_manager.connection_info)
-                radio_manager._last_connected = False
-                consecutive_setup_failures = 0
-
-            if not connection_desired:
-                if current_connected:
-                    logger.info("Radio connection paused by operator; disconnecting transport")
-                    await radio_manager.disconnect()
-                consecutive_setup_failures = 0
-                continue
-
-            if not current_connected:
-                if not radio_manager.is_reconnecting and await reconnect_and_prepare_radio(
-                    radio_manager,
-                    broadcast_on_success=True,
-                ):
+                if radio_manager._last_connected and not current_connected:
+                    logger.warning("Radio connection lost, broadcasting status change")
+                    broadcast_health(False, radio_manager.connection_info)
+                    radio_manager._last_connected = False
                     consecutive_setup_failures = 0
 
-            elif not radio_manager._last_connected and current_connected:
-                logger.info("Radio connection restored")
-                await prepare_connected_radio(radio_manager, broadcast_on_success=True)
-                consecutive_setup_failures = 0
+                if not connection_desired:
+                    if current_connected:
+                        logger.info("Radio connection paused by operator; disconnecting transport")
+                        await radio_manager.disconnect()
+                    consecutive_setup_failures = 0
+                    continue
 
-            elif (
-                current_connected
-                and not radio_manager.is_setup_complete
-                and not radio_manager.is_setup_in_progress
-            ):
-                logger.info("Retrying post-connect setup...")
-                await prepare_connected_radio(radio_manager, broadcast_on_success=True)
-                consecutive_setup_failures = 0
+                if not current_connected:
+                    if not radio_manager.is_reconnecting and await reconnect_and_prepare_radio(
+                        radio_manager,
+                        broadcast_on_success=True,
+                    ):
+                        consecutive_setup_failures = 0
 
-            elif (
-                current_connected
-                and radio_manager.library_reconnect_pending
-                and not radio_manager.is_setup_in_progress
-            ):
-                # meshcore reconnected the transport faster than this loop polls,
-                # so the drop was never seen. The radio may have rebooted and lost
-                # its RAM-only state (flood scope), so set it up again.
-                logger.info("Radio transport reconnected; re-running post-connect setup")
-                await prepare_connected_radio(radio_manager, broadcast_on_success=True)
-                consecutive_setup_failures = 0
+                elif not radio_manager._last_connected and current_connected:
+                    logger.info("Radio connection restored")
+                    await prepare_connected_radio(radio_manager, broadcast_on_success=True)
+                    consecutive_setup_failures = 0
+
+                elif (
+                    current_connected
+                    and not radio_manager.is_setup_complete
+                    and not radio_manager.is_setup_in_progress
+                ):
+                    logger.info("Retrying post-connect setup...")
+                    await prepare_connected_radio(radio_manager, broadcast_on_success=True)
+                    consecutive_setup_failures = 0
+
+                elif (
+                    current_connected
+                    and radio_manager.library_reconnect_pending
+                    and not radio_manager.is_setup_in_progress
+                ):
+                    # meshcore reconnected the transport faster than this loop polls,
+                    # so the drop was never seen. The radio may have rebooted and lost
+                    # its RAM-only state (flood scope), so set it up again.
+                    logger.info("Radio transport reconnected; re-running post-connect setup")
+                    await prepare_connected_radio(radio_manager, broadcast_on_success=True)
+                    consecutive_setup_failures = 0
 
         except asyncio.CancelledError:
             break

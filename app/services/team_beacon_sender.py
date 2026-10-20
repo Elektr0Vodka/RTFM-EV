@@ -14,6 +14,7 @@ import logging
 import time
 
 from app.channel_constants import is_public_channel_key
+from app.perf.recorders import loops as perf_loops
 from app.repository import AppSettingsRepository, ChannelRepository, MessageRepository
 from app.services.message_send import send_channel_message_to_channel
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -104,7 +105,8 @@ async def _beacon_loop() -> None:
     while True:
         try:
             await asyncio.sleep(CHECK_INTERVAL_SECONDS)
-            await send_team_beacon_if_due()
+            with perf_loops.tick("team_beacon", CHECK_INTERVAL_SECONDS):
+                await send_team_beacon_if_due()
         except asyncio.CancelledError:
             logger.info("TEAM beacon task cancelled")
             break

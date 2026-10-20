@@ -30,6 +30,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.channel_constants import PUBLIC_CHANNEL_KEY
+from app.perf.recorders import loops as perf_loops
 from app.repository import AppSettingsRepository, MessageRepository
 from app.repository.spam import (
     SpamEvidenceRepository,
@@ -222,7 +223,8 @@ class SpamGuardRuntime:
         while True:
             await asyncio.sleep(TICK_SECONDS)
             try:
-                await self.tick()
+                with perf_loops.tick("spam_guard.tick", TICK_SECONDS):
+                    await self.tick()
             except Exception:
                 logger.exception("Spam Guard tick failed")
 

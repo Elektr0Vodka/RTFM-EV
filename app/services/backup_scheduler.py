@@ -4,6 +4,7 @@ import os
 from datetime import UTC, datetime
 
 from app.database import db
+from app.perf.recorders import loops as perf_loops
 from app.repository import AppSettingsRepository
 from app.services.backup_store import (
     BackupDirError,
@@ -56,7 +57,8 @@ async def _backup_loop() -> None:
     await asyncio.sleep(60)
     while True:
         try:
-            await run_scheduled_backup_once()
+            with perf_loops.tick("backup_scheduler", CHECK_INTERVAL_SECONDS):
+                await run_scheduled_backup_once()
         except asyncio.CancelledError:
             raise
         except Exception as e:

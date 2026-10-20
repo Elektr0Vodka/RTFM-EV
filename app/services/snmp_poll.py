@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 from app.models import SnmpPollResponse
+from app.perf.recorders import loops as perf_loops
 from app.repository.contact_snmp import ContactSnmpRepository, SnmpHistoryRepository
 from app.snmp.client import SnmpError, poll_meshcore
 
@@ -122,7 +123,8 @@ async def _schedule_loop() -> None:
     await asyncio.sleep(SCHEDULE_TICK_SECONDS)
     while True:
         try:
-            await run_scheduled_polls_once()
+            with perf_loops.tick("snmp_poll.schedule", SCHEDULE_TICK_SECONDS):
+                await run_scheduled_polls_once()
         except asyncio.CancelledError:
             raise
         except Exception as e:

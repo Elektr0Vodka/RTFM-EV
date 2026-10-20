@@ -24,6 +24,7 @@ from typing import Any
 
 from meshcore import EventType
 
+from app.perf.recorders import loops as perf_loops
 from app.radio import RadioDisconnectedError, RadioOperationBusyError
 from app.services.openhop import is_openhop
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -201,23 +202,24 @@ async def _stats_sampling_loop() -> None:
     global _latest_stats
     while True:
         try:
-            snapshot = await _sample_all_stats()
-            if snapshot:
-                _latest_stats = snapshot
-                await _persist_samples(snapshot)
-            elif not radio_manager.is_connected:
-                _latest_stats = {}
-            from app.services.host_repeater import host_repeater
+            with perf_loops.tick("radio_stats.sampling", STATS_SAMPLE_INTERVAL_SECONDS):
+                snapshot = await _sample_all_stats()
+                if snapshot:
+                    _latest_stats = snapshot
+                    await _persist_samples(snapshot)
+                elif not radio_manager.is_connected:
+                    _latest_stats = {}
+                from app.services.host_repeater import host_repeater
 
-            host_repeater.on_stats_sample(snapshot)
-            from app.websocket import broadcast_health
+                host_repeater.on_stats_sample(snapshot)
+                from app.websocket import broadcast_health
 
-            broadcast_health(radio_manager.is_connected, radio_manager.connection_info)
+                broadcast_health(radio_manager.is_connected, radio_manager.connection_info)
 
-            # Dispatch enriched health snapshot to fanout modules
-            from app.fanout.manager import fanout_manager
+                # Dispatch enriched health snapshot to fanout modules
+                from app.fanout.manager import fanout_manager
 
-            await fanout_manager.broadcast_health_fanout(_build_fanout_payload(snapshot))
+                await fanout_manager.broadcast_health_fanout(_build_fanout_payload(snapshot))
         except asyncio.CancelledError:
             raise
         except Exception:

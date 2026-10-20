@@ -29,6 +29,7 @@ import {
   Car,
   ScanSearch,
   ShieldCheck,
+  Cpu,
   Search as SearchIcon,
   Settings2,
   SquarePen,
@@ -572,6 +573,7 @@ export function Sidebar({
       | 'fleet'
       | 'spam-guard'
       | 'wardrive-map'
+      | 'performance'
       | 'analyze'
       | 'packet-history'
       | 'manual'
@@ -1501,6 +1503,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'performance':
+        return renderSidebarActionRow({
+          key: 'tool-performance',
+          active: isActive('performance', 'performance'),
+          icon: <Cpu className="h-4 w-4" />,
+          label: t('nav_performance'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'performance',
+              id: 'performance',
+              name: t('nav_performance'),
+            }),
+          iconOnly,
+        });
       case 'raw':
         return renderSidebarActionRow({
           key: 'tool-raw',
@@ -2050,6 +2066,7 @@ export function Sidebar({
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
     'wardrive-map': t('nav_wardrive_map'),
+    performance: t('nav_performance'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),
