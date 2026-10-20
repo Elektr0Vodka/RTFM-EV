@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (pull translations from rtfm-ev-i18n, pull-translations)
+
+No migration, no new dependency.
+
+### Internationalization
+- New `scripts/i18n/pull_translations.py` (standard library only) downloads the
+  latest rtfm-ev-i18n release, checks the tarball against its `.sha256` asset,
+  and rewrites `nl.json` and `de.json` in `en.json`'s key order. Per key it uses
+  the release translation, else the current app value, else English. A value
+  whose shape or `{placeholders}` no longer match English is skipped. `en.json`
+  is never written. `--dry-run` prints the counts without writing.
+- nl and de are now pulled from the latest release; `_meta` records the
+  release tag.
+
 ## Update 2026-10-20 (Performance page, feat/performance-page)
 
 Migration **_159** (`perf_samples`). No new dependency (no psutil: CPU from

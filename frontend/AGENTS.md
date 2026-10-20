@@ -1082,7 +1082,11 @@ Rules for new strings:
 - Add every key to all three catalogs: `src/i18n/locales/{en,nl,de}.json`.
   `en.json` is the source of truth; the parity test (`src/test/i18nParity.test.ts`)
   fails if the key sets differ. If a NL/DE translation is unknown, copy the
-  English value - the runtime falls back to English anyway.
+  English value - the runtime falls back to English anyway. Translations come
+  back from rtfm-ev-i18n with `python scripts/i18n/pull_translations.py`, which
+  rewrites nl.json and de.json from its latest release. Run that repo's i18n
+  workflow first (Actions, i18n, Run workflow) so the release includes your
+  newest drafts.
 - Interpolation uses single-brace `{name}` tokens; pass params as
   `t('key', { name: value })`.
 - Counted strings use a plural object `{ "one": "...", "other": "..." }` and are
