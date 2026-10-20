@@ -239,6 +239,22 @@ machine this was authored on and may differ elsewhere.
   `filters.js`, `arrow.js`, read for behaviour only; the decoder is
   `@michaelhart/meshcore-decoder` (the patched multibyte build the app
   pins).
+- Coverage map (Tools > Wardrive Map tab and the page's Map tab): behaviour
+  of map.mesh-hunter.eu, core-hunter `upstream/master` 000bb89 `web/` (web
+  1.27.0, the version the live site served on 2026-10-20) and
+  `server/internal/httpapi`, read for behaviour only. The server's sender
+  rules (`app/wardrive/senders.py`) follow the page's
+  `frontend/src/wardrive/decode/reception.ts` and meshcore-decoder 0.3.0's
+  payload validity checks; `tests/fixtures/wardrive_sender_vectors.json` is
+  written by the page's decoder and checks both.
+  The client's Locate maths (`frontend/src/wardrive/coverage/locate.ts`),
+  attribution by reach, hues, rays and node rows (`attribution.ts`,
+  `reach.ts`, `nodePositions.ts`) follow their `web/locate.js`,
+  `attribution.js`, `coverage.js` and `nodelayer.js`; `locateVectors.json`
+  and `reachVectors.json` in `frontend/src/test/wardrive/coverage/` came from
+  running those files (generators in the coverage map ledger). Their zoom
+  thresholds (`zoomfade.js`) are kept; the cell size hand-over is drawn for
+  our grid (CoreScope sizes 6 to 15), not their 3 to 18 grid.
 - Wardrive brokers (`app/wardrive/brokers.py` `BUILTIN_BROKERS`, served
   to the page; `frontend/src/wardrive/forward/brokers.ts` `DEFAULT_BROKERS`
   before the first answer): the DutchMeshCore entries are the `brokers` list

@@ -2213,6 +2213,20 @@ export interface WardriveUser {
   radios: WardriveRadio[];
   group_ids: number[];
   obs_count: number;
+  /** Unix seconds of the last login, null when never (migration _164). */
+  last_login_at?: number | null;
+}
+
+export interface WardriveAuditEntry {
+  id: number;
+  at: number;
+  actor_kind: 'owner' | 'driver';
+  actor_id: number | null;
+  actor_name: string | null;
+  action: string;
+  target_kind: string | null;
+  target_id: string | null;
+  detail: Record<string, unknown> | null;
 }
 
 export interface WardriveGroup {

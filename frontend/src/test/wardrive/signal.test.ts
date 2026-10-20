@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { rssiColor } from '../../wardrive/map/geo';
 import { parseAttenuator, plotOffset, rssiTier, tierColor } from '../../wardrive/signal';
 
 describe('wardrive signal tiers', () => {
@@ -34,10 +33,5 @@ describe('wardrive signal tiers', () => {
     expect(tierColor('hot', false)).toBe('#ef4444');
     expect(tierColor('hot', true)).not.toBe(tierColor('hot', false));
     expect(tierColor('none', true)).toBe(tierColor('none', false));
-  });
-
-  it('colours the coverage map with the same tiers', () => {
-    expect(rssiColor(-112)).toBe(tierColor('cold', false));
-    expect(rssiColor(-120)).toBe(tierColor('faint', false));
   });
 });

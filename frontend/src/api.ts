@@ -194,6 +194,7 @@ import type {
   SnmpAgentState,
   WardriveAdminConfig,
   WardriveAdminStatus,
+  WardriveAuditEntry,
   WardriveData,
   WardriveGroup,
   WardriveUser,
@@ -1969,6 +1970,14 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ name }),
     }),
+  setWardrivePassword: async (userId: number, password: string) => {
+    await fetchJson<{ status: string }>(`/wardrive-admin/users/${userId}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  },
+  getWardriveAudit: (limit = 100) =>
+    fetchJson<{ entries: WardriveAuditEntry[] }>(`/wardrive-admin/audit?limit=${limit}`),
   deleteWardriveGroup: (groupId: number) =>
     fetchJson<{ status: string }>(`/wardrive-admin/groups/${groupId}`, { method: 'DELETE' }),
   getWardriveAdminData: (params: {

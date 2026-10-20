@@ -39,3 +39,14 @@
     right: 10.5rem;
   }
 }
+
+/* The coverage map opens over the drive screen: its map keeps its own
+   corners (there is no HUD or rail of the drive screen over it). */
+.wd-screen .cov-map .maplibregl-ctrl-bottom-left,
+.wd-screen .cov-map .maplibregl-ctrl-bottom-right {
+  bottom: 0;
+}
+
+.wd-screen .cov-map .maplibregl-ctrl-bottom-right {
+  right: 0;
+}

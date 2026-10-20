@@ -1,0 +1,356 @@
+[
+  {
+    "name": "advert signed",
+    "raw": "12004250ea787ea3c29f099074f9066f2da643e6f4bc0201da0122e23a81ddb806202a6e7b6aaf114f76dbd2afc6e732160cab0f45881163c98535dc5177f8e04ac796da9108cfb21bf5657452e23ed12f1007194e8da4937179ce214abf2465272e541ef80d929cda1c03b88d69004e4c2d4f562d454e532d45534e4f4445",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Advert",
+      "hops": 0,
+      "sender": {
+        "kind": "advert_pubkey",
+        "id": "4250ea787ea3c29f099074f9066f2da643e6f4bc0201da0122e23a81ddb80620",
+        "label": "NL-OV-ENS-ESNODE",
+        "role": "Repeater"
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "advert forged",
+    "raw": "12004250ea787ea3c29f099074f9066f2da643e6f4bc0201da0122e23a81ddb806202a6e7b6aaf114f76dbd2afc6e732160cab0f45881163c98535dc5177f8e0b5c796da9108cfb21bf5657452e23ed12f1007194e8da4937179ce214abf2465272e541ef80d929cda1c03b88d69004e4c2d4f562d454e532d45534e4f4445",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Advert",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "response zero hop",
+    "raw": "0640774ad5974332ebc33dde2e08ef96b7b337d3358d",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Response",
+      "hops": 0,
+      "sender": {
+        "kind": "direct_hash",
+        "id": "4a",
+        "label": "4a",
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "trace",
+    "raw": "2501a1010203040000000000b2",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Trace",
+      "hops": 1,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "channel zero hop",
+    "raw": "1500d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 0,
+      "sender": {
+        "kind": "channel_name",
+        "id": "alice",
+        "label": "alice",
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "channel zero hop no key",
+    "raw": "1500d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "flood 1-byte hops",
+    "raw": "1502a1b2d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 2,
+      "sender": {
+        "kind": "path_hash",
+        "id": "b2",
+        "label": "b2",
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "flood 2-byte hops",
+    "raw": "1542a1b2c3d4d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 2,
+      "sender": {
+        "kind": "relay",
+        "id": "c3d4",
+        "label": null,
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "flood 3-byte hops",
+    "raw": "1581a1b2c3d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 1,
+      "sender": {
+        "kind": "relay",
+        "id": "a1b2c3",
+        "label": null,
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "direct with hops",
+    "raw": "1602a1b2d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 2,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "transport flood",
+    "raw": "14aabbccdd02a1b2d9c23fb42941ed2dc67c367a49e7577148b794",
+    "channels": [
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 2,
+      "sender": {
+        "kind": "path_hash",
+        "id": "b2",
+        "label": "b2",
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "shared channel hash, #test decrypts",
+    "raw": "1500d997beea236aa34234f208fd594153c3246596",
+    "channels": [
+      "#x173",
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 0,
+      "sender": {
+        "kind": "channel_name",
+        "id": "bob",
+        "label": "bob",
+        "role": null
+      },
+      "channel": "#test"
+    }
+  },
+  {
+    "name": "shared channel hash, neither decrypts",
+    "raw": "1500daae1748b4d04f9654373cbe4c1e71e8056c98",
+    "channels": [
+      "#x173",
+      "#test"
+    ],
+    "expect": {
+      "packet_type_name": "GroupText",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "discover full key",
+    "raw": "2e00921001020304abababababababababababababababababababababababababababababababab",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Control",
+      "hops": 0,
+      "sender": {
+        "kind": "discover_pubkey",
+        "id": "abababababababababababababababababababababababababababababababab",
+        "label": null,
+        "role": "Repeater"
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "discover key prefix",
+    "raw": "2e00921001020304abababababababab",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Control",
+      "hops": 0,
+      "sender": {
+        "kind": "discover_pubkey",
+        "id": "abababababababab",
+        "label": null,
+        "role": "Repeater"
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "discover too short",
+    "raw": "2e0092100102",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Unknown",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "anon request",
+    "raw": "1d00aaababababababababababababababababababababababababababababababababccccdddddddddddddddddddddddddddddddd",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "AnonRequest",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "text message",
+    "raw": "0a00aabbccccdddddddddddddddddddddddddddddddd",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "TextMessage",
+      "hops": 0,
+      "sender": {
+        "kind": "direct_hash",
+        "id": "bb",
+        "label": "bb",
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "request",
+    "raw": "0200aabbccccdddddddddddddddddddddddddddddddd",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Request",
+      "hops": 0,
+      "sender": {
+        "kind": "direct_hash",
+        "id": "bb",
+        "label": "bb",
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "garbage",
+    "raw": "zz",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Unknown",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  },
+  {
+    "name": "empty",
+    "raw": "",
+    "channels": [],
+    "expect": {
+      "packet_type_name": "Unknown",
+      "hops": 0,
+      "sender": {
+        "kind": null,
+        "id": null,
+        "label": null,
+        "role": null
+      },
+      "channel": null
+    }
+  }
+]

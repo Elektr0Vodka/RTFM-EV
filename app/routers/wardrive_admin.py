@@ -5,6 +5,7 @@ Stays behind the main app's Basic login (never under the exempt
 ``/api/wardrive/`` prefix). Registered only when the module is active.
 """
 
+import asyncio
 import sqlite3
 import time
 from typing import Annotated, Any, Literal
@@ -21,7 +22,9 @@ from app.repository.wardrive import (
     WardriveSessionRepository,
     WardriveUserRepository,
 )
-from app.wardrive import drives
+from app.wardrive import audit, drives
+from app.wardrive import map as coverage
+from app.wardrive import nodes as wardrive_nodes
 from app.wardrive.brokers import (
     ANALYZER_REGION,
     CUSTOM_BROKERS,
@@ -43,7 +46,7 @@ from app.wardrive.config import (
     rssi_calibration,
     sort_names,
 )
-from app.wardrive.crypto import normalize_key
+from app.wardrive.crypto import hash_password, normalize_key
 from app.wardrive.models import MAX_TS
 from app.wardrive.module import PAGE_PREFIX, wardrive_active, wardrive_unprotected
 
@@ -161,22 +164,54 @@ async def wardrive_admin_update_user(user_id: int, body: UserUpdate) -> dict[str
         raise HTTPException(status_code=404, detail="No such user")
     if body.disabled:
         await WardriveSessionRepository.delete_for_user(user_id)
+    await audit.record(
+        "owner", None, "user_update", "user", user_id, body.model_dump(exclude_none=True)
+    )
     user = await WardriveUserRepository.get(user_id)
     assert user is not None
     return _public_user(user)
+
+
+class PasswordBody(BaseModel):
+    password: str = Field(min_length=10, max_length=256)
+
+
+@router.post("/users/{user_id}/password")
+async def wardrive_admin_set_password(user_id: int, body: PasswordBody) -> dict[str, str]:
+    """Set a driver's password (we send no mail, so this is the reset). Their
+    sessions end; they log in again with the new one."""
+    if await WardriveUserRepository.get(user_id) is None:
+        raise HTTPException(status_code=404, detail="No such user")
+    # scrypt is slow on purpose; keep it off the event loop.
+    password_hash = await asyncio.to_thread(hash_password, body.password)
+    await WardriveUserRepository.set_password(user_id, password_hash)
+    await WardriveSessionRepository.delete_for_user(user_id)
+    await audit.record("owner", None, "password_set", "user", user_id)
+    return {"status": "set"}
+
+
+@router.get("/audit")
+async def wardrive_admin_audit(
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> dict[str, Any]:
+    """The newest audit entries: who (owner or driver) did what, when."""
+    return {"entries": await audit.recent(limit)}
 
 
 @router.delete("/users/{user_id}")
 async def wardrive_admin_delete_user(user_id: int) -> dict[str, str]:
     if not await WardriveUserRepository.delete(user_id):
         raise HTTPException(status_code=404, detail="No such user")
+    await audit.record("owner", None, "user_delete", "user", user_id)
     return {"status": "deleted"}
 
 
 @router.delete("/radios/{public_key}")
 async def wardrive_admin_delete_radio(public_key: str) -> dict[str, str]:
-    if not await WardriveRadioRepository.delete(_key_or_404(public_key)):
+    key = _key_or_404(public_key)
+    if not await WardriveRadioRepository.delete(key):
         raise HTTPException(status_code=404, detail="No such radio")
+    await audit.record("owner", None, "radio_remove", "radio", key)
     return {"status": "deleted"}
 
 
@@ -191,6 +226,7 @@ async def wardrive_admin_create_group(body: GroupBody) -> dict[str, Any]:
         group_id = await WardriveGroupRepository.create(body.name, now=int(time.time()))
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail="A group with this name exists") from None
+    await audit.record("owner", None, "group_create", "group", group_id, {"name": body.name})
     return await _group_or_404(group_id)
 
 
@@ -202,6 +238,7 @@ async def wardrive_admin_rename_group(group_id: int, body: GroupBody) -> dict[st
         raise HTTPException(status_code=409, detail="A group with this name exists") from None
     if not renamed:
         raise HTTPException(status_code=404, detail="No such group")
+    await audit.record("owner", None, "group_rename", "group", group_id, {"name": body.name})
     return await _group_or_404(group_id)
 
 
@@ -209,6 +246,7 @@ async def wardrive_admin_rename_group(group_id: int, body: GroupBody) -> dict[st
 async def wardrive_admin_delete_group(group_id: int) -> dict[str, str]:
     if not await WardriveGroupRepository.delete(group_id):
         raise HTTPException(status_code=404, detail="No such group")
+    await audit.record("owner", None, "group_delete", "group", group_id)
     return {"status": "deleted"}
 
 
@@ -220,6 +258,9 @@ async def wardrive_admin_set_members(group_id: int, body: GroupMembers) -> dict[
     if unknown:
         raise HTTPException(status_code=422, detail=f"Unknown user ids: {unknown}")
     await WardriveGroupRepository.set_members(group_id, sorted(set(body.user_ids)))
+    await audit.record(
+        "owner", None, "group_members", "group", group_id, {"user_ids": sorted(set(body.user_ids))}
+    )
     return await _group_or_404(group_id)
 
 
@@ -334,6 +375,51 @@ async def _config() -> dict[str, Any]:
         "brokers": await custom_brokers(),
         "analyzer_region": await analyzer_region(),
     }
+
+
+MapQueryParams = Annotated[coverage.MapQuery, Depends(coverage.map_query)]
+CellRes = Annotated[int, Query(ge=6, le=15, description="Cell size: 6 = 1500 m to 15 = 3 m")]
+AsUser = Annotated[int | None, Query(description="View as this driver")]
+AsGroup = Annotated[int | None, Query(description="View as this group's members together")]
+
+
+async def _owner_scope(q: coverage.MapQuery, as_user: int | None, as_group: int | None):
+    return await coverage.request_scope(None, q, await coverage.view_scope(as_user, as_group))
+
+
+@router.get("/map/points")
+async def admin_map_points(
+    q: MapQueryParams, as_user: AsUser = None, as_group: AsGroup = None
+) -> dict[str, Any]:
+    """Coverage map receptions: everything, or what a driver or group would see."""
+    return await coverage.map_points(await _owner_scope(q, as_user, as_group), q)
+
+
+@router.get("/map/cells")
+async def admin_map_cells(
+    q: MapQueryParams, res: CellRes = 9, as_user: AsUser = None, as_group: AsGroup = None
+) -> dict[str, Any]:
+    return await coverage.map_cells(await _owner_scope(q, as_user, as_group), q, res)
+
+
+@router.get("/map/drivers")
+async def admin_map_drivers(
+    q: MapQueryParams, as_user: AsUser = None, as_group: AsGroup = None
+) -> dict[str, Any]:
+    scope = await _owner_scope(q, as_user, as_group)
+    return await coverage.map_drivers(scope, q.since, q.until)
+
+
+@router.get("/nodes")
+async def admin_nodes_in_box(
+    min_lat: float = Query(ge=-90, le=90),
+    max_lat: float = Query(ge=-90, le=90),
+    min_lon: float = Query(ge=-180, le=180),
+    max_lon: float = Query(ge=-180, le=180),
+) -> dict[str, Any]:
+    """The nodes RTFM-EV knows inside the box, as drivers get them (the
+    coverage map's node positions and reach)."""
+    return await wardrive_nodes.nodes_for_box(min_lat, max_lat, min_lon, max_lon)
 
 
 @router.get("/config")

@@ -11,6 +11,41 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (coverage map and driver management, feat/wardrive-plugin)
+
+Migration `_164` (wardrive last login and audit log). No new dependency.
+Nothing is sent over the radio and nothing is published.
+
+### Wardrive
+- The Map tab of Tools > Wardrive is a **coverage map** after
+  map.mesh-hunter.eu (web 1.27.0), and drivers have the same map on their
+  page (Drives tab, **Open the coverage map**) for what their visibility
+  shows: Hex, Points and Auto with two cell sizes handing over by zoom, 2D
+  and 3D with terrain, a driver picker, a target picker, time ranges with a
+  frozen-link copy, filters (packet type, sender id, No path, ignored
+  senders, Filtered/All), a receptions list two-way with the map, node
+  positions against their estimates and every repeater's reach with
+  selection, Locate (their maths, checked against their code), a Repeaters
+  heard share card, map settings and a first-time walkthrough. The map's
+  state is in the address (query string beside `#wardrive`).
+- Server: `GET /api/wardrive/map/points|cells|drivers` and the same under
+  `/api/wardrive-admin/map/` with `as_user` / `as_group`; senders read from
+  the stored frames by the page's own rules (shared test vectors);
+  `GET /api/wardrive-admin/nodes`.
+- **View as** (owner): the map exactly as one driver, or a group's members
+  together, would see it.
+- New **Drivers** tab (`#wardrive/drivers`): the users, radios and groups
+  that were in Settings > Wardrive, plus last login, **Set password** (ends
+  the driver's sessions; `POST /api/wardrive-admin/users/{id}/password`),
+  the audit log (`GET /api/wardrive-admin/audit`) and View the map as.
+  Settings > Wardrive keeps the page address, channels, brokers and
+  calibration.
+- The old stored-data map (WardriveMap, MapPanel) is replaced; its
+  every-stored-field reception popup lives on as the reception card.
+- Page on a phone narrower than 380 px: Add, Ignore and Float in the HUD
+  show only their icon, so the five tools keep one row (the Filtered/All
+  button wrapped to a row of its own at 360 px; the HUD is 38 px lower).
+
 ## Update 2026-10-20 (Tools > Wardrive, feat/wardrive-plugin)
 
 No migration, no new dependency.

@@ -49,6 +49,9 @@ vi.mock('../../wardrive/map/LiveMap', () => ({
 
 // The live log as the page renders it, recording the select handler it gets.
 const logSelects: unknown[] = [];
+vi.mock('../../wardrive/coverage/CoverageMap', () => ({
+  CoverageMap: () => <div data-testid="coverage-map" />,
+}));
 vi.mock('../../wardrive/screen/ReceptionLog', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../wardrive/screen/ReceptionLog')>();
   return {
@@ -998,6 +1001,20 @@ describe('wardrive page reading what it hears', () => {
     await waitFor(() => expect(api.report).toHaveBeenCalledWith({ drive: [7, 8], res: 9 }));
     expect(await screen.findByRole('heading', { name: 'What was driven' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Drive card' })).toBeTruthy();
+  });
+
+  it('opens the coverage map from the Drives tab and closes it again', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    setup({ drivesApi: fakeApi([]) });
+    await openMenu();
+    const drives = screen.getByRole('tab', { name: 'Drives' });
+    fireEvent.mouseDown(drives);
+    fireEvent.click(drives);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open the coverage map' }));
+    expect(await screen.findByTestId('coverage-map')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('tab', { name: 'Drives' })).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Close the map' }));
+    await waitFor(() => expect(screen.queryByTestId('coverage-map')).toBeNull());
   });
 
   it('forgets the picked drives when another driver logs in', async () => {

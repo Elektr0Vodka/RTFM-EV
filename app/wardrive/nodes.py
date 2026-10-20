@@ -7,6 +7,8 @@ notes, owner info, paths or favourites.
 
 from typing import Any
 
+from fastapi import HTTPException
+
 from app.repository.external_map import ExternalMapRepository
 from app.repository.wardrive import WardriveNodeRepository
 
@@ -96,3 +98,15 @@ async def nodes_in_box(
         key=lambda n: (n["seen"] is None, -(n["seen"] or 0)),
     )
     return {"nodes": ordered[:MAX_NODES], "truncated": len(ordered) > MAX_NODES}
+
+
+async def nodes_for_box(
+    min_lat: float, max_lat: float, min_lon: float, max_lon: float
+) -> dict[str, Any]:
+    """``nodes_in_box`` after the checks both routers make: 422 for a box that
+    is upside down or too big."""
+    if min_lat > max_lat or min_lon > max_lon:
+        raise HTTPException(status_code=422, detail="The box is upside down")
+    if max_lat - min_lat > MAX_SPAN_LAT or max_lon - min_lon > MAX_SPAN_LON:
+        raise HTTPException(status_code=422, detail="The box is too big")
+    return await nodes_in_box(min_lat, max_lat, min_lon, max_lon)

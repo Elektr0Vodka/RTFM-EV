@@ -67,6 +67,21 @@ function renderHud(over: Partial<ComponentProps<typeof Hud>> = {}) {
 }
 
 describe('wardrive HUD', () => {
+  it('keeps its tools on one row on a narrow phone: add, ignore and float show only their icon below 380 px', () => {
+    renderHud({ canFloat: true });
+    for (const name of [
+      'Add the shown sender to the targets',
+      'Ignore the shown sender',
+      'Show the reading in a floating window',
+    ]) {
+      const label = screen.getByRole('button', { name }).querySelector('span');
+      expect(label?.className).toContain('hidden');
+      expect(label?.className).toContain('min-[380px]:inline');
+    }
+    // Targets and Filtered/All keep their words at every width.
+    expect(screen.getByRole('button', { name: 'Targets' }).querySelector('span')).toBeNull();
+  });
+
   it('has a clean empty state', () => {
     const { container } = renderHud();
     expect(screen.getByText('No reception yet')).toBeTruthy();

@@ -29,10 +29,11 @@ def _user_row(row: Any) -> dict[str, Any]:
         "visibility": row["visibility"],
         "disabled": bool(row["disabled"]),
         "created_at": row["created_at"],
+        "last_login_at": row["last_login_at"],
     }
 
 
-_USER_COLUMNS = "id, username, password_hash, visibility, disabled, created_at"
+_USER_COLUMNS = "id, username, password_hash, visibility, disabled, created_at, last_login_at"
 
 
 class WardriveUserRepository:
@@ -98,6 +99,22 @@ class WardriveUserRepository:
             user["group_ids"] = [m["group_id"] for m in members if m["user_id"] == uid]
             user["obs_count"] = counts.get(uid, 0)
         return users
+
+    @staticmethod
+    async def set_last_login(user_id: int, ts: int) -> None:
+        async with db.tx() as conn:
+            await conn.execute(
+                "UPDATE wardrive_users SET last_login_at = ? WHERE id = ?", (ts, user_id)
+            )
+
+    @staticmethod
+    async def set_password(user_id: int, password_hash: str) -> bool:
+        async with db.tx() as conn:
+            cursor = await conn.execute(
+                "UPDATE wardrive_users SET password_hash = ? WHERE id = ?",
+                (password_hash, user_id),
+            )
+            return cursor.rowcount > 0
 
     @staticmethod
     async def update(
@@ -436,6 +453,94 @@ class WardriveDataRepository:
         }
 
     @staticmethod
+    async def map_rows(
+        user_ids: set[int] | None,
+        since_ts: int,
+        until_ts: int,
+        radio_key: str | None = None,
+        bbox: tuple[float, float, float, float] | None = None,
+        limit: int = 200000,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """Receptions for the coverage map, newest first, with the frame (the
+        server reads the sender from it; it is not sent on). ``bbox`` is
+        (south, west, north, east). True when more than ``limit`` matched."""
+        where = ["d.rx_ts >= ?", "d.rx_ts <= ?"]
+        params: list[Any] = [since_ts, until_ts]
+        if user_ids is not None:
+            ids = sorted(user_ids)
+            if not ids:
+                return [], False
+            where.append(f"d.user_id IN ({', '.join('?' * len(ids))})")
+            params.extend(ids)
+        if radio_key is not None:
+            where.append("d.radio_key = ?")
+            params.append(normalize_key(radio_key))
+        if bbox is not None:
+            south, west, north, east = bbox
+            where.append("d.lat BETWEEN ? AND ? AND d.lon BETWEEN ? AND ?")
+            params.extend([south, north, west, east])
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT d.id, d.user_id, u.username, d.radio_key, r.name AS radio_name, "
+                "d.rx_at, d.rx_ts, d.pub_at, d.uploaded_at, d.hash, d.raw, d.len, d.payload_len, "
+                "d.packet_type, d.route, d.path, d.rssi, d.snr, d.lat, d.lon, d.accuracy, d.src, "
+                "d.drive_id, dr.name AS drive_name "
+                "FROM wardrive_obs d JOIN wardrive_users u ON u.id = d.user_id "
+                "LEFT JOIN wardrive_radios r ON r.public_key = d.radio_key "
+                "LEFT JOIN wardrive_drives dr ON dr.id = d.drive_id "
+                f"WHERE {' AND '.join(where)} ORDER BY d.rx_ts DESC, d.id DESC LIMIT ?",
+                (*params, limit + 1),
+            ) as cursor:
+                rows = [dict(r) for r in await cursor.fetchall()]
+        for row in rows:
+            row["path"] = json.loads(row["path"]) if row["path"] else []
+        return rows[:limit], len(rows) > limit
+
+    @staticmethod
+    async def driver_roster(
+        user_ids: set[int] | None, since_ts: int, until_ts: int
+    ) -> list[dict[str, Any]]:
+        """Per user with receptions in the window: how many, the newest one's
+        time and position. Newest first."""
+        where = "d.rx_ts >= ? AND d.rx_ts <= ?"
+        params: list[Any] = [since_ts, until_ts]
+        if user_ids is not None:
+            ids = sorted(user_ids)
+            if not ids:
+                return []
+            where += f" AND d.user_id IN ({', '.join('?' * len(ids))})"
+            params.extend(ids)
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT d.user_id, u.username, COUNT(*) AS count, MAX(d.rx_ts) AS last_ts "
+                "FROM wardrive_obs d JOIN wardrive_users u ON u.id = d.user_id "
+                f"WHERE {where} GROUP BY d.user_id",
+                params,
+            ) as cursor:
+                groups = [dict(r) for r in await cursor.fetchall()]
+            out: list[dict[str, Any]] = []
+            for g in groups:
+                async with conn.execute(
+                    "SELECT rx_at, lat, lon FROM wardrive_obs WHERE user_id = ? AND rx_ts = ? "
+                    "ORDER BY id DESC LIMIT 1",
+                    (g["user_id"], g["last_ts"]),
+                ) as cursor:
+                    newest = await cursor.fetchone()
+                out.append(
+                    {
+                        "user_id": g["user_id"],
+                        "username": g["username"],
+                        "count": g["count"],
+                        "last_ts": g["last_ts"],
+                        "last_rx_at": newest["rx_at"] if newest else None,
+                        "last_lat": newest["lat"] if newest else None,
+                        "last_lon": newest["lon"] if newest else None,
+                    }
+                )
+        out.sort(key=lambda d: -d["last_ts"])
+        return out
+
+    @staticmethod
     async def live_drivers(
         uploaded_since: int, user_ids: set[int] | None = None
     ) -> list[dict[str, Any]]:
@@ -512,6 +617,60 @@ class WardriveDataRepository:
                 )
         out.sort(key=lambda d: -d["last_upload_at"])
         return out
+
+
+class WardriveAuditRepository:
+    """What drivers and the owner did, newest first; bounded by ``prune``."""
+
+    @staticmethod
+    async def add(
+        at: int,
+        actor_kind: str,
+        actor_id: int | None,
+        action: str,
+        target_kind: str | None,
+        target_id: str | None,
+        detail: dict[str, Any] | None,
+    ) -> None:
+        async with db.tx() as conn:
+            await conn.execute(
+                "INSERT INTO wardrive_audit "
+                "(at, actor_kind, actor_id, action, target_kind, target_id, detail) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    at,
+                    actor_kind,
+                    actor_id,
+                    action,
+                    target_kind,
+                    target_id,
+                    json.dumps(detail) if detail is not None else None,
+                ),
+            )
+
+    @staticmethod
+    async def prune(max_rows: int) -> None:
+        async with db.tx() as conn:
+            await conn.execute(
+                "DELETE FROM wardrive_audit WHERE id NOT IN "
+                "(SELECT id FROM wardrive_audit ORDER BY id DESC LIMIT ?)",
+                (max_rows,),
+            )
+
+    @staticmethod
+    async def recent(limit: int) -> list[dict[str, Any]]:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT a.id, a.at, a.actor_kind, a.actor_id, u.username AS actor_name, "
+                "a.action, a.target_kind, a.target_id, a.detail "
+                "FROM wardrive_audit a LEFT JOIN wardrive_users u ON u.id = a.actor_id "
+                "ORDER BY a.id DESC LIMIT ?",
+                (limit,),
+            ) as cursor:
+                rows = [dict(r) for r in await cursor.fetchall()]
+        for row in rows:
+            row["detail"] = json.loads(row["detail"]) if row["detail"] else None
+        return rows
 
 
 class WardriveConfigRepository:

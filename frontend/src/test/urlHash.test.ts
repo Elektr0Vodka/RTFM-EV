@@ -518,6 +518,14 @@ describe('wardrive (Tools > Wardrive) route', () => {
     expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'reports' });
   });
 
+  it('parses and builds #wardrive/drivers as the Drivers tab', () => {
+    window.location.hash = '#wardrive/drivers';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'drivers' });
+    expect(getConversationHash({ type: 'wardrive', id: 'drivers', name: 'Wardrive' })).toBe(
+      '#wardrive/drivers'
+    );
+  });
+
   it('builds #wardrive and #wardrive/reports', () => {
     expect(getConversationHash({ type: 'wardrive', id: 'map', name: 'Wardrive' })).toBe(
       '#wardrive'

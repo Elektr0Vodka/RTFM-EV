@@ -221,7 +221,8 @@ export function Hud({
           disabled={!canTarget}
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('wardrive_page_hud_add')}
+          {/* Icon only on a narrow phone, so the tools keep one row. */}
+          <span className="hidden min-[380px]:inline">{t('wardrive_page_hud_add')}</span>
         </button>
         <button
           type="button"
@@ -231,7 +232,8 @@ export function Hud({
           disabled={!canIgnore}
         >
           <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('wardrive_page_hud_ignore')}
+          {/* Icon only on a narrow phone, so the tools keep one row. */}
+          <span className="hidden min-[380px]:inline">{t('wardrive_page_hud_ignore')}</span>
         </button>
         {canFloat && (
           <button
@@ -242,7 +244,8 @@ export function Hud({
             onClick={onFloat}
           >
             <PictureInPicture2 className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('wardrive_page_hud_float')}
+            {/* Icon only on a narrow phone, so the tools keep one row. */}
+            <span className="hidden min-[380px]:inline">{t('wardrive_page_hud_float')}</span>
           </button>
         )}
         <button

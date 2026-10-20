@@ -124,6 +124,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
     return { type: 'wardrive', name: 'reports' };
   }
 
+  if (hash === 'wardrive/drivers') {
+    return { type: 'wardrive', name: 'drivers' };
+  }
+
   // SNMP page of one node: #snmp/<public key>
   if (hash.startsWith('snmp/')) {
     const key = decodeURIComponent(hash.slice('snmp/'.length));
@@ -300,7 +304,11 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'spam-guard') return '#spam-guard';
   if (conv.type === 'performance') return '#performance';
   if (conv.type === 'lan-scan') return '#lan-scan';
-  if (conv.type === 'wardrive') return conv.id === 'reports' ? '#wardrive/reports' : '#wardrive';
+  if (conv.type === 'wardrive') {
+    if (conv.id === 'reports') return '#wardrive/reports';
+    if (conv.id === 'drivers') return '#wardrive/drivers';
+    return '#wardrive';
+  }
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;

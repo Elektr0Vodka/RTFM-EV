@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from '../api';
 import { CommandPalette } from '../components/CommandPalette';
 import { SettingsWardriveSection } from '../components/settings/SettingsWardriveSection';
+import { WardriveDriversPanel } from '../components/WardriveDriversPanel';
 import { brokerIdFor } from '../components/settings/WardriveBrokersCard';
 import type {
   WardriveAdminConfig,
@@ -13,13 +14,6 @@ import type {
   WardriveGroup,
   WardriveUser,
 } from '../types';
-import type { WardriveData } from '../wardrive/api';
-
-vi.mock('../wardrive/map/WardriveMap', () => ({
-  WardriveMap: ({ data }: { data: WardriveData }) => (
-    <div data-testid="fake-map">{`${data.obs.length} obs`}</div>
-  ),
-}));
 
 const KEY = 'AB'.repeat(32);
 
@@ -107,6 +101,7 @@ function mockApi({
   vi.spyOn(api, 'getWardriveUsers').mockResolvedValue(users);
   vi.spyOn(api, 'getWardriveGroups').mockResolvedValue(groups);
   vi.spyOn(api, 'getWardriveConfig').mockResolvedValue(config);
+  vi.spyOn(api, 'getWardriveAudit').mockResolvedValue({ entries: [] });
   return vi
     .spyOn(api, 'getWardriveAdminData')
     .mockResolvedValue({ obs: [], tracks: [], truncated: false });
@@ -127,7 +122,7 @@ describe('Settings: wardrive admin', () => {
   it('shows no warning when the main login is set', async () => {
     mockApi();
     render(<SettingsWardriveSection />);
-    await screen.findByTestId('wardrive-user');
+    await screen.findByText(/\/wardrive\/$/);
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -139,7 +134,7 @@ describe('Settings: wardrive admin', () => {
 
   it('lists users with their radios and reception count', async () => {
     mockApi();
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     const card = await screen.findByTestId('wardrive-user');
     expect(card).not.toBeNull();
     expect(within(card as HTMLElement).getByText(/ABABABAB/)).toBeTruthy();
@@ -152,7 +147,7 @@ describe('Settings: wardrive admin', () => {
     const patch = vi
       .spyOn(api, 'patchWardriveUser')
       .mockResolvedValue(makeUser({ visibility: 'all' }));
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     const select = (await screen.findByLabelText('Visibility for mike')) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'all' } });
     await waitFor(() => expect(patch).toHaveBeenCalledWith(1, { visibility: 'all' }));
@@ -163,7 +158,7 @@ describe('Settings: wardrive admin', () => {
     const patch = vi
       .spyOn(api, 'patchWardriveUser')
       .mockResolvedValue(makeUser({ disabled: true }));
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     fireEvent.click(await screen.findByLabelText('Disabled: mike'));
     await waitFor(() => expect(patch).toHaveBeenCalledWith(1, { disabled: true }));
   });
@@ -175,7 +170,7 @@ describe('Settings: wardrive admin', () => {
       .spyOn(window, 'confirm')
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true);
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     const button = await screen.findByRole('button', { name: 'Delete user mike' });
     fireEvent.click(button);
     expect(del).not.toHaveBeenCalled();
@@ -188,7 +183,7 @@ describe('Settings: wardrive admin', () => {
     mockApi();
     const del = vi.spyOn(api, 'deleteWardriveRadio').mockResolvedValue({ status: 'deleted' });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     fireEvent.click(await screen.findByRole('button', { name: `Remove radio ${KEY.slice(0, 8)}` }));
     await waitFor(() => expect(del).toHaveBeenCalledWith(KEY));
   });
@@ -198,7 +193,7 @@ describe('Settings: wardrive admin', () => {
     const create = vi
       .spyOn(api, 'createWardriveGroup')
       .mockResolvedValue({ id: 5, name: 'crew', created_at: 1, member_ids: [] });
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     fireEvent.change(await screen.findByLabelText('New group name'), {
       target: { value: 'crew' },
     });
@@ -211,7 +206,7 @@ describe('Settings: wardrive admin', () => {
     const setMembers = vi
       .spyOn(api, 'setWardriveGroupMembers')
       .mockResolvedValue({ id: 5, name: 'crew', created_at: 1, member_ids: [1] });
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     fireEvent.click(await screen.findByLabelText('mike in crew'));
     await waitFor(() => expect(setMembers).toHaveBeenCalledWith(5, [1]));
   });
@@ -221,7 +216,7 @@ describe('Settings: wardrive admin', () => {
     const rename = vi
       .spyOn(api, 'renameWardriveGroup')
       .mockRejectedValue(new Error('A group with that name exists'));
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     const input = (await screen.findByLabelText('Name of group crew')) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'taken' } });
     fireEvent.blur(input);
@@ -234,7 +229,7 @@ describe('Settings: wardrive admin', () => {
     mockApi({ groups: [{ id: 5, name: 'crew', created_at: 1, member_ids: [] }] });
     const del = vi.spyOn(api, 'deleteWardriveGroup').mockResolvedValue({ status: 'deleted' });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete group crew' }));
     await waitFor(() => expect(del).toHaveBeenCalledWith(5));
   });
@@ -261,7 +256,7 @@ describe('Settings: wardrive group membership', () => {
             )
           )
       );
-    render(<SettingsWardriveSection />);
+    render(<WardriveDriversPanel />);
     fireEvent.click(await screen.findByLabelText('mike in crew'));
     fireEvent.click(screen.getByLabelText('anna in crew'));
     await waitFor(() => expect(setMembers).toHaveBeenCalledTimes(2));
@@ -541,7 +536,7 @@ describe('Settings: wardrive coverage map', () => {
   it('is no longer in Settings and says where it went', async () => {
     const data = mockApi();
     render(<SettingsWardriveSection />);
-    await screen.findByTestId('wardrive-user');
+    await screen.findByText(/\/wardrive\/$/);
     expect(screen.queryByTestId('fake-map')).toBeNull();
     expect(data).not.toHaveBeenCalled();
     expect(screen.getByText(/Tools > Wardrive, Map tab/)).toBeTruthy();
@@ -583,5 +578,103 @@ describe('Settings: wardrive section visibility', () => {
   it('never makes the id of RTFM-EV own upload destination', () => {
     expect(brokerIdFor('RTFM', new Set())).not.toBe('rtfm');
     expect(brokerIdFor('Club', new Set(['club']))).toBe('club-2');
+  });
+});
+
+describe('Tools: wardrive drivers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('says where drivers are managed now', async () => {
+    mockApi();
+    render(<SettingsWardriveSection />);
+    expect(
+      await screen.findByText(
+        'Drivers, their radios and the groups are managed in Tools > Wardrive, Drivers tab.'
+      )
+    ).toBeTruthy();
+    expect(screen.queryByTestId('wardrive-user')).toBeNull();
+  });
+
+  it('shows when each driver last logged in', async () => {
+    mockApi({
+      users: [makeUser(), makeUser({ id: 2, username: 'bert', last_login_at: 1792404000 })],
+    });
+    render(<WardriveDriversPanel />);
+    expect(await screen.findByText('Never logged in')).toBeTruthy();
+    expect(screen.getByText(/^Last login: /)).toBeTruthy();
+  });
+
+  it('sets a new password for a driver', async () => {
+    mockApi();
+    const set = vi.spyOn(api, 'setWardrivePassword').mockResolvedValue(undefined);
+    render(<WardriveDriversPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Set a new password for mike' }));
+    fireEvent.change(screen.getByLabelText('New password (at least 10 characters)'), {
+      target: { value: 'a long new one' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save password' }));
+    await waitFor(() => expect(set).toHaveBeenCalledWith(1, 'a long new one'));
+    expect(await screen.findByText('Password set. mike logs in again with it.')).toBeTruthy();
+  });
+
+  it('will not send a password that is too short', async () => {
+    mockApi();
+    const set = vi.spyOn(api, 'setWardrivePassword').mockResolvedValue(undefined);
+    render(<WardriveDriversPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Set a new password for mike' }));
+    fireEvent.change(screen.getByLabelText('New password (at least 10 characters)'), {
+      target: { value: 'short' },
+    });
+    expect(
+      (screen.getByRole('button', { name: 'Save password' }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('lists the audit log, newest first', async () => {
+    mockApi();
+    vi.spyOn(api, 'getWardriveAudit').mockResolvedValue({
+      entries: [
+        {
+          id: 2,
+          at: 1792404100,
+          actor_kind: 'owner',
+          actor_id: null,
+          actor_name: null,
+          action: 'password_set',
+          target_kind: 'user',
+          target_id: '1',
+          detail: null,
+        },
+        {
+          id: 1,
+          at: 1792404000,
+          actor_kind: 'driver',
+          actor_id: 1,
+          actor_name: 'mike',
+          action: 'login',
+          target_kind: null,
+          target_id: null,
+          detail: null,
+        },
+      ],
+    });
+    render(<WardriveDriversPanel />);
+    const log = await screen.findByRole('region', { name: 'Audit log' });
+    const rows = await within(log).findAllByRole('listitem');
+    expect(rows[0].textContent).toContain('Owner');
+    expect(rows[0].textContent).toContain('set a password');
+    expect(rows[1].textContent).toContain('mike');
+    expect(rows[1].textContent).toContain('logged in');
+  });
+
+  it('opens the map as a driver', async () => {
+    mockApi();
+    const onViewAs = vi.fn();
+    render(<WardriveDriversPanel onViewAs={onViewAs} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'View the map as mike' }));
+    expect(onViewAs).toHaveBeenCalledWith({ asUser: 1 });
   });
 });

@@ -21,7 +21,8 @@ from app.repository.wardrive import (
     WardriveRadioRepository,
     WardriveUserRepository,
 )
-from app.wardrive import drives, sessions
+from app.wardrive import audit, drives, sessions
+from app.wardrive import map as coverage
 from app.wardrive import nodes as wardrive_nodes
 from app.wardrive.brokers import served_brokers
 from app.wardrive.config import resolved_hashtag_channels, rssi_calibration
@@ -150,6 +151,8 @@ async def wardrive_register(
     await sessions.start_session(
         response, user_id, sessions.request_is_https(request), sessions.cookie_path(request)
     )
+    await WardriveUserRepository.set_last_login(user_id, now)
+    await audit.record("driver", user_id, "register", "radio", key)
     user = await WardriveUserRepository.get(user_id)
     assert user is not None
     return await _me(user)
@@ -166,19 +169,35 @@ async def wardrive_login(body: LoginRequest, request: Request, response: Respons
     )
     if user is None or not matches:
         throttle.record_failure(body.username)
+        # The username as typed, never the password.
+        await audit.record(
+            "driver",
+            user["id"] if user else None,
+            "login_refused",
+            detail={"username": body.username.strip()[:64]},
+        )
         raise HTTPException(status_code=401, detail="Wrong username or password")
     if user["disabled"]:
+        await audit.record("driver", user["id"], "login_disabled")
         raise HTTPException(status_code=403, detail="Account disabled")
     throttle.reset(body.username)
     await sessions.start_session(
         response, user["id"], sessions.request_is_https(request), sessions.cookie_path(request)
     )
+    await WardriveUserRepository.set_last_login(user["id"], int(time.time()))
+    await audit.record("driver", user["id"], "login")
     return await _me(user)
 
 
 @router.post("/logout", status_code=204)
 async def wardrive_logout(request: Request, response: Response) -> None:
+    try:
+        who: int | None = (await sessions.current_user(request))["id"]
+    except HTTPException:
+        who = None
     await sessions.end_session(request, response)
+    if who is not None:
+        await audit.record("driver", who, "logout")
 
 
 @router.get("/me", response_model=MeResponse)
@@ -196,6 +215,7 @@ async def wardrive_add_radio(
         await WardriveRadioRepository.add(key, user["id"], body.name, int(time.time()))
     except RadioTaken:
         raise HTTPException(status_code=409, detail="This radio is already on an account") from None
+    await audit.record("driver", user["id"], "radio_add", "radio", key)
     return await _me(user)
 
 
@@ -277,20 +297,26 @@ async def wardrive_update_drive(
     drive_id: int, body: drives.DriveUpdate, user: CurrentUser
 ) -> dict[str, Any]:
     """Rename a drive or set its notes (own drives only)."""
-    return await drives.update_drive(drive_id, body, user)
+    out = await drives.update_drive(drive_id, body, user)
+    await audit.record("driver", user["id"], "drive_update", "drive", drive_id)
+    return out
 
 
 @router.delete("/drives/{drive_id}")
 async def wardrive_delete_drive(drive_id: int, user: CurrentUser) -> dict[str, Any]:
     """Delete an own drive and its stored rows from RTFM-EV (the collectors
     keep what they received)."""
-    return await drives.delete_drive(drive_id, user)
+    out = await drives.delete_drive(drive_id, user)
+    await audit.record("driver", user["id"], "drive_delete", "drive", drive_id)
+    return out
 
 
 @router.post("/drives/merge")
 async def wardrive_merge_drives(body: drives.MergeBody, user: CurrentUser) -> dict[str, Any]:
     """Merge own drives of one radio into the earliest."""
-    return await drives.merge_drives(body, user)
+    out = await drives.merge_drives(body, user)
+    await audit.record("driver", user["id"], "drive_merge", "drive", out.get("id"))
+    return out
 
 
 @router.post("/drives/{drive_id}/split")
@@ -298,7 +324,9 @@ async def wardrive_split_drive(
     drive_id: int, body: drives.SplitBody, user: CurrentUser
 ) -> dict[str, Any]:
     """Split an own drive: rows at or after ``at`` become a new drive."""
-    return await drives.split_drive(drive_id, body, user)
+    out = await drives.split_drive(drive_id, body, user)
+    await audit.record("driver", user["id"], "drive_split", "drive", drive_id)
+    return out
 
 
 ReportQueryParams = Annotated[drives.ReportQuery, Depends(drives.report_query)]
@@ -333,6 +361,30 @@ async def wardrive_config(user: CurrentUser) -> dict[str, Any]:
     }
 
 
+MapQueryParams = Annotated[coverage.MapQuery, Depends(coverage.map_query)]
+CellRes = Annotated[int, Query(ge=6, le=15, description="Cell size: 6 = 1500 m to 15 = 3 m")]
+
+
+@router.get("/map/points")
+async def wardrive_map_points(user: CurrentUser, q: MapQueryParams) -> dict[str, Any]:
+    """Coverage map receptions under this user's visibility, newest first, paged."""
+    return await coverage.map_points(await coverage.request_scope(user, q), q)
+
+
+@router.get("/map/cells")
+async def wardrive_map_cells(
+    user: CurrentUser, q: MapQueryParams, res: CellRes = 9
+) -> dict[str, Any]:
+    """Coverage map hex cells over the same receptions."""
+    return await coverage.map_cells(await coverage.request_scope(user, q), q, res)
+
+
+@router.get("/map/drivers")
+async def wardrive_map_drivers(user: CurrentUser, q: MapQueryParams) -> dict[str, Any]:
+    """The drivers this user may see with receptions in the window."""
+    return await coverage.map_drivers(await coverage.request_scope(user, q), q.since, q.until)
+
+
 @router.get("/nodes")
 async def wardrive_nodes_in_box(
     user: CurrentUser,
@@ -343,11 +395,4 @@ async def wardrive_nodes_in_box(
 ) -> dict[str, Any]:
     """Names, roles and advertised positions of the nodes RTFM-EV knows: every
     contact with a full key and the imported map nodes inside the box."""
-    if min_lat > max_lat or min_lon > max_lon:
-        raise HTTPException(status_code=422, detail="The box is upside down")
-    if (
-        max_lat - min_lat > wardrive_nodes.MAX_SPAN_LAT
-        or max_lon - min_lon > wardrive_nodes.MAX_SPAN_LON
-    ):
-        raise HTTPException(status_code=422, detail="The box is too big")
-    return await wardrive_nodes.nodes_in_box(min_lat, max_lat, min_lon, max_lon)
+    return await wardrive_nodes.nodes_for_box(min_lat, max_lat, min_lon, max_lon)

@@ -9,6 +9,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AccessibilitySettings } from '../components/settings/AccessibilitySettings';
+import { Button } from '../components/ui/button';
 import { ThemeSelector } from '../components/settings/ThemeSelector';
 import { useT } from '../i18n';
 import {
@@ -29,7 +30,7 @@ import { ForwardPanel } from './components/ForwardPanel';
 import { isLowBattery } from './radio/battery';
 import { DEFAULT_BROKERS, destId, parseBrokers, type Broker } from './forward/brokers';
 import { loadServedBrokers, saveServedBrokers } from './forward/brokerConfig';
-import { MapPanel } from './components/MapPanel';
+import { CoverageScreen } from './coverage/CoverageScreen';
 import { ReportsTab } from './components/ReportsTab';
 import { PositionPanel } from './components/PositionPanel';
 import { RadioPanel } from './components/RadioPanel';
@@ -253,6 +254,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     readPref(LOG_SIZE_KEY, ['full', 'three', 'one', 'hidden'], 'three')
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [coverageOpen, setCoverageOpen] = useState(false);
   const [menuTab, setMenuTab] = useState<MenuTab>('status');
   // Drives picked in the Drives tab, reported on in the Reports tab.
   const [pickedDrives, setPickedDrives] = useState<number[]>([]);
@@ -976,95 +978,113 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         </>
       }
       menu={
-        <MenuSheet
-          open={menuOpen}
-          onOpenChange={setMenuOpen}
-          tab={menuTab}
-          onTab={setMenuTab}
-          status={
-            <>
-              <AccountPanel
-                me={me}
-                radioConnected={!!radio}
-                radioOnAccount={state}
-                onLogin={onLogin}
-                onLogout={onLogout}
-                onRegister={onRegister}
-                onAddRadio={onAddRadio}
-              />
-              <RadioPanel
-                info={radio?.info ?? null}
-                lost={radioLost}
-                bleSupported={deps.bleSupported()}
-                serialSupported={deps.serialSupported()}
-                onConnect={connectRadio}
-                onDisconnect={disconnectRadio}
-                batteryMv={radioStats.batteryMv}
-                autoDiscoverCadence={autoDiscover.cadence}
-              />
-              <PositionPanel
-                kind={positionKind}
-                fix={fix}
-                nowMs={nowMs}
-                deviceAllowed={deps.deviceLocationAllowed()}
-                usbSupported={deps.serialSupported()}
-                onChoose={choosePosition}
-              />
-              {radio && queue && (
-                <ForwardPanel
-                  radioKey={radio.info.publicKey}
-                  brokers={brokers}
-                  settings={forwarding.settings}
-                  statuses={forwarding.statuses}
-                  onToggle={(id, on) => void run(() => forwarding.toggle(id, on))}
-                  onSendNow={() => void forwarding.sendNow()}
-                />
-              )}
-              <UploadPanel upload={upload} />
-            </>
-          }
-          settings={
-            <>
-              <ThemeSelector />
-              <AccessibilitySettings compact />
-              <ExaggerationSetting value={exaggeration} onChange={changeExaggeration} />
-              <AttenuatorSetting
-                value={attenuator}
-                onChange={(db) => {
-                  setAttenuator(db);
-                  writePref(ATTENUATOR_KEY, String(db));
-                }}
-              />
-              <NoiseMapSetting on={noiseMap} onChange={changeNoiseMap} />
-              <IntroduceSetting on={introduce} onChange={changeIntroduce} />
-            </>
-          }
-          drives={
-            me ? (
+        <>
+          {coverageOpen && (
+            <CoverageScreen onClose={() => setCoverageOpen(false)} exaggeration={exaggeration} />
+          )}
+          <MenuSheet
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            tab={menuTab}
+            onTab={setMenuTab}
+            status={
               <>
-                <DrivesPanel
-                  api={deps.drivesApi}
-                  filter={{}}
-                  reloadKey={String(me.user_id)}
-                  selected={pickedDrives}
-                  onSelectedChange={setPickedDrives}
-                  showDriver={me.visibility !== 'own'}
+                <AccountPanel
+                  me={me}
+                  radioConnected={!!radio}
+                  radioOnAccount={state}
+                  onLogin={onLogin}
+                  onLogout={onLogout}
+                  onRegister={onRegister}
+                  onAddRadio={onAddRadio}
                 />
-                <MapPanel />
+                <RadioPanel
+                  info={radio?.info ?? null}
+                  lost={radioLost}
+                  bleSupported={deps.bleSupported()}
+                  serialSupported={deps.serialSupported()}
+                  onConnect={connectRadio}
+                  onDisconnect={disconnectRadio}
+                  batteryMv={radioStats.batteryMv}
+                  autoDiscoverCadence={autoDiscover.cadence}
+                />
+                <PositionPanel
+                  kind={positionKind}
+                  fix={fix}
+                  nowMs={nowMs}
+                  deviceAllowed={deps.deviceLocationAllowed()}
+                  usbSupported={deps.serialSupported()}
+                  onChoose={choosePosition}
+                />
+                {radio && queue && (
+                  <ForwardPanel
+                    radioKey={radio.info.publicKey}
+                    brokers={brokers}
+                    settings={forwarding.settings}
+                    statuses={forwarding.statuses}
+                    onToggle={(id, on) => void run(() => forwarding.toggle(id, on))}
+                    onSendNow={() => void forwarding.sendNow()}
+                  />
+                )}
+                <UploadPanel upload={upload} />
               </>
-            ) : (
-              <p className="text-sm">{t('wardrive_page_drives_login')}</p>
-            )
-          }
-          reports={
-            me ? (
-              <ReportsTab api={deps.drivesApi} picked={pickedDrives} />
-            ) : (
-              <p className="text-sm">{t('wardrive_page_drives_login')}</p>
-            )
-          }
-          about={<AboutPanel />}
-        />
+            }
+            settings={
+              <>
+                <ThemeSelector />
+                <AccessibilitySettings compact />
+                <ExaggerationSetting value={exaggeration} onChange={changeExaggeration} />
+                <AttenuatorSetting
+                  value={attenuator}
+                  onChange={(db) => {
+                    setAttenuator(db);
+                    writePref(ATTENUATOR_KEY, String(db));
+                  }}
+                />
+                <NoiseMapSetting on={noiseMap} onChange={changeNoiseMap} />
+                <IntroduceSetting on={introduce} onChange={changeIntroduce} />
+              </>
+            }
+            drives={
+              me ? (
+                <>
+                  <DrivesPanel
+                    api={deps.drivesApi}
+                    filter={{}}
+                    reloadKey={String(me.user_id)}
+                    selected={pickedDrives}
+                    onSelectedChange={setPickedDrives}
+                    showDriver={me.visibility !== 'own'}
+                  />
+                  <section className="space-y-2 rounded-md border border-border p-3">
+                    <p className="text-sm text-muted-foreground">{t('wardrive_cov_open_hint')}</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setCoverageOpen(true);
+                      }}
+                    >
+                      {t('wardrive_cov_open')}
+                    </Button>
+                  </section>
+                </>
+              ) : (
+                <p className="text-sm">{t('wardrive_page_drives_login')}</p>
+              )
+            }
+            reports={
+              me ? (
+                <ReportsTab api={deps.drivesApi} picked={pickedDrives} />
+              ) : (
+                <p className="text-sm">{t('wardrive_page_drives_login')}</p>
+              )
+            }
+            about={<AboutPanel />}
+          />
+        </>
       }
     />
   );
