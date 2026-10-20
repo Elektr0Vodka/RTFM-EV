@@ -274,7 +274,9 @@ machine this was authored on and may differ elsewhere.
   `src/helpers/stm32/STM32Board.h` and the Station G2/G3 variants.
 - Float readout: core-hunter 3928ebf `app/src/floatreadout.js` (canvas into
   a video, picture-in-picture, fullscreen first on Android), read for
-  behaviour only.
+  behaviour only. RTFM-EV differs on the owner's request (2026-10-20):
+  picture-in-picture first on Android too, no orientation lock, an upright
+  canvas on an upright phone.
 - MGRS conversion: the `mgrs` npm package (proj4js, MIT),
   https://github.com/proj4js/mgrs, v2.2.0. The frontend uses it directly;
   `app/mgrs.py` ports its inverse (`decode` + `UTMtoLL` + `toPoint`), and

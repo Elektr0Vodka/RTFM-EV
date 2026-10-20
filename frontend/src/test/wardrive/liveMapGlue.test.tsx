@@ -256,4 +256,22 @@ describe('live map glue', () => {
     map.fire('click:wd-live-points', { features: [{ properties: { id: 1, backlog: true } }] });
     expect(p.onSelect).toHaveBeenLastCalledWith(1);
   });
+
+  it('follows with the position in the map left between the top bar and the HUD', async () => {
+    mount(props({ compass: 'north', insets: { top: 120, bottom: 480 } }));
+    await flush();
+    const last = map.easeTo.mock.calls[map.easeTo.mock.calls.length - 1][0];
+    expect(last.padding).toEqual({ top: 120, bottom: 480, left: 0, right: 0 });
+  });
+
+  it('starts with the map credits folded', async () => {
+    const attrib = { classList: { remove: vi.fn() } };
+    map.getContainer = () => ({
+      clientHeight: 900,
+      querySelector: (sel: string) => (sel === '.maplibregl-ctrl-attrib' ? attrib : null),
+    });
+    mount(props());
+    await flush();
+    expect(attrib.classList.remove).toHaveBeenCalledWith('maplibregl-compact-show');
+  });
 });

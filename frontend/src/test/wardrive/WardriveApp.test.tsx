@@ -605,6 +605,8 @@ describe('wardrive page', () => {
     const { radio } = setup();
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
+    // The page subscribes to receptions in an effect: let it run first.
+    await act(async () => {});
     act(() => radio.hear(0xa6));
     await screen.findByText('1 rx', undefined, { timeout: 5000 });
     act(() => radio.hear(0xb0));
@@ -688,6 +690,56 @@ describe('wardrive page storage', () => {
     fireEvent.click(start);
     await screen.findByRole('button', { name: 'Stop driving' }, { timeout: 5000 });
     expect(persist).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('wardrive page with every broker switched off', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('opens no broker connection when driving after the switches went off', async () => {
+    localStorage.setItem(
+      'rtfm-wardrive-brokers',
+      JSON.stringify({ enabled: { [`dmc-hunter@${KEY}`]: true }, tokens: {} })
+    );
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    vi.spyOn(wardriveApi, 'upload').mockResolvedValue({
+      accepted_obs: 1,
+      duplicate_obs: 0,
+      accepted_tracks: 0,
+      duplicate_tracks: 0,
+    });
+    const end = vi.fn(async () => {});
+    const publish = vi.fn(async () => {});
+    const connectMqtt = vi.fn<WardriveDeps['connectMqtt']>(async () => ({
+      publish,
+      end,
+      onClose: () => {},
+    }));
+    const { radio } = setup({ connectMqtt });
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
+    await screen.findByText(/Car/);
+    await waitFor(() => expect(connectMqtt).toHaveBeenCalledTimes(1));
+    await openMenu();
+    const hunter = (await screen.findByLabelText(/DutchMeshCore hunter/)) as HTMLInputElement;
+    expect(hunter.checked).toBe(true);
+    fireEvent.click(hunter);
+    await waitFor(() => expect(hunter.checked).toBe(false));
+    for (const box of screen.getAllByRole('checkbox') as HTMLInputElement[]) {
+      expect(box.checked).toBe(false);
+    }
+    await waitFor(() => expect(end).toHaveBeenCalled());
+    await closeMenu();
+    fireEvent.click(screen.getByRole('button', { name: 'Use this device location' }));
+    const start = await screen.findByRole('button', { name: 'Start driving' });
+    await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false), {
+      timeout: 5000,
+    });
+    fireEvent.click(start);
+    await screen.findByRole('button', { name: 'Stop driving' }, { timeout: 5000 });
+    act(() => radio.hear());
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(connectMqtt).toHaveBeenCalledTimes(1);
+    expect(publish).not.toHaveBeenCalled();
   });
 });
 

@@ -15,11 +15,6 @@ export interface FloatLabels {
   dbm: string;
 }
 
-interface Orientation {
-  lock?: (o: 'portrait') => Promise<void>;
-  unlock?: () => void;
-}
-
 export interface FloatReadoutOptions {
   canvas: HTMLCanvasElement;
   video: HTMLVideoElement;
@@ -27,16 +22,22 @@ export interface FloatReadoutOptions {
   labels: FloatLabels;
   cvd: boolean;
   onChange?: (open: boolean) => void;
-  /** screen.orientation, passed in so the portrait lock can be tested. */
-  orientation?: Orientation | null;
+  /** Whether the phone stands upright: the readout takes that shape. */
+  portrait?: () => boolean;
 }
 
-// 16:9, the shape Android gives a floating video.
-const W = 960;
-const H = 540;
-const LEFT = 64;
-const RIGHT = W - 48;
-const BAR = 26;
+interface Layout {
+  w: number;
+  h: number;
+  left: number;
+  right: number;
+  bar: number;
+}
+
+// Wide (16:9) on a phone on its side or a desktop, upright (3:4) on an
+// upright phone: the floating window takes the video's shape.
+const WIDE: Layout = { w: 960, h: 540, left: 64, right: 912, bar: 26 };
+const TALL: Layout = { w: 540, h: 720, left: 44, right: 508, bar: 20 };
 const BG = '#0b0f14';
 const TEXT = '#f3f4f6';
 const MUTED = '#9ca3af';
@@ -73,11 +74,11 @@ export class FloatReadout {
   private opening: Promise<boolean> | null = null;
   private syncTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly doc: Document;
+  private layout: Layout = WIDE;
 
   constructor(private readonly opts: FloatReadoutOptions) {
     const { canvas, video } = opts;
-    canvas.width = W;
-    canvas.height = H;
+    this.size();
     this.ctx = canvas.getContext('2d');
     const stream = canvas.captureStream(0);
     const track = stream.getVideoTracks()[0] as
@@ -93,6 +94,22 @@ export class FloatReadout {
 
   isOpen(): boolean {
     return this.out;
+  }
+
+  /** The phone turned: the readout takes the new shape and draws again. */
+  relayout(): void {
+    if (this.size()) this.draw();
+  }
+
+  /** Sizes the canvas for the orientation; true when that changed it. */
+  private size(): boolean {
+    const next = this.opts.portrait?.() ? TALL : WIDE;
+    const { canvas } = this.opts;
+    if (canvas.width === next.w && canvas.height === next.h) return false;
+    this.layout = next;
+    canvas.width = next.w;
+    canvas.height = next.h;
+    return true;
   }
 
   /** Draws the reading; a frame goes out only now. */
@@ -145,7 +162,6 @@ export class FloatReadout {
     } catch {
       // A muted stream normally plays; the request below still decides.
     }
-    // On Android picture-in-picture would hide the page: fullscreen only.
     const ok =
       this.opts.mode === 'fullscreen'
         ? await this.fullscreen()
@@ -174,12 +190,7 @@ export class FloatReadout {
     } catch {
       return false;
     }
-    // The canvas is landscape; the lock keeps a phone in a holder upright.
-    try {
-      await this.opts.orientation?.lock?.('portrait');
-    } catch {
-      // Refused: the readout is still out.
-    }
+    // No orientation lock: the readout follows the phone (relayout).
     return true;
   }
 
@@ -195,13 +206,6 @@ export class FloatReadout {
   };
 
   private readonly onFullscreenChange = () => {
-    if (this.doc.fullscreenElement !== this.opts.video) {
-      try {
-        this.opts.orientation?.unlock?.();
-      } catch {
-        // Nothing locked.
-      }
-    }
     this.sync();
   };
 
@@ -226,6 +230,7 @@ export class FloatReadout {
     if (!ctx || !m) return;
     const { labels, cvd } = this.opts;
     const tier = tierColor(m.tier, cvd);
+    const { w: W, h: H, left: LEFT, right: RIGHT, bar: BAR } = this.layout;
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, W, H);
     // The tier down the left edge: closer or further from the corner of an eye.
@@ -234,6 +239,11 @@ export class FloatReadout {
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
     const measure = (s: string) => ctx.measureText(s).width;
+    if (this.layout === TALL) {
+      this.drawTall(ctx, m, tier, measure);
+      this.frame?.();
+      return;
+    }
     if (m.empty) {
       ctx.fillStyle = TEXT;
       ctx.font = `700 76px ${MONO}`;
@@ -275,5 +285,53 @@ export class FloatReadout {
       }
     }
     this.frame?.();
+  }
+
+  /** Upright: signal, then SNR and age on their own lines, then the sender. */
+  private drawTall(
+    ctx: CanvasRenderingContext2D,
+    m: FloatModel,
+    tier: string,
+    measure: (s: string) => number
+  ): void {
+    const { labels } = this.opts;
+    const { left: LEFT, right: RIGHT } = this.layout;
+    const width = RIGHT - LEFT;
+    if (m.empty) {
+      ctx.fillStyle = TEXT;
+      ctx.font = `700 60px ${MONO}`;
+      ctx.fillText(fitText(labels.empty, width, measure), LEFT, 300);
+      ctx.fillStyle = MUTED;
+      ctx.font = `500 34px ${MONO}`;
+      ctx.fillText(fitText(labels.emptyHint, width, measure), LEFT, 380);
+      return;
+    }
+    if (m.rssi) {
+      ctx.fillStyle = tier;
+      ctx.font = `700 160px ${MONO}`;
+      ctx.fillText(m.rssi, LEFT, 210);
+      ctx.fillStyle = MUTED;
+      ctx.font = `500 44px ${MONO}`;
+      ctx.fillText(labels.dbm, LEFT, 275);
+    }
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 48px ${MONO}`;
+    ctx.fillText(m.snr, LEFT, 385);
+    ctx.fillText(m.since, LEFT, 455);
+    ctx.font = `600 52px ${MONO}`;
+    const y = 590;
+    if (!m.sender.name) {
+      ctx.fillStyle = MUTED;
+      ctx.fillText(fitText(m.sender.note, width, measure), LEFT, y);
+      return;
+    }
+    let x = LEFT;
+    if (m.sender.prefix) {
+      ctx.fillStyle = MUTED;
+      ctx.fillText(m.sender.prefix, x, y);
+      x += measure(m.sender.prefix);
+    }
+    ctx.fillStyle = TEXT;
+    ctx.fillText(fitText(m.sender.name, RIGHT - x, measure), x, y);
   }
 }

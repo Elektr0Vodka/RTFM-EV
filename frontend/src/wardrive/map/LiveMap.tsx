@@ -18,7 +18,13 @@ import { NODE_LABEL_FONT } from '../../map/layers/nodesLayer';
 import type { Fix } from '../messages';
 import type { DirectoryNode } from '../names';
 import type { ViewEntry } from '../useReceptionView';
-import { bearingFor, followsPosition, lookAheadPadding, type CompassMode } from './compassMode';
+import {
+  bearingFor,
+  followsPosition,
+  lookAheadPadding,
+  type CompassMode,
+  type MapInsets,
+} from './compassMode';
 import { buildHexFeatures, labelPoints, pillarFeatures, HEX_LABEL_MIN_ZOOM } from './hexLayer';
 import { hexResForZoom } from './hexgrid';
 import { followView, liveGeoJson, selectionPan, trailGeoJson } from './liveLayers';
@@ -64,6 +70,9 @@ export interface LiveMapProps {
   /** The radio's noise floor where it was read, and whether to show it. */
   noiseReadings?: NoiseReading[];
   noiseOn?: boolean;
+  /** What the top bar and the HUD cover: followed and picked positions land
+   * in the map left between them. */
+  insets?: MapInsets;
   onUserPan(): void;
   onSelect(id: number): void;
 }
@@ -114,6 +123,7 @@ export function LiveMap({
   rssiOffset = 0,
   noiseReadings = NO_READINGS,
   noiseOn = false,
+  insets,
   onUserPan,
   onSelect,
 }: LiveMapProps) {
@@ -440,6 +450,16 @@ export function LiveMap({
     (map: MlMap) => {
       mapRef.current = map;
       ensureLayers(map);
+      // MapLibre opens compact credits unfolded until the first drag: on a
+      // phone that box covers the map. The (i) button still opens them. Once
+      // more when the map first settles: the credits arrive with the tiles.
+      const foldCredits = () =>
+        map
+          .getContainer()
+          .querySelector?.('.maplibregl-ctrl-attrib')
+          ?.classList.remove('maplibregl-compact-show');
+      foldCredits();
+      map.once?.('idle', foldCredits);
       map.on('dragstart', (e: { originalEvent?: unknown }) => {
         // Only a drag by the user, not a camera move of our own.
         if (e.originalEvent) handlersRef.current.onUserPan();
@@ -579,6 +599,9 @@ export function LiveMap({
     return () => clearInterval(timer);
   }, [ready, styleGen, view.mode3D, demReady, exaggeration]);
 
+  const insetTop = insets?.top ?? 0;
+  const insetBottom = insets?.bottom ?? 0;
+
   // A reception picked in the live log: show where it was heard.
   const selectedRef = useRef<number | null>(null);
   useEffect(() => {
@@ -591,11 +614,14 @@ export function LiveMap({
     if (next.pan) {
       map.easeTo({
         center: next.pan,
-        padding: lookAheadPadding(map.getContainer().clientHeight, compass),
+        padding: lookAheadPadding(map.getContainer().clientHeight, compass, {
+          top: insetTop,
+          bottom: insetBottom,
+        }),
         duration: 500,
       });
     }
-  }, [ready, selectedId, entries, compass]);
+  }, [ready, selectedId, entries, compass, insetTop, insetBottom]);
 
   // Follow: centred on the fix, turned to the heading in heading mode with the
   // position two thirds down; north up otherwise.
@@ -613,11 +639,14 @@ export function LiveMap({
       center: [fix.lon, fix.lat],
       ...followView(map.getZoom()),
       bearing,
-      padding: lookAheadPadding(map.getContainer().clientHeight, compass),
+      padding: lookAheadPadding(map.getContainer().clientHeight, compass, {
+        top: insetTop,
+        bottom: insetBottom,
+      }),
       ...(pendingPitchRef.current !== null ? { pitch: pendingPitchRef.current } : {}),
       duration: 500,
     });
-  }, [ready, compass, fix, bearing]);
+  }, [ready, compass, fix, bearing, insetTop, insetBottom]);
 
   return (
     <MapSurface

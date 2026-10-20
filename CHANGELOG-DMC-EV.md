@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (wardrive page on a phone, feat/wardrive-plugin)
+
+No migration, no new dependency. From the owner's phone test.
+
+### Wardrive
+- The live log is its own block: it scrolls inside without moving the top
+  bar, can be dragged by its handle (the spot is kept in that browser,
+  double-tap puts it back) and stays on screen.
+- Follow mode keeps your position (and a picked reception) in the part of
+  the map between the top bar and the HUD instead of under the HUD.
+- A Full screen button in the top bar (not on an iPhone).
+- Float uses picture-in-picture on Android too (a small window over the
+  navigation app; fullscreen only where there is no picture-in-picture),
+  without the portrait lock; the readout takes the phone's shape and turns
+  with it. Not tested on a phone.
+- The map credits start folded.
+
 ## Update 2026-10-20 (wardrive deferred minors, feat/wardrive-plugin)
 
 Migration **_163** (`wardrive_drive_tombstones`: drive ids the driver deleted,

@@ -125,4 +125,23 @@ describe('compass modes', () => {
     expect(lookAheadPadding(900, 'heading')).toEqual({ top: 300, bottom: 0, left: 0, right: 0 });
     expect(lookAheadPadding(900, 'north').top).toBe(0);
   });
+
+  it('keeps the position in the map left between the top bar and the HUD', () => {
+    const insets = { top: 120, bottom: 480 };
+    expect(lookAheadPadding(900, 'north', insets)).toEqual({
+      top: 120,
+      bottom: 480,
+      left: 0,
+      right: 0,
+    });
+    // Heading: two thirds down the visible 300 px.
+    expect(lookAheadPadding(900, 'heading', insets)).toEqual({
+      top: 220,
+      bottom: 480,
+      left: 0,
+      right: 0,
+    });
+    // A HUD taller than the map leaves no room to shift: no negative space.
+    expect(lookAheadPadding(400, 'heading', { top: 200, bottom: 400 }).top).toBe(200);
+  });
 });

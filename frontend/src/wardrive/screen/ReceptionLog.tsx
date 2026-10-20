@@ -122,7 +122,7 @@ export function ReceptionLog({
 
   return (
     <section
-      className="w-full max-w-md rounded-xl border border-border bg-card/90 text-xs shadow-md backdrop-blur"
+      className="flex max-h-full min-h-0 w-full max-w-md flex-col rounded-xl border border-border bg-card/90 text-xs shadow-md backdrop-blur"
       aria-label={t('wardrive_page_log_aria')}
     >
       <header className="flex items-center gap-2 border-b border-border px-3 py-1">
@@ -161,7 +161,7 @@ export function ReceptionLog({
         </button>
       </header>
       <ul
-        className="overflow-y-auto"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
         style={{ maxHeight: size === 'full' ? `${ROWS.full * 1.75}rem` : undefined }}
       >
         {shown.map((e) => (

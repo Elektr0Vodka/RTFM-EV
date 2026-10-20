@@ -1,5 +1,5 @@
 import { act, render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { WardriveScreen } from '../../wardrive/screen/WardriveScreen';
 
@@ -21,7 +21,7 @@ describe('wardrive screen layout', () => {
       ['map', 'map'],
       ['top', 'top'],
       ['top', 'banners'],
-      ['top', 'log'],
+      ['log', 'log'],
       ['hud', 'hud'],
       ['rail', 'rail'],
     ]) {
@@ -84,5 +84,61 @@ describe('wardrive screen layout', () => {
       />
     );
     expect(container.querySelector('[data-region="map"]')).toBeTruthy();
+  });
+
+  it('keeps the log out of the top bar, so scrolling it never moves the buttons', () => {
+    const { container } = render(
+      <WardriveScreen
+        map={null}
+        topBar={<p>bar</p>}
+        banners={null}
+        log={<p>log</p>}
+        hud={null}
+        rail={null}
+        start={null}
+        menu={null}
+      />
+    );
+    const top = container.querySelector('[data-region="top"]') as HTMLElement;
+    expect(top.textContent).not.toContain('log');
+    expect(container.querySelector('[data-region="log"]')?.textContent).toBe('log');
+  });
+
+  it('tells the page how much of the map the top bar and the HUD cover', () => {
+    let report: ResizeObserverCallback = () => {};
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(cb: ResizeObserverCallback) {
+        report = cb;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    } as unknown as typeof ResizeObserver;
+    const onInsets = vi.fn();
+    try {
+      const { container } = render(
+        <WardriveScreen
+          map={null}
+          topBar={<p>bar</p>}
+          banners={null}
+          log={null}
+          hud={<p>hud</p>}
+          rail={null}
+          start={null}
+          menu={null}
+          onInsets={onInsets}
+        />
+      );
+      const bar = container.querySelector('[data-region="topbar"]') as HTMLElement;
+      Object.defineProperty(bar, 'offsetHeight', { configurable: true, value: 56 });
+      Object.defineProperty(bar, 'offsetTop', { configurable: true, value: 12 });
+      const hud = container.querySelector('[data-region="hud"]') as HTMLElement;
+      Object.defineProperty(hud, 'offsetHeight', { configurable: true, value: 300 });
+      act(() => report([], {} as ResizeObserver));
+      expect(onInsets).toHaveBeenLastCalledWith({ top: 68, bottom: 300 });
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
   });
 });

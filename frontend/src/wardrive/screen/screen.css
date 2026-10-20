@@ -20,6 +20,13 @@
   overflow-y: auto;
 }
 
+/* The live log starts under the top stack and ends above the rail and HUD;
+   it scrolls inside (its block can still be dragged elsewhere). */
+.wd-screen .wd-log {
+  top: calc(var(--wd-top-h, 4rem) + 0.5rem);
+  max-height: calc(100dvh - var(--wd-top-h, 4rem) - var(--wd-bottom-h, 0px) - 1rem);
+}
+
 /* Short screens (a phone on its side): the rail lies in a row above the HUD,
    so it cannot climb into the top bar's corner. */
 @media (max-height: 480px) {

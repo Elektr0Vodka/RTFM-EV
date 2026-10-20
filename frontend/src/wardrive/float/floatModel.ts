@@ -58,12 +58,11 @@ function isAndroid(nav: Navigator): boolean {
   return /Android/i.test(nav.userAgent ?? '');
 }
 
-/** How this browser can float the reading. Picture-in-picture where the
- * document has it switched on; on Android fullscreen instead, because there
- * picture-in-picture hides the tab behind it, which stops the position watch
- * (Chrome turns a fullscreen video into its floating window when the driver
- * leaves the app, keeping the page running). null hides the Float button:
- * on a desktop without picture-in-picture the page itself is on screen. */
+/** How this browser can float the reading: picture-in-picture wherever the
+ * document has it (Android too: a small window over the navigation app, as
+ * the owner asked); fullscreen only on Android without it. null hides the
+ * Float button: on a desktop without picture-in-picture the page itself is
+ * on screen. */
 export interface FloatWindow {
   document: Pick<Document, 'pictureInPictureEnabled'>;
   HTMLCanvasElement?: { prototype: unknown };
@@ -74,8 +73,7 @@ export function floatSupport(win: FloatWindow, nav: Navigator): 'pip' | 'fullscr
   const canvas = win.HTMLCanvasElement?.prototype as Partial<HTMLCanvasElement> | undefined;
   const video = win.HTMLVideoElement?.prototype as Partial<HTMLVideoElement> | undefined;
   if (!canvas || typeof canvas.captureStream !== 'function' || !video) return null;
-  if (isAndroid(nav)) return typeof video.requestFullscreen === 'function' ? 'fullscreen' : null;
-  return win.document.pictureInPictureEnabled && typeof video.requestPictureInPicture === 'function'
-    ? 'pip'
-    : null;
+  if (win.document.pictureInPictureEnabled && typeof video.requestPictureInPicture === 'function')
+    return 'pip';
+  return isAndroid(nav) && typeof video.requestFullscreen === 'function' ? 'fullscreen' : null;
 }

@@ -92,8 +92,9 @@ describe('floatSupport', () => {
     expect(floatSupport(fakeWin({ pip: true }), DESKTOP)).toBe('pip');
   });
 
-  it('is fullscreen on Android, where picture-in-picture hides the page', () => {
-    expect(floatSupport(fakeWin({ pip: true }), ANDROID)).toBe('fullscreen');
+  it('floats in picture-in-picture on Android too, fullscreen only without it', () => {
+    expect(floatSupport(fakeWin({ pip: true }), ANDROID)).toBe('pip');
+    expect(floatSupport(fakeWin(), ANDROID)).toBe('fullscreen');
     expect(
       floatSupport(fakeWin(), { userAgentData: { platform: 'Android' } } as unknown as Navigator)
     ).toBe('fullscreen');
@@ -176,20 +177,31 @@ describe('FloatReadout', () => {
     expect(els.raw.requestFrame.mock.calls.length).toBe(frames + 1);
   });
 
-  it('goes fullscreen upright on Android', async () => {
+  it('goes fullscreen where there is no picture-in-picture', async () => {
     const els = fakeElements();
-    const orientation = { lock: vi.fn(async () => {}), unlock: vi.fn() };
-    const fr = new FloatReadout({
-      ...els,
-      mode: 'fullscreen',
-      labels: LABELS,
-      cvd: false,
-      orientation,
-    });
+    const fr = new FloatReadout({ ...els, mode: 'fullscreen', labels: LABELS, cvd: false });
     expect(await fr.open(MODEL)).toBe(true);
     expect(els.raw.video.requestFullscreen).toHaveBeenCalled();
-    expect(orientation.lock).toHaveBeenCalledWith('portrait');
     expect(els.raw.video.requestPictureInPicture).not.toHaveBeenCalled();
+  });
+
+  it('draws the readout upright on an upright phone and wide when it turns', async () => {
+    const els = fakeElements();
+    let portrait = true;
+    const fr = new FloatReadout({
+      ...els,
+      mode: 'pip',
+      labels: LABELS,
+      cvd: false,
+      portrait: () => portrait,
+    });
+    expect([els.raw.canvas.width, els.raw.canvas.height]).toEqual([540, 720]);
+    await fr.open(MODEL);
+    const frames = els.raw.requestFrame.mock.calls.length;
+    portrait = false;
+    fr.relayout();
+    expect([els.raw.canvas.width, els.raw.canvas.height]).toEqual([960, 540]);
+    expect(els.raw.requestFrame.mock.calls.length).toBe(frames + 1);
   });
 
   it('says it did not open when the browser refuses, and stops the stream', async () => {

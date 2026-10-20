@@ -113,3 +113,42 @@ describe('wardrive top bar', () => {
     expect(onShowLog).toHaveBeenCalled();
   });
 });
+
+describe('wardrive top bar full screen', () => {
+  const base = {
+    dots: { radio: 'off', position: 'off', upload: 'off', brokers: 'off' } as never,
+    targetLabel: 'All senders',
+    onTargets: vi.fn(),
+    filterCount: 0,
+    onFilters: vi.fn(),
+    logHidden: false,
+    onShowLog: vi.fn(),
+    onMenu: vi.fn(),
+  };
+
+  it('offers full screen when the browser can, and leaving it again', () => {
+    const onFullscreen = vi.fn();
+    const { rerender } = render(
+      <I18nProvider>
+        <TopBar {...base} fullscreen="off" onFullscreen={onFullscreen} />
+      </I18nProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+    expect(onFullscreen).toHaveBeenCalled();
+    rerender(
+      <I18nProvider>
+        <TopBar {...base} fullscreen="on" onFullscreen={onFullscreen} />
+      </I18nProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Leave full screen' })).toBeTruthy();
+  });
+
+  it('shows no full screen button where the browser has none', () => {
+    render(
+      <I18nProvider>
+        <TopBar {...base} fullscreen="unsupported" onFullscreen={vi.fn()} />
+      </I18nProvider>
+    );
+    expect(screen.queryByRole('button', { name: 'Full screen' })).toBeNull();
+  });
+});

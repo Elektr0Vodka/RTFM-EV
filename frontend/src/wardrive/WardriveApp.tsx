@@ -68,12 +68,14 @@ import { connectMqtt } from './forward/client';
 import { AboutPanel } from './screen/AboutPanel';
 import { Banners } from './screen/Banners';
 import { Hud, formatAge } from './screen/Hud';
-import { FloatReadout, type FloatReadoutOptions } from './float/FloatReadout';
+import { FloatReadout } from './float/FloatReadout';
 import { floatModel, floatSupport } from './float/floatModel';
 import { useCvdMode } from '../hooks/useCvdColors';
 import { MapErrorBoundary } from './screen/MapErrorBoundary';
 import { MenuSheet, type MenuTab } from './screen/MenuSheet';
+import { MovablePanel } from './screen/MovablePanel';
 import { LOG_SIZE_KEY, ReceptionLog, type LogSize } from './screen/ReceptionLog';
+import { useFullscreen } from './useFullscreen';
 import { FilterSheet } from './screen/FilterSheet';
 import { RightRail } from './screen/RightRail';
 import { StartScreen, dismissStartScreen, startScreenWanted } from './screen/StartScreen';
@@ -92,7 +94,12 @@ import { IntroduceSetting } from './components/IntroduceSetting';
 import { useAutoDiscover, type Attribute } from './discover/useAutoDiscover';
 import { parseAttenuator, plotOffset } from './signal';
 import { useRadioStats } from './useRadioStats';
-import { nextCompassMode, parseCompassMode, type CompassMode } from './map/compassMode';
+import {
+  nextCompassMode,
+  parseCompassMode,
+  type CompassMode,
+  type MapInsets,
+} from './map/compassMode';
 import { nextNodePosMode, parseNodePosMode, type NodePosMode } from './map/nodeLayer';
 import { parseExaggeration } from './map/terrain';
 import { VIEW_STATES, nextViewIndex, parseViewKey, viewKey } from './map/viewModes';
@@ -176,6 +183,11 @@ function parseCalibration(v: unknown): number {
 }
 const NOISE_MAP_KEY = 'rtfm-wardrive-noise-map';
 const INTRODUCE_KEY = 'rtfm-wardrive-introduce';
+/** Where the driver dragged the live log (MovablePanel). */
+const LOG_POS_KEY = 'rtfm-wardrive-log-pos';
+
+/** An upright phone (the float readout takes that shape). */
+const isPortrait = () => window.matchMedia?.('(orientation: portrait)').matches ?? false;
 
 function writePref(key: string, value: string): void {
   try {
@@ -233,6 +245,10 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     writePref(NOISE_MAP_KEY, on ? '1' : '0');
   };
   const [sound, setSound] = useState<SoundMode>(() => readPref(SOUND_KEY, ['off', 'rx'], 'off'));
+  // What the top bar and the HUD cover: the map keeps the followed position
+  // in the part left between them.
+  const [mapInsets, setMapInsets] = useState<MapInsets>({ top: 0, bottom: 0 });
+  const fullscreen = useFullscreen();
   const [logSize, setLogSize] = useState<LogSize>(() =>
     readPref(LOG_SIZE_KEY, ['full', 'three', 'one', 'hidden'], 'three')
   );
@@ -621,6 +637,14 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
     },
     []
   );
+  // The readout follows the phone's orientation while it floats.
+  useEffect(() => {
+    const query = window.matchMedia?.('(orientation: portrait)');
+    if (!query) return;
+    const onTurn = () => floatRef.current?.relayout();
+    query.addEventListener?.('change', onTurn);
+    return () => query.removeEventListener?.('change', onTurn);
+  }, []);
   const toggleFloat = () => {
     if (!floatMode) return;
     if (floatRef.current?.isOpen()) {
@@ -641,7 +665,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         },
         cvd: cvdOn,
         onChange: setFloatOpen,
-        orientation: (screen.orientation ?? null) as FloatReadoutOptions['orientation'],
+        portrait: isPortrait,
       });
     }
     void floatRef.current?.open(floatNow);
@@ -792,6 +816,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
               rssiOffset={rssiOffset}
               noiseReadings={radioStats.noiseReadings}
               noiseOn={noiseMap}
+              insets={mapInsets}
               onUserPan={() => {
                 // A drag looks away; before the first fix there is nothing to leave.
                 if (fixRef.current) setCompassMode('static');
@@ -815,6 +840,8 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
           logHidden={logSize === 'hidden'}
           onShowLog={() => changeLogSize('three')}
           onMenu={() => setMenuOpen(true)}
+          fullscreen={fullscreen.state}
+          onFullscreen={() => void fullscreen.toggle()}
         />
       }
       banners={
@@ -832,17 +859,22 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
         />
       }
       log={
-        <ReceptionLog
-          entries={view.shown}
-          selectedId={selectedId}
-          onSelect={selectEntry}
-          onClearSelection={clearSelection}
-          size={logSize}
-          onSize={changeLogSize}
-          nowMs={nowMs}
-          rssiOffset={rssiOffset}
-        />
+        logSize === 'hidden' ? null : (
+          <MovablePanel storageKey={LOG_POS_KEY} handleLabel={t('wardrive_page_log_move')}>
+            <ReceptionLog
+              entries={view.shown}
+              selectedId={selectedId}
+              onSelect={selectEntry}
+              onClearSelection={clearSelection}
+              size={logSize}
+              onSize={changeLogSize}
+              nowMs={nowMs}
+              rssiOffset={rssiOffset}
+            />
+          </MovablePanel>
+        )
       }
+      onInsets={setMapInsets}
       hud={
         <>
           {floatMode && (
