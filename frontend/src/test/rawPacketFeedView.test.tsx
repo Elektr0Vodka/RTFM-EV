@@ -277,6 +277,35 @@ describe('RawPacketFeedView', () => {
       expect(screen.queryByText(/No packets received yet/i)).not.toBeInTheDocument();
     });
 
+    it('filters on route: flood, transport flood, or both', () => {
+      // Same packet; the second has route type 0 (TransportFlood) and two transport codes.
+      const flood = ONE_BYTE_HOP_PACKET_HEX;
+      const transport = `08AABBCCDD${ONE_BYTE_HOP_PACKET_HEX.slice(2)}`;
+      renderView({ packets: [makePacket(1, flood), makePacket(2, transport)] });
+      expect(screen.getByText(flood)).toBeInTheDocument();
+      expect(screen.getByText(transport)).toBeInTheDocument();
+
+      openFilters();
+      const only = (route: string) => {
+        const span = screen.getByLabelText(route).closest('span')!;
+        fireEvent.click(within(span).getByRole('button', { name: '(only)' }));
+      };
+      only('TransportFlood');
+      expect(screen.queryByText(flood)).not.toBeInTheDocument();
+      expect(screen.getByText(transport)).toBeInTheDocument();
+
+      only('Flood');
+      expect(screen.getByText(flood)).toBeInTheDocument();
+      expect(screen.queryByText(transport)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText('TransportFlood'));
+      expect(screen.getByText(flood)).toBeInTheDocument();
+      expect(screen.getByText(transport)).toBeInTheDocument();
+
+      only('Direct');
+      expect(screen.getByText(/No packets received yet/i)).toBeInTheDocument();
+    });
+
     it('combines with the hex filter', () => {
       renderView({ packets: [makePacket(1, 'aabbcc'), makePacket(2, 'ddeeff')] }); // both "No path"
 

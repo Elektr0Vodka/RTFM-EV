@@ -324,6 +324,9 @@ _PAYLOAD_TYPE_TO_ENUM: dict[str, str] = {
 }
 
 
+_ROUTE_TYPE_LABELS = {"Flood", "TransportFlood", "Direct", "TransportDirect"}
+
+
 @router.get("/history")
 async def get_packet_history(
     limit: int = 500,
@@ -332,6 +335,7 @@ async def get_packet_history(
     before_id: int | None = None,
     payload_types: Annotated[list[str] | None, Query()] = None,
     hop_widths: Annotated[list[str] | None, Query()] = None,
+    route_types: Annotated[list[str] | None, Query()] = None,
     hex: str | None = None,
     search: str | None = None,
     policy_only: bool = False,
@@ -344,6 +348,8 @@ async def get_packet_history(
       "Unknown" means the complement of the explicitly mapped names (incl. NULL).
     - hop_widths: frontend hop-byte-width bucket names, mapped to hop_count /
       hop_byte_width column predicates.
+    - route_types: stored route labels (Flood, TransportFlood, Direct,
+      TransportDirect); other names are ignored.
     - hex: lowercase hex substring match on the packet bytes (mirrors the feed).
     - search: case-insensitive substring over decrypted message content
       (message text, sender name, channel name) and the name of the stored
@@ -410,6 +416,13 @@ async def get_packet_history(
                 )
         if hw_clauses:
             conditions.append("(" + " OR ".join(hw_clauses) + ")")
+
+    # route filter (the labels stored in raw_packets.route_type).
+    if route_types:
+        routes = sorted(set(route_types) & _ROUTE_TYPE_LABELS)
+        if routes:
+            conditions.append(f"rp.route_type IN ({','.join('?' * len(routes))})")
+            params.extend(routes)
 
     # hex substring filter (mirror the feed: lowercase includes()).
     if hex is not None and hex != "":

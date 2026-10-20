@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Contact } from '../types';
 import { useT } from '../i18n';
+import { useSeriesColor } from '../hooks/useCvdColors';
 import { AddToBotListDialog, type BotListTarget } from './AddToBotListDialog';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { MeshFilterStatsTables } from './MeshFilterStatsTables';
@@ -57,7 +58,9 @@ const SERIES = [
   { key: 'spam', color: 'hsl(var(--destructive))', labelKey: 'mesh_filter_tile_spam' },
   { key: 'malformed', color: 'hsl(var(--warning))', labelKey: 'mesh_filter_tile_malformed' },
   { key: 'duplicate', color: 'hsl(var(--info))', labelKey: 'mesh_filter_tile_duplicates' },
-  { key: 'bot_now', color: 'hsl(var(--primary))', labelKey: 'mesh_filter_tile_bots' },
+  // Its own colour, not a theme token: several themes (DarkDutch among them)
+  // make --primary the same blue as --info, so bots looked like duplicates.
+  { key: 'bot_now', color: '#8b5cf6', labelKey: 'mesh_filter_tile_bots' },
 ] as const;
 
 const BLOCK_LABEL_KEYS: Record<string, string> = {
@@ -106,6 +109,7 @@ function TrendChart({
   const pw = W - pad.left - pad.right;
   const ph = H - pad.top - pad.bottom;
   const n = series.length;
+  const seriesColor = useSeriesColor();
 
   const valueOf = (bucket: FilterStatsBucket, key: (typeof SERIES)[number]['key']) =>
     mode === 'share'
@@ -143,12 +147,12 @@ function TrendChart({
           </text>
         </g>
       ))}
-      {SERIES.map((s) => (
+      {SERIES.map((s, index) => (
         <polyline
           key={s.key}
           points={series.map((b, i) => `${xOf(i)},${yOf(valueOf(b, s.key))}`).join(' ')}
           fill="none"
-          stroke={s.color}
+          stroke={seriesColor(index, s.color)}
           strokeWidth={1.2}
           strokeLinejoin="round"
         />
@@ -243,6 +247,7 @@ export function MeshFilterStatsPanel({
   const [channel, setChannel] = useState('');
   // The channels of the last unfiltered answer, so the filter keeps its options.
   const [knownChannels, setKnownChannels] = useState<FilterStatsChannel[]>([]);
+  const seriesColor = useSeriesColor();
   const [scramble, setScramble] = useState(false);
   const [trendMode, setTrendMode] = useState<TrendMode>('count');
   const [botTarget, setBotTarget] = useState<BotListTarget | null>(null);
@@ -320,6 +325,7 @@ export function MeshFilterStatsPanel({
     () =>
       knownChannels.map((c) => ({
         key: c.key,
+        protected: c.protected === true,
         label:
           scramble && !c.public
             ? getSessionScrambler().channel(c.key)
@@ -404,7 +410,9 @@ export function MeshFilterStatsPanel({
             <option value="">{t('mesh_filter_channel_all')}</option>
             {channelOptions.map((option) => (
               <option key={option.key} value={option.key}>
-                {option.label}
+                {option.protected
+                  ? `${option.label} (${t('mesh_filter_channel_protected')})`
+                  : option.label}
               </option>
             ))}
           </select>
@@ -527,14 +535,14 @@ export function MeshFilterStatsPanel({
               {t('mesh_filter_trend_heading')}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {SERIES.map((s) => (
+              {SERIES.map((s, index) => (
                 <span
                   key={s.key}
                   className="flex items-center gap-1 text-[10px] text-muted-foreground"
                 >
                   <span
                     className="inline-block h-2 w-2 rounded-sm"
-                    style={{ backgroundColor: s.color }}
+                    style={{ backgroundColor: seriesColor(index, s.color) }}
                   />
                   {t(s.labelKey)}
                 </span>

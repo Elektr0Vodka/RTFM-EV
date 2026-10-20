@@ -187,6 +187,8 @@ export function MeshFilterStatsTables({
   const t = useT();
   // Kept across refreshes on purpose: a new report must not throw away the table the user chose.
   const [table, setTable] = useState<TableKey>('senders');
+  // The channel table counts every channel; Spam Guard reads the protected ones only.
+  const [protectedOnly, setProtectedOnly] = useState(false);
 
   const countColumns = <T extends FilterCounts>(): Column<T>[] => [
     numeric('messages', t('mesh_filter_col_messages'), (r) => r.messages),
@@ -264,7 +266,16 @@ export function MeshFilterStatsTables({
       key: 'name',
       label: t('mesh_filter_col_channel'),
       sort: (c) => c.name,
-      cell: (c) => c.name || t('mesh_filter_channel_unknown'),
+      cell: (c) => (
+        <span className="flex items-center gap-1.5">
+          <span>{c.name || t('mesh_filter_channel_unknown')}</span>
+          {c.protected && (
+            <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+              {t('mesh_filter_channel_protected')}
+            </span>
+          )}
+        </span>
+      ),
     },
     ...countColumns<FilterStatsReport['channels'][number]>(),
   ];
@@ -363,6 +374,17 @@ export function MeshFilterStatsTables({
               </button>
             ))}
           </div>
+          {table === 'channels' && (
+            <label className="flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={protectedOnly}
+                onChange={(e) => setProtectedOnly(e.target.checked)}
+                className="rounded"
+              />
+              {t('mesh_filter_protected_only')}
+            </label>
+          )}
           <button
             type="button"
             onClick={downloadCsv}
@@ -383,7 +405,7 @@ export function MeshFilterStatsTables({
       {table === 'channels' && (
         <SortableTable
           columns={channelColumns}
-          rows={report.channels}
+          rows={protectedOnly ? report.channels.filter((c) => c.protected) : report.channels}
           rowKey={(c) => c.key}
           pageSize={pageSize}
         />

@@ -23,6 +23,8 @@ export function botForwardStatusText(t: TFn, forward: BotForwardStatus): string 
       return t('bot_forward_key_not_shared');
     case 'no_channels':
       return t('bot_forward_no_channels');
+    case 'no_bot_channels':
+      return t('bot_forward_no_bot_channels');
     case 'not_armed':
       return t('bot_forward_not_armed');
     case 'not_synced':

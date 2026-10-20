@@ -1,6 +1,10 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { HOP_BYTE_WIDTH_BUCKETS, KNOWN_PAYLOAD_TYPES } from '../utils/rawPacketStats';
+import {
+  HOP_BYTE_WIDTH_BUCKETS,
+  KNOWN_PAYLOAD_TYPES,
+  ROUTE_FILTER_TYPES,
+} from '../utils/rawPacketStats';
 import { useT } from '../i18n';
 
 export interface PacketFilterModalProps {
@@ -17,6 +21,11 @@ export interface PacketFilterModalProps {
   onToggleAllHopWidths: () => void;
   onToggleHopWidth: (bucket: string) => void;
   onOnlyHopWidth: (bucket: string) => void;
+  enabledRoutes: Set<string>;
+  allRoutesEnabled: boolean;
+  onToggleAllRoutes: () => void;
+  onToggleRoute: (route: string) => void;
+  onOnlyRoute: (route: string) => void;
   onGroupByHashChange: (value: boolean) => void;
   /** 'Hide malformed' toggle; left out where packets do not carry the flag. */
   hideMalformed?: boolean;
@@ -46,6 +55,11 @@ export function PacketFilterModal({
   onToggleAllHopWidths,
   onToggleHopWidth,
   onOnlyHopWidth,
+  enabledRoutes,
+  allRoutesEnabled,
+  onToggleAllRoutes,
+  onToggleRoute,
+  onOnlyRoute,
   onGroupByHashChange,
   hideMalformed = false,
   onHideMalformedChange,
@@ -209,6 +223,45 @@ export function PacketFilterModal({
                   type="button"
                   className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
                   onClick={() => onOnlyHopWidth(bucket)}
+                >
+                  {t('packet_filter_only_button')}
+                </button>
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-2">
+          <div className="flex items-center justify-between border-t border-border/60 pt-2">
+            <span className="text-[0.625rem] uppercase tracking-wider font-medium text-muted-foreground">
+              {t('packet_filter_routes_section')}
+            </span>
+            <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allRoutesEnabled}
+                onChange={onToggleAllRoutes}
+                className="rounded"
+              />
+              {t('packet_filter_all_routes_label')}
+            </label>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+            {ROUTE_FILTER_TYPES.map((route) => (
+              <span key={route} className="inline-flex items-center gap-1 text-xs">
+                <label className="flex items-center gap-1 text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enabledRoutes.has(route)}
+                    onChange={() => onToggleRoute(route)}
+                    className="rounded"
+                  />
+                  {route}
+                </label>
+                <button
+                  type="button"
+                  className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
+                  onClick={() => onOnlyRoute(route)}
                 >
                   {t('packet_filter_only_button')}
                 </button>

@@ -2986,6 +2986,8 @@
   "packet_resume": "Fortsetzen",
   "packet_paused_new": "{count} neu",
   "packet_filter_all_widths_label": "Alle Breiten",
+  "packet_filter_routes_section": "Route",
+  "packet_filter_all_routes_label": "Alle Routen",
   "packet_autoscroll_label": "Automatisch scrollen",
   "packet_sort_label": "Sortierreihenfolge",
   "packet_sort_oldest": "Älteste zuerst",
@@ -5011,6 +5013,8 @@
   "mesh_filter_channel_label": "Kanal",
   "mesh_filter_channel_all": "Alle Kanäle",
   "mesh_filter_channel_unknown": "Unbekannter Kanal",
+  "mesh_filter_channel_protected": "Geschützt",
+  "mesh_filter_protected_only": "Nur geschützte Kanäle",
   "mesh_filter_scramble": "Namen anonymisieren",
   "mesh_filter_scramble_hint": "Ersetzt Absendernamen, Namen privater Kanäle und selbst geschriebene OpenHop-Regelnamen durch Codes, hier und in jedem Export.",
   "mesh_filter_copy_summary": "Zusammenfassung kopieren",
@@ -5506,7 +5510,7 @@
   "settings_bot_lists_enabled_label": "{name} aktivieren",
   "settings_bot_lists_block_label": "Weiterleitung blockieren",
   "settings_bot_lists_block_aria": "Weiterleitung von {name} blockieren",
-  "settings_bot_lists_block_help": "Weiterleitung blockieren sorgt dafür, dass dieser Repeater Kanalnachrichten der Namen einer Liste nicht mehr weiterleitet. Es läuft über Spam Guard: im Modus Schützen, auf den geschützten Kanälen. Andere Repeater leiten sie weiterhin weiter, und sie kommen hier weiterhin an.",
+  "settings_bot_lists_block_help": "Weiterleitung blockieren sorgt dafür, dass dieser Repeater Kanalnachrichten der Namen einer Liste nicht mehr weiterleitet. Es läuft über Spam Guard: im Modus Schützen, auf den geschützten Kanälen, bei denen „Gelistete Bots hier blockieren“ an ist. Andere Repeater leiten sie weiterhin weiter, und sie kommen hier weiterhin an.",
   "settings_bot_lists_review_count": {
     "one": "{count} neuer Name zu prüfen",
     "other": "{count} neue Namen zu prüfen"
@@ -5522,6 +5526,7 @@
   "bot_forward_rules_failed": "Wartet: die Regeln konnten nicht angewendet werden",
   "bot_forward_key_not_shared": "Wartet: der Kanalschlüssel wird nicht mit dem OpenHop-Node geteilt",
   "bot_forward_no_channels": "Wartet: Spam Guard hat keine geschützten Kanäle",
+  "bot_forward_no_bot_channels": "Wartet: bei keinem geschützten Kanal ist „Gelistete Bots hier blockieren“ an",
   "bot_forward_not_armed": "Wartet: der Host-Repeater ist nicht scharf",
   "bot_forward_not_synced": "Wartet: die Regeln sind noch nicht auf dem OpenHop-Node",
   "settings_bot_lists_review_aria": {
@@ -5811,6 +5816,7 @@
   "spam_channels_desc": "Spam Guard liest nur die Kanäle in dieser Liste. Suche einen Kanal, um ihn hinzuzufügen.",
   "spam_channels_missing": "{name} (nicht mehr in deinen Kanälen)",
   "spam_channels_share_key": "Auch auf dem OpenHop-Knoten durchsetzen (kopiert den Schlüssel dieses Kanals auf den Knoten)",
+  "spam_channels_drop_bots": "Gelistete Bots hier blockieren (fügt eine Regel für Bot-Listen mit Weiterleitung blockieren hinzu)",
   "spam_channels_share_key_confirm": "OpenHop kann nur dann lesen, wer eine Nachricht gesendet hat und was darin steht, wenn es den Kanalschlüssel hat. Wird \"{name}\" auf dem Knoten durchgesetzt, wird der Schlüssel dieses privaten Kanals in die Richtliniendatei des Knotens (policy.yaml) kopiert, wo ihn jeder mit Zugriff auf den Knoten lesen kann. Fortfahren?",
   "spam_group_repeater": "Sperren nach Quellrepeater",
   "spam_group_text": "Sperren nach Nachrichtentext",

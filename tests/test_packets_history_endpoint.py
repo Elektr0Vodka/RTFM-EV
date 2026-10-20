@@ -94,6 +94,27 @@ class TestHistoryFilters:
         assert "ADVERT" not in types
 
     @pytest.mark.asyncio
+    async def test_route_type_filter(self, test_db, client):
+        await RawPacketRepository.create(b"", 100, route_type="Flood")
+        await RawPacketRepository.create(b"", 101, route_type="TransportFlood")
+        await RawPacketRepository.create(b"", 102, route_type="Direct")
+        await RawPacketRepository.create(b"", 103, route_type="Unknown")
+
+        r = await client.get("/api/packets/history", params=[("route_types", "TransportFlood")])
+        assert [p["data"] for p in r.json()["packets"]] == ["02"]
+
+        # Flood and transport flood together, as the "both" choice sends it.
+        r = await client.get(
+            "/api/packets/history",
+            params=[("route_types", "Flood"), ("route_types", "TransportFlood")],
+        )
+        assert [p["data"] for p in r.json()["packets"]] == ["02", "01"]
+
+        # A name the server does not know filters nothing.
+        r = await client.get("/api/packets/history", params=[("route_types", "Sideways")])
+        assert len(r.json()["packets"]) == 4
+
+    @pytest.mark.asyncio
     async def test_hex_substring_filter(self, test_db, client):
         await RawPacketRepository.create(bytes.fromhex("abcd12"), 100)
         await RawPacketRepository.create(bytes.fromhex("00ff00"), 101)

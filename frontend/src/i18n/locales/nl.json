@@ -2986,6 +2986,8 @@
   "packet_resume": "Hervatten",
   "packet_paused_new": "{count} nieuw",
   "packet_filter_all_widths_label": "Alle breedtes",
+  "packet_filter_routes_section": "Route",
+  "packet_filter_all_routes_label": "Alle routes",
   "packet_autoscroll_label": "Automatisch scrollen",
   "packet_sort_label": "Sorteervolgorde",
   "packet_sort_oldest": "Oudste eerst",
@@ -5011,6 +5013,8 @@
   "mesh_filter_channel_label": "Kanaal",
   "mesh_filter_channel_all": "Alle kanalen",
   "mesh_filter_channel_unknown": "Onbekend kanaal",
+  "mesh_filter_channel_protected": "Beschermd",
+  "mesh_filter_protected_only": "Alleen beschermde kanalen",
   "mesh_filter_scramble": "Namen anonimiseren",
   "mesh_filter_scramble_hint": "Vervangt afzendernamen, namen van privékanalen en zelfgeschreven OpenHop-regelnamen door codes, hier en in elke export.",
   "mesh_filter_copy_summary": "Samenvatting kopiëren",
@@ -5506,7 +5510,7 @@
   "settings_bot_lists_enabled_label": "{name} inschakelen",
   "settings_bot_lists_block_label": "Doorsturen blokkeren",
   "settings_bot_lists_block_aria": "Doorsturen blokkeren van {name}",
-  "settings_bot_lists_block_help": "Doorsturen blokkeren zorgt dat deze repeater kanaalberichten van de namen op een lijst niet meer doorstuurt. Het werkt via Spam Guard: in de modus Beschermen, op de beschermde kanalen. Andere repeaters sturen ze nog wel door en ze komen hier nog steeds aan.",
+  "settings_bot_lists_block_help": "Doorsturen blokkeren zorgt dat deze repeater kanaalberichten van de namen op een lijst niet meer doorstuurt. Het werkt via Spam Guard: in de modus Beschermen, op de beschermde kanalen waar 'Gelijste bots hier blokkeren' aan staat. Andere repeaters sturen ze nog wel door en ze komen hier nog steeds aan.",
   "settings_bot_lists_review_count": {
     "one": "{count} nieuwe naam om te beoordelen",
     "other": "{count} nieuwe namen om te beoordelen"
@@ -5522,6 +5526,7 @@
   "bot_forward_rules_failed": "Wacht: de regels konden niet worden toegepast",
   "bot_forward_key_not_shared": "Wacht: de kanaalsleutel wordt niet gedeeld met de OpenHop-node",
   "bot_forward_no_channels": "Wacht: Spam Guard heeft geen beschermde kanalen",
+  "bot_forward_no_bot_channels": "Wacht: bij geen enkel beschermd kanaal staat 'Gelijste bots hier blokkeren' aan",
   "bot_forward_not_armed": "Wacht: de host-repeater is niet gewapend",
   "bot_forward_not_synced": "Wacht: de regels staan nog niet op de OpenHop-node",
   "settings_bot_lists_review_aria": {
@@ -5811,6 +5816,7 @@
   "spam_channels_desc": "Spam Guard leest alleen de kanalen in deze lijst. Zoek een kanaal om het toe te voegen.",
   "spam_channels_missing": "{name} (niet meer in je kanalen)",
   "spam_channels_share_key": "Ook afdwingen op de OpenHop-node (kopieert de sleutel van dit kanaal naar de node)",
+  "spam_channels_drop_bots": "Gelijste bots hier blokkeren (voegt een regel toe voor botlijsten met Doorsturen blokkeren aan)",
   "spam_channels_share_key_confirm": "OpenHop kan alleen lezen wie een bericht stuurde en wat erin staat als het de kanaalsleutel heeft. Als je \"{name}\" op de node afdwingt, wordt de sleutel van dit privékanaal naar het beleidsbestand van de node (policy.yaml) gekopieerd, waar iedereen met toegang tot de node hem kan lezen. Doorgaan?",
   "spam_group_repeater": "Blokkeren op bronrepeater",
   "spam_group_text": "Blokkeren op berichttekst",

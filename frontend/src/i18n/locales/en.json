@@ -2984,6 +2984,8 @@
   "packet_resume": "Resume",
   "packet_paused_new": "{count} new",
   "packet_filter_all_widths_label": "All widths",
+  "packet_filter_routes_section": "Route",
+  "packet_filter_all_routes_label": "All routes",
   "packet_autoscroll_label": "Autoscroll",
   "packet_sort_label": "Sort order",
   "packet_sort_oldest": "Oldest first",
@@ -5009,6 +5011,8 @@
   "mesh_filter_channel_label": "Channel",
   "mesh_filter_channel_all": "All channels",
   "mesh_filter_channel_unknown": "Unknown channel",
+  "mesh_filter_channel_protected": "Protected",
+  "mesh_filter_protected_only": "Protected channels only",
   "mesh_filter_scramble": "Scramble names",
   "mesh_filter_scramble_hint": "Replaces sender names, private channel names and OpenHop rule names you wrote with codes, here and in every export.",
   "mesh_filter_copy_summary": "Copy summary",
@@ -5504,7 +5508,7 @@
   "settings_bot_lists_enabled_label": "Enable {name}",
   "settings_bot_lists_block_label": "Block forwards",
   "settings_bot_lists_block_aria": "Block forwards from {name}",
-  "settings_bot_lists_block_help": "Block forwards stops this repeater relaying channel messages from a list's names. It works through Spam Guard: in Protect mode, on its protected channels. Other repeaters still relay them and they still arrive here.",
+  "settings_bot_lists_block_help": "Block forwards stops this repeater relaying channel messages from a list's names. It works through Spam Guard: in Protect mode, on its protected channels that have 'Block listed bots here' ticked. Other repeaters still relay them and they still arrive here.",
   "settings_bot_lists_review_count": {
     "one": "{count} new name to review",
     "other": "{count} new names to review"
@@ -5520,6 +5524,7 @@
   "bot_forward_rules_failed": "Waiting: the rules could not be applied",
   "bot_forward_key_not_shared": "Waiting: the channel key is not shared with the OpenHop node",
   "bot_forward_no_channels": "Waiting: Spam Guard has no protected channels",
+  "bot_forward_no_bot_channels": "Waiting: no protected channel has 'Block listed bots here' on",
   "bot_forward_not_armed": "Waiting: the host repeater is not armed",
   "bot_forward_not_synced": "Waiting: the rules are not on the OpenHop node yet",
   "settings_bot_lists_review_aria": {
@@ -5809,6 +5814,7 @@
   "spam_channels_desc": "Spam Guard only reads the channels listed here. Search to add one.",
   "spam_channels_missing": "{name} (no longer in your channels)",
   "spam_channels_share_key": "Also enforce on the OpenHop node (copies this channel's key to the node)",
+  "spam_channels_drop_bots": "Block listed bots here (adds a rule for bot lists with Block forwards on)",
   "spam_channels_share_key_confirm": "OpenHop can only read who sent a message and what it says when it has the channel key. Enforcing \"{name}\" on the node copies the key of this private channel into the node's policy file (policy.yaml), where anyone with access to the node can read it. Continue?",
   "spam_group_repeater": "Blocking by source repeater",
   "spam_group_text": "Blocking by message text",

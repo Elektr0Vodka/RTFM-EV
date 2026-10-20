@@ -168,6 +168,29 @@ class TestEndpoint:
         assert "buy now" not in json.dumps(body)
 
     @pytest.mark.asyncio
+    async def test_channels_marked_protected_from_spam_guard_settings(
+        self, test_db, client, monkeypatch
+    ):
+        from app.routers import filter_stats as router_module
+        from app.services.spam_guard import SpamGuardRuntime
+        from app.spam.settings import SpamConfig
+
+        runtime = SpamGuardRuntime()
+        runtime.config = SpamConfig(channels=[{"key": FAMILY, "name": "Family"}])
+        runtime.loaded = True
+        monkeypatch.setattr(router_module, "spam_guard", runtime)
+        await seed()
+        async with client:
+            response = await client.get(
+                "/api/filter-stats", params={"start_ts": NOW, "end_ts": NOW + 100}
+            )
+        assert response.status_code == 200
+        assert {c["name"]: c["protected"] for c in response.json()["channels"]} == {
+            "Public": False,
+            "Family": True,
+        }
+
+    @pytest.mark.asyncio
     async def test_channel_filter_is_case_insensitive(self, test_db, client):
         await seed()
         async with client:

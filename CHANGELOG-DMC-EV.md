@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (Spam Guard and packet filter feedback round 4, fix/spam-guard-feedback-4)
+
+No migration, no new dependency. Nothing is sent over the radio. From Richard's
+test list.
+
+### Spam Guard
+- Spam sources lists every route spam came in through in the last 7 days. It
+  showed the top 15 only, so further sources came into view only after rows
+  above them were removed. The cap of 6 candidate repeaters per route is gone
+  too.
+- Each protected channel has a **Block listed bots here** checkbox (on by
+  default, so existing setups keep their rules). The bot lists' Block forwards
+  only makes its drop rule on ticked channels, so protecting a channel no
+  longer adds a bot rule for it by itself. The Block forwards status says when
+  no protected channel has it on.
+
+### Mesh Health
+- Spam & bots: the channel table marks the channels Spam Guard protects and
+  has a "Protected channels only" toggle; the channel filter names them too.
+  The table still counts every channel, since malformed, duplicate and bot
+  counts do not depend on Spam Guard.
+- Spam & bots: bots have their own colour in the trend chart. In DarkDutch
+  (and mceu-light, high-contrast) bots and duplicates were the same blue.
+  Colourblind mode now also applies to this chart.
+
+### Packets
+- Packet Feed and Packet History filter on route: Flood, TransportFlood,
+  Direct and TransportDirect, each with "only". Flood plus TransportFlood
+  gives both. Packet History filters on the server (`route_types`).
+
 ## Update 2026-10-20 (pull translations from rtfm-ev-i18n, pull-translations)
 
 No migration, no new dependency.

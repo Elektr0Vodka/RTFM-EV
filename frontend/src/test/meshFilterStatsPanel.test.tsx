@@ -190,6 +190,28 @@ describe('Mesh Health Spam & bots tab', () => {
     ).toBeInTheDocument();
   });
 
+  it('marks protected channels and can show only those', async () => {
+    mockFetch({
+      ...REPORT,
+      channels: [
+        { ...REPORT.channels[0], protected: false },
+        { ...REPORT.channels[1], protected: true },
+      ],
+    });
+    await openTab();
+    // The channel filter names it too.
+    expect(screen.getByRole('option', { name: 'Family (Protected)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Public' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Channels' }));
+    const table = screen.getByTestId('filter-stats-table');
+    expect(within(table).getByText('Public')).toBeInTheDocument();
+    expect(within(table).getAllByText('Protected')).toHaveLength(1);
+
+    fireEvent.click(screen.getByLabelText('Protected channels only'));
+    expect(within(table).queryByText('Public')).not.toBeInTheDocument();
+    expect(within(table).getByText('Family')).toBeInTheDocument();
+  });
+
   it('scramble hides sender names, private channel names and sender actions', async () => {
     await openTab();
     fireEvent.click(screen.getByLabelText('Scramble names'));
