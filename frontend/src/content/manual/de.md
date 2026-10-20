@@ -320,6 +320,21 @@ Die Diagramme für Akku, Grundrauschen und Sendezeit zeigen das aktuelle Funkger
 
 **Repeater ermitteln**, **Sensoren ermitteln** oder **Beide ermitteln** sendet eine kurze Erkennungsanfrage über Funk und listet die Knoten auf, die antworten. **Regionen ermitteln** fragt Repeater in der Nähe, welche Regionen sie fluten, damit du sie zu deinen bekannten Regionen hinzufügen kannst.
 
+### Leistung
+
+Was RTFM-EV selbst tut. **Übersicht** zeigt den Gesamtzustand (mit dem Grund, wenn etwas nicht stimmt), Laufzeit, Prozess und Host, Kacheln für CPU, Speicher, Event-Loop-Verzögerung, Asyncio-Tasks, Pakete pro Minute, Datenbank- und Funkzeiten und überfällige Hintergrundaufgaben, darunter Diagramme und Karten. Die anderen Reiter zeigen jeweils eine Karte vollständig:
+
+- **Event-Loop:** die Verzögerung (wie lange eine bereite Aufgabe wartet) und jede Blockade von 100 ms oder mehr. Bei einer längeren Blockade zeigt die Seite, was der Prozess in dem Moment ausführte, als kurzen Stack.
+- **Hintergrundaufgaben:** jede dauerhaft laufende Schleife mit Status (in Ordnung, läuft, überfällig, inaktiv, fehlgeschlagen), Intervall, letztem Lauf, Dauer und einem 24-Stunden-Streifen, dazu alle aktuellen Asyncio-Tasks.
+- **Paketverarbeitung:** Pakete pro Minute und die Zeit je Schritt (Parsen, Speichern, Verarbeiten, Verteilen), mit Duplikaten, entschlüsselten und nicht entschlüsselbaren Paketen.
+- **Datenbank:** Größe von Datei und WAL, belegte Leser, Wartezeit auf die Sperre und die langsamsten Datenbankaufrufe der letzten Stunde.
+- **Funkverbindung:** wie lange Funkoperationen das Funkgerät belegen, Fehler, Neuverbindungen und die langsamsten Operationen.
+- **Ausgaben:** MQTT und die anderen Fanout-Module, WebSocket-Clients, TAK Stream und Web-Push.
+- **Anfragen:** die meistgenutzten API-Routen mit ihren Zeiten und Serverfehlern.
+- **Logs:** die letzten Warnungen und Fehler aus dem Backend-Log.
+
+Die Seite aktualisiert sich alle 5 Sekunden. Live, 15m und 1h kommen aus dem Speicher in 10-Sekunden-Schritten; für längere Zeiträume wird 30 Tage lang eine Zeile pro Minute gespeichert. CPU ist der Anteil eines Kerns. Speicher, Threads, offene Dateien und das Container-Limit werden unter Linux gelesen und zeigen auf anderen Systemen "–". Das Messen kostet sehr wenig, und über Funk wird nichts gesendet.
+
 ### Spam Guard
 
 Spam Guard stoppt Kanalspam an deinem Repeater. Bewertet wird Verhalten, nie Personen oder Meinungen: derselbe Text unter mehreren erfundenen Namen, Fluten von Kopien und Repeater, über die Spam ins Mesh kommt. Schalte es unter **Einstellungen > Lokale Konfiguration > Spamschutz** ein; die Seite erscheint dann unter Tools.

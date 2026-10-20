@@ -13,6 +13,7 @@ import logging
 import time
 
 from app.models import TrackerObject, TrackerPosition
+from app.perf.recorders import loops as perf_loops
 from app.repository import AppSettingsRepository, ContactRepository
 from app.repository.trackers import TrackerRepository
 from app.services.bot_lists import bot_lists
@@ -144,14 +145,15 @@ class TakStreamServer:
     async def _snapshot_loop(self) -> None:
         while True:
             await asyncio.sleep(self._snapshot_interval_s)
-            if not self._clients:
-                continue
-            try:
-                snapshot = await self._snapshot()
-                if snapshot:
-                    self._broadcast([b"".join(snapshot)])
-            except Exception:  # noqa: BLE001 - keep streaming after a bad snapshot
-                logger.exception("TAK Stream snapshot failed")
+            with perf_loops.tick("tak_stream.snapshot", self._snapshot_interval_s):
+                if not self._clients:
+                    continue
+                try:
+                    snapshot = await self._snapshot()
+                    if snapshot:
+                        self._broadcast([b"".join(snapshot)])
+                except Exception:  # noqa: BLE001 - keep streaming after a bad snapshot
+                    logger.exception("TAK Stream snapshot failed")
 
     async def _on_connect(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         if len(self._clients) >= self._max_clients:

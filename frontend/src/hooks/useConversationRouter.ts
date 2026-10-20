@@ -64,6 +64,8 @@ function resolveConversationFromHash(
       return { type: 'fleet', id: hashConv.name, name: 'Fleet' };
     case 'spam-guard':
       return { type: 'spam-guard', id: 'spam-guard', name: 'Spam Guard' };
+    case 'performance':
+      return { type: 'performance', id: 'performance', name: 'Performance' };
     case 'analyze':
       return { type: 'analyze', id: 'analyze', name: 'Analyze Packet' };
     case 'packet-history':
@@ -212,6 +214,11 @@ export function useConversationRouter({
     }
     if (hashConv?.type === 'spam-guard') {
       setActiveConversationState({ type: 'spam-guard', id: 'spam-guard', name: 'Spam Guard' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'performance') {
+      setActiveConversationState({ type: 'performance', id: 'performance', name: 'Performance' });
       hasSetDefaultConversation.current = true;
       return;
     }

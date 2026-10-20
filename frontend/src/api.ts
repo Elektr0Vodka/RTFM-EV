@@ -2,6 +2,7 @@ import type {
   RelayDetailResponse,
   RelayReceptionResponse,
 } from './components/MeshRelayReceptionPanel';
+import type { PerfHistory, PerfRange, PerfSnapshot } from './components/performance/perfTypes';
 import type {
   AdvertLinkEdge,
   AntennaRegisterSite,
@@ -436,6 +437,10 @@ export const api = {
       `/radio/host-repeater/stats/reset${lifetime ? '?lifetime=true' : ''}`,
       { method: 'POST' }
     ),
+  // Performance page (backend self-monitoring).
+  getPerfSnapshot: () => fetchJson<PerfSnapshot>('/perf/snapshot'),
+  getPerfHistory: (range: PerfRange) =>
+    fetchJson<PerfHistory>(`/perf/history?range=${encodeURIComponent(range)}`),
   // Spam Guard: settings are versioned like the host repeater's (409 when stale).
   getSpamGuard: () => fetchJson<SpamGuardState>('/spam-guard'),
   saveSpamGuardSettings: (version: number, settings: SpamGuardSettings) =>

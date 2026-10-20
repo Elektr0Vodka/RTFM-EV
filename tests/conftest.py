@@ -85,6 +85,8 @@ def _reset_new_node_notify_state():
 @pytest.fixture
 async def test_db():
     """Create an in-memory test database with schema + migrations."""
+    from app.perf import sampler as perf_sampler
+    from app.perf import snapshot as perf_snapshot
     from app.repository import (
         advert_events,
         advert_links,
@@ -180,6 +182,8 @@ async def test_db():
         raw_feed_stats,
         sensor_push,
         trackers,
+        perf_sampler,
+        perf_snapshot,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

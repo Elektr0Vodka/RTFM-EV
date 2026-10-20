@@ -60,6 +60,9 @@ const SpamGuardView = lazy(() =>
   import('./SpamGuardView').then((m) => ({ default: m.SpamGuardView }))
 );
 const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
+const PerformanceView = lazy(() =>
+  import('./PerformanceView').then((m) => ({ default: m.PerformanceView }))
+);
 const MeshDiscoveryView = lazy(() =>
   import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
@@ -492,6 +495,14 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_mesh_trends')} />}>
         <MeshTrendsView contacts={contacts} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'performance') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_performance')} />}>
+        <PerformanceView />
       </Suspense>
     );
   }

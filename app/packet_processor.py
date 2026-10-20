@@ -44,6 +44,7 @@ from app.models import (
     RawPacketPolicyVerdict,
 )
 from app.path_utils import calculate_packet_hash, is_scoped, parse_packet_envelope
+from app.perf.recorders import pipeline as perf_pipeline
 from app.region_resolver import resolve_region
 from app.repository import (
     AdvertEventRepository,
@@ -325,6 +326,8 @@ async def process_raw_packet(
     """
     ts = timestamp or int(time.time())
     observation_id = next(_raw_observation_counter)
+    # Stage timings for the Performance page (parse, store, process, broadcast).
+    t_start = time.perf_counter()
 
     # Parse packet FIRST so the payload type is known before the row is stored,
     # letting the signal metadata (rssi/snr/payload_type) persist on raw_packets.
@@ -374,6 +377,7 @@ async def process_raw_packet(
     # On an OpenHop node: the policy rule that decides this packet (an
     # indication). Stored with the packet, so Packet History can show it.
     verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
+    t_parsed = time.perf_counter()
     packet_id, is_new_packet = await RawPacketRepository.create(
         raw_bytes,
         ts,
@@ -391,6 +395,7 @@ async def process_raw_packet(
     await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
     # Per-copy relay reception (Mesh Health "Relay reception", plan 21 S1). Never raises.
     relay_capture = await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
+    t_stored = time.perf_counter()
     raw_hex = raw_bytes.hex()
 
     if parsed_info is None and fuota is None and meshcoreng is None and len(raw_bytes) > 2:
@@ -550,6 +555,7 @@ async def process_raw_packet(
 
     # Always broadcast raw packet for the packet feed UI (even duplicates)
     # This enables the frontend cracker to see all incoming packets in real-time
+    t_processed = time.perf_counter()
     broadcast_payload = RawPacketBroadcast(
         id=packet_id,
         observation_id=observation_id,
@@ -578,6 +584,16 @@ async def process_raw_packet(
     )
     broadcast_event("raw_packet", broadcast_payload.model_dump())
 
+    perf_pipeline.record(
+        payload_type=payload_type_name,
+        parse_ms=(t_parsed - t_start) * 1000,
+        store_ms=(t_stored - t_parsed) * 1000,
+        process_ms=(t_processed - t_stored) * 1000,
+        broadcast_ms=(time.perf_counter() - t_processed) * 1000,
+        is_new=is_new_packet,
+        decrypted=bool(result["decrypted"]),
+        malformed=bool(result.get("malformed")),
+    )
     return result
 
 

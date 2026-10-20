@@ -1061,6 +1061,7 @@ type ConversationType =
   | 'lan-scan'
   | 'fleet'
   | 'spam-guard'
+  | 'performance'
   | 'analyze'
   | 'packet-history'
   | 'manual'
