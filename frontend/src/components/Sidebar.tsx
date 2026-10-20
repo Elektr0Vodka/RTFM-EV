@@ -28,6 +28,7 @@ import {
   Router,
   ScanSearch,
   ShieldCheck,
+  Cpu,
   Search as SearchIcon,
   Settings2,
   SquarePen,
@@ -567,6 +568,7 @@ export function Sidebar({
       | 'lan-scan'
       | 'fleet'
       | 'spam-guard'
+      | 'performance'
       | 'analyze'
       | 'packet-history'
       | 'manual'
@@ -1482,6 +1484,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'performance':
+        return renderSidebarActionRow({
+          key: 'tool-performance',
+          active: isActive('performance', 'performance'),
+          icon: <Cpu className="h-4 w-4" />,
+          label: t('nav_performance'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'performance',
+              id: 'performance',
+              name: t('nav_performance'),
+            }),
+          iconOnly,
+        });
       case 'raw':
         return renderSidebarActionRow({
           key: 'tool-raw',
@@ -2028,6 +2044,7 @@ export function Sidebar({
     'lan-scan': t('nav_lan_scan'),
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
+    performance: t('nav_performance'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),

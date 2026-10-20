@@ -320,6 +320,21 @@ The battery, noise floor and airtime charts show the current radio plus the hist
 
 **Discover Repeaters**, **Discover Sensors** or **Discover Both** sends a short discovery request over RF and lists the nodes that answer. **Discover Regions** asks nearby repeaters which regions they flood, so you can add them to your known regions.
 
+### Performance
+
+What RTFM-EV itself is doing. **Overview** shows the overall state (with the reason when something is off), uptime, the process and the host, tiles for CPU, memory, event-loop lag, asyncio tasks, packets per minute, database and radio timing and overdue background tasks, then charts and the cards below. The other tabs show one card in full:
+
+- **Event loop:** the lag (how long a ready task waits to run) and every stall of 100 ms or more. For a longer stall the page shows what the process was running at that moment, as a short stack.
+- **Background tasks:** every long-running loop with its state (healthy, running, overdue, idle, failed), interval, last run, duration and a 24-hour strip, plus all asyncio tasks right now.
+- **Packet pipeline:** packets per minute and the time each step takes (parse, store, process, broadcast), with duplicates, decrypted and undecryptable packets.
+- **Database:** file and WAL size, readers busy, lock waits and the slowest database calls of the last hour.
+- **Radio link:** how long radio operations hold the radio, errors, reconnects and the slowest operations.
+- **Outputs:** MQTT and the other fanout modules, WebSocket clients, TAK Stream and web push.
+- **Requests:** the busiest API routes with their timings and server errors.
+- **Logs:** the latest warnings and errors from the backend log.
+
+The page refreshes every 5 seconds. Live, 15m and 1h come from memory at 10-second detail; one row per minute is stored for 30 days for the longer ranges. CPU is the share of one core. Memory, threads, open files and the container limit are read from Linux and show "–" on other systems. Measuring costs very little and nothing is sent over the radio.
+
 ### Spam Guard
 
 Spam Guard stops channel spam at your repeater. It looks at behaviour, never at people or opinions: the same text sent under several made-up names, floods of copies, and repeaters that spam enters the mesh through. Switch it on in **Settings > Local Configuration > Spam protection**; the page then appears under Tools.

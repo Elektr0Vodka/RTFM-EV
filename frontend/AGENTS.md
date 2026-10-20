@@ -156,6 +156,7 @@ frontend/src/
 │   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog + RawPacketPasteInspector (shared paste-hex body)
 │   ├── PacketWhoHeard.tsx       # Inspector section: packet hash + analyzer packet links (local), and the analyzer's observers of the packet on request (`POST /packets/who-heard`)
 │   ├── MeshTrendsView.tsx      # Tools view: Live / Historical tabs (consolidated stats)
+│   ├── PerformanceView.tsx     # Tools view "Performance" (#performance): backend self-monitoring, panels in performance/
 │   ├── KnowledgeBaseView.tsx   # Tools view "Knowledge base" (#knowledge-base): Handy Info links with `kb` set, grouped by category; add = flagged custom link, remove = unflag (handy_info overlay)
 │   ├── ManualView.tsx          # Tools view "User Guide" (#manual): renders content/manual/{en,nl,de}.md for the active locale (EN fallback) with a section TOC; TOC scrolls in-pane and never changes the hash
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
@@ -497,6 +498,12 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Phase 4: Timing also edits `rx_delay_base` and `use_score_for_tx`; an own **Advert limiter** block edits the per-node token bucket (`advert_*`). `HostRepeaterStatsPane` renders the receive-hold percentiles (`rx_delay`), the advert limiter counters and a **Lifetime totals** block; its `onReset(lifetime)` maps to `api.resetHostRepeaterStats(lifetime)` (`POST .../stats/reset?lifetime=true`). The stats fields are optional in `HostRepeaterStats` so older fixtures stay valid.
 - DMC filter sync: `HostRepeaterFilterExtras` (inside the DMC filter block) edits `filter_dryrun`, `filter_advert_hours`, `filter_age_minutes`, `filter_paths` (Block button, hex 1-4 bytes), sender / text rules (`RuleList`: pattern, seconds, share %) and the `filter_watch` list, with per-prefix / per-rule counters from `stats.filter`. A **Neighbour poll** block edits `neighbor_poll_enabled` (transmits; label says so) and `neighbor_poll_interval_hours`. `HostRepeaterStatsPane` adds `FilterDetail` (totals, saved airtime, malformed reasons, top sources, advert cache) and `NeighbourDetail` (poll summary + neighbours table); `dryrun:<reason>` stats keys render as "Dry-run: <reason label>".
 - Fanout (`SettingsFanoutSection` `CommunityTopicControls`): `publish_filter` + `filter_interval_ms` (seconds in the UI, 60-600) and `publish_own_neighbors`, all default off.
+
+### Performance page
+
+- Tools page `PerformanceView` (conversation type `performance`, hash `#performance`, sidebar tool key `performance`, icon `Cpu`). Polls `api.getPerfSnapshot()` every 5 s and `api.getPerfHistory(range)` every 5 s up to `1h` and every 60 s for longer ranges; both stop while `document.hidden`. Tab and range persist in localStorage (`rtfm-perf-tab`, `rtfm-perf-range`).
+- `components/performance/`: `perfTypes.ts` (the API shapes), `perfFormat.ts`, `PerfCharts.tsx` (`PerfSeriesChart` on `ZoomableChart`, so every chart has the "+" panel; `Sparkline` for tiles), `PerfSections.tsx` (health strip, tiles, pipeline, tasks with the 24 h strip, stalls with stacks, database, outputs, routes, radio, logs). Overview shows each card trimmed (`limit`); the other tabs show the full card.
+- Strings are `perf_*`; health reasons are `perf_reason_<key>` and loop states `perf_loop_state_<state>`, keyed by what the backend sends.
 
 ### Spam Guard
 

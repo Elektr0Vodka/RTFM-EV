@@ -12,6 +12,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 
+from app.perf.recorders import loops as perf_loops
 from app.repository import AppSettingsRepository
 from app.repository.retention import RetentionRepository
 from app.repository.spam import SpamEvidenceRepository, SpamGuardConfigRepository
@@ -170,9 +171,10 @@ async def _loop() -> None:
     while True:
         try:
             await asyncio.sleep(TICK_SECONDS)
-            settings = await AppSettingsRepository.get()
-            if is_due(time.time(), settings.retention_prune_interval_hours):
-                await prune_once()
+            with perf_loops.tick("retention_pruner", TICK_SECONDS):
+                settings = await AppSettingsRepository.get()
+                if is_due(time.time(), settings.retention_prune_interval_hours):
+                    await prune_once()
         except asyncio.CancelledError:
             logger.info("Retention prune task cancelled")
             break
