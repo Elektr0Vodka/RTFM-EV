@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
 import { buildHistoryParams } from '../utils/packetHistoryQuery';
-import { KNOWN_PAYLOAD_TYPES, HOP_BYTE_WIDTH_BUCKETS } from '../utils/rawPacketStats';
+import {
+  KNOWN_PAYLOAD_TYPES,
+  HOP_BYTE_WIDTH_BUCKETS,
+  ROUTE_FILTER_TYPES,
+} from '../utils/rawPacketStats';
 
 describe('buildHistoryParams', () => {
   it('omits payload_types/hop_widths/hex when all enabled and no hex', () => {
@@ -43,6 +47,29 @@ describe('buildHistoryParams', () => {
     expect(p.get('hex')).toBe('abcd');
     expect(p.get('search')).toBe('alice');
     expect(p.get('before_id')).toBe('42');
+  });
+
+  it('sends route_types only when some routes are off', () => {
+    const base = {
+      startTs: 0,
+      endTs: 10,
+      enabledTypes: new Set(KNOWN_PAYLOAD_TYPES),
+      enabledHopWidths: new Set(HOP_BYTE_WIDTH_BUCKETS),
+      hexQuery: '',
+      searchTerm: '',
+      limit: 500,
+    };
+    expect(
+      buildHistoryParams({ ...base, enabledRoutes: new Set(ROUTE_FILTER_TYPES) }).getAll(
+        'route_types'
+      )
+    ).toEqual([]);
+    expect(
+      buildHistoryParams({
+        ...base,
+        enabledRoutes: new Set(['Flood', 'TransportFlood']),
+      }).getAll('route_types')
+    ).toEqual(['Flood', 'TransportFlood']);
   });
 
   it('floors fractional timestamps', () => {

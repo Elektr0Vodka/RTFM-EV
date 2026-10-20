@@ -17,6 +17,7 @@ from app.services.filter_stats import (
     channel_is_public,
     clean_policy_rules,
 )
+from app.services.spam_guard import spam_guard
 from app.version_info import get_app_build_info
 
 router = APIRouter(prefix="/filter-stats", tags=["filter-stats"])
@@ -73,6 +74,7 @@ class FilterChannel(FilterCounts):
     key: str
     name: str
     public: bool = Field(description="Public channel, or a #name whose key derives from it")
+    protected: bool = Field(default=False, description="A Spam Guard protected channel")
 
 
 class FilterSource(FilterCounts):
@@ -154,6 +156,8 @@ async def get_filter_stats(
         await FilterStatsRepository.policy_rules(start_ts, end_ts), channels
     )
     settings = await AppSettingsRepository.get()
+    await spam_guard.ensure_loaded()
+    protected = {c.key for c in spam_guard.config.channels}
 
     # A month of a busy channel is many rows: keep the counting off the event loop.
     report = await asyncio.to_thread(
@@ -168,6 +172,7 @@ async def get_filter_stats(
         channels=channels,
         policy_rules=policy_rules,
         channel=channel_key,
+        protected=protected,
     )
     return FilterStatsResponse(
         **report,

@@ -33,6 +33,7 @@ describe('botForwardStatusText', () => {
       ['rules_failed', 'Waiting: the rules could not be applied'],
       ['key_not_shared', 'Waiting: the channel key is not shared with the OpenHop node'],
       ['no_channels', 'Waiting: Spam Guard has no protected channels'],
+      ['no_bot_channels', "Waiting: no protected channel has 'Block listed bots here' on"],
       ['not_armed', 'Waiting: the host repeater is not armed'],
       ['not_synced', 'Waiting: the rules are not on the OpenHop node yet'],
     ];

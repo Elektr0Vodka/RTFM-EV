@@ -3441,6 +3441,11 @@ export interface SpamGuardChannel {
    * node's policy file, which OpenHop needs to read sender and text.
    */
   share_key?: boolean;
+  /**
+   * Bot lists with Block forwards on get a drop rule on this channel. Left out
+   * means on, as the server defaults it.
+   */
+  drop_bots?: boolean;
 }
 
 /** Every detection tunable; the backend bounds are in `app/spam/settings.py`. */
@@ -3835,6 +3840,7 @@ export type BotForwardState =
   | 'rules_failed'
   | 'key_not_shared'
   | 'no_channels'
+  | 'no_bot_channels'
   | 'not_armed'
   | 'not_synced';
 
