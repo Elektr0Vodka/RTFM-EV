@@ -54,6 +54,7 @@ export type SidebarToolKey =
   | 'fleet'
   | 'spam-guard'
   | 'wardrive-map'
+  | 'wardrive-reports'
   | 'performance'
   | 'raw'
   | 'packet-history'
@@ -77,6 +78,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'fleet',
   'spam-guard',
   'wardrive-map',
+  'wardrive-reports',
   'performance',
   'raw',
   'packet-history',

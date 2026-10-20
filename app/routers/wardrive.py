@@ -16,11 +16,12 @@ from app.repository.wardrive import (
     RadioTaken,
     UsernameTaken,
     WardriveDataRepository,
+    WardriveDriveRepository,
     WardriveRadioRepository,
     WardriveUserRepository,
 )
+from app.wardrive import drives, sessions
 from app.wardrive import nodes as wardrive_nodes
-from app.wardrive import sessions
 from app.wardrive.config import resolved_hashtag_channels
 from app.wardrive.crypto import (
     challenge_message,
@@ -29,7 +30,7 @@ from app.wardrive.crypto import (
     normalize_key,
     verify_password,
 )
-from app.wardrive.models import MAX_TS, UploadBody, UploadResult
+from app.wardrive.models import MAX_TS, Obs, Track, UploadBody, UploadResult, iso_to_ts
 from app.wardrive.visibility import visible_user_ids
 
 router = APIRouter(prefix="/wardrive", tags=["wardrive"])
@@ -196,6 +197,44 @@ async def wardrive_add_radio(
     return await _me(user)
 
 
+async def _drive_groups(
+    user_id: int, key: str, body: UploadBody, now: int
+) -> dict[int, tuple[list[Obs], list[Track]]]:
+    """The batch's rows per drive. With the page's drive uid, all go to that
+    drive (made on first sight); without one, each row joins the drive the
+    10-minute gap rule gives, or starts a new one."""
+    groups: dict[int, tuple[list[Obs], list[Track]]] = {}
+    if body.drive_uid is not None:
+        drive = await WardriveDriveRepository.get_by_uid(body.drive_uid)
+        if drive is None:
+            times = [iso_to_ts(o.rx_at) for o in body.obs] + [iso_to_ts(t.t0) for t in body.tracks]
+            start = min(times, default=now)
+            drive_id = await WardriveDriveRepository.create(
+                user_id, key, body.drive_uid, start, max(times, default=now), now
+            )
+        elif drive["user_id"] != user_id or drive["radio_key"] != key:
+            raise HTTPException(status_code=422, detail="This drive belongs to another radio")
+        else:
+            drive_id = drive["id"]
+        groups[drive_id] = (list(body.obs), list(body.tracks))
+        return groups
+    rows: list[tuple[int, int, Obs | Track]] = [(iso_to_ts(o.rx_at), 0, o) for o in body.obs]
+    rows += [(iso_to_ts(t.t0), 1, t) for t in body.tracks]
+    rows.sort(key=lambda r: (r[0], r[1]))
+    for ts, _, row in rows:
+        found = await WardriveDriveRepository.drive_for_gap_row(user_id, key, ts)
+        if found is None:
+            found = await WardriveDriveRepository.create(user_id, key, None, ts, ts, now)
+        else:
+            await WardriveDriveRepository.extend(found, ts, ts)
+        obs_rows, track_rows = groups.setdefault(found, ([], []))
+        if isinstance(row, Obs):
+            obs_rows.append(row)
+        else:
+            track_rows.append(row)
+    return groups
+
+
 @router.post("/upload", response_model=UploadResult)
 async def wardrive_upload(body: UploadBody, user: CurrentUser) -> UploadResult:
     """Store a batch of the page's receptions and listening intervals.
@@ -217,12 +256,17 @@ async def wardrive_upload(body: UploadBody, user: CurrentUser) -> UploadResult:
                 status_code=422, detail="Every origin_id must be the radio of the batch"
             )
     now = int(time.time())
-    accepted_obs, duplicate_obs = await WardriveDataRepository.insert_obs(
-        user["id"], key, body.obs, now
-    )
-    accepted_tracks, duplicate_tracks = await WardriveDataRepository.insert_tracks(
-        user["id"], key, body.tracks, now
-    )
+    groups = await _drive_groups(user["id"], key, body, now)
+    accepted_obs = duplicate_obs = accepted_tracks = duplicate_tracks = 0
+    for drive_id, (obs_rows, track_rows) in groups.items():
+        a, d = await WardriveDataRepository.insert_obs(user["id"], key, obs_rows, now, drive_id)
+        accepted_obs, duplicate_obs = accepted_obs + a, duplicate_obs + d
+        a, d = await WardriveDataRepository.insert_tracks(
+            user["id"], key, track_rows, now, drive_id
+        )
+        accepted_tracks, duplicate_tracks = accepted_tracks + a, duplicate_tracks + d
+    # Spans follow the rows actually stored; a drive made for duplicates only goes.
+    await WardriveDriveRepository.refresh_span(groups)
     return UploadResult(
         accepted_obs=accepted_obs,
         duplicate_obs=duplicate_obs,
@@ -250,6 +294,79 @@ async def wardrive_data(
     start = since if since is not None else end - DEFAULT_WINDOW_S
     key = _key_or_400(radio_key) if radio_key else None
     return await WardriveDataRepository.query(await visible_user_ids(user), start, end, key)
+
+
+@router.get("/drives")
+async def wardrive_drives(
+    user: CurrentUser,
+    since: int | None = Query(default=None, ge=0, le=MAX_TS),
+    until: int | None = Query(default=None, ge=0, le=MAX_TS),
+    user_id: int | None = None,
+    group_id: int | None = None,
+    radio_key: str | None = None,
+    limit: int = Query(default=500, ge=1, le=1000),
+) -> dict[str, Any]:
+    """Drives this user may see (their visibility), newest first."""
+    return await drives.list_drives(
+        user,
+        since=since,
+        until=until,
+        user_id=user_id,
+        group_id=group_id,
+        radio_key=radio_key,
+        limit=limit,
+    )
+
+
+@router.patch("/drives/{drive_id}")
+async def wardrive_update_drive(
+    drive_id: int, body: drives.DriveUpdate, user: CurrentUser
+) -> dict[str, Any]:
+    """Rename a drive or set its notes (own drives only)."""
+    return await drives.update_drive(drive_id, body, user)
+
+
+@router.delete("/drives/{drive_id}")
+async def wardrive_delete_drive(drive_id: int, user: CurrentUser) -> dict[str, Any]:
+    """Delete an own drive and its stored rows from RTFM-EV (the collectors
+    keep what they received)."""
+    return await drives.delete_drive(drive_id, user)
+
+
+@router.post("/drives/merge")
+async def wardrive_merge_drives(body: drives.MergeBody, user: CurrentUser) -> dict[str, Any]:
+    """Merge own drives of one radio into the earliest."""
+    return await drives.merge_drives(body, user)
+
+
+@router.post("/drives/{drive_id}/split")
+async def wardrive_split_drive(
+    drive_id: int, body: drives.SplitBody, user: CurrentUser
+) -> dict[str, Any]:
+    """Split an own drive: rows at or after ``at`` become a new drive."""
+    return await drives.split_drive(drive_id, body, user)
+
+
+ReportQueryParams = Annotated[drives.ReportQuery, Depends(drives.report_query)]
+
+
+@router.get("/report")
+async def wardrive_report(user: CurrentUser, q: ReportQueryParams) -> dict[str, Any]:
+    """A report over the picked drives or a window, within this user's visibility."""
+    return await drives.make_report(q, user)
+
+
+@router.get("/export/{kind}")
+async def wardrive_export(kind: str, user: CurrentUser, q: ReportQueryParams) -> Response:
+    """receptions.csv, cells.csv, drives.geojson or drives.gpx over the same
+    scope as /report."""
+    return await drives.make_export(kind, q, user)
+
+
+@router.get("/groups")
+async def wardrive_groups(user: CurrentUser) -> dict[str, Any]:
+    """The groups this user is a member of (for the report filter)."""
+    return await drives.own_groups(user)
 
 
 @router.get("/config")

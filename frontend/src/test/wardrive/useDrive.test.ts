@@ -32,6 +32,23 @@ describe('useDrive', () => {
     expect(result.current.running).toBe(true);
   });
 
+  it('tags every row of a drive with that drive and a new drive with a new uid', () => {
+    const queue = fakeQueue();
+    const { result } = renderHook(() => useDriveWith(queue));
+    act(() => result.current.start(companion, 'AB'));
+    act(() => result.current.stop());
+    act(() => result.current.start(companion, 'AB'));
+    act(() => result.current.stop());
+    const calls = (queue.addTrack as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    const [first, second] = calls.map((c) => c[3] as string);
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first).not.toBe(second);
+    // The track message itself carries no drive field.
+    expect(Object.keys(calls[0][1] as object)).not.toContain('drive');
+  });
+
   it('ends the drive and closes the track when the page goes', () => {
     const queue = fakeQueue();
     const { result, unmount } = renderHook(() => useDriveWith(queue));

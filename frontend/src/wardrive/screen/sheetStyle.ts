@@ -8,3 +8,11 @@ export const BOTTOM_SHEET_STYLE: CSSProperties = {
   paddingRight: 'max(1rem, var(--safe-area-right, 0px))',
   paddingBottom: 'max(1rem, var(--safe-area-bottom, 0px))',
 };
+
+/** Padding for the menu (a right-hand sheet): the same rule for the top,
+ * right and bottom the safe-area style takes over. */
+export const SIDE_SHEET_STYLE: CSSProperties = {
+  paddingTop: 'max(1rem, var(--safe-area-top, 0px))',
+  paddingRight: 'max(1rem, var(--safe-area-right, 0px))',
+  paddingBottom: 'max(1rem, var(--safe-area-bottom, 0px))',
+};

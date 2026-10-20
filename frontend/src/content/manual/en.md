@@ -388,6 +388,10 @@ Looks for MeshCore devices on your local network (WiFi or wired), checked by the
 
 Each device found is listed with its address, what it answered on and its firmware. A device that matches one of your contacts (on its public key, or on a name only one contact has) links to that contact, and **Set up SNMP** stores the address found on the contact, with polling off; the community you entered goes with it. Other SNMP devices, such as printers or routers, are hidden until you tick **Show other devices**. The last results stay until the next scan or a server restart.
 
+### Wardrive reports
+
+Only there when the wardrive plugin is on. Lists every driver's drives (a drive runs from Start driving to Stop driving on the wardrive page; a pause of more than 10 minutes starts a new one). Rename a drive, give it notes, split it at a time, merge drives of one radio, or delete one (it goes from RTFM-EV; the collectors keep what they got). Narrow the list by user, group, radio and window, tick drives, and the report below covers them (or, with none ticked, everything the filters show): what was driven, how well the area is covered (hexagon cells, pick 720 to 40 m), where coverage is weak or missing (the cells to point at when asking for a node), and which nodes are heard where and how well. Make a share card (Drive, Coverage, Weak spots) or export the receptions, the cells, the map data (GeoJSON) or the tracks (GPX). Drivers have the same on the page, in the Drives and Reports tabs, for what their visibility shows.
+
 ### Wardrive map
 
 Only there when the wardrive plugin is on (`MESHCORE_WARDRIVE=true`). Shows everything the wardrive drivers stored: their receptions, coloured by signal, and their track lines. Pick the last 24 hours, 7 days or 30 days, and narrow it to one user, one group or one radio. Users, groups and the channels drivers can read are managed in **Settings > Wardrive**.

@@ -11,6 +11,8 @@ export interface QueueRow<M extends QueueMessage = QueueMessage> {
   id: number;
   radioKey: string;
   message: M;
+  /** RTFM-EV's drive id (driveId.ts); null for rows written before drives. */
+  driveId: string | null;
 }
 
 interface StoredRow {
@@ -18,6 +20,7 @@ interface StoredRow {
   radioKey: string;
   message: QueueMessage;
   addedAt: number;
+  driveId?: string | null;
 }
 
 const DAY_MS = 86400000;
@@ -48,19 +51,36 @@ export class Queue {
     this.db.close();
   }
 
-  private async add(kind: QueueKind, radioKey: string, message: QueueMessage, addedAt: number) {
+  private async add(
+    kind: QueueKind,
+    radioKey: string,
+    message: QueueMessage,
+    addedAt: number,
+    driveId: string | null
+  ) {
     const tx = this.db.transaction(STORES[kind], 'readwrite');
-    const id = await req(tx.objectStore(STORES[kind]).add({ radioKey, message, addedAt }));
+    const row: StoredRow = { radioKey, message, addedAt, driveId };
+    const id = await req(tx.objectStore(STORES[kind]).add(row));
     await done(tx);
     return Number(id);
   }
 
-  addObs(radioKey: string, obs: ObsMessage, addedAt = Date.now()): Promise<number> {
-    return this.add('obs', radioKey, obs, addedAt);
+  addObs(
+    radioKey: string,
+    obs: ObsMessage,
+    addedAt = Date.now(),
+    driveId: string | null = null
+  ): Promise<number> {
+    return this.add('obs', radioKey, obs, addedAt, driveId);
   }
 
-  addTrack(radioKey: string, track: TrackMessage, addedAt = Date.now()): Promise<number> {
-    return this.add('track', radioKey, track, addedAt);
+  addTrack(
+    radioKey: string,
+    track: TrackMessage,
+    addedAt = Date.now(),
+    driveId: string | null = null
+  ): Promise<number> {
+    return this.add('track', radioKey, track, addedAt, driveId);
   }
 
   private async mark(dest: string, kind: QueueKind): Promise<number> {
@@ -85,7 +105,12 @@ export class Queue {
         if (!cursor) return resolve();
         const value = cursor.value as StoredRow;
         if (rows.length > 0 && value.radioKey !== rows[0].radioKey) return resolve();
-        rows.push({ id: Number(cursor.key), radioKey: value.radioKey, message: value.message });
+        rows.push({
+          id: Number(cursor.key),
+          radioKey: value.radioKey,
+          message: value.message,
+          driveId: value.driveId ?? null,
+        });
         if (rows.length >= limit) return resolve();
         cursor.continue();
       };
@@ -113,12 +138,15 @@ export class Queue {
 
   /** Rows of one radio after `dest`'s watermark, oldest first. A broker
    * destination is per radio (`<broker>@<KEY>`): a collector only accepts the
-   * radio that signed in, so other radios' rows are not its business. */
+   * radio that signed in, so other radios' rows are not its business. With
+   * `oneDrive` the batch also stops where the drive id changes (RTFM-EV's
+   * upload is one drive per call). */
   async batchForRadio(
     dest: string,
     kind: QueueKind,
     radioKey: string,
-    limit: number
+    limit: number,
+    oneDrive = false
   ): Promise<QueueRow[]> {
     const range = await this.radioRange(dest, kind, radioKey);
     const tx = this.db.transaction(STORES[kind], 'readonly');
@@ -131,7 +159,9 @@ export class Queue {
         const cursor = cursorReq.result;
         if (!cursor) return resolve();
         const value = cursor.value as StoredRow;
-        rows.push({ id: Number(cursor.primaryKey), radioKey, message: value.message });
+        const driveId = value.driveId ?? null;
+        if (oneDrive && rows.length > 0 && driveId !== rows[0].driveId) return resolve();
+        rows.push({ id: Number(cursor.primaryKey), radioKey, message: value.message, driveId });
         if (rows.length >= limit) return resolve();
         cursor.continue();
       };

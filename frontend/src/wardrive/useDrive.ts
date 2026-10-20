@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import { Capture, TrackWindow, type CaptureCounts } from './capture';
+import { DriveIds } from './driveId';
 import { buildObs, buildTrack, type Fix } from './messages';
 import type { Queue } from './queue';
 import type { Companion } from './radio/companion';
@@ -17,6 +18,8 @@ interface DriveSession {
   timer: ReturnType<typeof setInterval>;
   window: TrackWindow;
   radioKey: string;
+  /** RTFM-EV's drive id for this drive's rows (a new one after a long gap). */
+  ids: DriveIds;
 }
 
 export function useDrive(queue: Queue | null, fixRef: MutableRefObject<Fix | null>) {
@@ -30,8 +33,11 @@ export function useDrive(queue: Queue | null, fixRef: MutableRefObject<Fix | nul
     session.current = null;
     s.off();
     clearInterval(s.timer);
-    const last = s.window.close(Date.now(), fixRef.current);
-    if (last && queue) void queue.addTrack(s.radioKey, buildTrack(last, s.radioKey));
+    const now = Date.now();
+    const last = s.window.close(now, fixRef.current);
+    if (last && queue) {
+      void queue.addTrack(s.radioKey, buildTrack(last, s.radioKey), now, s.ids.current(now));
+    }
     setRunning(false);
   }, [queue, fixRef]);
 
@@ -40,21 +46,25 @@ export function useDrive(queue: Queue | null, fixRef: MutableRefObject<Fix | nul
       if (!queue || session.current) return;
       const capture = new Capture();
       const window = new TrackWindow();
+      const ids = new DriveIds();
       const off = companion.onReception((r) => {
         window.heard();
-        const rec = capture.onReception(r, fixRef.current, Date.now());
+        const now = Date.now();
+        const rec = capture.onReception(r, fixRef.current, now);
         setCounts(capture.counts);
         if (!rec) return;
+        const driveId = ids.current(now);
         void buildObs(rec, radioKey).then((obs) => {
-          if (obs) void queue.addObs(radioKey, obs);
+          if (obs) void queue.addObs(radioKey, obs, now, driveId);
         });
       });
       const timer = setInterval(() => {
-        const row = window.tick(Date.now(), fixRef.current);
-        if (row) void queue.addTrack(radioKey, buildTrack(row, radioKey));
+        const now = Date.now();
+        const row = window.tick(now, fixRef.current);
+        if (row) void queue.addTrack(radioKey, buildTrack(row, radioKey), now, ids.current(now));
       }, TICK_MS);
       window.tick(Date.now(), fixRef.current);
-      session.current = { off, timer, window, radioKey };
+      session.current = { off, timer, window, radioKey, ids };
       setCounts(ZERO);
       setRunning(true);
     },

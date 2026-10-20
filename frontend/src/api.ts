@@ -1992,6 +1992,9 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ user_ids: userIds }),
     }),
+  /** Drives and reports (components/wardriveAdminDrivesApi.ts builds the paths). */
+  wardriveAdmin: <T>(path: string, init?: RequestInit) =>
+    fetchJson<T>(`/wardrive-admin${path}`, init),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>
     fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),

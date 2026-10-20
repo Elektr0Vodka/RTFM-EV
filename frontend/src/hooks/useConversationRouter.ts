@@ -62,6 +62,8 @@ function resolveConversationFromHash(
       return { type: 'lan-scan', id: 'lan-scan', name: 'Network scan' };
     case 'wardrive-map':
       return { type: 'wardrive-map', id: 'wardrive-map', name: 'Wardrive map' };
+    case 'wardrive-reports':
+      return { type: 'wardrive-reports', id: 'wardrive-reports', name: 'Wardrive reports' };
     case 'fleet':
       return { type: 'fleet', id: hashConv.name, name: 'Fleet' };
     case 'spam-guard':
@@ -240,6 +242,15 @@ export function useConversationRouter({
     }
     if (hashConv?.type === 'lan-scan') {
       setActiveConversationState({ type: 'lan-scan', id: 'lan-scan', name: 'Network scan' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'wardrive-reports') {
+      setActiveConversationState({
+        type: 'wardrive-reports',
+        id: 'wardrive-reports',
+        name: 'Wardrive reports',
+      });
       hasSetDefaultConversation.current = true;
       return;
     }

@@ -7,9 +7,9 @@ Stays behind the main app's Basic login (never under the exempt
 
 import sqlite3
 import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
@@ -21,6 +21,7 @@ from app.repository.wardrive import (
     WardriveSessionRepository,
     WardriveUserRepository,
 )
+from app.wardrive import drives
 from app.wardrive.config import (
     HASHTAG_CHANNELS,
     MAX_HASHTAG_CHANNELS,
@@ -204,6 +205,62 @@ async def wardrive_admin_data(
         user_ids = {user_id} if user_ids is None else user_ids & {user_id}
     key = _key_or_404(radio_key) if radio_key else None
     return await WardriveDataRepository.query(user_ids, start, end, key)
+
+
+@router.get("/drives")
+async def wardrive_admin_drives(
+    since: int | None = Query(default=None, ge=0, le=MAX_TS),
+    until: int | None = Query(default=None, ge=0, le=MAX_TS),
+    user_id: int | None = None,
+    group_id: int | None = None,
+    radio_key: str | None = None,
+    limit: int = Query(default=500, ge=1, le=1000),
+) -> dict[str, Any]:
+    """Every driver's drives, newest first."""
+    return await drives.list_drives(
+        None,
+        since=since,
+        until=until,
+        user_id=user_id,
+        group_id=group_id,
+        radio_key=radio_key,
+        limit=limit,
+    )
+
+
+@router.get("/report")
+async def wardrive_admin_report(
+    q: Annotated[drives.ReportQuery, Depends(drives.report_query)],
+) -> dict[str, Any]:
+    """A report over the picked drives or a window, over everyone's data."""
+    return await drives.make_report(q, None)
+
+
+@router.get("/export/{kind}")
+async def wardrive_admin_export(
+    kind: str, q: Annotated[drives.ReportQuery, Depends(drives.report_query)]
+) -> Response:
+    return await drives.make_export(kind, q, None)
+
+
+@router.patch("/drives/{drive_id}")
+async def wardrive_admin_update_drive(drive_id: int, body: drives.DriveUpdate) -> dict[str, Any]:
+    return await drives.update_drive(drive_id, body, None)
+
+
+@router.delete("/drives/{drive_id}")
+async def wardrive_admin_delete_drive(drive_id: int) -> dict[str, Any]:
+    return await drives.delete_drive(drive_id, None)
+
+
+@router.post("/drives/merge")
+async def wardrive_admin_merge_drives(body: drives.MergeBody) -> dict[str, Any]:
+    return await drives.merge_drives(body, None)
+
+
+@router.post("/drives/{drive_id}/split")
+async def wardrive_admin_split_drive(drive_id: int, body: drives.SplitBody) -> dict[str, Any]:
+    return await drives.split_drive(drive_id, body, None)
 
 
 async def _config() -> dict[str, Any]:

@@ -81,13 +81,17 @@ export class Uploader {
 
   private async sendOne(kind: QueueKind, radioKey: string): Promise<Outcome> {
     const dest = localDest(radioKey);
-    const rows = await this.queue.batchForRadio(dest, kind, radioKey, this.opts.batch);
+    const rows = await this.queue.batchForRadio(dest, kind, radioKey, this.opts.batch, true);
     if (rows.length === 0) return 'empty';
     const messages = rows.map((r) => r.message);
     const lastId = rows[rows.length - 1].id;
+    const driveId = rows[0].driveId;
     try {
       await this.api.upload({
         radio_key: radioKey,
+        // One drive per batch; rows from before drives go without (RTFM-EV
+        // then places them by the 10-minute gap rule).
+        ...(driveId ? { drive_uid: driveId } : {}),
         obs: kind === 'obs' ? (messages as ObsMessage[]) : [],
         tracks: kind === 'track' ? (messages as TrackMessage[]) : [],
       });

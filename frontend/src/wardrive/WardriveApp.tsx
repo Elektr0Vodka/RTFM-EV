@@ -27,6 +27,7 @@ import { requestCompassPermission, watchCompass } from './compass';
 import { AccountPanel, type RegisterInput } from './components/AccountPanel';
 import { ForwardPanel } from './components/ForwardPanel';
 import { MapPanel } from './components/MapPanel';
+import { ReportsTab } from './components/ReportsTab';
 import { PositionPanel } from './components/PositionPanel';
 import { RadioPanel } from './components/RadioPanel';
 import { UploadPanel } from './components/UploadPanel';
@@ -78,6 +79,9 @@ import { SpeedTracker } from './speed';
 import { TARGET_KINDS, senderRows } from './targets';
 import { Trail } from './trail';
 import { useDrive } from './useDrive';
+import { DrivesPanel } from './reports/DrivesPanel';
+import { pageDrivesApi } from './reports/pageDrivesApi';
+import type { DrivesApi } from './reports/types';
 import { useLiveReceptions } from './useLiveReceptions';
 import { useNodeDirectory } from './useNodeDirectory';
 import { useReceptionView } from './useReceptionView';
@@ -94,6 +98,8 @@ export interface WardriveDeps {
   serialSupported(): boolean;
   deviceLocationAllowed(): boolean;
   connectMqtt: ConnectMqtt;
+  /** Drives and reports in RTFM-EV (the Drives and Reports tabs). */
+  drivesApi: DrivesApi;
 }
 
 export const defaultDeps: WardriveDeps = {
@@ -105,6 +111,7 @@ export const defaultDeps: WardriveDeps = {
   serialSupported,
   deviceLocationAllowed,
   connectMqtt,
+  drivesApi: pageDrivesApi,
 };
 
 interface RadioConnection {
@@ -175,6 +182,8 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuTab, setMenuTab] = useState<MenuTab>('status');
+  // Drives picked in the Drives tab, reported on in the Reports tab.
+  const [pickedDrives, setPickedDrives] = useState<number[]>([]);
   const [startShown, setStartShown] = useState(() => startScreenWanted(false));
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [unit] = useState(getSavedDistanceUnit);
@@ -746,7 +755,30 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
               <AccessibilitySettings compact />
             </>
           }
-          map={me ? <MapPanel /> : <p className="text-sm">{t('wardrive_page_map_login')}</p>}
+          drives={
+            me ? (
+              <>
+                <DrivesPanel
+                  api={deps.drivesApi}
+                  filter={{}}
+                  reloadKey={String(me.user_id)}
+                  selected={pickedDrives}
+                  onSelectedChange={setPickedDrives}
+                  showDriver={me.visibility !== 'own'}
+                />
+                <MapPanel />
+              </>
+            ) : (
+              <p className="text-sm">{t('wardrive_page_drives_login')}</p>
+            )
+          }
+          reports={
+            me ? (
+              <ReportsTab api={deps.drivesApi} picked={pickedDrives} />
+            ) : (
+              <p className="text-sm">{t('wardrive_page_drives_login')}</p>
+            )
+          }
           about={<AboutPanel />}
         />
       }

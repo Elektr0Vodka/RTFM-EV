@@ -27,6 +27,7 @@ import {
   Radar,
   Router,
   Car,
+  FileChartColumn,
   ScanSearch,
   ShieldCheck,
   Cpu,
@@ -573,6 +574,7 @@ export function Sidebar({
       | 'fleet'
       | 'spam-guard'
       | 'wardrive-map'
+      | 'wardrive-reports'
       | 'performance'
       | 'analyze'
       | 'packet-history'
@@ -1478,6 +1480,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'wardrive-reports':
+        return renderSidebarActionRow({
+          key: 'tool-wardrive-reports',
+          active: isActive('wardrive-reports', 'wardrive-reports'),
+          icon: <FileChartColumn className="h-4 w-4" />,
+          label: t('nav_wardrive_reports'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'wardrive-reports',
+              id: 'wardrive-reports',
+              name: t('nav_wardrive_reports'),
+            }),
+          iconOnly,
+        });
       case 'fleet':
         return renderSidebarActionRow({
           key: 'tool-fleet',
@@ -1683,7 +1699,10 @@ export function Sidebar({
 
   // A tool that belongs to a switched-off feature is not offered at all.
   const availableToolOrder = toolOrder.filter(
-    (k) => (k !== 'spam-guard' || spamGuardEnabled) && (k !== 'wardrive-map' || wardriveEnabled)
+    (k) =>
+      (k !== 'spam-guard' || spamGuardEnabled) &&
+      (k !== 'wardrive-map' || wardriveEnabled) &&
+      (k !== 'wardrive-reports' || wardriveEnabled)
   );
   const visibleToolOrder = availableToolOrder.filter((k) => !hiddenToolSet.has(k));
   const toolRows = !query ? visibleToolOrder.map((k) => buildToolRow(k, false)) : [];
@@ -2066,6 +2085,7 @@ export function Sidebar({
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
     'wardrive-map': t('nav_wardrive_map'),
+    'wardrive-reports': t('nav_wardrive_reports'),
     performance: t('nav_performance'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),

@@ -139,6 +139,20 @@ describe('wardrive uploader', () => {
     expect(upload).toHaveBeenCalledTimes(2);
   });
 
+  it('sends one drive per call with its drive uid', async () => {
+    await queue.addObs(A, obs(A, 'a1'), 1, 'x');
+    await queue.addObs(A, obs(A, 'a2'), 2, 'x');
+    await queue.addObs(A, obs(A, 'a3'), 3);
+    const upload = vi.spyOn(wardriveApi, 'upload').mockResolvedValue(OK);
+    await make().tick();
+    expect(upload.mock.calls.map((c) => [c[0].obs.length, c[0].drive_uid])).toEqual([
+      [2, 'x'],
+      [1, undefined],
+    ]);
+    // The messages go as they are: the uid is beside them, never in them.
+    expect(upload.mock.calls[0][0].obs[0]).toEqual(obs(A, 'a1'));
+  });
+
   it('sends one radio per call', async () => {
     await queue.addObs(A, obs(A, 'a1'));
     await queue.addObs(B, obs(B, 'b1'));

@@ -202,6 +202,12 @@ machine this was authored on and may differ elsewhere.
   (`meshcore/{label}/{PUBKEY}/wardriver/obs|track`, labels `hunter` and
   `wardriver`), that the topic key is the authenticated key, and that the
   payload `origin_id` matches it. It does not define the obs/track fields.
+- Wardrive report cells: CoreScope's server hex grid (`cmd/server/hexgrid.go`,
+  the grid of the analyzer coverage maps), as ported in core-hunter
+  `app/src/hexgrid.js`; `tests/fixtures/wardrive_hex_vectors.json` was made by
+  running that file (core-hunter 3928ebf) and pins `app/wardrive/hexgrid.py`
+  and `frontend/src/wardrive/map/hexgrid.ts`. Ride gap (more than 10 minutes):
+  core-hunter `app/src/rides.js`.
 - Wardrive obs/track fields and companion-signed broker tokens: core-hunter
   (https://github.com/Elektr0Vodka/core-hunter, fork of efiten/core-hunter,
   the mesh-hunter.eu code), `app/src/wardrive.js` (`buildObs`, `buildTrack`,

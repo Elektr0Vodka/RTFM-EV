@@ -75,7 +75,7 @@ describe('wardrive queue', () => {
     await q.addObs(A, obs('o'), 1);
     await q.addTrack(A, track('t'), 1);
     expect(await q.batch('rtfm', 'track', 10)).toEqual([
-      { id: expect.any(Number), radioKey: A, message: track('t') },
+      { id: expect.any(Number), radioKey: A, message: track('t'), driveId: null },
     ]);
   });
 
@@ -222,5 +222,24 @@ describe('wardrive queue', () => {
     expect(rows[0]).toMatchObject({ radioKey: A, addedAt: 30 });
     expect((await q.obsBefore([A, B], 40, 2)).map((r) => r.message.rx_at)).toEqual(['a2', 'b1']);
     expect(await q.obsBefore([], 40, 10)).toEqual([]);
+  });
+
+  it('keeps the drive id next to the message and batches one drive at a time', async () => {
+    const q = await openQueue(dbName);
+    const dest = 'rtfm@' + A;
+    await q.addObs(A, obs('a1'), 1, 'x');
+    await q.addObs(A, obs('a2'), 2, 'x');
+    await q.addObs(A, obs('a3'), 3, 'y');
+    await q.addObs(A, obs('a4'), 4);
+    const first = await q.batchForRadio(dest, 'obs', A, 10, true);
+    expect(first.map((r) => [(r.message as ObsMessage).rx_at, r.driveId])).toEqual([
+      ['a1', 'x'],
+      ['a2', 'x'],
+    ]);
+    expect(first[0].message).toEqual(obs('a1'));
+    await q.ack(dest, 'obs', first[1].id);
+    expect((await q.batchForRadio(dest, 'obs', A, 10, true)).map((r) => r.driveId)).toEqual(['y']);
+    // Brokers read across drives, as before.
+    expect((await q.batchForRadio(dest, 'obs', A, 10)).map((r) => r.driveId)).toEqual(['y', null]);
   });
 });

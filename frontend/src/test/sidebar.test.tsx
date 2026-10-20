@@ -1025,6 +1025,20 @@ describe('Sidebar customisation (plan 17)', () => {
     });
   });
 
+  it('offers the Wardrive reports tool only while the wardrive module is on', () => {
+    const off = renderSidebar();
+    expect(screen.queryByRole('button', { name: 'Wardrive reports' })).toBeNull();
+    off.unmount();
+
+    const { onSelectConversation } = renderSidebar({ wardriveEnabled: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Wardrive reports' }));
+    expect(onSelectConversation).toHaveBeenCalledWith({
+      type: 'wardrive-reports',
+      id: 'wardrive-reports',
+      name: 'Wardrive reports',
+    });
+  });
+
   it('shows an SNMP tool that opens the SNMP view', () => {
     const { onSelectConversation } = renderSidebar();
     fireEvent.click(screen.getByRole('button', { name: 'SNMP' }));

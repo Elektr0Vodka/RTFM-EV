@@ -112,7 +112,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Webhooks, Apprise, Amazon SQS and Map Upload to map.meshcore.io or a compatible endpoint.
 - Every integration has its own message scope.
 - REST API with interactive docs at `/docs`.
-- Wardrive plugin (opt-in, `MESHCORE_WARDRIVE`): wardrive accounts for people on your network or tailnet, proven by their own radio's signature, a local copy of what their radios hear, and per-user visibility and groups under **Settings > Wardrive**, with a coverage map of everything in **Tools > Wardrive map**. Drivers use the `/wardrive/` page: their own radio over Bluetooth or USB, the phone's location or a USB GPS, forwarding to the DutchMeshCore wardrive collectors (and on8ar with your own account), and it keeps working offline ([details](README_ADVANCED.md#wardrive-plugin)).
+- Wardrive plugin (opt-in, `MESHCORE_WARDRIVE`): wardrive accounts for people on your network or tailnet, proven by their own radio's signature, a local copy of what their radios hear, and per-user visibility and groups under **Settings > Wardrive**, with a coverage map of everything in **Tools > Wardrive map** and drives, reports (coverage, weak spots, nodes heard), share cards and CSV/GeoJSON/GPX exports in **Tools > Wardrive reports** and on the page. Drivers use the `/wardrive/` page: their own radio over Bluetooth or USB, the phone's location or a USB GPS, forwarding to the DutchMeshCore wardrive collectors (and on8ar with your own account), and it keeps working offline ([details](README_ADVANCED.md#wardrive-plugin)).
 
 ### Data and backup
 

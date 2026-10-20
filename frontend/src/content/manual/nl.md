@@ -388,6 +388,10 @@ Zoekt MeshCore-apparaten op je lokale netwerk (wifi of bekabeld), gecontroleerd 
 
 Elk gevonden apparaat staat in de lijst met zijn adres, waarop het antwoordde en zijn firmware. Een apparaat dat bij een van je contacten hoort (op de publieke sleutel, of op een naam die maar één contact heeft) linkt naar dat contact, en **SNMP instellen** slaat het gevonden adres op bij het contact, met uitlezen op schema uit; de community die je invulde gaat mee. Andere SNMP-apparaten, zoals printers of routers, zijn verborgen tot je **Andere apparaten tonen** aanvinkt. De laatste resultaten blijven staan tot de volgende scan of een herstart van de server.
 
+### Wardrive-rapporten
+
+Alleen aanwezig als de wardrive-plugin aan staat. Toont de ritten van alle rijders (een rit loopt van Rit starten tot Rit stoppen op de wardrive-pagina; een pauze van meer dan 10 minuten begint een nieuwe). Hernoem een rit, geef hem notities, splits hem op een tijdstip, voeg ritten van een radio samen, of verwijder er een (hij gaat uit RTFM-EV; de collectors houden wat ze kregen). Beperk de lijst op gebruiker, groep, radio en periode, vink ritten aan, en het rapport eronder gaat over die ritten (of, zonder vinkjes, over alles wat de filters tonen): wat er gereden is, hoe goed het gebied gedekt is (zeshoekige cellen, kies 720 tot 40 m), waar de dekking zwak is of ontbreekt (de cellen om aan te wijzen bij een verzoek om een node), en welke nodes waar en hoe goed gehoord worden. Maak een deelkaart (Rit, Dekking, Zwakke plekken) of exporteer de ontvangsten, de cellen, de kaartdata (GeoJSON) of de sporen (GPX). Rijders hebben hetzelfde op de pagina, in de tabbladen Ritten en Rapporten, voor wat hun zichtbaarheid toont.
+
 ### Wardrive-kaart
 
 Alleen aanwezig als de wardrive-plugin aan staat (`MESHCORE_WARDRIVE=true`). Toont alles wat de wardrive-rijders hebben opgeslagen: hun ontvangsten, gekleurd naar signaal, en hun sporen. Kies de laatste 24 uur, 7 dagen of 30 dagen, en beperk het tot één gebruiker, één groep of één radio. Gebruikers, groepen en de kanalen die rijders kunnen lezen beheer je in **Instellingen > Wardrive**.

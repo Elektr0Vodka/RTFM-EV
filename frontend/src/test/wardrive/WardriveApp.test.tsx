@@ -14,6 +14,7 @@ import { hexToBytes } from '../../wardrive/packet';
 import { Listeners, type RadioTransport } from '../../wardrive/radio/transport';
 import { TEST_SECRET, groupTextFrame } from './decodeVectors';
 import { contactFrame, contactsEndFrame, contactsStartFrame } from './radioFrames';
+import { T0, drive, fakeApi } from './reports/fixtures';
 
 // MapLibre does not run in jsdom; the live map is checked in a real browser.
 // The stand-in shows how many receptions the page gives it.
@@ -130,6 +131,7 @@ function setup(over: Partial<WardriveDeps> = {}) {
     serialSupported: () => false,
     deviceLocationAllowed: () => true,
     connectMqtt: async () => mqtt,
+    drivesApi: fakeApi([]),
     ...over,
   };
   render(
@@ -237,6 +239,8 @@ describe('wardrive page', () => {
     });
     fireEvent.click(start);
     await screen.findByRole('button', { name: 'Stop driving' }, { timeout: 5000 });
+    // Let the page subscribe to receptions first (its effect may still be pending).
+    await act(async () => {});
     act(() => radio.hear());
     await waitFor(() => expect(screen.getByTestId('wardrive-stored').textContent).toBe('1'), {
       timeout: 5000,
@@ -338,6 +342,8 @@ describe('wardrive page', () => {
     await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(start);
     await screen.findByRole('button', { name: 'Stop driving' });
+    // Let the page subscribe to receptions first (its effect may still be pending).
+    await act(async () => {});
     act(() => radio.hear());
     await waitFor(() => expect(screen.getByTestId('wardrive-stored').textContent).toBe('1'));
     await openMenu();
@@ -380,6 +386,8 @@ describe('wardrive page', () => {
     const { radio } = setup();
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
+    // Let the page subscribe to receptions first (its effect may still be pending).
+    await act(async () => {});
     act(() => radio.hear());
     expect(await screen.findByText('1 rx', undefined, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByTestId('wardrive-hud-rssi').textContent).toBe('-90');
@@ -391,6 +399,8 @@ describe('wardrive page', () => {
     const { radio } = setup();
     fireEvent.click(await screen.findByRole('button', { name: 'Connect over Bluetooth' }));
     await screen.findByText(/Car/);
+    // Let the page subscribe to receptions first (its effect may still be pending).
+    await act(async () => {});
     act(() => radio.hear());
     await screen.findByText('1 rx', undefined, { timeout: 5000 });
     logSelects.length = 0;
@@ -637,5 +647,35 @@ describe('wardrive page reading what it hears', () => {
     await waitFor(() => expect(logRows()).toHaveLength(1));
     expect(logRows()[0].textContent).toContain('Anna');
     expect(screen.getByRole('button', { name: 'Targets: Anna' })).toBeTruthy();
+  });
+  it('asks a logged-out driver to log in for drives and reports', async () => {
+    vi.spyOn(wardriveApi, 'me').mockRejectedValue(new WardriveApiError('no', 401));
+    setup();
+    await openMenu();
+    const drives = screen.getByRole('tab', { name: 'Drives' });
+    fireEvent.mouseDown(drives);
+    fireEvent.click(drives);
+    expect(await screen.findByText('Log in to see your drives and reports.')).toBeTruthy();
+  });
+
+  it('reports on the drives picked in the Drives tab', async () => {
+    vi.spyOn(wardriveApi, 'me').mockResolvedValue(me([KEY]));
+    const api = fakeApi([
+      drive({ id: 7, name: 'Ochtend' }),
+      drive({ id: 8, name: 'Avond', start_ts: T0 + 7200, end_ts: T0 + 7800 }),
+    ]);
+    setup({ drivesApi: api });
+    await openMenu();
+    const drives = screen.getByRole('tab', { name: 'Drives' });
+    fireEvent.mouseDown(drives);
+    fireEvent.click(drives);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Pick Ochtend' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Pick Avond' }));
+    const reports = screen.getByRole('tab', { name: 'Reports' });
+    fireEvent.mouseDown(reports);
+    fireEvent.click(reports);
+    await waitFor(() => expect(api.report).toHaveBeenCalledWith({ drive: [7, 8], res: 9 }));
+    expect(await screen.findByRole('heading', { name: 'What was driven' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Drive card' })).toBeTruthy();
   });
 });

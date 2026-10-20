@@ -516,6 +516,36 @@ describe('wardrive-map (Tools > Wardrive map) route', () => {
   });
 });
 
+describe('wardrive-reports (Tools > Wardrive reports) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #wardrive-reports', () => {
+    window.location.hash = '#wardrive-reports';
+    expect(parseHashConversation()).toEqual({
+      type: 'wardrive-reports',
+      name: 'wardrive-reports',
+    });
+  });
+
+  it('builds #wardrive-reports', () => {
+    expect(
+      getConversationHash({
+        type: 'wardrive-reports',
+        id: 'wardrive-reports',
+        name: 'Wardrive reports',
+      })
+    ).toBe('#wardrive-reports');
+  });
+});
+
 describe('fleet (Tools > Fleet) route', () => {
   let originalHash: string;
 

@@ -126,6 +126,12 @@ class Track(BaseModel):
 
 class UploadBody(BaseModel):
     radio_key: str
+    # RTFM-EV's own drive id from the page (a UUID); never forwarded. Absent
+    # from older pages: their rows join a drive by the 10-minute gap rule.
+    drive_uid: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    )
     obs: list[Obs] = Field(default_factory=list, max_length=MAX_BATCH)
     tracks: list[Track] = Field(default_factory=list, max_length=MAX_BATCH)
 

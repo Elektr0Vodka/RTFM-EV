@@ -23,6 +23,7 @@ interface ParsedHashConversation {
     | 'fleet'
     | 'spam-guard'
     | 'wardrive-map'
+    | 'wardrive-reports'
     | 'performance'
     | 'analyze'
     | 'packet-history'
@@ -116,6 +117,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'wardrive-map') {
     return { type: 'wardrive-map', name: 'wardrive-map' };
+  }
+
+  if (hash === 'wardrive-reports') {
+    return { type: 'wardrive-reports', name: 'wardrive-reports' };
   }
 
   // SNMP page of one node: #snmp/<public key>
@@ -295,6 +300,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'performance') return '#performance';
   if (conv.type === 'lan-scan') return '#lan-scan';
   if (conv.type === 'wardrive-map') return '#wardrive-map';
+  if (conv.type === 'wardrive-reports') return '#wardrive-reports';
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;

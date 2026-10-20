@@ -89,6 +89,11 @@ export interface NodeBox {
   maxLon: number;
 }
 
+/** A call to the driver API (reports/pageDrivesApi.ts uses it for drives). */
+export function wardriveCall<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return call<T>(path, init);
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
@@ -127,8 +132,13 @@ export const wardriveApi = {
   logout: () => post<void>('/logout'),
   me: () => call<WardriveMe>('/me'),
   addRadio: (body: SignedRadio & { name?: string }) => post<WardriveMe>('/radios', body),
-  upload: (body: { radio_key: string; obs: ObsMessage[]; tracks: TrackMessage[] }) =>
-    post<UploadResult>('/upload', body),
+  /** `drive_uid` is RTFM-EV's own drive id (driveId.ts), never forwarded. */
+  upload: (body: {
+    radio_key: string;
+    drive_uid?: string;
+    obs: ObsMessage[];
+    tracks: TrackMessage[];
+  }) => post<UploadResult>('/upload', body),
   /** Owner settings for the page: the hashtag channel names to decode. */
   config: () => call<{ hashtag_channels: string[] }>('/config'),
   nodes: (box: NodeBox) =>

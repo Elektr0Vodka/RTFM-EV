@@ -11,6 +11,27 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-20 (wardrive drives and reports, feat/wardrive-plugin)
+
+Migration **_162** (`wardrive_drives`; `drive_id` on wardrive receptions and
+tracks, `wardrive_tracks.t1_ts`; stored rows split into drives by the
+10-minute gap rule). No new dependency. Nothing is sent over the radio; the
+collectors' messages are unchanged.
+
+### Wardrive
+- Every drive is stored with its own id: Start driving to Stop driving, a new
+  drive after more than 10 minutes without anything written, one radio per
+  drive. The page tags its rows with the drive id in the browser and uploads
+  one drive per batch; rows from older pages join a drive by the gap rule.
+- Drives tab on the page and **Tools > Wardrive reports** for the owner: list,
+  rename, notes, split, merge, delete; drivers change their own, see what their
+  visibility shows.
+- Reports over picked drives or a filter: what was driven, coverage by hexagon
+  cell (CoreScope's grid, 720 to 40 m), weak spots and gaps with the nodes
+  heard next door, nodes heard (receptions, signal, cells, reach). Share cards
+  Drive (animated replay), Coverage (animated) and Weak spots; exports
+  receptions CSV, cells CSV, GeoJSON and GPX.
+
 ## Update 2026-10-20 (pull translations from rtfm-ev-i18n, pull-translations)
 
 No migration, no new dependency.

@@ -63,6 +63,9 @@ const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m
 const WardriveMapPage = lazy(() =>
   import('./WardriveMapPage').then((m) => ({ default: m.WardriveMapPage }))
 );
+const WardriveReportsPage = lazy(() =>
+  import('./WardriveReportsPage').then((m) => ({ default: m.WardriveReportsPage }))
+);
 const PerformanceView = lazy(() =>
   import('./PerformanceView').then((m) => ({ default: m.PerformanceView }))
 );
@@ -564,6 +567,14 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_lan_scan')} />}>
         <LanScanView onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'wardrive-reports') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_wardrive_reports')} />}>
+        <WardriveReportsPage />
       </Suspense>
     );
   }
