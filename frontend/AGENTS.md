@@ -487,6 +487,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - `TempRadioModal` (opened from `ChatHeader`, channels and DMs, disabled without a connected radio): Switch tab (preset via `hooks/useRadioPresetList`, custom fields, region, duration + unit, "Make this my new normal" = `updateRadioConfig`, opt-ins via `TempRadioOptInFields`) and Scan tab (`TempRadioScanTab`). `TempRadioBanner` is mounted under the StatusBar in `AppShell` and above the popout status line.
 - Pills: `components/RadioSfPill.tsx` (`MessageSfPill` for messages and packet rows, `ContactSfPills` in sidebar rows and the contact info pane). Rules in `utils/radioSf.ts`.
 - SF filters: `MessageList` (`hiddenRadioSfs` / `onHiddenRadioSfsChange`, server setting `hidden_radio_sfs`, 0 = no stamp), `usePacketFilters` (`enabledSfs`, buckets `SF5`..`SF12` + `Unknown`; Packet History sends `radio_sfs`), Sidebar "Heard on" select (localStorage `rtfm-sidebar-contact-sf`).
+- OpenHop: App sets `setTempRadioSupported(!health.radio_device_info.is_openhop)`; `useTempRadioSupported()` disables the header button (reason in the title), hides the DM contact switch/toggle and the section's Switch now.
 - Per-contact: `ContactRadioProfileSection` in `ContactInfoBody`; `ChatHeader` shows an `SF<n>` switch button and an auto-switch toggle for a DM contact with saved settings.
 
 ### Radio identities (plan 18)

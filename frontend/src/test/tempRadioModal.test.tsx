@@ -20,7 +20,12 @@ vi.mock('../api', () => ({ api: mocks.api }));
 import { ChatHeader } from '../components/ChatHeader';
 import { TempRadioBanner } from '../components/TempRadioBanner';
 import { TempRadioModal } from '../components/TempRadioModal';
-import { INACTIVE_TEMP_RADIO, getCurrentRadioStamp, setTempRadioState } from '../utils/tempRadio';
+import {
+  INACTIVE_TEMP_RADIO,
+  getCurrentRadioStamp,
+  setTempRadioState,
+  setTempRadioSupported,
+} from '../utils/tempRadio';
 import { makeChannelChatHeaderProps, makeContactChatHeaderProps } from './helpers/chatHeaderProps';
 
 const NORMAL = { freq: 869.618, bw: 62.5, sf: 7, cr: 8 };
@@ -200,5 +205,16 @@ describe('TempRadioBanner', () => {
     act(() => setTempRadioState(activeState({ restore_pending: true })));
     render(<TempRadioBanner />);
     expect(screen.getByRole('alert')).toHaveTextContent(/overdue/i);
+  });
+});
+
+describe('OpenHop', () => {
+  it('turns the header button off with a reason', () => {
+    act(() => setTempRadioSupported(false));
+    render(<ChatHeader {...makeChannelChatHeaderProps({ radioConnected: true })} />);
+    const btn = screen.getByRole('button', { name: /temporary radio settings/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', expect.stringMatching(/openhop/i));
+    act(() => setTempRadioSupported(true));
   });
 });

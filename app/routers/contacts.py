@@ -483,7 +483,11 @@ async def delete_radio_profile(public_key: str) -> dict:
 async def switch_to_radio_profile(public_key: str) -> TempRadioState:
     """Switch the companion to this contact's saved settings (a temporary session)."""
     from app.services.radio_commands import RadioCommandRejectedError, RadioRepeatFrequencyError
-    from app.services.temp_radio import TempRadioUnavailableError, start_for_contact
+    from app.services.temp_radio import (
+        TempRadioUnavailableError,
+        TempRadioUnsupportedError,
+        start_for_contact,
+    )
 
     try:
         return await start_for_contact(public_key)
@@ -491,7 +495,7 @@ async def switch_to_radio_profile(public_key: str) -> TempRadioState:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except TempRadioUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except RadioRepeatFrequencyError as exc:
+    except (RadioRepeatFrequencyError, TempRadioUnsupportedError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RadioCommandRejectedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

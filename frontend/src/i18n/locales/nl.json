@@ -6677,5 +6677,7 @@
   "temp_radio_scan_round": "ronde {round}",
   "temp_radio_optin_polls": "Sensorabonnementen en buren-opvragingen",
   "contact_radio_switch_now": "Nu naar deze instellingen wisselen",
-  "settings_host_repeater_blocker_temp_radio_session": "tijdelijke radio-instellingen staan aan"
+  "settings_host_repeater_blocker_temp_radio_session": "tijdelijke radio-instellingen staan aan",
+  "temp_radio_button_openhop": "Tijdelijke radio-instellingen staan uit: OpenHop beheert zijn eigen radio-instellingen",
+  "contact_radio_openhop_note": "OpenHop beheert zijn eigen radio-instellingen, dus wisselen staat uit. Opgeslagen instellingen blijven bewaard voor als er een companion verbonden is."
 }

@@ -24,6 +24,7 @@ import {
   setContactSightings,
   setCurrentRadioStamp,
   setTempRadioState,
+  setTempRadioSupported,
 } from '../utils/tempRadio';
 import { makeContactChatHeaderProps } from './helpers/chatHeaderProps';
 
@@ -137,5 +138,29 @@ describe('ContactRadioProfileSection', () => {
     render(<ContactRadioProfileSection publicKey={KEY} />);
     await userEvent.click(screen.getByRole('button', { name: /switch to these settings now/i }));
     await waitFor(() => expect(mocks.api.switchToContactRadioProfile).toHaveBeenCalledWith(KEY));
+  });
+
+  it('on OpenHop: no switching, with a note', () => {
+    act(() => {
+      setContactProfiles({ [key]: PROFILE });
+      setTempRadioSupported(false);
+    });
+    render(<ContactRadioProfileSection publicKey={KEY} />);
+    expect(screen.queryByRole('button', { name: /switch to these settings now/i })).toBeNull();
+    expect(screen.getByText(/openhop/i)).toBeInTheDocument();
+    act(() => setTempRadioSupported(true));
+  });
+});
+
+describe('DM header on OpenHop', () => {
+  it('leaves the contact switch and auto switch out', () => {
+    act(() => {
+      setContactProfiles({ [key]: PROFILE });
+      setTempRadioSupported(false);
+    });
+    render(<ChatHeader {...makeContactChatHeaderProps({ radioConnected: true })} />);
+    expect(screen.queryByRole('button', { name: /switch to .*settings/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /auto switch/i })).toBeNull();
+    act(() => setTempRadioSupported(true));
   });
 });
