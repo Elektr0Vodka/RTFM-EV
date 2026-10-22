@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Antenna,
   Bell,
   BellOff,
   ChevronsLeftRight,
@@ -8,6 +9,7 @@ import {
   Info,
   Library,
   MapPin,
+  Repeat,
   Route,
   Star,
   TerminalSquare,
@@ -16,6 +18,14 @@ import {
 import { toast } from './ui/sonner';
 import { DirectTraceIcon } from './DirectTraceIcon';
 import { ContactPathDiscoveryModal } from './ContactPathDiscoveryModal';
+import { TempRadioModal } from './TempRadioModal';
+import {
+  setContactProfile,
+  setTempRadioState,
+  useContactProfile,
+  useTempRadioState,
+} from '../utils/tempRadio';
+import { api } from '../api';
 import { ChannelFloodScopeOverrideModal } from './ChannelFloodScopeOverrideModal';
 import { ChannelPathHashModeOverrideModal } from './ChannelPathHashModeOverrideModal';
 import { handleKeyboardActivate } from '../utils/a11y';
@@ -87,6 +97,8 @@ interface ChatHeaderProps {
   cliConsoleAvailable?: boolean;
   cliConsoleOpen?: boolean;
   onToggleCliConsole?: () => void;
+  /** Whether the companion is connected (temporary radio settings need it). */
+  radioConnected?: boolean;
 }
 
 export function ChatHeader({
@@ -126,8 +138,47 @@ export function ChatHeader({
   cliConsoleAvailable,
   cliConsoleOpen,
   onToggleCliConsole,
+  radioConnected = false,
 }: ChatHeaderProps) {
   const t = useT();
+  const tempRadio = useTempRadioState();
+  const [tempRadioOpen, setTempRadioOpen] = useState(false);
+  const contactRadioProfile = useContactProfile(
+    conversation.type === 'contact' ? conversation.id : null
+  );
+  const [contactRadioBusy, setContactRadioBusy] = useState(false);
+  const switchToContactRadio = async () => {
+    if (!contactRadioProfile) return;
+    setContactRadioBusy(true);
+    try {
+      setTempRadioState(await api.switchToContactRadioProfile(contactRadioProfile.public_key));
+    } catch (err) {
+      toast.error(
+        t('temp_radio_failed', { error: err instanceof Error ? err.message : String(err) })
+      );
+    } finally {
+      setContactRadioBusy(false);
+    }
+  };
+  const toggleContactAutoSwitch = async () => {
+    if (!contactRadioProfile) return;
+    setContactRadioBusy(true);
+    try {
+      const saved = await api.putContactRadioProfile(contactRadioProfile.public_key, {
+        radio: contactRadioProfile.radio,
+        region: contactRadioProfile.region,
+        duration_secs: contactRadioProfile.duration_secs,
+        auto_switch: !contactRadioProfile.auto_switch,
+      });
+      setContactProfile(contactRadioProfile.public_key, saved);
+    } catch (err) {
+      toast.error(
+        t('contact_radio_save_failed', { error: err instanceof Error ? err.message : String(err) })
+      );
+    } finally {
+      setContactRadioBusy(false);
+    }
+  };
   const [showKey, setShowKey] = useState(false);
   const [pathDiscoveryOpen, setPathDiscoveryOpen] = useState(false);
   const [channelOverrideOpen, setChannelOverrideOpen] = useState(false);
@@ -447,6 +498,62 @@ export function ChatHeader({
         </div>
       )}
       <div className="flex items-center justify-end gap-0.5">
+        {(conversation.type === 'channel' || conversation.type === 'contact') &&
+          !isMeshcomodChat && (
+            <button
+              className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setTempRadioOpen(true)}
+              title={
+                radioConnected ? t('temp_radio_button_title') : t('temp_radio_button_unavailable')
+              }
+              aria-label={t('temp_radio_button_title')}
+              aria-pressed={tempRadio.active}
+              disabled={!radioConnected}
+            >
+              <Antenna
+                className={cn(
+                  'h-4 w-4',
+                  tempRadio.active ? 'text-primary' : 'text-muted-foreground'
+                )}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+        {conversation.type === 'contact' && contactRadioProfile && !isMeshcomodChat && (
+          // Left out on phones, where the header has no room: the contact info
+          // pane has the same switch and toggle.
+          <span className="hidden sm:inline-flex items-center gap-0.5">
+            <button
+              className="p-1 rounded hover:bg-accent text-[0.6875rem] font-medium leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring text-primary"
+              onClick={switchToContactRadio}
+              title={t('chat_contact_radio_switch', { name: conversation.name })}
+              aria-label={t('chat_contact_radio_switch', { name: conversation.name })}
+              disabled={!radioConnected || contactRadioBusy}
+            >
+              SF{contactRadioProfile.radio.sf}
+            </button>
+            <button
+              className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={toggleContactAutoSwitch}
+              title={
+                contactRadioProfile.auto_switch
+                  ? t('chat_contact_radio_auto_on', { name: conversation.name })
+                  : t('chat_contact_radio_auto_off', { name: conversation.name })
+              }
+              aria-label={t('chat_contact_radio_auto_toggle')}
+              aria-pressed={contactRadioProfile.auto_switch}
+              disabled={contactRadioBusy}
+            >
+              <Repeat
+                className={cn(
+                  'h-4 w-4',
+                  contactRadioProfile.auto_switch ? 'text-primary' : 'text-muted-foreground'
+                )}
+                aria-hidden="true"
+              />
+            </button>
+          </span>
+        )}
         {conversation.type === 'contact' && !activeContactIsRoomServer && !isMeshcomodChat && (
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
@@ -850,6 +957,13 @@ export function ChatHeader({
           </button>
         )}
       </div>
+      {tempRadioOpen && (
+        <TempRadioModal
+          open={tempRadioOpen}
+          onOpenChange={setTempRadioOpen}
+          normal={config?.radio ?? null}
+        />
+      )}
       {conversation.type === 'contact' && activeContact && (
         <ContactPathDiscoveryModal
           open={pathDiscoveryOpen}

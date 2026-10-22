@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RawPacketFeedView } from '../components/RawPacketFeedView';
 import { resetRawPacketStore, seedRawPacketStore } from '../stores/rawPacketStore';
 import type { Channel, RawPacket } from '../types';
+import { setCurrentRadioStamp } from '../utils/tempRadio';
 
 function feedPacket(id: number, data: string): RawPacket {
   return {
@@ -443,5 +444,37 @@ describe('RawPacketFeedView policy only', () => {
     expect(screen.getByText('Drop rule flood text')).toBeInTheDocument();
     expect(screen.queryByText('CC33DD44')).not.toBeInTheDocument();
     expect(screen.queryByText('EE55FF66')).not.toBeInTheDocument();
+  });
+
+  describe('SF filter and pills', () => {
+    const SF7 = { freq: 869.618, bw: 62.5, sf: 7, cr: 8 };
+    const SF8 = { freq: 869.618, bw: 62.5, sf: 8, cr: 8 };
+    const stamped = (id: number, data: string, stamp: typeof SF7 | null): RawPacket => ({
+      ...feedPacket(id, data),
+      radio_stamp: stamp,
+    });
+
+    beforeEach(() => {
+      act(() => setCurrentRadioStamp(SF7));
+    });
+
+    it('"(only)" SF8 keeps the SF8 packet and hides SF7 and unrecorded ones', () => {
+      renderView({
+        packets: [stamped(1, 'AA0001', SF8), stamped(2, 'AA0002', SF7), stamped(3, 'AA0003', null)],
+      });
+      fireEvent.click(screen.getByRole('button', { name: /filters/i }));
+      const span = screen.getByLabelText('SF8').closest('span');
+      if (!span) throw new Error('SF8 control not found');
+      fireEvent.click(within(span).getByRole('button', { name: '(only)' }));
+      expect(screen.getByText('AA0001')).toBeInTheDocument();
+      expect(screen.queryByText('AA0002')).not.toBeInTheDocument();
+      expect(screen.queryByText('AA0003')).not.toBeInTheDocument();
+    });
+
+    it('marks a packet heard on other settings with an SF pill', () => {
+      renderView({ packets: [stamped(1, 'AA0004', SF8), stamped(2, 'AA0005', SF7)] });
+      expect(screen.getAllByText('SF8')).toHaveLength(1);
+      expect(screen.queryByText('SF7')).not.toBeInTheDocument();
+    });
   });
 });

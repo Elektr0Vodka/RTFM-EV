@@ -22,6 +22,8 @@ import { emitBuddyEvent } from '../buddy/buddyEvents';
 import { conversationMessageCache } from './useConversationMessages';
 import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
 import { isBotMessage, loadBotLists } from '../utils/botLists';
+import { loadTempRadio } from '../utils/tempRadio';
+import { sfBucket } from '../utils/radioSf';
 import { isMeshcomodCommandContact } from '../utils/meshcomodContact';
 import type {
   Channel,
@@ -48,6 +50,8 @@ interface UseRealtimeAppStateArgs {
   blockedNamesRef: MutableRefObject<string[]>;
   /** Per-hop byte widths hidden by the chat "Hide by hop size" filter. */
   hiddenHopWidthsRef?: MutableRefObject<ReadonlySet<number>>;
+  /** SFs hidden by the chat SF filter (0 = no stored radio settings). */
+  hiddenRadioSfsRef?: MutableRefObject<ReadonlySet<number>>;
   /** Whether the chat "Hide malformed" filter is on. */
   hideMalformedRef?: MutableRefObject<boolean>;
   /** Whether the chat "Hide spam" filter is on. */
@@ -134,6 +138,7 @@ export function useRealtimeAppState({
   blockedKeysRef,
   blockedNamesRef,
   hiddenHopWidthsRef,
+  hiddenRadioSfsRef,
   hideMalformedRef,
   hideSpamRef,
   hideBotsRef,
@@ -246,6 +251,8 @@ export function useRealtimeAppState({
           .catch(console.error);
         // `bot_lists` events sent while the socket was down are gone.
         void loadBotLists().catch(console.error);
+        // Same for the temporary radio session, scan and contact sightings.
+        void loadTempRadio().catch(console.error);
       },
       onMessage: (msg: Message) => {
         if (isMessageBlocked(msg, blockedKeysRef.current, blockedNamesRef.current)) {
@@ -264,6 +271,10 @@ export function useRealtimeAppState({
           !msg.outgoing &&
           !!hiddenHopWidthsRef &&
           isMessageHiddenByHopWidth(msg.paths, hiddenHopWidthsRef.current);
+        const isSfHidden =
+          !msg.outgoing &&
+          !!hiddenRadioSfsRef &&
+          hiddenRadioSfsRef.current.has(sfBucket(msg.radio_stamp));
         const isMalformedHidden = !msg.outgoing && !!msg.malformed && !!hideMalformedRef?.current;
         const isSpamHidden = !msg.outgoing && !!msg.spam && !!hideSpamRef?.current;
         const isBotHidden = !!hideBotsRef?.current && isBotMessage(msg);
@@ -273,6 +284,7 @@ export function useRealtimeAppState({
         const isSilenced =
           isMutedChannel ||
           isHopHidden ||
+          isSfHidden ||
           isMalformedHidden ||
           isSpamHidden ||
           isBotHidden ||
@@ -440,6 +452,7 @@ export function useRealtimeAppState({
       blockedNamesRef,
       channelsRef,
       hiddenHopWidthsRef,
+      hiddenRadioSfsRef,
       hideMalformedRef,
       hideSpamRef,
       hideBotsRef,

@@ -28,6 +28,8 @@ from app.models import (
     ContactFloodScopeOverrideRequest,
     ContactLocationHistory,
     ContactRadioPolicyRequest,
+    ContactRadioProfile,
+    ContactRadioProfileRequest,
     ContactRadioResidency,
     ContactRemoteCliRequest,
     ContactRouteSuggestions,
@@ -46,8 +48,10 @@ from app.models import (
     NearestRepeater,
     PathDiscoveryResponse,
     PathDiscoveryRoute,
+    RadioStamp,
     TelemetryHistoryEntry,
     TelemetrySource,
+    TempRadioState,
     TraceResponse,
     apply_remote_cli,
     apply_telemetry_perms,
@@ -64,6 +68,11 @@ from app.repository import (
     ContactPathOutcomeRepository,
     ContactRepository,
     MessageRepository,
+)
+from app.repository.contact_radio_profiles import ContactRadioProfilesRepository
+from app.repository.contact_radio_sightings import (
+    ContactRadioSighting,
+    ContactRadioSightingsRepository,
 )
 from app.repository.contacts import ContactLocationHistoryRepository
 from app.services.analyzer_path_check import (
@@ -416,6 +425,76 @@ async def get_contact_analytics(
     if not normalized_name:
         raise HTTPException(status_code=400, detail="name is required")
     return await _build_name_only_contact_analytics(normalized_name)
+
+
+@router.get("/radio-sightings")
+async def list_radio_sightings() -> dict[str, list[ContactRadioSighting]]:
+    """Every LoRa settings set each contact was heard on (migration _160), by public key."""
+    return await ContactRadioSightingsRepository.get_all()
+
+
+@router.get("/radio-profiles")
+async def list_radio_profiles() -> dict[str, ContactRadioProfile]:
+    """Saved per-contact radio settings (spec 4.6), by public key."""
+    return await ContactRadioProfilesRepository.get_all()
+
+
+@router.get("/{public_key}/radio-profile", response_model=ContactRadioProfile)
+async def get_radio_profile(public_key: str) -> ContactRadioProfile:
+    profile = await ContactRadioProfilesRepository.get(public_key)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="No saved radio settings for this contact")
+    return profile
+
+
+@router.put("/{public_key}/radio-profile", response_model=ContactRadioProfile)
+async def put_radio_profile(
+    public_key: str, request: ContactRadioProfileRequest
+) -> ContactRadioProfile:
+    """Save radio settings for a contact; ``auto_switch`` switches before each DM."""
+    from app.services.temp_radio import normalize_session_region
+
+    profile = await ContactRadioProfilesRepository.upsert(
+        public_key,
+        radio=RadioStamp(**request.radio.model_dump()),
+        region=normalize_session_region(request.region),
+        duration_secs=request.duration_secs,
+        auto_switch=request.auto_switch,
+    )
+    from app.websocket import broadcast_event
+
+    broadcast_event(
+        "contact_radio_profile",
+        {"public_key": profile.public_key, "profile": profile.model_dump()},
+    )
+    return profile
+
+
+@router.delete("/{public_key}/radio-profile")
+async def delete_radio_profile(public_key: str) -> dict:
+    from app.websocket import broadcast_event
+
+    deleted = await ContactRadioProfilesRepository.delete(public_key)
+    broadcast_event("contact_radio_profile", {"public_key": public_key.lower(), "profile": None})
+    return {"deleted": deleted}
+
+
+@router.post("/{public_key}/radio-profile/switch", response_model=TempRadioState)
+async def switch_to_radio_profile(public_key: str) -> TempRadioState:
+    """Switch the companion to this contact's saved settings (a temporary session)."""
+    from app.services.radio_commands import RadioCommandRejectedError, RadioRepeatFrequencyError
+    from app.services.temp_radio import TempRadioUnavailableError, start_for_contact
+
+    try:
+        return await start_for_contact(public_key)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TempRadioUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RadioRepeatFrequencyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RadioCommandRejectedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/radio-residency", response_model=list[ContactRadioResidency])

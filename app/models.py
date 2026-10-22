@@ -35,6 +35,154 @@ def apply_remote_cli(flags: int, enabled: bool) -> int:
     return (flags | REMOTE_CLI_FLAG) if enabled else (flags & ~REMOTE_CLI_FLAG)
 
 
+class RadioStamp(BaseModel):
+    """LoRa settings something was heard or sent on (migration _160)."""
+
+    freq: float = Field(description="Frequency in MHz")
+    bw: float = Field(description="Bandwidth in kHz")
+    sf: int = Field(description="Spreading factor")
+    cr: int = Field(description="Coding rate")
+
+
+class RadioStampInput(RadioStamp):
+    """User-entered LoRa settings, limited to what the companion firmware accepts."""
+
+    freq: float = Field(ge=150.0, le=2500.0, description="Frequency in MHz")
+    bw: float = Field(ge=7.0, le=500.0, description="Bandwidth in kHz")
+    sf: int = Field(ge=5, le=12, description="Spreading factor")
+    cr: int = Field(ge=5, le=8, description="Coding rate")
+
+
+class TempRadioOptIns(BaseModel):
+    """What keeps running while the companion is on temporary settings (all off by default)."""
+
+    adverts: bool = False
+    team_beacon: bool = False
+    telemetry: bool = False
+    client_repeat: bool = False
+    polls: bool = Field(
+        default=False,
+        description="Sensor push renewals and host repeater neighbour polls",
+    )
+    fanout_ids: list[str] = Field(
+        default_factory=list, description="Integration config ids that keep forwarding"
+    )
+
+
+class TempRadioSource(BaseModel):
+    """What started a temporary session."""
+
+    kind: Literal["manual", "contact", "scan"] = "manual"
+    contact_key: str | None = None
+
+
+class TempRadioScanProgress(BaseModel):
+    """Where a running scan list is (spec 4.7)."""
+
+    list_id: int
+    list_name: str
+    entry_index: int
+    round: int
+    entry_ends_at: float
+    on_normal: bool = False
+
+
+class TempRadioState(BaseModel):
+    """The temporary radio settings session (spec 5.1); ``active=False`` = none."""
+
+    active: bool = False
+    companion_key: str | None = None
+    original: RadioStamp | None = None
+    temp: RadioStamp | None = None
+    region: str | None = Field(
+        default=None, description="Session region: None = untouched, '*' = unscoped"
+    )
+    original_repeat: bool | None = None
+    prev_temp: RadioStamp | None = Field(
+        default=None,
+        description="Temporary settings before the last switch in this session; also ours",
+    )
+    opt_ins: TempRadioOptIns = Field(default_factory=TempRadioOptIns)
+    source: TempRadioSource = Field(default_factory=TempRadioSource)
+    started_at: float | None = None
+    expires_at: float | None = None
+    restore_pending: bool = False
+    scan: TempRadioScanProgress | None = None
+
+
+class TempRadioStartRequest(BaseModel):
+    radio: RadioStampInput
+    duration_secs: int = Field(gt=0)
+    region: str | None = Field(
+        default=None, description="Blank = leave as is, '*' = unscoped, else a region name"
+    )
+    opt_ins: TempRadioOptIns = Field(default_factory=TempRadioOptIns)
+    source: TempRadioSource = Field(default_factory=TempRadioSource)
+
+
+class RadioScanEntry(BaseModel):
+    """One step of a scan list (spec 4.7)."""
+
+    radio: RadioStampInput
+    region: str | None = Field(
+        default=None, description="Blank = leave as is, '*' = unscoped, else a region name"
+    )
+    dwell_secs: int = Field(gt=0, description="Seconds to stay on these settings")
+
+
+class RadioScanListRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    entries: list[RadioScanEntry] = Field(min_length=1)
+    rounds: int = Field(default=0, ge=0, description="0 = repeat until stopped")
+    normal_between_secs: int = Field(
+        default=0, ge=0, description="Seconds back on normal settings between entries"
+    )
+    hold_on_activity_secs: int = Field(
+        default=0, ge=0, description="Extend an entry by this long when a packet arrives"
+    )
+    opt_ins: TempRadioOptIns = Field(default_factory=TempRadioOptIns)
+
+
+class RadioScanList(RadioScanListRequest):
+    id: int
+    created_at: int
+    updated_at: int
+
+
+class RadioScanState(BaseModel):
+    """What the scanner is doing; broadcast as ``radio_scan_state``."""
+
+    running: bool = False
+    list_id: int | None = None
+    list_name: str | None = None
+    entry_index: int | None = None
+    entry_count: int | None = None
+    round: int | None = None
+    rounds: int | None = None
+    entry_ends_at: float | None = None
+    on_normal: bool = False
+
+
+class ContactRadioProfile(BaseModel):
+    """Saved radio settings for one contact (spec 4.6, migration _160)."""
+
+    public_key: str
+    radio: RadioStamp
+    region: str | None = None
+    duration_secs: int
+    auto_switch: bool = False
+    updated_at: int
+
+
+class ContactRadioProfileRequest(BaseModel):
+    radio: RadioStampInput
+    region: str | None = Field(
+        default=None, description="Blank = leave as is, '*' = unscoped, else a region name"
+    )
+    duration_secs: int = Field(gt=0)
+    auto_switch: bool = False
+
+
 class ContactRoute(BaseModel):
     """A normalized contact route."""
 
@@ -809,6 +957,13 @@ class Message(BaseModel):
             "hides nothing."
         ),
     )
+    radio_stamp: RadioStamp | None = Field(
+        default=None,
+        description=(
+            "LoRa settings the radio was on when this message was heard or sent "
+            "(migration _160). None for older rows or when the radio was not connected."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -1107,6 +1262,10 @@ class RawPacketBroadcast(BaseModel):
             "On an OpenHop node: the policy rule that decides this packet, evaluated here "
             "against a copy of the node's policy. An indication, not the node's own verdict"
         ),
+    )
+    radio_stamp: RadioStamp | None = Field(
+        default=None,
+        description="LoRa settings the radio was on when this copy was heard (migration _160)",
     )
 
 
@@ -2456,6 +2615,13 @@ class AppSettings(BaseModel):
         description=(
             "Per-hop path byte widths (1/2/3) whose incoming messages are hidden in chat "
             "and excluded from unread counts, mentions and Web Push ('Hide by hop size')."
+        ),
+    )
+    hidden_radio_sfs: list[int] = Field(
+        default_factory=list,
+        description=(
+            "Spreading factors (5-12; 0 = no stored settings) whose incoming messages are "
+            "hidden in chat and excluded from unread counts, mentions and Web Push."
         ),
     )
     hide_malformed: bool = Field(

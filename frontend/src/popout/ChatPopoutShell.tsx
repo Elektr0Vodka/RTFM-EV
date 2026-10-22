@@ -9,6 +9,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
+import { TempRadioBanner } from '../components/TempRadioBanner';
 import {
   AlignLeft,
   BellOff,
@@ -769,6 +770,7 @@ export function ChatPopoutShell({
           )}
         </div>
 
+        <TempRadioBanner />
         <div
           className="popout-status flex items-center justify-between gap-3 border-t border-border px-2 py-0.5 text-[0.6875rem] text-muted-foreground"
           role="status"

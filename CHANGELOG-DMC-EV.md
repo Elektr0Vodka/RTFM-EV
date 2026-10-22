@@ -11,6 +11,77 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-22 (temporary radio settings, claude/chat-radio-settings-modal-f1da3a)
+
+Migration **_160** (`app_settings.temp_radio_state` and `hidden_radio_sfs`,
+`radio_freq/bw/sf/cr` on `raw_packets` and `messages`, tables
+`contact_radio_sightings`, `contact_radio_profiles`, `radio_scan_lists`). No new
+dependency. For people near a border between meshes on different settings
+(for example SF7 and SF8).
+
+### Radio
+- Chat header button (channels and DMs) opens **Temporary radio settings**: a
+  preset or custom frequency, bandwidth, SF and CR, an optional region, and a
+  duration in minutes or hours. RTFM applies them with `CMD_SET_RADIO_PARAMS`
+  (live, no reboot) and puts the normal settings back when the time is up.
+  "Make this my new normal" saves them like Settings > Radio instead.
+- Companion firmware has no `tempradio` command (only repeaters and room
+  servers do, checked against `companion-v1.18.0`), so RTFM keeps the timer.
+  The firmware writes both changes to flash: the session is stored and checked
+  on every connect and restart. Radio on the temporary settings: the timer
+  resumes, or the restore runs when it is overdue. Radio on the normal
+  settings: the session ends. Radio changed outside RTFM: the session is
+  dropped and nothing is overwritten. A different companion is never touched.
+- An app-wide banner shows the settings, time left and **Restore now**; an
+  overdue restore shows as a warning.
+- While on temporary settings, automatic adverts, the TEAM beacon, scheduled
+  telemetry polls, sensor push renewals, host repeater neighbour polls, client
+  repeat and every integration (MQTT, map upload, webhooks, Apprise, SQS)
+  pause unless ticked under "While on these settings".
+- A switch that fails halfway goes straight back to the previous settings; if
+  that fails too, the session stays with the restore pending. A failed restore
+  on a connected radio is retried every 30 seconds. A session belongs to one
+  companion: another companion is never switched or restored by it, and its
+  pauses do not apply there.
+- At the end of a session RTFM checks the radio first: settings changed in the
+  meantime (for example on the radio's command line) are left alone, and a
+  radio already back on normal just ends the session. Packets handled during a
+  switch get no SF stamp instead of a possibly wrong one. The expiry timer
+  re-checks the clock every minute, so a host waking from sleep restores right
+  away.
+- The host repeater disarms before a switch, and cannot be armed while
+  temporary settings are on.
+- Auto switch for a contact whose saved settings are the normal ones ends the
+  session instead of starting one. The contact info pane has a "Switch to
+  these settings now" button; on phones the DM header leaves its contact
+  switch and toggle out for room. A session region overrides per-channel and per-contact region
+  overrides; the saved region goes back afterwards. The host repeater keeps its
+  own rule: it disarms on a modulation change.
+- Per-contact radio settings in the contact info pane, filled from the
+  settings the contact was heard on. The DM header then has a switch button
+  and an **auto switch** toggle: with it on, RTFM switches before each DM to
+  that contact.
+- **Scan lists** (Scan tab in the same modal): named lists of settings, each
+  with its own time; rounds (0 = until stopped), optional time on normal
+  settings between entries, and hold on activity. A scan never resumes after a
+  restart or reconnect; the normal settings go back instead.
+
+### Messages, packets, contacts
+- Packets and messages store the settings they were heard or sent on; contacts
+  keep every settings set they were heard on. An `SF8` pill marks anything not
+  heard on the normal settings; contacts heard on two meshes show both.
+- SF filters: chat (server side, also for unread counts and Web Push, like the
+  hop-size filter), Packet Feed and Packet History (`radio_sfs`), and a "Heard
+  on" filter for contacts in the sidebar. Rows from before this change count
+  as unknown.
+
+### Not verified
+- Switching settings on real hardware and the restore after a restart were not
+  tested on a radio; the behaviour comes from the firmware source and the
+  tests.
+- Translations for nl and de were written with the change; the rtfm-ev-i18n
+  pull may replace them.
+
 ## Update 2026-10-20 (Spam Guard and packet filter feedback round 4, fix/spam-guard-feedback-4)
 
 No migration, no new dependency. Nothing is sent over the radio. From Richard's

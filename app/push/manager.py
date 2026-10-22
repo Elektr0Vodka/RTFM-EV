@@ -17,6 +17,7 @@ from app.meshcomod_contact import is_meshcomod_command_contact
 from app.path_utils import message_hidden_by_hop_width
 from app.push.send import send_push
 from app.push.vapid import get_vapid_claims, get_vapid_private_key
+from app.radio_stamp import message_hidden_by_radio_sf
 from app.reaction_payloads import channel_sender
 from app.repository.channels import ChannelRepository
 from app.repository.push_subscriptions import PushSubscriptionRepository
@@ -142,6 +143,8 @@ class PushManager:
             if _is_blocked(data, hidden_keys or [], hidden_names or []):
                 return
             if message_hidden_by_hop_width(data.get("paths"), settings.hidden_hop_widths):
+                return
+            if message_hidden_by_radio_sf(data.get("radio_stamp"), settings.hidden_radio_sfs):
                 return
             if settings.hide_malformed and data.get("malformed"):
                 return

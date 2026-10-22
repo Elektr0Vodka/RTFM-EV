@@ -217,6 +217,14 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Could not load Spam Guard at startup", exc_info=True)
 
+    # Temporary radio settings: read the stored session; reconciled on connect.
+    from app.services.temp_radio import temp_radio
+
+    try:
+        await temp_radio.load()
+    except Exception:
+        logger.warning("Could not load the temporary radio session at startup", exc_info=True)
+
     # Host repeater neighbour poll (opt-in, transmits; idle unless enabled and active).
     from app.services.host_repeater_neighbor_poll import neighbor_poller
 

@@ -78,8 +78,13 @@ async def apply_radio_config_update(
     client_repeat: bool | None = None,
     allowed_repeat_freqs: list[dict] | None = None,
     set_client_repeat: Callable[[bool | None], None] | None = None,
+    repeat_override: bool | None = None,
 ) -> None:
-    """Apply a validated radio-config update to the connected radio."""
+    """Apply a validated radio-config update to the connected radio.
+
+    ``repeat_override`` sends that client-repeat value with the radio params
+    instead of the current one (temporary radio settings turn repeat off).
+    """
     if update.advert_location_source is not None:
         advert_loc_policy = 0 if update.advert_location_source == "off" else 1
         logger.info(
@@ -142,7 +147,7 @@ async def apply_radio_config_update(
         supports_repeat = firmware_ver_code is not None and firmware_ver_code >= 9
         repeat_kwargs: dict[str, int] = {}
         if supports_repeat:
-            current_repeat = bool(client_repeat)
+            current_repeat = bool(client_repeat) if repeat_override is None else repeat_override
             # Only block pre-emptively when we actually have a queried allow-list
             # to check against; otherwise let the firmware's own validation run
             # (surfaced as RadioCommandRejectedError below) rather than guessing.

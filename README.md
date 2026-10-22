@@ -101,6 +101,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Radio identity registry: history per radio, and a prompt when a different radio connects (new radio or replacement).
 - [Several radios at once](README_ADVANCED.md#multiple-radios-experimental) (experimental, opt-in): one workspace per radio, for example 433 and 868 MHz side by side, with a shared channel list, a radio switcher and unread badges across radios.
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
+- Temporary radio settings from any chat header: put the companion on another mesh's settings (for example SF8 next to an SF7 mesh) for a set time, with an optional region. RTFM switches back by itself, also after a restart, and pauses automatic adverts, beacons, telemetry polls and integrations unless you keep them on. Per-contact settings with an optional auto switch before each DM, and scan lists that cycle through several settings. Packets, messages and contacts heard on other settings get an `SF8` pill and can be filtered by SF.
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
 - [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.
 - [Bot lists](#bot-lists): lists of known bots that mark and hide their messages and can keep this repeater from relaying them, off until you enable one.
