@@ -6675,5 +6675,7 @@
   "temp_radio_scan_banner": "Scan {name}: Eintrag {entry} von {count}",
   "temp_radio_scan_banner_normal": "Scan {name}: auf normalen Einstellungen",
   "temp_radio_scan_round": "Runde {round}",
-  "temp_radio_optin_polls": "Sensor-Abos und Nachbarabfragen"
+  "temp_radio_optin_polls": "Sensor-Abos und Nachbarabfragen",
+  "contact_radio_switch_now": "Jetzt zu diesen Einstellungen wechseln",
+  "settings_host_repeater_blocker_temp_radio_session": "temporäre Funkeinstellungen sind aktiv"
 }

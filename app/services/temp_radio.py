@@ -46,6 +46,9 @@ class TempRadioConflictError(RuntimeError):
 
 # Seconds between restore attempts after a failed restore on a connected radio.
 RESTORE_RETRY_SECS = 30.0
+# The expiry timer wakes at least this often and re-checks the wall clock, so a
+# host that was suspended restores right after it wakes up.
+EXPIRY_CHECK_SECS = 60.0
 
 
 def normalize_session_region(region: str | None) -> str | None:
@@ -119,6 +122,11 @@ class TempRadioService:
             scope = "" if region == "*" else region
         async with radio_manager.radio_operation("temp_radio_region") as mc:
             await set_radio_flood_scope(mc, scope, fw_ver=radio_manager.firmware_ver_code)
+
+    async def _switch(self, stamp: RadioStamp, repeat: bool | None) -> None:
+        """Apply settings; packets processed meanwhile get no stamp (unknown)."""
+        with radio_stamp.switching():
+            await self._apply_radio(stamp, repeat)
 
     def _schedule(self) -> None:
         """(Re)start the expiry task for the current session."""
@@ -237,8 +245,9 @@ class TempRadioService:
         repeat = bool(original_repeat) if req.opt_ins.client_repeat else False
         if original_repeat is None:
             repeat = None
+        _disarm_host_repeater()
         try:
-            await self._apply_radio(temp, repeat)
+            await self._switch(temp, repeat)
             if region is not None:
                 await self._apply_region(region)
             elif previous is not None and previous.region is not None:
@@ -266,7 +275,7 @@ class TempRadioService:
         try:
             if previous is None:
                 if state.original is not None:
-                    await self._apply_radio(state.original, state.original_repeat)
+                    await self._switch(state.original, state.original_repeat)
                 if state.region is not None:
                     await self._apply_region(None)
                 await self._clear()
@@ -277,7 +286,7 @@ class TempRadioService:
                     )
                     if previous.original_repeat is None:
                         repeat = None
-                    await self._apply_radio(previous.temp, repeat)
+                    await self._switch(previous.temp, repeat)
                 if state.region != previous.region:
                     await self._apply_region(previous.region)
                 await self._save(previous)
@@ -306,8 +315,27 @@ class TempRadioService:
             raise TempRadioUnavailableError(
                 "The companion of this session is not connected; restore when it is"
             )
+        current = self._current()
+        if current is not None and state.temp is not None:
+            if radio_stamp.stamps_equal(current, state.original):
+                # Already back on the normal settings: just end the session.
+                await self._put_saved_region_back(state)
+                await self._clear()
+                return self._state
+            ours = radio_stamp.stamps_equal(current, state.temp) or (
+                state.prev_temp is not None and radio_stamp.stamps_equal(current, state.prev_temp)
+            )
+            if not ours:
+                logger.warning(
+                    "Radio settings changed outside RTFM during a temporary session; "
+                    "ending it without restoring"
+                )
+                await self._put_saved_region_back(state)
+                await self._clear()
+                self.broadcast("temp_radio_dropped", {"reason": "changed_elsewhere"})
+                return self._state
         try:
-            await self._apply_radio(state.original, state.original_repeat)
+            await self._switch(state.original, state.original_repeat)
             if state.region is not None:
                 await self._apply_region(None)
         except Exception:
@@ -360,7 +388,12 @@ class TempRadioService:
 
     async def _expiry_loop(self, expires_at: float) -> None:
         try:
-            await asyncio.sleep(max(0.0, expires_at - self.clock()))
+            # Short steps against the wall clock: asyncio's clock stops while
+            # the host is suspended, the session's expiry does not.
+            while self.clock() < expires_at:
+                await asyncio.sleep(min(EXPIRY_CHECK_SECS, expires_at - self.clock()))
+                if not self._state.active or self._state.expires_at != expires_at:
+                    return
         except asyncio.CancelledError:
             return
         if self._state.active and self._state.expires_at == expires_at:
@@ -493,6 +526,18 @@ async def ensure_contact_settings(public_key: str) -> bool:
         if profile is None or not profile.auto_switch:
             return False
         current = temp_radio._current()
+        state = temp_radio.state()
+        if (
+            temp_radio.session_active()
+            and state.original is not None
+            and radio_stamp.stamps_equal(profile.radio, state.original)
+        ):
+            # This contact lives on the normal settings: end the session
+            # instead of starting a "temporary" one on the normal settings.
+            if current is not None and radio_stamp.stamps_equal(current, state.original):
+                return False
+            await temp_radio.restore()
+            return True
         if current is not None and radio_stamp.stamps_equal(current, profile.radio):
             return False
         await start_for_contact(public_key)
@@ -500,6 +545,17 @@ async def ensure_contact_settings(public_key: str) -> bool:
     except Exception as exc:
         logger.warning("Auto switch to %s's radio settings failed: %s", public_key[:12], exc)
         return False
+
+
+def _disarm_host_repeater() -> None:
+    """A switch changes the modulation: stop live forwarding before it, not after."""
+    try:
+        from app.services.host_repeater_tx import host_repeater_tx
+
+        if host_repeater_tx.armed:
+            host_repeater_tx.disarm("radio_settings_changed")
+    except Exception:
+        logger.debug("Host repeater disarm before a radio switch failed", exc_info=True)
 
 
 def _broadcast(event: str, data: dict) -> None:

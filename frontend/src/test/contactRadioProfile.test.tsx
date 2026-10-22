@@ -131,4 +131,11 @@ describe('ContactRadioProfileSection', () => {
     await userEvent.click(screen.getByRole('button', { name: /remove radio settings/i }));
     await waitFor(() => expect(mocks.api.deleteContactRadioProfile).toHaveBeenCalledWith(KEY));
   });
+
+  it('switches to the saved settings from the section', async () => {
+    act(() => setContactProfiles({ [key]: PROFILE }));
+    render(<ContactRadioProfileSection publicKey={KEY} />);
+    await userEvent.click(screen.getByRole('button', { name: /switch to these settings now/i }));
+    await waitFor(() => expect(mocks.api.switchToContactRadioProfile).toHaveBeenCalledWith(KEY));
+  });
 });

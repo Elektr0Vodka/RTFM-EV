@@ -152,6 +152,9 @@ async def build_stored_outgoing_channel_message(
 ) -> Message:
     """Build the current payload for a stored outgoing channel message."""
     acked_count, paths = await message_repository.get_ack_and_paths(message_id)
+    # The stamp it was stored with, not the radio's settings now.
+    get_stamp = getattr(message_repository, "get_radio_stamp", None)
+    stored_stamp = await get_stamp(message_id) if get_stamp is not None else None
     return build_message_model(
         message_id=message_id,
         msg_type="CHAN",
@@ -166,6 +169,7 @@ async def build_stored_outgoing_channel_message(
         sender_name=sender_name,
         sender_key=sender_key,
         channel_name=channel_name,
+        radio_stamp=stored_stamp,
     )
 
 

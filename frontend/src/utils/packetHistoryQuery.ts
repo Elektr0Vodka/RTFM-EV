@@ -43,7 +43,10 @@ export function buildHistoryParams(input: HistoryParamInput): URLSearchParams {
   if (input.hexQuery !== '') p.set('hex', input.hexQuery);
   if (input.searchTerm) p.set('search', input.searchTerm);
   if (input.policyOnly) p.set('policy_only', 'true');
-  if (input.enabledSfs && input.enabledSfs.size < SF_FILTER_BUCKETS.length) {
+  if (input.enabledSfs && input.enabledSfs.size === 0) {
+    // Every SF unticked: nothing matches, like the live feed.
+    p.append('radio_sfs', 'none');
+  } else if (input.enabledSfs && input.enabledSfs.size < SF_FILTER_BUCKETS.length) {
     for (const bucket of input.enabledSfs) {
       p.append('radio_sfs', bucket === 'Unknown' ? 'Unknown' : bucket.replace(/^SF/, ''));
     }

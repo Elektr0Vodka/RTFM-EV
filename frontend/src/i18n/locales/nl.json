@@ -6675,5 +6675,7 @@
   "temp_radio_scan_banner": "Scan {name}: item {entry} van {count}",
   "temp_radio_scan_banner_normal": "Scan {name}: op normale instellingen",
   "temp_radio_scan_round": "ronde {round}",
-  "temp_radio_optin_polls": "Sensorabonnementen en buren-opvragingen"
+  "temp_radio_optin_polls": "Sensorabonnementen en buren-opvragingen",
+  "contact_radio_switch_now": "Nu naar deze instellingen wisselen",
+  "settings_host_repeater_blocker_temp_radio_session": "tijdelijke radio-instellingen staan aan"
 }

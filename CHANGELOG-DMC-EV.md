@@ -42,7 +42,19 @@ dependency. For people near a border between meshes on different settings
   that fails too, the session stays with the restore pending. A failed restore
   on a connected radio is retried every 30 seconds. A session belongs to one
   companion: another companion is never switched or restored by it, and its
-  pauses do not apply there. A session region overrides per-channel and per-contact region
+  pauses do not apply there.
+- At the end of a session RTFM checks the radio first: settings changed in the
+  meantime (for example on the radio's command line) are left alone, and a
+  radio already back on normal just ends the session. Packets handled during a
+  switch get no SF stamp instead of a possibly wrong one. The expiry timer
+  re-checks the clock every minute, so a host waking from sleep restores right
+  away.
+- The host repeater disarms before a switch, and cannot be armed while
+  temporary settings are on.
+- Auto switch for a contact whose saved settings are the normal ones ends the
+  session instead of starting one. The contact info pane has a "Switch to
+  these settings now" button; on phones the DM header leaves its contact
+  switch and toggle out for room. A session region overrides per-channel and per-contact region
   overrides; the saved region goes back afterwards. The host repeater keeps its
   own rule: it disarms on a modulation change.
 - Per-contact radio settings in the contact info pane, filled from the

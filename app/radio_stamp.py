@@ -8,15 +8,38 @@ pill) and filter on SF. The companion reports its settings in ``self_info``;
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 from app.models import RadioStamp
 from app.services.radio_runtime import radio_runtime as radio_manager
 
 FREQ_TOLERANCE_MHZ = 0.001
 BW_TOLERANCE_KHZ = 1.0
 
+# Number of radio-settings switches in progress. While one runs, what the radio
+# is on is not known for sure, so nothing gets a stamp (it shows as unknown).
+_switching = 0
+
+
+@contextmanager
+def switching() -> Iterator[None]:
+    global _switching
+    _switching += 1
+    try:
+        yield
+    finally:
+        _switching -= 1
+
+
+def is_switching() -> bool:
+    return _switching > 0
+
 
 def current_radio_stamp() -> RadioStamp | None:
     """Settings from the connected radio's ``self_info``; None when unknown."""
+    if _switching:
+        return None
     mc = radio_manager.meshcore
     info = getattr(mc, "self_info", None) if mc is not None else None
     if not info:

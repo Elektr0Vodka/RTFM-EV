@@ -108,4 +108,9 @@ describe('buildHistoryParams SF axis', () => {
     const p = buildHistoryParams({ ...base, enabledSfs: new Set(['SF8', 'Unknown']) });
     expect(p.getAll('radio_sfs').sort()).toEqual(['8', 'Unknown']);
   });
+
+  it('sends none when every SF is unticked, so nothing matches', () => {
+    const p = buildHistoryParams({ ...base, enabledSfs: new Set<string>() });
+    expect(p.getAll('radio_sfs')).toEqual(['none']);
+  });
 });

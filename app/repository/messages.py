@@ -928,6 +928,21 @@ class MessageRepository:
         return row["acked"], MessageRepository._parse_paths(row["paths"])
 
     @staticmethod
+    async def get_radio_stamp(message_id: int) -> RadioStamp | None:
+        """The settings a stored message was heard or sent on (migration _160)."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT radio_freq, radio_bw, radio_sf, radio_cr FROM messages WHERE id = ?",
+                (message_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+        if row is None or row["radio_sf"] is None:
+            return None
+        return RadioStamp(
+            freq=row["radio_freq"], bw=row["radio_bw"], sf=row["radio_sf"], cr=row["radio_cr"]
+        )
+
+    @staticmethod
     async def get_by_id(message_id: int) -> "Message | None":
         """Look up a message by its ID."""
         async with db.readonly() as conn:

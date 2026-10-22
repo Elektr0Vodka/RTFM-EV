@@ -3303,7 +3303,8 @@ export type HostRepeaterArmBlocker =
   | 'firmware_repeat_on'
   | 'openhop'
   | 'frequency_unknown'
-  | 'sub_band_below_minimum';
+  | 'sub_band_below_minimum'
+  | 'temp_radio_session';
 
 export type HostRepeaterMode = 'off' | 'shadow' | 'armed';
 

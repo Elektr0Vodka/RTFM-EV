@@ -520,7 +520,9 @@ export function ChatHeader({
             </button>
           )}
         {conversation.type === 'contact' && contactRadioProfile && !isMeshcomodChat && (
-          <>
+          // Left out on phones, where the header has no room: the contact info
+          // pane has the same switch and toggle.
+          <span className="hidden sm:inline-flex items-center gap-0.5">
             <button
               className="p-1 rounded hover:bg-accent text-[0.6875rem] font-medium leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring text-primary"
               onClick={switchToContactRadio}
@@ -550,7 +552,7 @@ export function ChatHeader({
                 aria-hidden="true"
               />
             </button>
-          </>
+          </span>
         )}
         {conversation.type === 'contact' && !activeContactIsRoomServer && !isMeshcomodChat && (
           <button

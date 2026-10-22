@@ -50,6 +50,8 @@ class RadioScanService:
         self._entry_ends_at = 0.0
         self._hold_secs = 0
         self._wake = asyncio.Event()
+        # Session extensions in flight; held so the tasks are not garbage-collected.
+        self._pending_extends: set[asyncio.Task] = set()
         self.clock: Callable[[], float] = time.time
         self.broadcast: Callable[[str, dict], None] = _broadcast
 
@@ -94,8 +96,10 @@ class RadioScanService:
             new_end = self.clock() + self._hold_secs
             if new_end > self._entry_ends_at:
                 self._entry_ends_at = new_end
-                self._state = state.model_copy(update={"entry_ends_at": new_end})
-                asyncio.ensure_future(self.temp.extend_to(new_end + SESSION_MARGIN_SECS))
+                self._set_state(state.model_copy(update={"entry_ends_at": new_end}))
+                task = asyncio.ensure_future(self.temp.extend_to(new_end + SESSION_MARGIN_SECS))
+                self._pending_extends.add(task)
+                task.add_done_callback(self._pending_extends.discard)
                 self._wake.set()
         except Exception:
             logger.debug("Scan activity hook failed", exc_info=True)

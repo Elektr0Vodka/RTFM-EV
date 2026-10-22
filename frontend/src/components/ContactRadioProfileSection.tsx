@@ -6,6 +6,7 @@ import type { RadioStamp } from '../types';
 import { parseRadioFields } from '../utils/radioSf';
 import {
   setContactProfile,
+  setTempRadioState,
   useContactProfile,
   useContactSightings,
   useTempRadioState,
@@ -97,6 +98,18 @@ export function ContactRadioProfileSection({ publicKey }: { publicKey: string })
       setError(
         t('contact_radio_save_failed', { error: err instanceof Error ? err.message : String(err) })
       );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const switchNow = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setTempRadioState(await api.switchToContactRadioProfile(publicKey));
+    } catch (err) {
+      setError(t('temp_radio_failed', { error: err instanceof Error ? err.message : String(err) }));
     } finally {
       setBusy(false);
     }
@@ -229,6 +242,11 @@ export function ContactRadioProfileSection({ publicKey }: { publicKey: string })
         <Button type="button" size="sm" disabled={busy} onClick={save}>
           {t('contact_radio_save')}
         </Button>
+        {profile && (
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={switchNow}>
+            {t('contact_radio_switch_now')}
+          </Button>
+        )}
         {profile && (
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={remove}>
             {t('contact_radio_remove')}

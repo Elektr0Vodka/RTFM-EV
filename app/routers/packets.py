@@ -373,7 +373,8 @@ async def get_packet_history(
     - policy_only: only packets with a stored OpenHop policy verdict (a rule
       decided them, or the default action dropped them).
     - radio_sfs: spreading factors ("5".."12") the packet was heard on;
-      "Unknown" = no stored settings (rows from before migration _160).
+      "Unknown" = no stored settings (rows from before migration _160);
+      "none" alone = every SF unticked, so nothing matches.
 
     Returns ``{"packets": [...newest-first...], "next_cursor": <int|null>}``.
     ``next_cursor`` is the smallest id in the page, or null when the page was
@@ -463,6 +464,9 @@ async def get_packet_history(
             sf_clauses.append("rp.radio_sf IS NULL")
         if sf_clauses:
             conditions.append("(" + " OR ".join(sf_clauses) + ")")
+        else:
+            # Every SF unticked ("none"): nothing matches, like the live feed.
+            conditions.append("0 = 1")
 
     # message-content search: case-insensitive substring over the linked
     # message's text / sender name / channel name, and over the stored policy

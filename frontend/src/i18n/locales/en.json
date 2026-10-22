@@ -6673,5 +6673,7 @@
   "temp_radio_scan_banner": "Scan {name}: entry {entry} of {count}",
   "temp_radio_scan_banner_normal": "Scan {name}: on normal settings",
   "temp_radio_scan_round": "round {round}",
-  "temp_radio_optin_polls": "Sensor subscriptions and neighbour polls"
+  "temp_radio_optin_polls": "Sensor subscriptions and neighbour polls",
+  "contact_radio_switch_now": "Switch to these settings now",
+  "settings_host_repeater_blocker_temp_radio_session": "temporary radio settings are on"
 }
