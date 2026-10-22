@@ -11,6 +11,7 @@ from app.models import (
     ContactAnalyticsWeeklyBucket,
     Message,
     MessagePath,
+    RadioStamp,
 )
 
 
@@ -73,8 +74,11 @@ class MessageRepository:
         malformed_reason: str | None = None,
         bot: bool = False,
         cli_permitted: bool | None = None,
+        radio_stamp: RadioStamp | None = None,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
+
+        ``radio_stamp`` defaults to the radio's current settings (migration _160).
 
         Uses INSERT OR IGNORE to handle the message dedup indexes:
         - channel messages dedupe by content/timestamp for echo reconciliation
@@ -97,6 +101,10 @@ class MessageRepository:
 
         # Normalize sender_key to lowercase so queries can match without LOWER().
         normalized_sender_key = sender_key.lower() if sender_key else sender_key
+        if radio_stamp is None:
+            from app import radio_stamp as radio_stamp_module
+
+            radio_stamp = radio_stamp_module.current_radio_stamp()
 
         async with db.tx() as conn:
             async with conn.execute(
@@ -105,8 +113,9 @@ class MessageRepository:
                                                 received_at, paths, txt_type, signature, outgoing,
                                                 send_status, sender_name, sender_key,
                                                 transport_code, region, malformed,
-                                                malformed_reason, bot, cli_permitted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                malformed_reason, bot, cli_permitted,
+                                                radio_freq, radio_bw, radio_sf, radio_cr)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -127,6 +136,10 @@ class MessageRepository:
                     malformed_reason,
                     1 if bot else 0,
                     None if cli_permitted is None else (1 if cli_permitted else 0),
+                    radio_stamp.freq if radio_stamp else None,
+                    radio_stamp.bw if radio_stamp else None,
+                    radio_stamp.sf if radio_stamp else None,
+                    radio_stamp.cr if radio_stamp else None,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -496,6 +509,28 @@ class MessageRepository:
         )
 
     @staticmethod
+    def _build_hidden_radio_sf_clause(
+        message_alias: str = "",
+        hidden_radio_sfs: list[int] | None = None,
+    ) -> str:
+        """Exclude incoming messages hidden by the chat SF filter (migration _160).
+
+        Same rule as ``radio_stamp.message_hidden_by_radio_sf``: hidden when the
+        stored SF is listed; 0 stands for rows without a stamp. Values are
+        validated ints, so they are inlined, not bound.
+        """
+        from app.radio_stamp import clean_hidden_sfs
+
+        sfs = clean_hidden_sfs(hidden_radio_sfs)
+        if not sfs:
+            return ""
+        prefix = f"{message_alias}." if message_alias else ""
+        # COALESCE: a NULL stamp is SF 0, so IN never yields NULL (which NOT
+        # would turn into "hide" for every unstamped row).
+        listed = ", ".join(str(sf) for sf in sfs)
+        return f"NOT ({prefix}outgoing = 0 AND COALESCE({prefix}radio_sf, 0) IN ({listed}))"
+
+    @staticmethod
     def _build_hidden_malformed_clause(
         message_alias: str = "", hide_malformed: bool = False
     ) -> str:
@@ -531,6 +566,7 @@ class MessageRepository:
         spam = False
         duplicate = False
         cli_permitted = None
+        radio_stamp = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -551,6 +587,13 @@ class MessageRepository:
                 duplicate = bool(row["duplicate"])
             if "cli_permitted" in row_keys and row["cli_permitted"] is not None:
                 cli_permitted = bool(row["cli_permitted"])
+            if "radio_sf" in row_keys and row["radio_sf"] is not None:
+                radio_stamp = RadioStamp(
+                    freq=row["radio_freq"],
+                    bw=row["radio_bw"],
+                    sf=row["radio_sf"],
+                    cr=row["radio_cr"],
+                )
 
         return Message(
             id=row["id"],
@@ -575,6 +618,7 @@ class MessageRepository:
             spam=spam,
             duplicate=duplicate,
             cli_permitted=cli_permitted,
+            radio_stamp=radio_stamp,
         )
 
     @staticmethod
@@ -691,6 +735,7 @@ class MessageRepository:
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool = False,
         hide_spam: bool = False,
+        hidden_radio_sfs: list[int] | None = None,
     ) -> list[Message]:
         """Newest ``limit`` messages of a conversation received at or after ``since``.
 
@@ -715,6 +760,7 @@ class MessageRepository:
             params.extend(blocked_params)
         for filter_clause in (
             MessageRepository._build_hidden_hop_width_clause("messages", hidden_hop_widths),
+            MessageRepository._build_hidden_radio_sf_clause("messages", hidden_radio_sfs),
             MessageRepository._build_hidden_malformed_clause("messages", hide_malformed),
             MessageRepository._build_hidden_spam_clause("messages", hide_spam),
         ):
@@ -1103,6 +1149,7 @@ class MessageRepository:
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool = False,
         hide_spam: bool = False,
+        hidden_radio_sfs: list[int] | None = None,
     ) -> dict:
         """Get unread message counts, mention flags, and last message times for all conversations.
 
@@ -1138,6 +1185,9 @@ class MessageRepository:
         hidden_clause = MessageRepository._build_hidden_hop_width_clause("m", hidden_hop_widths)
         if hidden_clause:
             blocked_sql += f" AND {hidden_clause}"
+        sf_clause = MessageRepository._build_hidden_radio_sf_clause("m", hidden_radio_sfs)
+        if sf_clause:
+            blocked_sql += f" AND {sf_clause}"
         malformed_clause = MessageRepository._build_hidden_malformed_clause("m", hide_malformed)
         if malformed_clause:
             blocked_sql += f" AND {malformed_clause}"
@@ -1157,6 +1207,7 @@ class MessageRepository:
             for c in (
                 last_time_clause,
                 MessageRepository._build_hidden_hop_width_clause("", hidden_hop_widths),
+                MessageRepository._build_hidden_radio_sf_clause("", hidden_radio_sfs),
                 MessageRepository._build_hidden_malformed_clause("", hide_malformed),
                 MessageRepository._build_hidden_spam_clause("", hide_spam),
                 MessageRepository._build_cli_command_clause(""),

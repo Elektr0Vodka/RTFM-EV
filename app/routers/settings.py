@@ -499,6 +499,13 @@ class AppSettingsUpdate(BaseModel):
             "and excluded from unread counts, mentions and Web Push. Invalid widths are dropped."
         ),
     )
+    hidden_radio_sfs: list[int] | None = Field(
+        default=None,
+        description=(
+            "Spreading factors (5-12; 0 = no stored settings) whose incoming messages are "
+            "hidden in chat and excluded from unread counts, mentions and Web Push."
+        ),
+    )
     hide_malformed: bool | None = Field(
         default=None,
         description=(
@@ -902,6 +909,12 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
             {w for w in update.hidden_hop_widths if w in (1, 2, 3)}
         )
 
+    # SF filter (migration _160): 5-12, plus 0 for messages without a stamp.
+    if update.hidden_radio_sfs is not None:
+        from app.radio_stamp import clean_hidden_sfs
+
+        kwargs["hidden_radio_sfs"] = clean_hidden_sfs(update.hidden_radio_sfs)
+
     if update.hide_malformed is not None:
         kwargs["hide_malformed"] = update.hide_malformed
 
@@ -1186,8 +1199,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         if flood_scope_changed:
             from app.services.flood_scope import set_radio_flood_scope
             from app.services.radio_runtime import radio_runtime as radio_manager
+            from app.services.temp_radio import temp_radio
 
-            if radio_manager.is_connected:
+            # During a temporary radio session with its own region the radio keeps
+            # that region; the saved scope goes back on when the session ends.
+            if radio_manager.is_connected and temp_radio.session_region() is None:
                 try:
                     scope = result.flood_scope
                     async with radio_manager.radio_operation("set_flood_scope") as mc:

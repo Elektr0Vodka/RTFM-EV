@@ -57,6 +57,24 @@ export function useAppSettings() {
     }
   }, []);
 
+  // Chat SF filter (0 = messages without stored radio settings). Optimistic
+  // like the hop-size filter; shares its version counter for unread refresh.
+  const handleSetHiddenRadioSfs = useCallback(async (sfs: number[]) => {
+    const next = [...new Set(sfs)].sort((a, b) => a - b);
+    setAppSettings((prev) => (prev ? { ...prev, hidden_radio_sfs: next } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hidden_radio_sfs: next }));
+      setHiddenHopWidthsVersion((v) => v + 1);
+    } catch (err) {
+      console.error('Failed to save SF filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
+
   // Chat "Hide malformed" filter. Optimistic like the hop-size filter; the
   // server copy drives unread counts and Web Push.
   const handleSetHideMalformed = useCallback(async (hide: boolean) => {
@@ -313,6 +331,7 @@ export function useAppSettings() {
     fetchAppSettings,
     handleSaveAppSettings,
     handleSetHiddenHopWidths,
+    handleSetHiddenRadioSfs,
     handleSetHideMalformed,
     handleSetHideSpam,
     handleSetHideBots,

@@ -45,6 +45,26 @@ import {
   type Conversation,
 } from '../types';
 import { SegmentedPills, type SegmentedOption, type SegmentedUnread } from './ui/segmented';
+import { ContactSfPills } from './RadioSfPill';
+import { useAllContactSightings } from '../utils/tempRadio';
+
+const CONTACT_SF_FILTER_KEY = 'rtfm-sidebar-contact-sf';
+
+function loadContactSfFilter(): string {
+  try {
+    return localStorage.getItem(CONTACT_SF_FILTER_KEY) ?? 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function saveContactSfFilter(value: string): void {
+  try {
+    localStorage.setItem(CONTACT_SF_FILTER_KEY, value);
+  } catch {
+    // Storage unavailable: the choice lasts for this page only.
+  }
+}
 import {
   contactPillFor,
   loadContactPill,
@@ -356,6 +376,15 @@ export function Sidebar({
   );
   const [favSensorsCollapsed, setFavSensorsCollapsed] = useState(initialCollapsedState.favSensors);
   const collapseSnapshotRef = useRef<CollapseState | null>(null);
+
+  // "Heard on" SF filter for the Contacts section (persisted): 'all', an SF,
+  // or '0' for contacts with no recorded radio settings.
+  const allSightings = useAllContactSightings();
+  const [contactSf, setContactSf] = useState<string>(loadContactSfFilter);
+  const handleContactSf = (value: string) => {
+    setContactSf(value);
+    saveContactSfFilter(value);
+  };
 
   // Active type filter for the merged Contacts section (persisted).
   const [contactPill, setContactPill] = useState<ContactPill>(loadContactPill);
@@ -1087,6 +1116,9 @@ export function Sidebar({
           className={cn('name flex-1 truncate text-[0.8125rem]', row.muted && 'opacity-40 italic')}
         >
           {row.name}
+          {row.type === 'contact' && row.contact && (
+            <ContactSfPills publicKey={row.contact.public_key} />
+          )}
         </span>
         <span className="ml-auto flex items-center gap-1">
           {rowIsNew && (
@@ -1362,10 +1394,25 @@ export function Sidebar({
     ? contactPill
     : 'all';
 
-  const activeContactRows =
+  // SFs contacts were heard on (0 = none recorded); the filter only shows with 2+.
+  const sfBucketsOf = (row: ConversationRow): number[] => {
+    const seen = row.contact ? allSightings[row.contact.public_key.toLowerCase()] : undefined;
+    return seen && seen.length > 0 ? [...new Set(seen.map((s) => s.sf))] : [0];
+  };
+  const contactSfOptions = [...new Set(allContactRows.flatMap(sfBucketsOf))].sort((a, b) =>
+    a === 0 ? 1 : b === 0 ? -1 : a - b
+  );
+  const showContactSfFilter = contactSfOptions.length > 1;
+  const effectiveContactSf =
+    showContactSfFilter && contactSfOptions.includes(Number(contactSf)) ? contactSf : 'all';
+  const sfVisible = (row: ConversationRow) =>
+    effectiveContactSf === 'all' || sfBucketsOf(row).includes(Number(effectiveContactSf));
+
+  const activeContactRows = (
     effectiveContactPill === 'all'
       ? allContactRows
-      : (contactPillBuckets.find((bucket) => bucket.pill === effectiveContactPill)?.rows ?? []);
+      : (contactPillBuckets.find((bucket) => bucket.pill === effectiveContactPill)?.rows ?? [])
+  ).filter(sfVisible);
   const contactsSectionUnread = getSectionUnreadCount(activeContactRows);
   const contactsSectionNew = countNew(identitiesOf(activeContactRows));
 
@@ -1978,17 +2025,39 @@ export function Sidebar({
                     onChange={(v) => handleContactPill(v as ContactPill)}
                   />
                 )}
+                {showContactSfFilter && (
+                  <div className="flex items-center gap-2 px-3 pt-1.5 text-[0.6875rem] text-muted-foreground">
+                    <label htmlFor="sidebar-contact-sf">{t('nav_contacts_sf_filter')}</label>
+                    <select
+                      id="sidebar-contact-sf"
+                      className="h-6 rounded border border-input bg-background px-1 text-[0.6875rem]"
+                      value={effectiveContactSf}
+                      onChange={(e) => handleContactSf(e.target.value)}
+                    >
+                      <option value="all">{t('nav_contacts_sf_all')}</option>
+                      {contactSfOptions.map((sf) => (
+                        <option key={sf} value={String(sf)}>
+                          {sf === 0 ? t('nav_contacts_sf_unknown') : `SF${sf}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {effectiveContactPill === 'all'
-                  ? contactPillBuckets.map((bucket) => (
-                      <div key={`grp-${bucket.pill}`}>
-                        {contactPillBuckets.length > 1 && (
-                          <div className="px-3 pt-2 pb-0.5 text-[0.625rem] uppercase tracking-wider text-muted-foreground/70">
-                            {bucket.label}
-                          </div>
-                        )}
-                        {bucket.rows.map((row) => renderConversationRow(row))}
-                      </div>
-                    ))
+                  ? contactPillBuckets.map((bucket) => {
+                      const rows = bucket.rows.filter(sfVisible);
+                      if (rows.length === 0) return null;
+                      return (
+                        <div key={`grp-${bucket.pill}`}>
+                          {contactPillBuckets.length > 1 && (
+                            <div className="px-3 pt-2 pb-0.5 text-[0.625rem] uppercase tracking-wider text-muted-foreground/70">
+                              {bucket.label}
+                            </div>
+                          )}
+                          {rows.map((row) => renderConversationRow(row))}
+                        </div>
+                      );
+                    })
                   : activeContactRows.map((row) => renderConversationRow(row))}
               </>
             )}

@@ -66,7 +66,15 @@ import type {
   SensorPushState,
   SensorPushThreshold,
   RadioPolicy,
+  ContactRadioProfile,
+  ContactRadioProfileRequest,
+  ContactRadioSighting,
   FanoutConfig,
+  RadioScanList,
+  RadioScanListRequest,
+  RadioScanState,
+  TempRadioStartRequest,
+  TempRadioState,
   FleetAsset,
   FleetAssetEvent,
   FleetAssetEventInput,
@@ -360,6 +368,48 @@ export const api = {
     }),
   // Radio region presets (official MeshCore presets API sync)
   getRadioPresets: () => fetchJson<RadioPresetsStore>('/radio/presets'),
+  // Temporary radio settings (companion; RTFM restores them when the time is up)
+  getTempRadio: () => fetchJson<TempRadioState>('/radio/temp'),
+  startTempRadio: (request: TempRadioStartRequest) =>
+    fetchJson<TempRadioState>('/radio/temp', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+  restoreTempRadio: () => fetchJson<TempRadioState>('/radio/temp/restore', { method: 'POST' }),
+  getScanLists: () => fetchJson<RadioScanList[]>('/radio/scan-lists'),
+  createScanList: (request: RadioScanListRequest) =>
+    fetchJson<RadioScanList>('/radio/scan-lists', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+  updateScanList: (id: number, request: RadioScanListRequest) =>
+    fetchJson<RadioScanList>(`/radio/scan-lists/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }),
+  deleteScanList: (id: number) =>
+    fetchJson<{ deleted: boolean }>(`/radio/scan-lists/${id}`, { method: 'DELETE' }),
+  getScanState: () => fetchJson<RadioScanState>('/radio/scan'),
+  runScanList: (id: number) =>
+    fetchJson<RadioScanState>(`/radio/scan-lists/${id}/run`, { method: 'POST' }),
+  stopScan: () => fetchJson<RadioScanState>('/radio/scan/stop', { method: 'POST' }),
+  getContactRadioSightings: () =>
+    fetchJson<Record<string, ContactRadioSighting[]>>('/contacts/radio-sightings'),
+  getContactRadioProfiles: () =>
+    fetchJson<Record<string, ContactRadioProfile>>('/contacts/radio-profiles'),
+  putContactRadioProfile: (publicKey: string, request: ContactRadioProfileRequest) =>
+    fetchJson<ContactRadioProfile>(`/contacts/${publicKey}/radio-profile`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }),
+  deleteContactRadioProfile: (publicKey: string) =>
+    fetchJson<{ deleted: boolean }>(`/contacts/${publicKey}/radio-profile`, {
+      method: 'DELETE',
+    }),
+  switchToContactRadioProfile: (publicKey: string) =>
+    fetchJson<TempRadioState>(`/contacts/${publicKey}/radio-profile/switch`, {
+      method: 'POST',
+    }),
   syncRadioPresets: () =>
     fetchJson<RadioPresetsStore>('/radio/presets/sync', {
       method: 'POST',

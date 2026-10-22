@@ -1,4 +1,5 @@
 import { KNOWN_PAYLOAD_TYPES, HOP_BYTE_WIDTH_BUCKETS, ROUTE_FILTER_TYPES } from './rawPacketStats';
+import { SF_FILTER_BUCKETS } from './radioSf';
 
 export interface HistoryParamInput {
   startTs: number;
@@ -12,6 +13,8 @@ export interface HistoryParamInput {
   searchTerm: string;
   /** Only packets with a stored OpenHop policy verdict. */
   policyOnly?: boolean;
+  /** SF buckets to keep (`SF8`, `Unknown`); left out (or all of them) filters nothing. */
+  enabledSfs?: Set<string>;
   limit: number;
   beforeId?: number | null;
 }
@@ -40,5 +43,10 @@ export function buildHistoryParams(input: HistoryParamInput): URLSearchParams {
   if (input.hexQuery !== '') p.set('hex', input.hexQuery);
   if (input.searchTerm) p.set('search', input.searchTerm);
   if (input.policyOnly) p.set('policy_only', 'true');
+  if (input.enabledSfs && input.enabledSfs.size < SF_FILTER_BUCKETS.length) {
+    for (const bucket of input.enabledSfs) {
+      p.append('radio_sfs', bucket === 'Unknown' ? 'Unknown' : bucket.replace(/^SF/, ''));
+    }
+  }
   return p;
 }

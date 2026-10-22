@@ -9,6 +9,7 @@ import { formatDateTime } from '../utils/dateTimeFormat';
 import { isDamaged } from '../utils/damagedFrames';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
+import { MessageSfPill } from './RadioSfPill';
 
 interface RawPacketListProps {
   packets: RawPacket[];
@@ -309,6 +310,13 @@ export function RawPacketList({
                   : `${formatNumericDate(packet.timestamp)} ${formatTime(packet.timestamp)}`}
               </span>
             </div>
+
+            {/* Heard on settings other than the normal ones (temporary radio settings) */}
+            {packet.radio_stamp && (
+              <div className="mt-0.5 text-right">
+                <MessageSfPill stamp={packet.radio_stamp} />
+              </div>
+            )}
 
             {/* The OpenHop policy rule that decides this packet (an indication) */}
             {packet.policy && (

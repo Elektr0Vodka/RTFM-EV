@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from app.atak_payloads import envelope_body
 from app.decoder import TXT_TYPE_GROUP_DATA
 from app.malformed import is_malformed_channel_message, malformed_reason
-from app.models import Message, MessagePath
+from app.models import Message, MessagePath, RadioStamp
 from app.repository import ContactRepository, MessageRepository, RawPacketRepository
 from app.smaz import decode_message_text
 
@@ -82,8 +82,17 @@ def build_message_model(
     spam: bool = False,
     duplicate: bool = False,
     cli_permitted: bool | None = None,
+    radio_stamp: RadioStamp | None = None,
 ) -> Message:
-    """Build a Message model with the canonical backend payload shape."""
+    """Build a Message model with the canonical backend payload shape.
+
+    ``radio_stamp`` defaults to the radio's current settings, the same value
+    ``MessageRepository.create`` stores for a new row.
+    """
+    if radio_stamp is None:
+        from app import radio_stamp as radio_stamp_module
+
+        radio_stamp = radio_stamp_module.current_radio_stamp()
     return Message(
         id=message_id,
         type=msg_type,
@@ -107,6 +116,7 @@ def build_message_model(
         spam=spam,
         duplicate=duplicate,
         cli_permitted=cli_permitted,
+        radio_stamp=radio_stamp,
     )
 
 
@@ -390,6 +400,11 @@ async def create_message_from_decrypted(
             broadcast_fn=broadcast_fn,
         )
         return None
+
+    if resolved_sender_key:
+        from app.services.radio_sightings import record_contact_sighting
+
+        await record_contact_sighting(resolved_sender_key, received)
 
     logger.info(
         'Stored channel message "%s" for %r (msg ID %d in chan ID %s)',

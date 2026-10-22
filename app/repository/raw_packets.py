@@ -5,6 +5,7 @@ from hashlib import sha256
 
 from app.database import db
 from app.decoder import PayloadType, extract_payload, get_packet_payload_type
+from app.models import RadioStamp
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class RawPacketRepository:
         path_signature: str | None = None,
         policy_action: str | None = None,
         policy_rule: str | None = None,
+        radio_stamp: RadioStamp | None = None,
     ) -> tuple[int, bool]:
         """
         Create a raw packet with payload-based deduplication.
@@ -48,7 +50,8 @@ class RawPacketRepository:
         payload the existing row is left unchanged. The same goes for
         ``policy_action`` / ``policy_rule``, the OpenHop policy verdict worked out
         for this reception (``app/services/policy_verdict.py``; migration _141):
-        the row keeps the verdict of the first reception.
+        the row keeps the verdict of the first reception. ``radio_stamp`` is the
+        LoRa settings the radio was on (migration _160); first reception wins too.
         """
         ts = timestamp if timestamp is not None else int(time.time())
 
@@ -59,8 +62,8 @@ class RawPacketRepository:
                 "INSERT OR IGNORE INTO raw_packets "
                 "(timestamp, data, payload_hash, rssi, snr, payload_type, "
                 "route_type, hop_count, hop_byte_width, path_signature, "
-                "policy_action, policy_rule) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "policy_action, policy_rule, radio_freq, radio_bw, radio_sf, radio_cr) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     ts,
                     data,
@@ -74,6 +77,10 @@ class RawPacketRepository:
                     path_signature,
                     policy_action,
                     policy_rule,
+                    radio_stamp.freq if radio_stamp else None,
+                    radio_stamp.bw if radio_stamp else None,
+                    radio_stamp.sf if radio_stamp else None,
+                    radio_stamp.cr if radio_stamp else None,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount

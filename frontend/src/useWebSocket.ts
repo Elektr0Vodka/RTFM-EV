@@ -6,6 +6,13 @@ import { emitSpamGuardEvent } from './utils/spamGuardEvents';
 import { emitTrackerEvent } from './utils/trackerEvents';
 import { recordDamagedFrame } from './stores/damagedFrameStore';
 import { setBotListsState } from './utils/botLists';
+import {
+  addContactSighting,
+  notifyTempRadioDropped,
+  setContactProfile,
+  setScanState,
+  setTempRadioState,
+} from './utils/tempRadio';
 import { probeAuthSession } from './utils/authRedirect';
 
 // A browser hides the HTTP status of a refused WebSocket handshake: a lost
@@ -203,6 +210,21 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             break;
           case 'rx_bad_frame':
             recordDamagedFrame(msg.data);
+            break;
+          case 'temp_radio_state':
+            setTempRadioState(msg.data);
+            break;
+          case 'temp_radio_dropped':
+            notifyTempRadioDropped(msg.data.reason);
+            break;
+          case 'radio_scan_state':
+            setScanState(msg.data);
+            break;
+          case 'contact_radio_sighting':
+            addContactSighting(msg.data.public_key, msg.data.sighting);
+            break;
+          case 'contact_radio_profile':
+            setContactProfile(msg.data.public_key, msg.data.profile);
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);

@@ -532,6 +532,42 @@ describe('useRealtimeAppState', () => {
     });
   });
 
+  describe('SF filter', () => {
+    const sf8Chan: Message = {
+      ...incomingChan,
+      radio_stamp: { freq: 869.618, bw: 62.5, sf: 8, cr: 8 },
+    };
+
+    function run(msg: Message, hidden: number[]) {
+      const fns = {
+        recordMessageEvent: vi.fn(),
+        notifyIncomingMessage: vi.fn(),
+      };
+      const { args } = createRealtimeArgs({
+        ...fns,
+        hiddenRadioSfsRef: { current: new Set(hidden) },
+        observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onMessage?.(msg);
+      });
+      return fns;
+    }
+
+    it('does not count or notify a message on a hidden SF', () => {
+      const fns = run(sf8Chan, [8]);
+      expect(fns.recordMessageEvent).not.toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).not.toHaveBeenCalled();
+    });
+
+    it('counts a message on another SF and an unstamped one unless Unknown is hidden', () => {
+      expect(run(sf8Chan, [7]).recordMessageEvent).toHaveBeenCalled();
+      expect(run(incomingChan, [8]).recordMessageEvent).toHaveBeenCalled();
+      expect(run(incomingChan, [0]).recordMessageEvent).not.toHaveBeenCalled();
+    });
+  });
+
   describe('malformed filter', () => {
     const malformedChan: Message = { ...incomingChan, malformed: true };
 

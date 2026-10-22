@@ -66,6 +66,7 @@ import { getSettingsHash } from './utils/urlHash';
 import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
 import { DEFAULT_BATTERY_CHEMISTRY, setActiveBatteryChemistry } from './utils/batteryDisplay';
 import { loadBotLists, subscribeBotLists } from './utils/botLists';
+import { loadTempRadio, setCurrentRadioStamp } from './utils/tempRadio';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -241,6 +242,7 @@ export function App() {
     fetchAppSettings,
     handleSaveAppSettings,
     handleSetHiddenHopWidths,
+    handleSetHiddenRadioSfs,
     handleSetHideMalformed,
     handleSetHideSpam,
     handleSetHideBots,
@@ -299,6 +301,12 @@ export function App() {
     void loadBotLists().catch((err) => console.error('Failed to load bot lists:', err));
   }, []);
 
+  // Temporary radio settings, scan state and contact sightings; later changes
+  // arrive as WebSocket events.
+  useEffect(() => {
+    void loadTempRadio().catch((err) => console.error('Failed to load radio settings state:', err));
+  }, []);
+
   // Keep block lists in refs for WS callback filtering
   const blockedKeysRef = useRef<string[]>([]);
   const blockedNamesRef = useRef<string[]>([]);
@@ -318,6 +326,22 @@ export function App() {
   useEffect(() => {
     hiddenHopWidthsRef.current = new Set(hiddenHopWidths);
   }, [hiddenHopWidths]);
+
+  // Chat SF filter (server setting; 0 = no stored radio settings), same consumers.
+  const hiddenRadioSfsKey = (appSettings?.hidden_radio_sfs ?? []).join(',');
+  const hiddenRadioSfs = useMemo(
+    () => (hiddenRadioSfsKey ? hiddenRadioSfsKey.split(',').map(Number) : []),
+    [hiddenRadioSfsKey]
+  );
+  const hiddenRadioSfsRef = useRef<ReadonlySet<number>>(new Set());
+  useEffect(() => {
+    hiddenRadioSfsRef.current = new Set(hiddenRadioSfs);
+  }, [hiddenRadioSfs]);
+
+  // The radio's current settings count as normal for SF pills outside a session.
+  useEffect(() => {
+    setCurrentRadioStamp(config?.radio ?? null);
+  }, [config?.radio]);
 
   // Chat "Hide malformed" filter (server setting), same consumers.
   const hideMalformed = appSettings?.hide_malformed ?? false;
@@ -684,6 +708,7 @@ export function App() {
     blockedKeysRef,
     blockedNamesRef,
     hiddenHopWidthsRef,
+    hiddenRadioSfsRef,
     hideMalformedRef,
     hideSpamRef,
     hideBotsRef,
@@ -994,6 +1019,8 @@ export function App() {
     showUrlPreviews: appSettings?.chat_url_previews ?? false,
     hiddenHopWidths,
     onHiddenHopWidthsChange: handleSetHiddenHopWidths,
+    hiddenRadioSfs,
+    onHiddenRadioSfsChange: handleSetHiddenRadioSfs,
     hideMalformed,
     onHideMalformedChange: handleSetHideMalformed,
     spamGuardEnabled,

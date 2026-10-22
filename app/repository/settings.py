@@ -30,7 +30,7 @@ from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
 if TYPE_CHECKING:
     # Imported for type annotations only. The runtime import stays local to
     # get_radio_presets/set_radio_presets to avoid a circular import at module load.
-    from app.models import RadioPresetsStore
+    from app.models import RadioPresetsStore, TempRadioState
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class AppSettingsRepository:
                    advert_retention_days,
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
-                   blocked_keys, blocked_names, hidden_hop_widths, hide_malformed,
+                   blocked_keys, blocked_names, hidden_hop_widths, hidden_radio_sfs, hide_malformed,
                    ollama_enabled, ollama_base_url, ollama_model,
                    spam_guard_enabled, hide_spam, hide_bots,
                    discovery_blocked_types,
@@ -284,6 +284,19 @@ class AppSettingsRepository:
                     )
         except (json.JSONDecodeError, TypeError, KeyError, IndexError):
             hidden_hop_widths = []
+
+        # Parse hidden_radio_sfs JSON (migration _160); keep only valid SFs.
+        from app.radio_stamp import clean_hidden_sfs
+
+        hidden_radio_sfs: list[int] = []
+        try:
+            raw_sfs = row["hidden_radio_sfs"]
+            if raw_sfs:
+                parsed_sfs = json.loads(raw_sfs)
+                if isinstance(parsed_sfs, list):
+                    hidden_radio_sfs = clean_hidden_sfs(parsed_sfs)
+        except (json.JSONDecodeError, TypeError, KeyError, IndexError):
+            hidden_radio_sfs = []
 
         # Parse hide_malformed boolean (migration _129)
         try:
@@ -602,6 +615,7 @@ class AppSettingsRepository:
             blocked_keys=blocked_keys,
             blocked_names=blocked_names,
             hidden_hop_widths=hidden_hop_widths,
+            hidden_radio_sfs=hidden_radio_sfs,
             hide_malformed=hide_malformed,
             ollama_enabled=ollama_enabled,
             ollama_base_url=ollama_base_url,
@@ -694,6 +708,7 @@ class AppSettingsRepository:
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
+        hidden_radio_sfs: list[int] | None = None,
         hide_malformed: bool | None = None,
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
@@ -890,6 +905,12 @@ class AppSettingsRepository:
         if hidden_hop_widths is not None:
             updates.append("hidden_hop_widths = ?")
             params.append(json.dumps(sorted({w for w in hidden_hop_widths if w in (1, 2, 3)})))
+
+        if hidden_radio_sfs is not None:
+            from app.radio_stamp import clean_hidden_sfs
+
+            updates.append("hidden_radio_sfs = ?")
+            params.append(json.dumps(clean_hidden_sfs(hidden_radio_sfs)))
 
         if hide_malformed is not None:
             updates.append("hide_malformed = ?")
@@ -1107,6 +1128,7 @@ class AppSettingsRepository:
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
+        hidden_radio_sfs: list[int] | None = None,
         hide_malformed: bool | None = None,
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
@@ -1197,6 +1219,7 @@ class AppSettingsRepository:
                 blocked_keys=blocked_keys,
                 blocked_names=blocked_names,
                 hidden_hop_widths=hidden_hop_widths,
+                hidden_radio_sfs=hidden_radio_sfs,
                 hide_malformed=hide_malformed,
                 ollama_enabled=ollama_enabled,
                 ollama_base_url=ollama_base_url,
@@ -1403,6 +1426,37 @@ class AppSettingsRepository:
                 (store.model_dump_json(),),
             )
         return store
+
+    @staticmethod
+    async def get_temp_radio_state() -> "TempRadioState | None":
+        """The stored temporary radio session (migration _160), or None.
+
+        Internal-only column, not exposed via the AppSettings model. An
+        unparseable value is treated as no session.
+        """
+        from app.models import TempRadioState
+
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT temp_radio_state FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row or not row["temp_radio_state"]:
+            return None
+        try:
+            return TempRadioState.model_validate_json(row["temp_radio_state"])
+        except (ValueError, TypeError, KeyError):
+            logger.warning("Failed to parse stored temp_radio_state, treating as unset")
+            return None
+
+    @staticmethod
+    async def set_temp_radio_state(state: "TempRadioState | None") -> None:
+        """Store the session, or clear it with None."""
+        value = state.model_dump_json() if state is not None and state.active else None
+        async with db.tx() as conn:
+            await conn.execute(
+                "UPDATE app_settings SET temp_radio_state = ? WHERE id = 1", (value,)
+            )
 
     @staticmethod
     async def clear_radio_presets() -> None:

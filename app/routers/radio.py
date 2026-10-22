@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from meshcore import EventType
 from pydantic import BaseModel, Field
 
+from app import radio_stamp
 from app.contact_uri import ContactUriError, card_from_export_result, format_contact_uri
 from app.event_handlers import track_pending_ack
 from app.log_redaction import redact_cli_command, redact_cli_reply
@@ -28,14 +29,21 @@ from app.models import (
     RadioRegionDiscoveryRepeater,
     RadioRegionDiscoveryRequest,
     RadioRegionDiscoveryResponse,
+    RadioScanList,
+    RadioScanListRequest,
+    RadioScanState,
+    RadioStamp,
     RadioTraceHopRequest,
     RadioTraceNode,
     RadioTraceRequest,
     RadioTraceResponse,
+    TempRadioStartRequest,
+    TempRadioState,
 )
 from app.radio_sync import send_advertisement as do_send_advertisement
 from app.radio_sync import sync_radio_time
 from app.repository import AppSettingsRepository, ContactRepository
+from app.repository.radio_scan_lists import RadioScanListsRepository
 from app.repository.rx_bad_frames import RxBadFrameRepository
 from app.routers.repeaters import request_anon_region_names
 from app.routers.server_control import _monotonic
@@ -69,6 +77,12 @@ from app.services.radio_commands import (
 )
 from app.services.radio_presets import OFFICIAL_PRESETS_URL, fetch_official_presets
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.temp_radio import (
+    TempRadioConflictError,
+    TempRadioUnavailableError,
+    radio_change_ends_session,
+    temp_radio,
+)
 from app.websocket import broadcast_error, broadcast_event, broadcast_health
 
 logger = logging.getLogger(__name__)
@@ -171,6 +185,13 @@ class RadioConfigResponse(BaseModel):
 
 
 class RadioConfigUpdate(BaseModel):
+    end_temp_session: bool = Field(
+        default=False,
+        description=(
+            "End a running temporary radio session without restoring: the radio "
+            "settings sent here (or the current ones) become the new normal"
+        ),
+    )
     name: str | None = None
     lat: float | None = None
     lon: float | None = None
@@ -572,10 +593,131 @@ async def reset_radio_presets() -> RadioPresetsStore:
     return RadioPresetsStore(source_url=OFFICIAL_PRESETS_URL)
 
 
+@router.get("/temp", response_model=TempRadioState)
+async def get_temp_radio() -> TempRadioState:
+    """The temporary radio settings session (inactive when there is none)."""
+    return await temp_radio.get_state()
+
+
+@router.post("/temp", response_model=TempRadioState)
+async def start_temp_radio(request: TempRadioStartRequest) -> TempRadioState:
+    """Put the companion on other radio settings for a while (spec 2026-10-22).
+
+    RTFM restores the normal settings when the time is up. Starting again while
+    a session runs keeps the original normal settings.
+    """
+    from app.services.radio_scan import radio_scan
+
+    await radio_scan.stop_for_other_switch()
+    try:
+        return await temp_radio.start(request)
+    except TempRadioUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TempRadioConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RadioRepeatFrequencyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RadioCommandRejectedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/temp/restore", response_model=TempRadioState)
+async def restore_temp_radio() -> TempRadioState:
+    """End the session now and put the normal settings back."""
+    from app.services.radio_scan import radio_scan
+
+    await radio_scan.stop_for_other_switch(restore=False)
+    try:
+        return await temp_radio.restore()
+    except RadioCommandRejectedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Restore pending, retried on the next connect: {exc}",
+        ) from exc
+
+
+@router.get("/scan-lists", response_model=list[RadioScanList])
+async def list_scan_lists() -> list[RadioScanList]:
+    """Saved scan lists (spec 4.7)."""
+    return await RadioScanListsRepository.list_all()
+
+
+@router.post("/scan-lists", response_model=RadioScanList)
+async def create_scan_list(request: RadioScanListRequest) -> RadioScanList:
+    return await RadioScanListsRepository.create(request)
+
+
+@router.put("/scan-lists/{list_id}", response_model=RadioScanList)
+async def update_scan_list(list_id: int, request: RadioScanListRequest) -> RadioScanList:
+    updated = await RadioScanListsRepository.update(list_id, request)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Scan list not found")
+    return updated
+
+
+@router.delete("/scan-lists/{list_id}")
+async def delete_scan_list(list_id: int) -> dict:
+    return {"deleted": await RadioScanListsRepository.delete(list_id)}
+
+
+@router.get("/scan", response_model=RadioScanState)
+async def get_scan_state() -> RadioScanState:
+    from app.services.radio_scan import radio_scan
+
+    return radio_scan.state()
+
+
+@router.post("/scan-lists/{list_id}/run", response_model=RadioScanState)
+async def run_scan_list(list_id: int) -> RadioScanState:
+    """Start cycling the companion through a saved list; replaces a running scan."""
+    from app.services.radio_scan import radio_scan
+
+    scan_list = await RadioScanListsRepository.get(list_id)
+    if scan_list is None:
+        raise HTTPException(status_code=404, detail="Scan list not found")
+    radio_manager.require_connected()
+    return await radio_scan.start_task(scan_list)
+
+
+@router.post("/scan/stop", response_model=RadioScanState)
+async def stop_scan() -> RadioScanState:
+    """Stop the running scan and put the normal settings back."""
+    from app.services.radio_scan import radio_scan
+
+    return await radio_scan.stop(restore=True)
+
+
 @router.patch("/config", response_model=RadioConfigResponse)
 async def update_radio_config(update: RadioConfigUpdate) -> RadioConfigResponse:
-    """Update radio configuration. Only provided fields will be updated."""
+    """Update radio configuration. Only provided fields will be updated.
+
+    A changed frequency/bandwidth/SF/CR during a temporary session makes those
+    the new normal settings: the session ends without restoring.
+    """
     radio_manager.require_connected()
+    new_radio = (
+        RadioStamp(
+            freq=update.radio.freq, bw=update.radio.bw, sf=update.radio.sf, cr=update.radio.cr
+        )
+        if update.radio is not None
+        else None
+    )
+    ends_session = radio_change_ends_session(
+        temp_radio,
+        new_radio,
+        current=radio_stamp.current_radio_stamp(),
+        explicit=update.end_temp_session,
+    )
+    # The session sent repeat=0 with its settings; a new normal keeps the
+    # client-repeat value the user had before the session.
+    session_state = temp_radio.state()
+    repeat_kwargs = (
+        {"repeat_override": session_state.original_repeat}
+        if ends_session and session_state.original_repeat is not None
+        else {}
+    )
 
     async with radio_manager.radio_operation("update_radio_config") as mc:
         try:
@@ -589,6 +731,7 @@ async def update_radio_config(update: RadioConfigUpdate) -> RadioConfigResponse:
                 client_repeat=radio_manager.client_repeat,
                 allowed_repeat_freqs=radio_manager.allowed_repeat_freqs,
                 set_client_repeat=lambda value: setattr(radio_manager, "client_repeat", value),
+                **repeat_kwargs,
             )
         except PathHashModeUnsupportedError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -596,6 +739,12 @@ async def update_radio_config(update: RadioConfigUpdate) -> RadioConfigResponse:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RadioCommandRejectedError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if ends_session:
+        from app.services.radio_scan import radio_scan
+
+        await radio_scan.stop_for_other_switch(restore=False)
+        await temp_radio.end_as_new_normal()
 
     return await get_radio_config()
 

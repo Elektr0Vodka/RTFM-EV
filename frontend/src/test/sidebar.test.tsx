@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Sidebar } from '../components/Sidebar';
@@ -14,6 +14,12 @@ import {
 } from '../types';
 import { getStateKey, type ConversationTimes } from '../utils/conversationState';
 import { PUBLIC_CHANNEL_KEY } from '../utils/publicChannel';
+import {
+  INACTIVE_TEMP_RADIO,
+  setContactSightings,
+  setCurrentRadioStamp,
+  setTempRadioState,
+} from '../utils/tempRadio';
 
 function makeChannel(key: string, name: string): Channel {
   return {
@@ -1681,5 +1687,49 @@ describe('Sidebar owned section (plan 17 phase 3)', () => {
         .getAllByRole('listitem')
         .some((li) => li.textContent?.includes('Owned'))
     ).toBe(true);
+  });
+});
+
+describe('Sidebar SF pills and filter', () => {
+  const SF7 = { freq: 869.618, bw: 62.5, sf: 7, cr: 8, first_seen: 1, last_seen: 2 };
+  const SF8 = { ...SF7, sf: 8 };
+
+  beforeEach(() => {
+    localStorage.clear();
+    act(() => {
+      setTempRadioState(INACTIVE_TEMP_RADIO);
+      setCurrentRadioStamp({ freq: 869.618, bw: 62.5, sf: 7, cr: 8 });
+      setContactSightings({
+        ['11'.repeat(32)]: [SF7, SF8],
+        ['22'.repeat(32)]: [SF7],
+      });
+    });
+  });
+
+  it('lists every SF a contact was heard on when one is not normal', () => {
+    renderSidebar({ unreadCounts: {} });
+    const aliceRow = screen.getByText('Alice').closest('[role="button"]') as HTMLElement;
+    expect(within(aliceRow).getByText('SF7')).toBeInTheDocument();
+    expect(within(aliceRow).getByText('SF8')).toBeInTheDocument();
+    const relayRow = screen.getByText('Relay').closest('[role="button"]') as HTMLElement;
+    expect(within(relayRow).queryByText('SF7')).not.toBeInTheDocument();
+  });
+
+  it('shows only contacts heard on the chosen SF', () => {
+    renderSidebar({ unreadCounts: {} });
+    fireEvent.change(screen.getByLabelText('Heard on'), { target: { value: '8' } });
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByText('Relay')).not.toBeInTheDocument();
+    // No sightings at all: only under Unknown.
+    expect(screen.queryByText('Ops Board')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Heard on'), { target: { value: '0' } });
+    expect(screen.getByText('Ops Board')).toBeInTheDocument();
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
+  });
+
+  it('leaves the SF filter out when contacts were all heard on one SF', () => {
+    act(() => setContactSightings({}));
+    renderSidebar({ unreadCounts: {} });
+    expect(screen.queryByLabelText('Heard on')).not.toBeInTheDocument();
   });
 });

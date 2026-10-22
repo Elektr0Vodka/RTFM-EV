@@ -233,6 +233,18 @@ async def backfill_regions() -> dict:
 # or FastAPI matches them as a packet_id and returns 422.
 
 
+def _stored_radio_stamp(row) -> dict | None:
+    """The LoRa settings stored with a packet (migration _160); None for older rows."""
+    if row["radio_sf"] is None:
+        return None
+    return {
+        "freq": row["radio_freq"],
+        "bw": row["radio_bw"],
+        "sf": row["radio_sf"],
+        "cr": row["radio_cr"],
+    }
+
+
 def _stored_policy(row) -> dict | None:
     """The OpenHop policy verdict stored with a packet, in the broadcast shape."""
     if row["policy_action"] is None:
@@ -271,6 +283,7 @@ async def get_recent_packets(
     query = f"""
         SELECT p.id, p.timestamp, p.data, p.message_id, p.rssi, p.snr, p.payload_type,
                p.policy_action, p.policy_rule,
+               p.radio_freq, p.radio_bw, p.radio_sf, p.radio_cr,
                COALESCE(m.malformed, 0) AS malformed
         FROM raw_packets p
         LEFT JOIN messages m ON m.id = p.message_id
@@ -300,6 +313,7 @@ async def get_recent_packets(
                 "decrypted_info": None,
                 "malformed": bool(row["malformed"]),
                 "policy": _stored_policy(row),
+                "radio_stamp": _stored_radio_stamp(row),
             }
         )
 
@@ -339,6 +353,7 @@ async def get_packet_history(
     hex: str | None = None,
     search: str | None = None,
     policy_only: bool = False,
+    radio_sfs: Annotated[list[str] | None, Query()] = None,
 ) -> dict:
     """Page backward through persisted raw_packets for the history browser.
 
@@ -357,6 +372,8 @@ async def get_packet_history(
       cannot match and is excluded while a term is active.
     - policy_only: only packets with a stored OpenHop policy verdict (a rule
       decided them, or the default action dropped them).
+    - radio_sfs: spreading factors ("5".."12") the packet was heard on;
+      "Unknown" = no stored settings (rows from before migration _160).
 
     Returns ``{"packets": [...newest-first...], "next_cursor": <int|null>}``.
     ``next_cursor`` is the smallest id in the page, or null when the page was
@@ -435,6 +452,18 @@ async def get_packet_history(
     if policy_only:
         conditions.append("rp.policy_action IS NOT NULL")
 
+    # SF filter (the spreading factor stored with the packet, migration _160).
+    if radio_sfs:
+        sf_values = sorted({int(v) for v in radio_sfs if v.isdigit() and 5 <= int(v) <= 12})
+        sf_clauses: list[str] = []
+        if sf_values:
+            sf_clauses.append(f"rp.radio_sf IN ({','.join('?' * len(sf_values))})")
+            params.extend(sf_values)
+        if "Unknown" in radio_sfs:
+            sf_clauses.append("rp.radio_sf IS NULL")
+        if sf_clauses:
+            conditions.append("(" + " OR ".join(sf_clauses) + ")")
+
     # message-content search: case-insensitive substring over the linked
     # message's text / sender name / channel name, and over the stored policy
     # rule name. Requires joining messages (1:1 via message_id) and channels
@@ -458,7 +487,8 @@ async def get_packet_history(
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     query = f"""
         SELECT rp.id, rp.timestamp, rp.data, rp.message_id, rp.rssi, rp.snr, rp.payload_type,
-               rp.policy_action, rp.policy_rule
+               rp.policy_action, rp.policy_rule,
+               rp.radio_freq, rp.radio_bw, rp.radio_sf, rp.radio_cr
         FROM raw_packets rp{joins}
         {where}
         ORDER BY rp.id DESC
@@ -481,6 +511,7 @@ async def get_packet_history(
             "decrypted": row["message_id"] is not None,
             "decrypted_info": None,
             "policy": _stored_policy(row),
+            "radio_stamp": _stored_radio_stamp(row),
         }
         for row in rows
     ]

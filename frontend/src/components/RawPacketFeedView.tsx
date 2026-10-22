@@ -19,6 +19,7 @@ import {
 import { createDecoderOptions } from '../utils/rawPacketInspector';
 import { useDamagedFrames } from '../stores/damagedFrameStore';
 import { useRawPackets } from '../stores/rawPacketStore';
+import { packetSfBucket } from '../utils/radioSf';
 import { isDamaged, withDamagedFrames } from '../utils/damagedFrames';
 import { useSignalAudio } from '../hooks/useSignalAudio';
 import type { SignalAudioTheme } from '../lib/signalAudioEngine';
@@ -170,6 +171,7 @@ export function RawPacketFeedView({
       filters.allTypesEnabled &&
       filters.allHopWidthsEnabled &&
       filters.allRoutesEnabled &&
+      filters.allSfsEnabled &&
       filters.hexQuery === '' &&
       !filters.hideMalformed &&
       !filters.policyOnly
@@ -182,7 +184,9 @@ export function RawPacketFeedView({
           (isDamaged(packet) ||
             ((filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
               (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)) &&
-              (filters.allRoutesEnabled || filters.enabledRoutes.has(route)))) &&
+              (filters.allRoutesEnabled || filters.enabledRoutes.has(route)) &&
+              (filters.allSfsEnabled ||
+                filters.enabledSfs.has(packetSfBucket(packet.radio_stamp))))) &&
           (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery)) &&
           !(filters.hideMalformed && packet.malformed) &&
           !(filters.policyOnly && !packet.policy)
@@ -197,6 +201,8 @@ export function RawPacketFeedView({
     filters.enabledHopWidths,
     filters.allRoutesEnabled,
     filters.enabledRoutes,
+    filters.allSfsEnabled,
+    filters.enabledSfs,
     filters.hexQuery,
     filters.hexInvalid,
     filters.hideMalformed,
@@ -407,6 +413,11 @@ export function RawPacketFeedView({
         onToggleAllHopWidths={filters.toggleAllHopWidths}
         onToggleHopWidth={filters.toggleHopWidth}
         onOnlyHopWidth={filters.onlyHopWidth}
+        enabledSfs={filters.enabledSfs}
+        allSfsEnabled={filters.allSfsEnabled}
+        onToggleAllSfs={filters.toggleAllSfs}
+        onToggleSf={filters.toggleSf}
+        onOnlySf={filters.onlySf}
         enabledRoutes={filters.enabledRoutes}
         allRoutesEnabled={filters.allRoutesEnabled}
         onToggleAllRoutes={filters.toggleAllRoutes}

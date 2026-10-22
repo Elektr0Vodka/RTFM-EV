@@ -49,6 +49,7 @@ export function usePacketHistory({
       hexQuery: filters.hexQuery,
       searchTerm: filters.searchTerm,
       policyOnly: filters.policyOnly,
+      enabledSfs: filters.enabledSfs,
       limit: PAGE_LIMIT,
     }),
     [
@@ -60,6 +61,7 @@ export function usePacketHistory({
       filters.hexQuery,
       filters.searchTerm,
       filters.policyOnly,
+      filters.enabledSfs,
     ]
   );
 

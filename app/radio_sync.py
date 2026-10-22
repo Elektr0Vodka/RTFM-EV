@@ -771,6 +771,15 @@ async def send_advertisement(
     """
     use_flood = mode == "flood"
 
+    # A temporary radio session pauses automatic adverts unless opted in
+    # (spec 2026-10-22); a forced (user-initiated) advert still goes out.
+    if not force:
+        from app.services.temp_radio import temp_radio
+
+        if not temp_radio.opted_in("adverts"):
+            logger.debug("Advertisement skipped: temporary radio settings active")
+            return False
+
     # Only flood adverts currently participate in persisted throttle state.
     if use_flood and not force:
         settings = await AppSettingsRepository.get()
@@ -2457,6 +2466,12 @@ async def _maybe_run_scheduled_cycle(now: datetime) -> None:
     and skip a due cycle (for 24h cadence users, that's a full day of missed
     telemetry).
     """
+    from app.services.temp_radio import temp_radio
+
+    # Normal-mesh repeaters are out of reach on temporary settings (spec 2026-10-22).
+    if not temp_radio.opted_in("telemetry"):
+        logger.info("Telemetry cycle skipped: temporary radio settings active")
+        return
     app_settings = await AppSettingsRepository.get()
     n_repeaters = len(app_settings.tracked_telemetry_repeaters)
     n_contacts = len(app_settings.tracked_telemetry_contacts)

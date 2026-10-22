@@ -13,12 +13,18 @@ CHAN_KEY = "AA" * 16
 
 
 def _settings(
-    blocked_keys=(), blocked_names=(), hidden_hop_widths=(), hide_malformed=False, hide_spam=False
+    blocked_keys=(),
+    blocked_names=(),
+    hidden_hop_widths=(),
+    hide_malformed=False,
+    hide_spam=False,
+    hidden_radio_sfs=(),
 ):
     return SimpleNamespace(
         blocked_keys=list(blocked_keys),
         blocked_names=list(blocked_names),
         hidden_hop_widths=list(hidden_hop_widths),
+        hidden_radio_sfs=list(hidden_radio_sfs),
         hide_malformed=hide_malformed,
         hide_spam=hide_spam,
         hide_bots=False,
@@ -167,6 +173,15 @@ async def test_malformed_channel_message_still_pushed_when_filter_off():
 @pytest.mark.asyncio
 async def test_unflagged_channel_message_still_pushed_when_hiding_malformed():
     send = await _dispatch(_chan_msg([]), _settings(hide_malformed=True))
+    send.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_channel_message_on_hidden_sf_gets_no_push():
+    msg = {**_chan_msg([]), "radio_stamp": {"freq": 869.618, "bw": 62.5, "sf": 8, "cr": 8}}
+    send = await _dispatch(msg, _settings(hidden_radio_sfs=[8]))
+    send.assert_not_called()
+    send = await _dispatch(msg, _settings(hidden_radio_sfs=[7]))
     send.assert_called_once()
 
 

@@ -23,6 +23,8 @@ export interface RadioConfig {
 }
 
 export interface RadioConfigUpdate {
+  /** End a running temporary radio session: these settings become the new normal. */
+  end_temp_session?: boolean;
   name?: string;
   lat?: number;
   lon?: number;
@@ -34,6 +36,121 @@ export interface RadioConfigUpdate {
   telemetry_mode_base?: number;
   telemetry_mode_loc?: number;
   telemetry_mode_env?: number;
+}
+
+/** LoRa settings something was heard or sent on (backend migration _160). */
+export interface RadioStamp {
+  freq: number;
+  bw: number;
+  sf: number;
+  cr: number;
+}
+
+/** What keeps running while the companion is on temporary settings (all off by default). */
+export interface TempRadioOptIns {
+  adverts: boolean;
+  team_beacon: boolean;
+  telemetry: boolean;
+  client_repeat: boolean;
+  /** Sensor push renewals and host repeater neighbour polls. */
+  polls: boolean;
+  fanout_ids: string[];
+}
+
+export interface TempRadioSource {
+  kind: 'manual' | 'contact' | 'scan';
+  contact_key: string | null;
+}
+
+export interface TempRadioScanProgress {
+  list_id: number;
+  list_name: string;
+  entry_index: number;
+  round: number;
+  entry_ends_at: number;
+  on_normal: boolean;
+}
+
+/** The temporary radio settings session; `active: false` = none. */
+export interface TempRadioState {
+  active: boolean;
+  companion_key: string | null;
+  original: RadioStamp | null;
+  temp: RadioStamp | null;
+  /** Session region ('#name', '*' = unscoped); null = region left alone. */
+  region: string | null;
+  original_repeat: boolean | null;
+  opt_ins: TempRadioOptIns;
+  source: TempRadioSource;
+  started_at: number | null;
+  expires_at: number | null;
+  restore_pending: boolean;
+  scan: TempRadioScanProgress | null;
+}
+
+export interface TempRadioStartRequest {
+  radio: RadioStamp;
+  duration_secs: number;
+  region?: string | null;
+  opt_ins?: TempRadioOptIns;
+}
+
+export interface ContactRadioSighting {
+  freq: number;
+  bw: number;
+  sf: number;
+  cr: number;
+  first_seen: number;
+  last_seen: number;
+}
+
+export interface ContactRadioProfile {
+  public_key: string;
+  radio: RadioStamp;
+  region: string | null;
+  duration_secs: number;
+  auto_switch: boolean;
+  updated_at: number;
+}
+
+export interface ContactRadioProfileRequest {
+  radio: RadioStamp;
+  region: string | null;
+  duration_secs: number;
+  auto_switch: boolean;
+}
+
+export interface RadioScanEntry {
+  radio: RadioStamp;
+  region: string | null;
+  dwell_secs: number;
+}
+
+export interface RadioScanListRequest {
+  name: string;
+  entries: RadioScanEntry[];
+  rounds: number;
+  normal_between_secs: number;
+  hold_on_activity_secs: number;
+  opt_ins: TempRadioOptIns;
+}
+
+export interface RadioScanList extends RadioScanListRequest {
+  id: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface RadioScanState {
+  running: boolean;
+  list_id: number | null;
+  list_name: string | null;
+  entry_index: number | null;
+  entry_count: number | null;
+  round: number | null;
+  rounds: number | null;
+  entry_ends_at: number | null;
+  on_normal: boolean;
 }
 
 export interface RadioPresetEntry {
@@ -795,6 +912,8 @@ export interface Message {
   transport_code?: number | null;
   /** Resolved region name for the transport code, if it matched a known region. */
   region?: string | null;
+  /** LoRa settings this message was heard or sent on; null for older rows. */
+  radio_stamp?: RadioStamp | null;
   /** Unix time an outgoing DM was marked failed (retries ran out, no ACK). Null when not failed. */
   failed_at?: number | null;
   /**
@@ -1122,6 +1241,8 @@ export interface RawPacket {
    * and the seeded feed carry it too.
    */
   policy?: RawPacketPolicyVerdict | null;
+  /** LoRa settings this copy was heard on; null for older rows. */
+  radio_stamp?: RadioStamp | null;
   /**
    * Full capture damaged frame (1 CRC error, 2 header damaged, 3 read error).
    * Set only on rows from the damaged frame store; their bytes are never decoded.
@@ -1383,6 +1504,8 @@ export interface AppSettings {
   blocked_names: string[];
   /** Per-hop path byte widths (1/2/3) hidden by the chat "Hide by hop size" filter. */
   hidden_hop_widths: number[];
+  /** SFs (5-12; 0 = no stored settings) hidden by the chat SF filter. Absent on older backends. */
+  hidden_radio_sfs?: number[];
   /**
    * Chat "Hide malformed" filter: hide incoming channel messages the server
    * flagged as malformed, and keep them out of unread counts, mentions and
@@ -1808,6 +1931,7 @@ export interface AppSettingsUpdate {
   blocked_keys?: string[];
   blocked_names?: string[];
   hidden_hop_widths?: number[];
+  hidden_radio_sfs?: number[];
   hide_malformed?: boolean;
   ollama_enabled?: boolean;
   ollama_base_url?: string;
