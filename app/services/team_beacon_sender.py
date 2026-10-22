@@ -64,6 +64,10 @@ async def send_team_beacon_if_due(now: float | None = None) -> bool:
     retried at the next check.
     """
     global _last_sent_at
+    from app.services.temp_radio import temp_radio
+
+    if not temp_radio.opted_in("team_beacon"):
+        return False
     settings = (await AppSettingsRepository.get()).team_beacon
     if not settings.enabled or not radio_manager.is_connected:
         return False

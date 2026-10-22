@@ -89,6 +89,12 @@ async def temporary_flood_scope(
         app_settings_repository = AppSettingsRepository
 
     desired_scope, apply_scope = resolve_override_scope(override)
+    # A temporary radio session with its own region wins over per-contact or
+    # per-channel overrides, which describe the home mesh (spec 2026-10-22).
+    from app.services.temp_radio import temp_radio
+
+    if temp_radio.session_region() is not None:
+        apply_scope = False
 
     baseline_scope = ""
     if apply_scope:

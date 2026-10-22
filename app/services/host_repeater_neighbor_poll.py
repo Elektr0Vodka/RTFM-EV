@@ -140,6 +140,11 @@ class NeighbourPoller:
         self.table.poll.next_due = due
         if due is None or wall < due or self.table.poll.running:
             return False
+        from app.services.temp_radio import temp_radio
+
+        # Paused while on temporary radio settings unless opted in (spec 2026-10-22).
+        if not temp_radio.opted_in("polls"):
+            return False
         await self.poll_once()
         self.table.poll.next_due = self.due_at()
         return True

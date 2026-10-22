@@ -1,10 +1,12 @@
-"""Tests for migration 164: wardrive last login and audit log."""
+"""Tests for migration 164: retired wardrive drive uids."""
 
 import aiosqlite
 
 from app.migrations import get_version, run_migrations, set_version
-from app.migrations._160_create_wardrive_tables import migrate as migrate_160
-from app.migrations._164_add_wardrive_audit import migrate
+from app.migrations._161_create_wardrive_tables import migrate as migrate_161
+from app.migrations._162_create_wardrive_config import migrate as migrate_162
+from app.migrations._163_create_wardrive_drives import migrate as migrate_163
+from app.migrations._164_create_wardrive_drive_tombstones import migrate
 from tests.test_migrations.conftest import LATEST_SCHEMA_VERSION
 
 
@@ -13,33 +15,26 @@ async def _columns(conn: aiosqlite.Connection, table: str) -> set[str]:
     return {row[1] for row in await cursor.fetchall()}
 
 
-async def test_adds_last_login_and_the_audit_table():
+async def test_creates_the_tombstone_table():
     async with aiosqlite.connect(":memory:") as conn:
-        await migrate_160(conn)
-        await conn.execute(
-            "INSERT INTO wardrive_users (username, password_hash, created_at) VALUES ('a', 'x', 1)"
-        )
+        await migrate_161(conn)
+        await migrate_162(conn)
+        await migrate_163(conn)
         await set_version(conn, 163)
         assert await run_migrations(conn) == LATEST_SCHEMA_VERSION - 163
         assert await get_version(conn) == LATEST_SCHEMA_VERSION
-        assert "last_login_at" in await _columns(conn, "wardrive_users")
-        cursor = await conn.execute("SELECT last_login_at FROM wardrive_users")
-        assert (await cursor.fetchone())[0] is None
-        assert await _columns(conn, "wardrive_audit") == {
-            "id",
-            "at",
-            "actor_kind",
-            "actor_id",
-            "action",
-            "target_kind",
-            "target_id",
-            "detail",
+        assert await _columns(conn, "wardrive_drive_tombstones") == {
+            "uid",
+            "user_id",
+            "radio_key",
+            "kind",
+            "until_ts",
+            "created_at",
         }
 
 
 async def test_idempotent():
     async with aiosqlite.connect(":memory:") as conn:
-        await migrate_160(conn)
         await migrate(conn)
         await migrate(conn)
-        assert "last_login_at" in await _columns(conn, "wardrive_users")
+        assert "uid" in await _columns(conn, "wardrive_drive_tombstones")

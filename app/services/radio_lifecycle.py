@@ -277,9 +277,13 @@ async def run_post_connect_setup(radio_manager) -> None:
                 from app.region_scope import normalize_region_scope
                 from app.repository import AppSettingsRepository
                 from app.services.flood_scope import set_radio_flood_scope
+                from app.services.temp_radio import temp_radio
 
                 app_settings = await AppSettingsRepository.get()
-                scope = normalize_region_scope(app_settings.flood_scope)
+                # A temporary radio session's own region wins (spec 2026-10-22).
+                scope = temp_radio.effective_flood_scope(
+                    normalize_region_scope(app_settings.flood_scope)
+                )
                 try:
                     await set_radio_flood_scope(mc, scope, fw_ver=radio_manager.firmware_ver_code)
                     logger.info("Applied flood_scope=%r", scope or "(disabled)")
@@ -323,6 +327,16 @@ async def run_post_connect_setup(radio_manager) -> None:
                 logger.info("Auto message fetching started")
             finally:
                 radio_manager._release_operation_lock("post_connect_setup")
+
+            # Temporary radio settings: resume, restore or drop the stored
+            # session for this radio. After the lock (it takes its own) and
+            # after the drain, so queued messages keep the temporary stamp.
+            from app.services.temp_radio import temp_radio
+
+            try:
+                await temp_radio.reconcile_on_connect()
+            except Exception as exc:
+                logger.warning("Temporary radio reconcile failed: %s", exc)
 
             if not app_settings_config.skip_post_connect_sync:
                 # Start background tasks AFTER releasing the operation lock.

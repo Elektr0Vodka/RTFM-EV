@@ -166,6 +166,8 @@ interface ConversationPaneProps {
   showUrlPreviews?: boolean;
   hiddenHopWidths?: readonly number[];
   onHiddenHopWidthsChange?: (widths: number[]) => void;
+  hiddenRadioSfs?: readonly number[];
+  onHiddenRadioSfsChange?: (sfs: number[]) => void;
   hideMalformed?: boolean;
   onHideMalformedChange?: (hide: boolean) => void;
   /** Spam Guard master switch: the page and the chat spam actions exist only while on. */
@@ -323,6 +325,8 @@ export function ConversationPane({
   showUrlPreviews,
   hiddenHopWidths,
   onHiddenHopWidthsChange,
+  hiddenRadioSfs,
+  onHiddenRadioSfsChange,
   hideMalformed,
   onHideMalformedChange,
   spamGuardEnabled,
@@ -826,6 +830,7 @@ export function ConversationPane({
     <>
       <ChatHeader
         conversation={activeConversation}
+        radioConnected={health?.radio_connected ?? false}
         contacts={contacts}
         channels={channels}
         config={config}
@@ -958,6 +963,8 @@ export function ConversationPane({
           showUrlPreviews={showUrlPreviews}
           hiddenHopWidths={hiddenHopWidths}
           onHiddenHopWidthsChange={onHiddenHopWidthsChange}
+          hiddenRadioSfs={hiddenRadioSfs}
+          onHiddenRadioSfsChange={onHiddenRadioSfsChange}
           hideMalformed={hideMalformed}
           onHideMalformedChange={onHideMalformedChange}
           spamGuardEnabled={spamGuardEnabled}

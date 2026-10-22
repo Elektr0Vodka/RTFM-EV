@@ -5,6 +5,7 @@ import {
   KNOWN_PAYLOAD_TYPES,
   ROUTE_FILTER_TYPES,
 } from '../utils/rawPacketStats';
+import { SF_FILTER_BUCKETS } from '../utils/radioSf';
 
 /**
  * Normalize a raw-hex filter query. Lowercases, strips whitespace, `:`
@@ -28,6 +29,8 @@ export interface PacketFilters {
   enabledHopWidths: Set<string>;
   /** Route types shown (Flood, TransportFlood, Direct, TransportDirect). */
   enabledRoutes: Set<string>;
+  /** SF buckets shown (`SF5`..`SF12`, `Unknown` = heard before stamps existed). */
+  enabledSfs: Set<string>;
   hexFilter: string;
   groupByHash: boolean;
   /**
@@ -51,6 +54,7 @@ export interface PacketFilters {
   allTypesEnabled: boolean;
   allHopWidthsEnabled: boolean;
   allRoutesEnabled: boolean;
+  allSfsEnabled: boolean;
   hexQuery: string;
   hexInvalid: boolean;
   /** Trimmed search query; empty string means "no search". */
@@ -66,6 +70,9 @@ export interface PacketFilters {
   toggleAllRoutes: () => void;
   toggleRoute: (route: string) => void;
   onlyRoute: (route: string) => void;
+  toggleAllSfs: () => void;
+  toggleSf: (bucket: string) => void;
+  onlySf: (bucket: string) => void;
   setHexFilter: (value: string) => void;
   setGroupByHash: (value: boolean) => void;
   setHideMalformed: (value: boolean) => void;
@@ -118,6 +125,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
   const [enabledRoutes, setEnabledRoutes] = useState<Set<string>>(
     () => new Set(ROUTE_FILTER_TYPES)
   );
+  const [enabledSfs, setEnabledSfs] = useState<Set<string>>(() => new Set(SF_FILTER_BUCKETS));
   const [hexFilter, setHexFilter] = useState('');
   const [groupByHash, setGroupByHashState] = useState(initialGroupByHash);
   const [hideMalformed, setHideMalformedState] = useState(getSavedHideMalformed);
@@ -156,6 +164,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
   const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
   const allRoutesEnabled = enabledRoutes.size === ROUTE_FILTER_TYPES.length;
+  const allSfsEnabled = enabledSfs.size === SF_FILTER_BUCKETS.length;
 
   const { query: hexQuery, invalid: hexInvalid } = useMemo(
     () => normalizeHexQuery(hexFilter),
@@ -169,6 +178,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     enabledTypes.size +
     (HOP_BYTE_WIDTH_BUCKETS.length - enabledHopWidths.size) +
     (ROUTE_FILTER_TYPES.length - enabledRoutes.size) +
+    (SF_FILTER_BUCKETS.length - enabledSfs.size) +
     (hexFilter.trim() !== '' ? 1 : 0) +
     (groupByHash ? 1 : 0) +
     (hideMalformed ? 1 : 0) +
@@ -226,10 +236,28 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
 
   const onlyRoute = useCallback((route: string) => setEnabledRoutes(new Set([route])), []);
 
+  const toggleAllSfs = useCallback(() => {
+    setEnabledSfs((prev) =>
+      prev.size === SF_FILTER_BUCKETS.length ? new Set() : new Set(SF_FILTER_BUCKETS)
+    );
+  }, []);
+
+  const toggleSf = useCallback((bucket: string) => {
+    setEnabledSfs((prev) => {
+      const next = new Set(prev);
+      if (next.has(bucket)) next.delete(bucket);
+      else next.add(bucket);
+      return next;
+    });
+  }, []);
+
+  const onlySf = useCallback((bucket: string) => setEnabledSfs(new Set([bucket])), []);
+
   const reset = useCallback(() => {
     setEnabledTypes(new Set(KNOWN_PAYLOAD_TYPES));
     setEnabledHopWidths(new Set(HOP_BYTE_WIDTH_BUCKETS));
     setEnabledRoutes(new Set(ROUTE_FILTER_TYPES));
+    setEnabledSfs(new Set(SF_FILTER_BUCKETS));
     setHexFilter('');
     setGroupByHash(false);
     setHideMalformed(false);
@@ -242,6 +270,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     enabledTypes,
     enabledHopWidths,
     enabledRoutes,
+    enabledSfs,
     hexFilter,
     groupByHash,
     hideMalformed,
@@ -251,6 +280,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     allTypesEnabled,
     allHopWidthsEnabled,
     allRoutesEnabled,
+    allSfsEnabled,
     hexQuery,
     hexInvalid,
     searchTerm,
@@ -264,6 +294,9 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     toggleAllRoutes,
     toggleRoute,
     onlyRoute,
+    toggleAllSfs,
+    toggleSf,
+    onlySf,
     setHexFilter,
     setGroupByHash,
     setHideMalformed,

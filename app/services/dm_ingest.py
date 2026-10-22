@@ -31,6 +31,7 @@ from app.services.messages import (
     reconcile_duplicate_message,
     truncate_for_log,
 )
+from app.services.radio_sightings import record_contact_sighting
 from app.smaz import decode_message_text
 
 if TYPE_CHECKING:
@@ -299,6 +300,7 @@ async def _store_direct_message(
             # last_seen.
             if not outgoing:
                 await contact_repository.touch_last_seen(update_last_contacted_key, received_at)
+                await record_contact_sighting(update_last_contacted_key, received_at)
 
         return message
 

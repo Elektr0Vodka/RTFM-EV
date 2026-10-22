@@ -45,6 +45,7 @@ import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
 import { CompanionCliConsole } from './CompanionCliConsole';
+import { ContactRadioProfileSection } from './ContactRadioProfileSection';
 import { isMeshcomodCommandContact } from '../utils/meshcomodContact';
 import { ContactRemoteCliControl } from './ContactRemoteCliControl';
 import { ContactLinkShare } from './ContactLinkShare';
@@ -647,6 +648,13 @@ export function ContactInfoBody({
         !isPrefixOnlyResolvedContact &&
         contact.public_key.length === 64 &&
         !contact.name && <ResolveNameButton publicKey={contact.public_key} t={t} />}
+
+      {show('network') && !isPrefixOnlyResolvedContact && !isLocalCommandContact && (
+        <div className="px-5 py-3 border-b border-border">
+          <SectionLabel>{t('contact_radio_heading')}</SectionLabel>
+          <ContactRadioProfileSection publicKey={contact.public_key} />
+        </div>
+      )}
 
       {show('network') &&
         contact.type === CONTACT_TYPE_CLIENT &&

@@ -8,6 +8,7 @@ import {
   type ComponentProps,
 } from 'react';
 import { useSwipeable } from 'react-swipeable';
+import { TempRadioBanner } from './TempRadioBanner';
 
 import { StatusBar } from './StatusBar';
 import { Sidebar } from './Sidebar';
@@ -280,6 +281,7 @@ export function AppShell({
         variant={atlasShell ? 'topbar' : atlasPhone ? 'phonebar' : 'bar'}
         onOpenThemeSettings={openThemeSettings}
       />
+      <TempRadioBanner />
       <div data-toast-anchor="statusbar" aria-hidden="true" />
     </>
   );

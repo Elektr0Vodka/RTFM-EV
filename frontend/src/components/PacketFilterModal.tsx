@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { SF_FILTER_BUCKETS } from '../utils/radioSf';
 import { Button } from './ui/button';
 import {
   HOP_BYTE_WIDTH_BUCKETS,
@@ -21,6 +22,12 @@ export interface PacketFilterModalProps {
   onToggleAllHopWidths: () => void;
   onToggleHopWidth: (bucket: string) => void;
   onOnlyHopWidth: (bucket: string) => void;
+  /** SF buckets (`SF5`..`SF12`, `Unknown`); the section is left out without them. */
+  enabledSfs?: Set<string>;
+  allSfsEnabled?: boolean;
+  onToggleAllSfs?: () => void;
+  onToggleSf?: (bucket: string) => void;
+  onOnlySf?: (bucket: string) => void;
   enabledRoutes: Set<string>;
   allRoutesEnabled: boolean;
   onToggleAllRoutes: () => void;
@@ -55,6 +62,11 @@ export function PacketFilterModal({
   onToggleAllHopWidths,
   onToggleHopWidth,
   onOnlyHopWidth,
+  enabledSfs,
+  allSfsEnabled = true,
+  onToggleAllSfs,
+  onToggleSf,
+  onOnlySf,
   enabledRoutes,
   allRoutesEnabled,
   onToggleAllRoutes,
@@ -230,6 +242,47 @@ export function PacketFilterModal({
             ))}
           </div>
         </section>
+
+        {enabledSfs && onToggleSf && onOnlySf && onToggleAllSfs && (
+          <section className="mt-2">
+            <div className="flex items-center justify-between border-t border-border/60 pt-2">
+              <span className="text-[0.625rem] uppercase tracking-wider font-medium text-muted-foreground">
+                {t('packet_filter_sf_heading')}
+              </span>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allSfsEnabled}
+                  onChange={onToggleAllSfs}
+                  className="rounded"
+                />
+                {t('packet_filter_all_sfs_label')}
+              </label>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-x-4 gap-y-1">
+              {SF_FILTER_BUCKETS.map((bucket) => (
+                <span key={bucket} className="inline-flex items-center gap-1 text-xs">
+                  <label className="flex items-center gap-1 text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enabledSfs.has(bucket)}
+                      onChange={() => onToggleSf(bucket)}
+                      className="rounded"
+                    />
+                    {bucket === 'Unknown' ? t('packet_filter_sf_unknown') : bucket}
+                  </label>
+                  <button
+                    type="button"
+                    className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
+                    onClick={() => onOnlySf(bucket)}
+                  >
+                    {t('packet_filter_only_button')}
+                  </button>
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="mt-2">
           <div className="flex items-center justify-between border-t border-border/60 pt-2">

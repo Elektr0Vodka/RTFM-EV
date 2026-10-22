@@ -202,9 +202,17 @@ class FanoutManager:
         handler_name: str,
         log_label: str,
     ) -> None:
-        """Dispatch to all matching modules concurrently."""
+        """Dispatch to all matching modules concurrently.
+
+        During a temporary radio session only the integrations the user opted
+        in keep receiving data (spec 2026-10-22); the rest skip, nothing queues.
+        """
+        from app.services.temp_radio import temp_radio
+
         tasks = []
         for config_id, (module, scope) in list(self._modules.items()):
+            if not temp_radio.fanout_allowed(config_id):
+                continue
             if matcher(scope, data):
                 tasks.append(self._run_handler(config_id, module, handler_name, data, log_label))
         if tasks:

@@ -98,6 +98,8 @@ import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateForma
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
+import { sfBucket } from '../utils/radioSf';
+import { MessageSfPill } from './RadioSfPill';
 
 interface MessageListProps {
   messages: Message[];
@@ -116,6 +118,12 @@ interface MessageListProps {
   hiddenHopWidths?: readonly number[];
   /** Persist a new hidden-width selection (sorted, deduplicated). */
   onHiddenHopWidthsChange?: (widths: number[]) => void;
+  /**
+   * SFs (5-12; 0 = no stored settings) hidden by the SF filter. Stored
+   * server-side (app setting `hidden_radio_sfs`); local state when omitted.
+   */
+  hiddenRadioSfs?: readonly number[];
+  onHiddenRadioSfsChange?: (sfs: number[]) => void;
   /**
    * Whether the "Hide malformed" filter hides messages the server flagged as
    * malformed. Stored server-side (app setting `hide_malformed`); when omitted
@@ -1032,6 +1040,8 @@ export function MessageList({
   unreadMarkerMessageId: rawUnreadMarkerMessageId,
   hiddenHopWidths: hiddenHopWidthsProp,
   onHiddenHopWidthsChange,
+  hiddenRadioSfs: hiddenRadioSfsProp,
+  onHiddenRadioSfsChange,
   hideMalformed: hideMalformedProp,
   onHideMalformedChange,
   spamGuardEnabled = false,
@@ -1138,6 +1148,25 @@ export function MessageList({
   const hiddenHopWidths = useMemo(
     () => new Set(hiddenHopWidthsKey ? hiddenHopWidthsKey.split(',').map(Number) : []),
     [hiddenHopWidthsKey]
+  );
+  // SFs to hide (0 = messages without stored settings), from the server-side
+  // app setting when the parent passes it, else local state.
+  const [localHiddenRadioSfs, setLocalHiddenRadioSfs] = useState<readonly number[]>([]);
+  const hiddenRadioSfsKey = (hiddenRadioSfsProp ?? localHiddenRadioSfs).join(',');
+  const hiddenRadioSfs = useMemo(
+    () => new Set(hiddenRadioSfsKey ? hiddenRadioSfsKey.split(',').map(Number) : []),
+    [hiddenRadioSfsKey]
+  );
+  const toggleRadioSf = useCallback(
+    (sf: number) => {
+      const next = new Set(hiddenRadioSfs);
+      if (next.has(sf)) next.delete(sf);
+      else next.add(sf);
+      const sorted = [...next].sort((a, b) => a - b);
+      if (onHiddenRadioSfsChange) onHiddenRadioSfsChange(sorted);
+      else setLocalHiddenRadioSfs(sorted);
+    },
+    [hiddenRadioSfs, onHiddenRadioSfsChange]
   );
   // Hide messages that carry no regional flood-scope ("unscoped"), e.g. global
   // noise. Persisted like the hop-width filter.
@@ -1284,8 +1313,24 @@ export function MessageList({
         : [...messages].sort((a, b) => a.received_at - b.received_at || a.id - b.id),
     [messages, preSorted]
   );
+  const sfFilterOptions = useMemo(() => {
+    const sfs = new Set<number>(hiddenRadioSfs);
+    for (const m of allSortedMessages) {
+      if (!m.outgoing) sfs.add(sfBucket(m.radio_stamp));
+    }
+    // Only worth offering once more than one bucket exists (or one is hidden).
+    if (sfs.size < 2 && hiddenRadioSfs.size === 0) return [];
+    return [...sfs].sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : a - b));
+  }, [allSortedMessages, hiddenRadioSfs]);
   const sortedMessages = useMemo(() => {
-    if (hiddenHopWidths.size === 0 && !hideUnscoped && !hideMalformed && !hideSpam && !hideBots) {
+    if (
+      hiddenHopWidths.size === 0 &&
+      hiddenRadioSfs.size === 0 &&
+      !hideUnscoped &&
+      !hideMalformed &&
+      !hideSpam &&
+      !hideBots
+    ) {
       return allSortedMessages;
     }
     // Apply the view-only message filters. Two kinds of message are always
@@ -1298,6 +1343,9 @@ export function MessageList({
         return true;
       }
       if (isMessageHiddenByHopWidth(m.paths, hiddenHopWidths)) {
+        return false;
+      }
+      if (hiddenRadioSfs.has(sfBucket(m.radio_stamp))) {
         return false;
       }
       if (hideUnscoped && !m.region) {
@@ -1319,6 +1367,7 @@ export function MessageList({
   }, [
     allSortedMessages,
     hiddenHopWidths,
+    hiddenRadioSfs,
     hideUnscoped,
     hideMalformed,
     hideSpam,
@@ -2004,7 +2053,12 @@ export function MessageList({
           title={t('chat_hop_filter_button')}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-xs backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
-            hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed || hideSpam || hideBots
+            hiddenHopWidths.size > 0 ||
+              hiddenRadioSfs.size > 0 ||
+              hideUnscoped ||
+              hideMalformed ||
+              hideSpam ||
+              hideBots
               ? 'text-status-connected'
               : 'text-muted-foreground'
           )}
@@ -2039,6 +2093,28 @@ export function MessageList({
             <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
               {t('chat_hop_filter_hint')}
             </div>
+            {sfFilterOptions.length > 0 && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <div className="mb-1 px-1 text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">
+                  {t('chat_sf_filter_heading')}
+                </div>
+                {sfFilterOptions.map((sf) => (
+                  <label
+                    key={sf}
+                    className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-current"
+                      checked={hiddenRadioSfs.has(sf)}
+                      onChange={() => toggleRadioSf(sf)}
+                    />
+                    {sf === 0 ? t('chat_sf_filter_unknown') : t('chat_sf_filter_option', { sf })}
+                  </label>
+                ))}
+              </>
+            )}
             <div className="my-1.5 h-px bg-border" />
             <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
               <input
@@ -2298,6 +2374,7 @@ export function MessageList({
                 {!msg.outgoing && (
                   <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
                 )}
+                <MessageSfPill stamp={msg.radio_stamp} />
                 {spamGuardEnabled && !msg.outgoing && msg.spam && (
                   <span
                     className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning"

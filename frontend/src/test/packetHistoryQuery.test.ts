@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { buildHistoryParams } from '../utils/packetHistoryQuery';
+import { SF_FILTER_BUCKETS } from '../utils/radioSf';
 import {
   KNOWN_PAYLOAD_TYPES,
   HOP_BYTE_WIDTH_BUCKETS,
@@ -84,5 +85,32 @@ describe('buildHistoryParams', () => {
     });
     expect(p.get('after_ts')).toBe('100');
     expect(p.get('before_ts')).toBe('200');
+  });
+});
+
+describe('buildHistoryParams SF axis', () => {
+  const base = {
+    startTs: 1,
+    endTs: 2,
+    enabledTypes: new Set(KNOWN_PAYLOAD_TYPES),
+    enabledHopWidths: new Set(HOP_BYTE_WIDTH_BUCKETS),
+    hexQuery: '',
+    searchTerm: '',
+    limit: 10,
+  };
+
+  it('omits radio_sfs when every SF is shown', () => {
+    const p = buildHistoryParams({ ...base, enabledSfs: new Set(SF_FILTER_BUCKETS) });
+    expect(p.getAll('radio_sfs')).toEqual([]);
+  });
+
+  it('sends the shown SFs as numbers and Unknown as is', () => {
+    const p = buildHistoryParams({ ...base, enabledSfs: new Set(['SF8', 'Unknown']) });
+    expect(p.getAll('radio_sfs').sort()).toEqual(['8', 'Unknown']);
+  });
+
+  it('sends none when every SF is unticked, so nothing matches', () => {
+    const p = buildHistoryParams({ ...base, enabledSfs: new Set<string>() });
+    expect(p.getAll('radio_sfs')).toEqual(['none']);
   });
 });

@@ -17,6 +17,7 @@ import logging
 import time
 from itertools import count
 
+from app import radio_stamp
 from app.decoder import (
     OTHER_VERSION_PAYLOAD_TYPE,
     DecryptedDirectMessage,
@@ -74,6 +75,8 @@ from app.services.messages import (
 from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields, route_label
 from app.services.policy_verdict import policy_verdicts
+from app.services.radio_scan import radio_scan
+from app.services.radio_sightings import record_contact_sighting
 from app.services.relay_reception import record_packet_reception
 from app.services.trackers import (
     DatagramContext,
@@ -378,6 +381,8 @@ async def process_raw_packet(
     # indication). Stored with the packet, so Packet History can show it.
     verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
     t_parsed = time.perf_counter()
+    # The LoRa settings this copy was heard on (migration _160): SF pills and filters.
+    heard_on = radio_stamp.current_radio_stamp()
     packet_id, is_new_packet = await RawPacketRepository.create(
         raw_bytes,
         ts,
@@ -390,7 +395,10 @@ async def process_raw_packet(
         path_signature=decoded_fields["path_signature"],
         policy_action=verdict["action"] if verdict else None,
         policy_rule=verdict["rule"] if verdict else None,
+        radio_stamp=heard_on,
     )
+    # A running scan list holds the current entry while traffic comes in. Never raises.
+    radio_scan.on_activity()
     # Per-copy link edge log (map traffic links + link history). Never raises.
     await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
     # Per-copy relay reception (Mesh Health "Relay reception", plan 21 S1). Never raises.
@@ -581,6 +589,7 @@ async def process_raw_packet(
         policy=RawPacketPolicyVerdict(**verdict) if verdict else None,
         relay_reception=relay_capture is not None,
         last_hop_hex=relay_capture.last_hop_hex if relay_capture else None,
+        radio_stamp=heard_on,
     )
     broadcast_event("raw_packet", broadcast_payload.model_dump())
 
@@ -889,6 +898,7 @@ async def _process_advertisement(
     # Upsert the contact BEFORE recording advert paths so the parent row
     # exists when foreign key enforcement is enabled.
     await ContactRepository.upsert(contact_upsert)
+    await record_contact_sighting(advert.public_key.lower(), timestamp)
 
     if existing is None:
         # First advert ever heard for this public key (plan 28 item 1.5).

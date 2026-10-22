@@ -769,6 +769,13 @@ class ContactRepository:
         async with db.tx() as conn:
             async with conn.execute("DELETE FROM contacts WHERE public_key = ?", (normalized,)):
                 pass
+            # Radio settings it was heard on and its saved settings (migration _160).
+            await conn.execute(
+                "DELETE FROM contact_radio_sightings WHERE public_key = ?", (normalized,)
+            )
+            await conn.execute(
+                "DELETE FROM contact_radio_profiles WHERE public_key = ?", (normalized,)
+            )
 
     @staticmethod
     async def update_last_contacted(public_key: str, timestamp: int | None = None) -> None:

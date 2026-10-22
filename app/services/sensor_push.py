@@ -263,6 +263,11 @@ async def handle_binary_response(event) -> None:
 
 async def renew_due(now: int) -> int:
     """Re-subscribe enabled subscriptions that expire soon; returns how many were tried."""
+    from app.services.temp_radio import temp_radio
+
+    # Paused while on temporary radio settings unless opted in (spec 2026-10-22).
+    if not temp_radio.opted_in("polls"):
+        return 0
     if not radio_manager.is_connected:
         return 0
     tried = 0

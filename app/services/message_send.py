@@ -254,8 +254,11 @@ async def send_channel_message_with_effective_scope(
     # An explicit override is always sent to the radio, also when it equals the
     # saved global scope: the radio's live scope cannot be read back and drifts
     # from that setting (a rebooted radio falls back to its stored default scope).
-    # Without an override the radio is left untouched.
-    apply_scope = scope_explicit
+    # Without an override the radio is left untouched. A temporary radio session
+    # with its own region (spec 2026-10-22) wins: overrides describe the home mesh.
+    from app.services.temp_radio import temp_radio
+
+    apply_scope = scope_explicit and temp_radio.session_region() is None
 
     # The saved global scope is the restore target after the send.
     baseline_scope = ""
@@ -762,6 +765,11 @@ async def send_direct_message_to_contact(
     # loaded into the radio's contact table (that would store a copy of the fake
     # contact), never flood-scoped and never retried. The radio confirms it at once.
     local_command = is_meshcomod_command_contact(contact.public_key)
+    if not local_command:
+        # Per-contact radio settings with auto switch (spec 2026-10-22, 4.6).
+        from app.services import temp_radio as temp_radio_service
+
+        await temp_radio_service.ensure_contact_settings(contact.public_key)
     sent_at: int | None = None
     sender_timestamp: int | None = None
     message = None

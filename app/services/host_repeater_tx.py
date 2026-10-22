@@ -194,6 +194,10 @@ class HostRepeaterTx:
             out.append("frequency_unknown")
         elif limit < rt.settings.arm_min_sub_band_percent:
             out.append("sub_band_below_minimum")
+        from app.services.temp_radio import temp_radio
+
+        if temp_radio.session_active():
+            out.append("temp_radio_session")
         return out
 
     # ── arm / disarm ─────────────────────────────────────────────────────

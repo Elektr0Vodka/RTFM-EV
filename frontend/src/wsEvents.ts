@@ -1,4 +1,8 @@
 import type {
+  ContactRadioProfile,
+  ContactRadioSighting,
+  RadioScanState,
+  TempRadioState,
   BotListsState,
   Channel,
   Contact,
@@ -85,6 +89,17 @@ export type KnownWsEvent =
   | { type: 'message_spam'; data: MessageSpamPayload }
   | { type: 'bot_lists'; data: BotListsState }
   | { type: 'tracker'; data: TrackerEventPayload }
+  | { type: 'temp_radio_state'; data: TempRadioState }
+  | { type: 'temp_radio_dropped'; data: { reason: string } }
+  | { type: 'radio_scan_state'; data: RadioScanState }
+  | {
+      type: 'contact_radio_sighting';
+      data: { public_key: string; sighting: ContactRadioSighting };
+    }
+  | {
+      type: 'contact_radio_profile';
+      data: { public_key: string; profile: ContactRadioProfile | null };
+    }
   | { type: 'error'; data: ToastPayload }
   | { type: 'success'; data: ToastPayload }
   | { type: 'pong'; data?: null };
@@ -127,6 +142,11 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'message_spam':
     case 'bot_lists':
     case 'tracker':
+    case 'temp_radio_state':
+    case 'temp_radio_dropped':
+    case 'radio_scan_state':
+    case 'contact_radio_sighting':
+    case 'contact_radio_profile':
     case 'error':
     case 'success':
       return {

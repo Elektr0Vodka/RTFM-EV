@@ -381,6 +381,11 @@ export function PacketHistoryView({
         onToggleAllHopWidths={filters.toggleAllHopWidths}
         onToggleHopWidth={filters.toggleHopWidth}
         onOnlyHopWidth={filters.onlyHopWidth}
+        enabledSfs={filters.enabledSfs}
+        allSfsEnabled={filters.allSfsEnabled}
+        onToggleAllSfs={filters.toggleAllSfs}
+        onToggleSf={filters.toggleSf}
+        onOnlySf={filters.onlySf}
         enabledRoutes={filters.enabledRoutes}
         allRoutesEnabled={filters.allRoutesEnabled}
         onToggleAllRoutes={filters.toggleAllRoutes}
