@@ -24,6 +24,24 @@ No migration. No new dependency.
   or one the list outgrows as its rows load, is pulled back onto the map.
   The live log on the wardrive page keeps its limits.
 
+## Update 2026-10-23 (guessed locations for direct-heard nodes + map Hops filter, feat/guessed-locations-direct-hop-filter)
+
+No migration, no new dependency. Frontend only.
+
+### Map
+- Guessed locations now also cover nodes your radio heard direct (0 hop):
+  a direct advert path heard in the last 24h anchors the guess on your own
+  radio's location, alongside any located 2-/3-byte repeater anchors. Needs a
+  location set on your radio; without one nothing changes. The popup says
+  "Heard direct by your radio" and, for a direct-only guess, that the node can
+  be anywhere within radio range.
+- New **Hops** filter (Filters group): Any, Direct, or up to 1-5 hops, by the
+  hop count of each node's latest heard advert. Nodes with no heard advert are
+  hidden while a limit is set; the focused node is exempt. Guessed-location
+  markers follow it too. Remembered per browser.
+- The advert paths behind both are fetched once for the map and refreshed every
+  60 s while either is on (the guessed layer used to fetch only when toggled).
+
 ## Update 2026-10-23 (temporary radio settings off on OpenHop, fix/temp-radio-openhop)
 
 No migration, no new dependency. From Richard's test on an OpenHop node.

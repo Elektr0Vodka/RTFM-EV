@@ -331,4 +331,72 @@ describe('computeGuessedLocations', () => {
     ];
     expect(computeGuessedLocations([repeaterNear, neverSeen], summaries, now)).toEqual([]);
   });
+
+  describe('direct (0-hop) paths anchored on the local radio', () => {
+    const self: GuessAnchor = { public_key: 'self00', lat: 52.02, lon: 5.0 };
+    const directPath = (lastSeen: number) =>
+      advertPath({ path: '', path_len: 0, next_hop: null, last_seen: lastSeen });
+
+    it('guesses a direct-only node near the local radio, low confidence', () => {
+      const unlocated = contact({ public_key: 'target7', lat: null, lon: null, last_seen: now });
+      const summaries = [{ public_key: unlocated.public_key, paths: [directPath(now)] }];
+      const guesses = computeGuessedLocations([unlocated], summaries, now, { self });
+      expect(guesses).toHaveLength(1);
+      expect(guesses[0].anchors).toEqual([{ ...self, isSelf: true }]);
+      expect(guesses[0].highConfidence).toBe(false);
+      const distKm = Math.hypot(
+        (guesses[0].lat - 52.02) * 111.32,
+        (guesses[0].lon - 5.0) * 111.32 * Math.cos((52.02 * Math.PI) / 180)
+      );
+      expect(distKm).toBeCloseTo(0.33, 1);
+    });
+
+    it('combines the local radio with a consistent repeater anchor', () => {
+      const unlocated = contact({ public_key: 'target8', lat: null, lon: null, last_seen: now });
+      const summaries = [
+        {
+          public_key: unlocated.public_key,
+          paths: [directPath(now), advertPath({ next_hop: 'aabb' })],
+        },
+      ];
+      const guesses = computeGuessedLocations([repeaterNear, unlocated], summaries, now, { self });
+      expect(guesses).toHaveLength(1);
+      expect(guesses[0].highConfidence).toBe(true);
+      expect(guesses[0].anchors.map((a) => a.public_key)).toEqual([
+        self.public_key,
+        repeaterNear.public_key,
+      ]);
+    });
+
+    it('does not guess a direct-only node without a local radio location', () => {
+      const unlocated = contact({ public_key: 'target9', lat: null, lon: null, last_seen: now });
+      const summaries = [{ public_key: unlocated.public_key, paths: [directPath(now)] }];
+      expect(computeGuessedLocations([repeaterNear, unlocated], summaries, now)).toEqual([]);
+      expect(
+        computeGuessedLocations([repeaterNear, unlocated], summaries, now, { self: null })
+      ).toEqual([]);
+    });
+
+    it('ignores a direct path older than 24h', () => {
+      const unlocated = contact({ public_key: 'target10', lat: null, lon: null, last_seen: now });
+      const summaries = [
+        {
+          public_key: unlocated.public_key,
+          paths: [directPath(now - GUESSED_LOCATION_STALE_SECONDS - 1)],
+        },
+      ];
+      expect(computeGuessedLocations([unlocated], summaries, now, { self })).toEqual([]);
+    });
+
+    it('never guesses the local radio itself', () => {
+      const selfContact = contact({ public_key: 'SELF00', lat: null, lon: null, last_seen: now });
+      const summaries = [{ public_key: selfContact.public_key, paths: [directPath(now)] }];
+      expect(computeGuessedLocations([selfContact], summaries, now, { self })).toEqual([]);
+    });
+
+    it('anchorsForPaths adds the local radio once for several direct paths', () => {
+      const anchors = anchorsForPaths([directPath(now), directPath(now - 5)], new Map(), self, 0);
+      expect(anchors).toEqual([{ ...self, isSelf: true }]);
+    });
+  });
 });

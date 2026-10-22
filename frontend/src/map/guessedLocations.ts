@@ -58,6 +58,8 @@ export interface GuessAnchor {
   public_key: string;
   lat: number;
   lon: number;
+  /** The local radio, used as the anchor for a direct (0-hop) advert path. */
+  isSelf?: boolean;
 }
 
 export interface GuessedLocation {
@@ -92,13 +94,26 @@ export function buildRepeaterAnchorIndex(contacts: Contact[]): Map<string, Guess
 
 /** Anchor repeaters for one contact's known advert paths: the hop nearest
  *  the origin (`next_hop`) from each path, resolved against `index` and
- *  restricted to 2-/3-byte hops. Deduplicated by repeater pubkey. */
+ *  restricted to 2-/3-byte hops. Deduplicated by repeater pubkey.
+ *
+ *  A direct (0-hop) path has no hop: the local radio heard the node itself.
+ *  With `self` (the local radio's location) such a path anchors on the local
+ *  radio, but only when it was heard at or after `directHeardSince`: the
+ *  local radio may have moved since an older direct hearing. */
 export function anchorsForPaths(
   paths: ContactAdvertPathSummary['paths'],
-  index: Map<string, GuessAnchor>
+  index: Map<string, GuessAnchor>,
+  self: GuessAnchor | null = null,
+  directHeardSince = -Infinity
 ): GuessAnchor[] {
   const byKey = new Map<string, GuessAnchor>();
   for (const path of paths) {
+    if (path.path_len === 0) {
+      if (self && path.last_seen >= directHeardSince && !byKey.has(self.public_key)) {
+        byKey.set(self.public_key, { ...self, isSelf: true });
+      }
+      continue;
+    }
     const hop = path.next_hop;
     if (!hop || !USABLE_HOP_HEX_LENGTHS.has(hop.length)) continue;
     const anchor = index.get(hop.toLowerCase());
@@ -185,32 +200,42 @@ export function offsetGuessedPosition(
   return { lat: anchor.lat + latOffsetDeg, lon: anchor.lon + lonOffsetDeg };
 }
 
+export interface GuessOptions {
+  /** The local radio's location; anchors nodes heard direct (0 hop). */
+  self?: GuessAnchor | null;
+  maxRangeKm?: number;
+}
+
 /**
  * Compute guessed positions for every contact that has no known location,
  * was heard within the last 24h, and has at least one advert path whose
- * origin-side hop resolves to a located repeater.
+ * origin-side hop resolves to a located repeater, or (with `self`) a direct
+ * advert path heard within the last 24h.
  */
 export function computeGuessedLocations(
   contacts: Contact[],
   pathSummaries: ContactAdvertPathSummary[],
   nowSec: number,
-  maxRangeKm: number = ESTIMATED_LORA_RANGE_KM
+  { self = null, maxRangeKm = ESTIMATED_LORA_RANGE_KM }: GuessOptions = {}
 ): GuessedLocation[] {
   const anchorIndex = buildRepeaterAnchorIndex(contacts);
-  if (anchorIndex.size === 0) return [];
+  if (anchorIndex.size === 0 && !self) return [];
 
+  const selfKey = self?.public_key.toLowerCase();
+  const directHeardSince = nowSec - GUESSED_LOCATION_STALE_SECONDS;
   const contactsByKey = new Map(contacts.map((c) => [c.public_key.toLowerCase(), c]));
   const result: GuessedLocation[] = [];
 
   for (const summary of pathSummaries) {
     const contact = contactsByKey.get(summary.public_key.toLowerCase());
     if (!contact) continue;
+    if (contact.public_key.toLowerCase() === selfKey) continue;
     if (hasEffectiveLocation(contact)) continue;
     if (contact.last_seen == null || nowSec - contact.last_seen > GUESSED_LOCATION_STALE_SECONDS) {
       continue;
     }
 
-    const candidates = anchorsForPaths(summary.paths, anchorIndex);
+    const candidates = anchorsForPaths(summary.paths, anchorIndex, self, directHeardSince);
     const anchors = filterConsistentAnchors(candidates, maxRangeKm);
     if (anchors.length === 0) continue;
 
