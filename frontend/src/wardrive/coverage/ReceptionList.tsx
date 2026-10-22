@@ -59,7 +59,12 @@ export function ReceptionList({
   }, [current]);
   return (
     <div className="pointer-events-auto absolute bottom-8 left-2 z-20 w-80 max-w-[calc(100%-4rem)]">
-      <MovablePanel storageKey={`${storageKey}-list-pos`} handleLabel={t('wardrive_cov_list_move')}>
+      {/* Stays on the map: the parent of this wrapper is the map's box. */}
+      <MovablePanel
+        storageKey={`${storageKey}-list-pos`}
+        handleLabel={t('wardrive_cov_list_move')}
+        bounds={(panel) => panel.parentElement?.parentElement ?? null}
+      >
         <section
           aria-label={t('wardrive_cov_list')}
           className="rounded-md border border-border bg-popover/95 text-popover-foreground shadow-lg"

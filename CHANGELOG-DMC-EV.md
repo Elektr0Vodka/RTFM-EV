@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-23 (coverage map receptions list stays on the map, feat/wardrive-plugin)
+
+No migration. No new dependency.
+
+### Wardrive
+- The coverage map's receptions list moved within the live log's limits
+  (centred at the top of the window): it could not move up at all, it
+  stopped short of the map's right edge, and it went off the left of the
+  map over the sidebar and down past the bottom. It now moves anywhere on
+  the map and stops at the map's edges. A spot saved with the old limits,
+  or one the list outgrows as its rows load, is pulled back onto the map.
+  The live log on the wardrive page keeps its limits.
+
 ## Update 2026-10-23 (temporary radio settings off on OpenHop, fix/temp-radio-openhop)
 
 No migration, no new dependency. From Richard's test on an OpenHop node.

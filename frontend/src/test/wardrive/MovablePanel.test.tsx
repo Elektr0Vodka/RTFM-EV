@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { I18nProvider } from '../../i18n';
@@ -83,5 +84,110 @@ describe('movable panel', () => {
     fireEvent.pointerMove(handle, { clientX: 0, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(handle, { clientX: 0, clientY: 10, pointerId: 1 });
     expect(offset()).toBe('translate(-12px, 0px)');
+  });
+
+  describe('inside an area', () => {
+    // The coverage map's list: home is bottom-left of the map, not centred
+    // at the top of the window, and it grows upward as rows load.
+    const AREA = { left: 240, top: 306, right: 1024, bottom: 767 };
+    const HOME = { left: 248, bottom: 735, width: 320 };
+    let height = 73;
+    let resized: (() => void) | null = null;
+
+    function renderInArea() {
+      height = 73;
+      resized = null;
+      const area = document.createElement('div');
+      area.getBoundingClientRect = () =>
+        ({ ...AREA, width: AREA.right - AREA.left, height: AREA.bottom - AREA.top }) as DOMRect;
+      const origRect = HTMLElement.prototype.getBoundingClientRect;
+      HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+        if (this.dataset.testid !== 'movable-panel') return origRect.call(this);
+        const [x, y] = (this.style.transform.match(/-?\d+(\.\d+)?/g) ?? ['0', '0']).map(Number);
+        const left = HOME.left + x;
+        const bottom = HOME.bottom + y;
+        return {
+          left,
+          top: bottom - height,
+          right: left + HOME.width,
+          bottom,
+          width: HOME.width,
+          height,
+        } as DOMRect;
+      };
+      const origRO = globalThis.ResizeObserver;
+      globalThis.ResizeObserver = class {
+        constructor(cb: () => void) {
+          resized = cb;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+      // StrictMode runs the mount effects twice, as the dev build does.
+      const view = render(
+        <StrictMode>
+          <I18nProvider>
+            <MovablePanel storageKey={KEY} handleLabel="Move the list" bounds={() => area}>
+              <ul>
+                <li>row</li>
+              </ul>
+            </MovablePanel>
+          </I18nProvider>
+        </StrictMode>
+      );
+      return {
+        ...view,
+        restore: () => {
+          HTMLElement.prototype.getBoundingClientRect = origRect;
+          globalThis.ResizeObserver = origRO;
+        },
+      };
+    }
+
+    const drag = (fromX: number, fromY: number, toX: number, toY: number) => {
+      const handle = screen.getByRole('button', { name: 'Move the list' });
+      fireEvent.pointerDown(handle, { clientX: fromX, clientY: fromY, pointerId: 1 });
+      fireEvent.pointerMove(handle, { clientX: toX, clientY: toY, pointerId: 1 });
+      fireEvent.pointerUp(handle, { clientX: toX, clientY: toY, pointerId: 1 });
+    };
+
+    it('moves up from a home at the bottom, and stops at the edges of the area', () => {
+      const { restore } = renderInArea();
+      try {
+        drag(318, 662, 542, 438);
+        expect(offset()).toBe('translate(224px, -224px)');
+        drag(542, 438, 99999, -99999);
+        expect(offset()).toBe('translate(456px, -356px)');
+        drag(0, 0, -99999, 99999);
+        expect(offset()).toBe('translate(-8px, 32px)');
+        expect(JSON.parse(localStorage.getItem(KEY) ?? 'null')).toEqual({ x: -8, y: 32 });
+      } finally {
+        restore();
+      }
+    });
+
+    it('pulls a stored spot outside the area back in', () => {
+      localStorage.setItem(KEY, JSON.stringify({ x: -352, y: 100 }));
+      const { restore } = renderInArea();
+      try {
+        expect(offset()).toBe('translate(-8px, 32px)');
+      } finally {
+        restore();
+      }
+    });
+
+    it('stays inside when it grows after being moved to the top', () => {
+      const { restore } = renderInArea();
+      try {
+        drag(318, 662, 318, -99999);
+        expect(offset()).toBe('translate(0px, -356px)');
+        height = 383;
+        act(() => resized?.());
+        expect(offset()).toBe('translate(0px, -46px)');
+      } finally {
+        restore();
+      }
+    });
   });
 });
