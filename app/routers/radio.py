@@ -80,6 +80,7 @@ from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.temp_radio import (
     TempRadioConflictError,
     TempRadioUnavailableError,
+    TempRadioUnsupportedError,
     radio_change_ends_session,
     temp_radio,
 )
@@ -613,7 +614,7 @@ async def start_temp_radio(request: TempRadioStartRequest) -> TempRadioState:
         return await temp_radio.start(request)
     except TempRadioUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except TempRadioConflictError as exc:
+    except (TempRadioConflictError, TempRadioUnsupportedError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RadioRepeatFrequencyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -681,6 +682,11 @@ async def run_scan_list(list_id: int) -> RadioScanState:
     if scan_list is None:
         raise HTTPException(status_code=404, detail="Scan list not found")
     radio_manager.require_connected()
+    if not temp_radio.supported():
+        raise HTTPException(
+            status_code=409,
+            detail="OpenHop nodes keep their own radio settings; scan lists are off",
+        )
     return await radio_scan.start_task(scan_list)
 
 

@@ -52,6 +52,9 @@ export const IDLE_SCAN: RadioScanState = {
 
 let tempState: TempRadioState = INACTIVE_TEMP_RADIO;
 let currentRadio: RadioStamp | null = null;
+// False on an OpenHop node: its virtual companion acknowledges radio changes
+// without making them, so temporary settings, contact switches and scans are off.
+let supported = true;
 let scanState: RadioScanState = IDLE_SCAN;
 let sightings: Record<string, ContactRadioSighting[]> = {};
 let profiles: Record<string, ContactRadioProfile> = {};
@@ -75,6 +78,16 @@ export function setTempRadioState(next: TempRadioState): void {
 
 export function getTempRadioState(): TempRadioState {
   return tempState;
+}
+
+export function setTempRadioSupported(next: boolean): void {
+  if (next === supported) return;
+  supported = next;
+  emit();
+}
+
+export function useTempRadioSupported(): boolean {
+  return useSyncExternalStore(subscribe, () => supported);
 }
 
 export function getCurrentRadioStamp(): RadioStamp | null {

@@ -6677,5 +6677,7 @@
   "temp_radio_scan_round": "Runde {round}",
   "temp_radio_optin_polls": "Sensor-Abos und Nachbarabfragen",
   "contact_radio_switch_now": "Jetzt zu diesen Einstellungen wechseln",
-  "settings_host_repeater_blocker_temp_radio_session": "temporäre Funkeinstellungen sind aktiv"
+  "settings_host_repeater_blocker_temp_radio_session": "temporäre Funkeinstellungen sind aktiv",
+  "temp_radio_button_openhop": "Temporäre Funkeinstellungen sind aus: OpenHop verwaltet seine eigenen Funkeinstellungen",
+  "contact_radio_openhop_note": "OpenHop verwaltet seine eigenen Funkeinstellungen, daher ist das Wechseln aus. Gespeicherte Einstellungen bleiben für einen verbundenen Companion erhalten."
 }

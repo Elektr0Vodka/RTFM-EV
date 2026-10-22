@@ -6675,5 +6675,7 @@
   "temp_radio_scan_round": "round {round}",
   "temp_radio_optin_polls": "Sensor subscriptions and neighbour polls",
   "contact_radio_switch_now": "Switch to these settings now",
-  "settings_host_repeater_blocker_temp_radio_session": "temporary radio settings are on"
+  "settings_host_repeater_blocker_temp_radio_session": "temporary radio settings are on",
+  "temp_radio_button_openhop": "Temporary radio settings are off: OpenHop keeps its own radio settings",
+  "contact_radio_openhop_note": "OpenHop keeps its own radio settings, so switching is off. Saved settings stay for when a companion is connected."
 }

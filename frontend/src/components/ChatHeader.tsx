@@ -24,6 +24,7 @@ import {
   setTempRadioState,
   useContactProfile,
   useTempRadioState,
+  useTempRadioSupported,
 } from '../utils/tempRadio';
 import { api } from '../api';
 import { ChannelFloodScopeOverrideModal } from './ChannelFloodScopeOverrideModal';
@@ -142,6 +143,7 @@ export function ChatHeader({
 }: ChatHeaderProps) {
   const t = useT();
   const tempRadio = useTempRadioState();
+  const tempRadioSupported = useTempRadioSupported();
   const [tempRadioOpen, setTempRadioOpen] = useState(false);
   const contactRadioProfile = useContactProfile(
     conversation.type === 'contact' ? conversation.id : null
@@ -504,11 +506,15 @@ export function ChatHeader({
               className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setTempRadioOpen(true)}
               title={
-                radioConnected ? t('temp_radio_button_title') : t('temp_radio_button_unavailable')
+                !tempRadioSupported
+                  ? t('temp_radio_button_openhop')
+                  : radioConnected
+                    ? t('temp_radio_button_title')
+                    : t('temp_radio_button_unavailable')
               }
               aria-label={t('temp_radio_button_title')}
               aria-pressed={tempRadio.active}
-              disabled={!radioConnected}
+              disabled={!radioConnected || !tempRadioSupported}
             >
               <Antenna
                 className={cn(
@@ -519,41 +525,44 @@ export function ChatHeader({
               />
             </button>
           )}
-        {conversation.type === 'contact' && contactRadioProfile && !isMeshcomodChat && (
-          // Left out on phones, where the header has no room: the contact info
-          // pane has the same switch and toggle.
-          <span className="hidden sm:inline-flex items-center gap-0.5">
-            <button
-              className="p-1 rounded hover:bg-accent text-[0.6875rem] font-medium leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring text-primary"
-              onClick={switchToContactRadio}
-              title={t('chat_contact_radio_switch', { name: conversation.name })}
-              aria-label={t('chat_contact_radio_switch', { name: conversation.name })}
-              disabled={!radioConnected || contactRadioBusy}
-            >
-              SF{contactRadioProfile.radio.sf}
-            </button>
-            <button
-              className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={toggleContactAutoSwitch}
-              title={
-                contactRadioProfile.auto_switch
-                  ? t('chat_contact_radio_auto_on', { name: conversation.name })
-                  : t('chat_contact_radio_auto_off', { name: conversation.name })
-              }
-              aria-label={t('chat_contact_radio_auto_toggle')}
-              aria-pressed={contactRadioProfile.auto_switch}
-              disabled={contactRadioBusy}
-            >
-              <Repeat
-                className={cn(
-                  'h-4 w-4',
-                  contactRadioProfile.auto_switch ? 'text-primary' : 'text-muted-foreground'
-                )}
-                aria-hidden="true"
-              />
-            </button>
-          </span>
-        )}
+        {conversation.type === 'contact' &&
+          contactRadioProfile &&
+          tempRadioSupported &&
+          !isMeshcomodChat && (
+            // Left out on phones, where the header has no room: the contact info
+            // pane has the same switch and toggle.
+            <span className="hidden sm:inline-flex items-center gap-0.5">
+              <button
+                className="p-1 rounded hover:bg-accent text-[0.6875rem] font-medium leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring text-primary"
+                onClick={switchToContactRadio}
+                title={t('chat_contact_radio_switch', { name: conversation.name })}
+                aria-label={t('chat_contact_radio_switch', { name: conversation.name })}
+                disabled={!radioConnected || contactRadioBusy}
+              >
+                SF{contactRadioProfile.radio.sf}
+              </button>
+              <button
+                className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={toggleContactAutoSwitch}
+                title={
+                  contactRadioProfile.auto_switch
+                    ? t('chat_contact_radio_auto_on', { name: conversation.name })
+                    : t('chat_contact_radio_auto_off', { name: conversation.name })
+                }
+                aria-label={t('chat_contact_radio_auto_toggle')}
+                aria-pressed={contactRadioProfile.auto_switch}
+                disabled={contactRadioBusy}
+              >
+                <Repeat
+                  className={cn(
+                    'h-4 w-4',
+                    contactRadioProfile.auto_switch ? 'text-primary' : 'text-muted-foreground'
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
+            </span>
+          )}
         {conversation.type === 'contact' && !activeContactIsRoomServer && !isMeshcomodChat && (
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"

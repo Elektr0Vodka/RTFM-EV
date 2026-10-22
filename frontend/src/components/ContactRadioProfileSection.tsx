@@ -10,6 +10,7 @@ import {
   useContactProfile,
   useContactSightings,
   useTempRadioState,
+  useTempRadioSupported,
 } from '../utils/tempRadio';
 import { RadioSfPills } from './RadioSfPill';
 import { Button } from './ui/button';
@@ -30,6 +31,7 @@ export function ContactRadioProfileSection({ publicKey }: { publicKey: string })
   const sightings = useContactSightings(publicKey);
   const profile = useContactProfile(publicKey);
   const session = useTempRadioState();
+  const supported = useTempRadioSupported();
 
   const [freq, setFreq] = useState('');
   const [bw, setBw] = useState('');
@@ -175,6 +177,7 @@ export function ContactRadioProfileSection({ publicKey }: { publicKey: string })
       </div>
 
       <p className="text-xs text-muted-foreground">{t('contact_radio_hint')}</p>
+      {!supported && <p className="text-xs text-warning">{t('contact_radio_openhop_note')}</p>}
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
@@ -242,7 +245,7 @@ export function ContactRadioProfileSection({ publicKey }: { publicKey: string })
         <Button type="button" size="sm" disabled={busy} onClick={save}>
           {t('contact_radio_save')}
         </Button>
-        {profile && (
+        {profile && supported && (
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={switchNow}>
             {t('contact_radio_switch_now')}
           </Button>

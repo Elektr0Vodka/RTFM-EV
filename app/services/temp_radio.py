@@ -44,6 +44,17 @@ class TempRadioConflictError(RuntimeError):
     """The session belongs to a different companion than the one connected."""
 
 
+class TempRadioUnsupportedError(RuntimeError):
+    """The connected radio cannot take temporary settings (an OpenHop node).
+
+    OpenHop's companion is virtual: it answers CMD_SET_RADIO_PARAMS with OK but
+    never changes the repeater's shared radio (openhop_core
+    ``supports_radio_params_mutation() -> False``), and OpenHop's own
+    ``tempradio`` is not implemented. A session would claim a switch that
+    never happened.
+    """
+
+
 # Seconds between restore attempts after a failed restore on a connected radio.
 RESTORE_RETRY_SECS = 30.0
 # The expiry timer wakes at least this often and re-checks the wall clock, so a
@@ -78,6 +89,15 @@ class TempRadioService:
 
     def _current(self) -> RadioStamp | None:
         return radio_stamp.current_radio_stamp()
+
+    def _is_openhop(self) -> bool:
+        from app.services.openhop import is_openhop
+
+        return is_openhop(getattr(radio_manager, "device_model", None))
+
+    def supported(self) -> bool:
+        """Whether the connected radio can take temporary settings."""
+        return not self._is_openhop()
 
     def _client_repeat(self) -> bool | None:
         return radio_manager.client_repeat
@@ -203,6 +223,10 @@ class TempRadioService:
     async def _start_locked(
         self, req: TempRadioStartRequest, *, scan: TempRadioScanProgress | None
     ) -> TempRadioState:
+        if self._is_openhop():
+            raise TempRadioUnsupportedError(
+                "OpenHop nodes keep their own radio settings; temporary radio settings are off"
+            )
         key = self._connected_key()
         current = self._current()
         if key is None or current is None:
@@ -522,6 +546,8 @@ async def ensure_contact_settings(public_key: str) -> bool:
     from app.repository.contact_radio_profiles import ContactRadioProfilesRepository
 
     try:
+        if temp_radio._is_openhop():
+            return False
         profile = await ContactRadioProfilesRepository.get(public_key)
         if profile is None or not profile.auto_switch:
             return False
@@ -568,6 +594,7 @@ temp_radio = TempRadioService()
 
 __all__ = [
     "TempRadioConflictError",
+    "TempRadioUnsupportedError",
     "TempRadioService",
     "ensure_contact_settings",
     "normalize_session_region",

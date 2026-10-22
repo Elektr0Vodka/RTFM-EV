@@ -66,7 +66,7 @@ import { getSettingsHash } from './utils/urlHash';
 import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
 import { DEFAULT_BATTERY_CHEMISTRY, setActiveBatteryChemistry } from './utils/batteryDisplay';
 import { loadBotLists, subscribeBotLists } from './utils/botLists';
-import { loadTempRadio, setCurrentRadioStamp } from './utils/tempRadio';
+import { loadTempRadio, setCurrentRadioStamp, setTempRadioSupported } from './utils/tempRadio';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -342,6 +342,12 @@ export function App() {
   useEffect(() => {
     setCurrentRadioStamp(config?.radio ?? null);
   }, [config?.radio]);
+
+  // OpenHop keeps its own radio settings: temporary settings are off there.
+  const radioIsOpenHop = health?.radio_device_info?.is_openhop ?? false;
+  useEffect(() => {
+    setTempRadioSupported(!radioIsOpenHop);
+  }, [radioIsOpenHop]);
 
   // Chat "Hide malformed" filter (server setting), same consumers.
   const hideMalformed = appSettings?.hide_malformed ?? false;
