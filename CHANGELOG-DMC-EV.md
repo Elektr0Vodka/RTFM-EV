@@ -11,7 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-22 (temporary radio settings, claude/chat-radio-settings-modal-f1da3a)
+## Update 2026-10-23 (temporary radio settings off on OpenHop, fix/temp-radio-openhop)
+
+No migration, no new dependency. From Richard's test on an OpenHop node.
+
+### Radio
+- Temporary radio settings, contact switches, auto switch and scan lists are
+  off when the connected radio is an OpenHop node. OpenHop's companion is
+  virtual: it answers a radio settings change with OK but leaves the
+  repeater's shared radio alone (`openhop_core` `supports_radio_params_mutation`
+  is false), and OpenHop's own `tempradio` is not implemented yet, so a
+  session would claim a switch that never happened. The chat header button is
+  disabled with the reason, the DM header leaves the contact switch out, and
+  the contact info pane says so; saved contact settings are kept. The API
+  answers 409.
+
+## Update 2026-10-22 (temporary radio settings, feat/temp-radio-settings)
 
 Migration **_160** (`app_settings.temp_radio_state` and `hidden_radio_sfs`,
 `radio_freq/bw/sf/cr` on `raw_packets` and `messages`, tables
