@@ -17,6 +17,7 @@ import {
   Crosshair,
   Orbit,
   RadioTower,
+  Waypoints,
 } from 'lucide-react';
 import type {
   AdvertLinkEdge,
@@ -116,7 +117,15 @@ import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
 import { useTeamBeacons } from '../map/useTeamBeacons';
 import { useTrackers } from '../map/useTrackers';
-import { useGuessedLocations } from '../map/useGuessedLocations';
+import { useGuessedLocations, type GuessSelf } from '../map/useGuessedLocations';
+import { useAdvertPathSummaries } from '../map/useAdvertPathSummaries';
+import {
+  MAX_HOPS_OPTIONS,
+  isMaxHops,
+  latestAdvertHops,
+  passesHopFilter,
+  type MaxHops,
+} from '../map/hopFilter';
 import { useAntennaRegister } from '../map/useAntennaRegister';
 import { ANTENNA_BANDS, type AntennaBand } from '../map/layers/antennaRegisterLayer';
 import {
@@ -610,6 +619,18 @@ export function MapView({
     false,
     isBool
   );
+  // Hops filter: only nodes whose latest heard advert came within this many
+  // hops (null = any). Shares the advert-path fetch with guessed locations.
+  const [maxHops, setMaxHops] = usePersistedMapSetting<MaxHops>(
+    'remoteterm-map-max-hops',
+    null,
+    isMaxHops
+  );
+  const advertPathSummaries = useAdvertPathSummaries(showGuessedLocations || maxHops !== null);
+  const advertHopsByKey = useMemo(
+    () => (advertPathSummaries ? latestAdvertHops(advertPathSummaries) : null),
+    [advertPathSummaries]
+  );
   const [showAntennas, setShowAntennas] = usePersistedMapSetting(
     'remoteterm-map-antenna-register',
     false,
@@ -797,6 +818,12 @@ export function MapView({
     if (!config || !isValidLocation(config.lat, config.lon)) return null;
     return [config.lat, config.lon];
   }, [config]);
+
+  // The local radio as the guessed-locations anchor for nodes heard direct.
+  const guessSelf = useMemo<GuessSelf | null>(() => {
+    if (!config || !myLatLon) return null;
+    return { public_key: config.public_key, name: config.name, lat: myLatLon[0], lon: myLatLon[1] };
+  }, [config, myLatLon]);
 
   // Per-link layer: derive edges client-side from the packet network graph.
   // (No advert-path hints here; links are liveness-only, a Tertiary overlay.)
@@ -1245,6 +1272,14 @@ export function MapView({
       hiddenPower.size === 0 ||
       c.public_key === focusedKey ||
       !hiddenPower.has(resolvePowerSource(c));
+    // Hops filter by the latest advert's hop count; a node with no stored
+    // advert path is hidden while it is active. Nothing is filtered until the
+    // advert paths have loaded, and the focused node is exempt.
+    const isHopVisible = (c: Contact) =>
+      maxHops === null ||
+      advertHopsByKey === null ||
+      c.public_key === focusedKey ||
+      passesHopFilter(advertHopsByKey.get(c.public_key.toLowerCase()), maxHops);
     // Project the effective location (advertised-wins, manual-fallback) onto
     // lat/lon so a node with only manual coordinates is placed and rendered by
     // the standard downstream consumers that read c.lat / c.lon.
@@ -1261,7 +1296,8 @@ export function MapView({
             !isBlocked(c) &&
             !isHiddenForWrongLocation(c) &&
             isRoleVisible(c) &&
-            isPowerVisible(c)
+            isPowerVisible(c) &&
+            isHopVisible(c)
         )
         .map(withEffectiveCoords)
         .filter((c): c is Contact => c !== null);
@@ -1278,7 +1314,8 @@ export function MapView({
           }) &&
           !isHiddenForWrongLocation(c) &&
           isRoleVisible(c) &&
-          isPowerVisible(c)
+          isPowerVisible(c) &&
+          isHopVisible(c)
       )
       .map(withEffectiveCoords)
       .filter((c): c is Contact => c !== null);
@@ -1288,6 +1325,8 @@ export function MapView({
     heardFilter,
     hiddenRoles,
     hiddenPower,
+    maxHops,
+    advertHopsByKey,
     isWithinSinceWindow,
     showPackets,
     discoveryMode,
@@ -1734,6 +1773,9 @@ export function MapView({
   } = useGuessedLocations({
     enabled: showGuessedLocations,
     contacts,
+    pathSummaries: advertPathSummaries,
+    self: guessSelf,
+    maxHops,
     nowSec,
     labelMode,
   });
@@ -2322,6 +2364,35 @@ export function MapView({
         <p className="text-xs text-muted-foreground">{t('map_power_help')}</p>
       </div>
     );
+    const hopsOptionLabel = (h: MaxHops) =>
+      h === null
+        ? t('map_hops_any')
+        : h === 0
+          ? t('map_hops_direct')
+          : t('map_hops_max', { count: h });
+    const hopsPanel = (
+      <div className="space-y-2">
+        <div role="group" aria-label={t('map_hops_label')} className="flex flex-wrap gap-1">
+          {MAX_HOPS_OPTIONS.map((h) => (
+            <button
+              key={h ?? 'any'}
+              type="button"
+              aria-pressed={maxHops === h}
+              className={
+                'rounded px-2 py-1 text-xs ' +
+                (maxHops === h
+                  ? 'bg-accent text-accent-foreground'
+                  : 'bg-muted text-muted-foreground')
+              }
+              onClick={() => setMaxHops(h)}
+            >
+              {hopsOptionLabel(h)}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('map_hops_help')}</p>
+      </div>
+    );
     // Show the active timeframe on the Since FAB itself (compact preset code
     // like "7d"/"All", or a clock icon for a custom range).
     const sinceValueText =
@@ -2374,6 +2445,12 @@ export function MapView({
             : t('map_power_label'),
         icon: <BatteryCharging size={20} aria-hidden />,
         panel: powerPanel,
+      },
+      {
+        id: 'hops',
+        label: `${t('map_hops_label')}: ${hopsOptionLabel(maxHops)}`,
+        icon: <Waypoints size={20} aria-hidden />,
+        panel: hopsPanel,
       },
       {
         id: 'external',
@@ -2733,6 +2810,8 @@ export function MapView({
     heardFilter,
     hiddenRoles,
     hiddenPower,
+    maxHops,
+    setMaxHops,
     customSince,
     customUntil,
     showPackets,
