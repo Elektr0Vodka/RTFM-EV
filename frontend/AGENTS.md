@@ -150,6 +150,7 @@ frontend/src/
 │   ├── ChannelImportExportModal.tsx # Channel text-file export/import + Communities tab
 │   ├── CommunitiesPanel.tsx    # meshcore-open communities: join (paste JSON / camera / QR image), add hashtag, export JSON/QR
 │   ├── SearchView.tsx          # Full-text message search pane
+│   ├── MentionsView.tsx        # Tools > Mentions: every message that mentions you (#mentions)
 │   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
 │   ├── RawPacketList.tsx
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
@@ -848,6 +849,14 @@ The `SearchView` component (`components/SearchView.tsx`) provides full-text sear
 - **Jump-to-message**: `useConversationMessages` handles optional `targetMessageId` by calling `api.getMessagesAround()` instead of the normal latest-page fetch, loading context around the target message. `MessageList` resolves the target to an index and calls `virtualizer.scrollToIndex(...)`, then applies a `message-highlight` CSS animation. A pending target suppresses the bottom-pin (see Virtualization below), since the around-load clears the list first and would otherwise be yanked to the newest message.
 - **Bidirectional pagination**: After jumping mid-history, `hasNewerMessages` enables forward pagination via `fetchNewerMessages`. The scroll-to-bottom button calls `jumpToBottom` (re-fetches latest page) instead of just scrolling.
 - **WS message suppression**: When `hasNewerMessages` is true, incoming WS messages for the active conversation are not added to the message list (the user is viewing historical context, not the latest page).
+
+## Mentions page
+
+`MentionsView` (Tools > Mentions, `#mentions`, conversation type `mentions`, sidebar tool key `mentions`) lists `GET /messages/mentions` newest first, 50 per page with **Load more results** paging by `(received_at, id)`, and a refresh button. Each `@[name]` is marked; a click goes through the same `onNavigateToMessage` as a search result. It is rendered by `ConversationPane` (lazy) and reads again when the radio name changes. No radio name: a hint instead of the list.
+
+## Loading placeholders
+
+`components/ui/skeleton.tsx` has `Skeleton` (a pulsing block, `aria-hidden`), `MessageListSkeleton` (chat bubbles, used by `MessageList` while the first page loads) and `PaneSkeleton` (title bar and text blocks, used by `ConversationPane`'s `LoadingPane` for lazy views, the channel and contact info panes, `ContactInfoView`, and the search and settings fallbacks in `AppShell`). Both wrappers are `role="status"` with the old loading text as `sr-only` label, so screen readers and `getByText` still find it. Spinners stay for actions in progress and for loading older or newer messages.
 
 ## Multi-radio mode (`src/gateway/`)
 

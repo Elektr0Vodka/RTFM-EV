@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (Mentions page + loading placeholders, feat/mentions-inbox-loading-placeholders)
+
+No migration, no new dependency.
+
+### Messaging
+- **Mentions** (Tools > Mentions): every stored message that mentions you as
+  `@[your radio name]`, in channels and DMs, newest first, with the mention
+  marked. A click jumps to the message; older mentions load on request. It
+  leaves out what the chat hides (blocked senders, hidden bots, hop widths and
+  SFs, malformed and spam messages when hidden). New endpoint
+  `GET /api/messages/mentions`.
+
+### Interface
+- While messages, the contact and channel info panes, search, settings and
+  other pages load, pulsing placeholders shaped like the content replace the
+  "Loading..." text. The text stays available to screen readers.
+
 ## Update 2026-10-24 (send spacing, message ingest and privacy fixes, fix/send-pacing-ingest-privacy)
 
 Migration **_161** (`app_settings.send_gap_seconds`). No new dependency.

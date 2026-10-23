@@ -987,6 +987,18 @@ export const api = {
     }),
 
   // Messages
+  /** Incoming messages that mention the radio's name, newest first. */
+  getMentions: (
+    params?: { limit?: number; before?: number; before_id?: number },
+    signal?: AbortSignal
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.before !== undefined) searchParams.set('before', params.before.toString());
+    if (params?.before_id !== undefined) searchParams.set('before_id', params.before_id.toString());
+    const query = searchParams.toString();
+    return fetchJson<Message[]>(`/messages/mentions${query ? `?${query}` : ''}`, { signal });
+  },
   getMessages: (
     params?: {
       limit?: number;

@@ -1170,6 +1170,7 @@ type ConversationType =
   | 'map'
   | 'visualizer'
   | 'search'
+  | 'mentions'
   | 'trace'
   | 'channel-registry'
   | 'node'

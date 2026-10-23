@@ -456,6 +456,10 @@ Bouw een lus van repeaters en trace die terug naar je radio. Zoek repeaters op n
 
 Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `user:` of `channel:` om te verfijnen (zet namen met spaties tussen aanhalingstekens). `region:` filtert op de regio waarmee een bericht is verzonden: een regionaam, `region:none` voor berichten zonder regio, of `region:unknown` voor een regio die deze app niet kan benoemen. Klik op een resultaat om naar dat bericht te springen.
 
+### Vermeldingen
+
+Elk opgeslagen bericht waarin je wordt vermeld als `@[naam van je radio]`, in kanalen en DM's, nieuwste eerst. Wat de chat verbergt, blijft hier ook weg (geblokkeerde afzenders, bots als die verborgen zijn, verborgen hopbreedtes en SF's, misvormde en spamberichten als die verborgen zijn). Klik op een vermelding om ernaartoe te springen; **Meer resultaten laden** gaat verder terug en de vernieuwknop leest de lijst opnieuw.
+
 ### Channel Registry (Kanaalregister)
 
 Een lokale catalogus van bekende kanalen. Het is een naslaglijst, niet de lijst met kanalen die de app volgt. Je kunt items toevoegen, bewerken, filteren, importeren en exporteren, synchroniseren vanaf een externe lijst, en met **Aan kanalen toevoegen** een kanaal gaan volgen. Privé-items worden nooit geëxporteerd. In een kanaal opent het registerpictogram in de kop (of **Bewerken in Kanaalregister** in het kanaalinfopaneel) het item van dat kanaal direct in bewerkmodus; ontbreekt het, dan wordt het eerst toegevoegd.

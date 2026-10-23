@@ -688,6 +688,60 @@ class MessageRepository:
         )
 
     @staticmethod
+    async def get_mentions(
+        name: str,
+        *,
+        limit: int = 50,
+        before: int | None = None,
+        before_id: int | None = None,
+        blocked_keys: list[str] | None = None,
+        blocked_names: list[str] | None = None,
+        hidden_hop_widths: list[int] | None = None,
+        hidden_radio_sfs: list[int] | None = None,
+        hide_malformed: bool = False,
+        hide_spam: bool = False,
+    ) -> list[Message]:
+        """Incoming messages that mention ``name`` as ``@[name]``, newest first.
+
+        Uses the same match as the unread mention flag (case-insensitive, no
+        reactions) and leaves out what the chat hides (blocked senders, hidden
+        hop widths and SFs, malformed and spam when hidden, CLI traffic).
+        ``before``/``before_id`` page backwards.
+        """
+        token = f"@[{name}]"
+        query = (
+            f"SELECT {MessageRepository._message_select('m')} FROM messages m "
+            "WHERE m.outgoing = 0 AND INSTR(LOWER(m.text), LOWER(?)) > 0 "
+            "AND NOT is_reaction_text(m.text)"
+        )
+        params: list[Any] = [token]
+        blocked_clause, blocked_params = MessageRepository._build_blocked_incoming_clause(
+            "m", blocked_keys, blocked_names
+        )
+        if blocked_clause:
+            query += f" AND {blocked_clause}"
+            params.extend(blocked_params)
+        for clause in (
+            MessageRepository._build_hidden_hop_width_clause("m", hidden_hop_widths),
+            MessageRepository._build_hidden_radio_sf_clause("m", hidden_radio_sfs),
+            MessageRepository._build_hidden_malformed_clause("m", hide_malformed),
+            MessageRepository._build_hidden_spam_clause("m", hide_spam),
+            MessageRepository._build_cli_command_clause("m"),
+        ):
+            if clause:
+                query += f" AND {clause}"
+        if before is not None and before_id is not None:
+            query += " AND (m.received_at < ? OR (m.received_at = ? AND m.id < ?))"
+            params.extend([before, before, before_id])
+        query += " ORDER BY m.received_at DESC, m.id DESC LIMIT ?"
+        params.append(limit)
+
+        async with db.readonly() as conn:
+            async with conn.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+        return [MessageRepository._row_to_message(row) for row in rows]
+
+    @staticmethod
     async def get_all(
         limit: int = 100,
         offset: int = 0,

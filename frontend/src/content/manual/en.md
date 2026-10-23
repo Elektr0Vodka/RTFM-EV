@@ -456,6 +456,10 @@ Build a loop of repeaters and trace it back to your radio. Search repeaters by n
 
 Full-text search across direct and channel messages. Use `user:` or `channel:` to narrow results (put names with spaces in quotes). `region:` filters by the region a message was sent with: a region name, `region:none` for messages sent without a region, or `region:unknown` for a region this app cannot name. Click a result to jump to that message.
 
+### Mentions
+
+Every stored message that mentions you as `@[your radio name]`, in channels and DMs, newest first. It hides what the chat hides (blocked senders, bots when hidden, hidden hop widths and SFs, malformed and spam messages when hidden). Click a mention to jump to it; **Load more results** goes further back and the refresh button reads the list again.
+
 ### Channel Registry
 
 A local catalog of known channels. It is a reference list, not the channels the app monitors. You can add, edit, filter, import and export entries, sync from a remote list, and use **Add to Channels** to start monitoring one. Private entries are never exported. In a channel, the registry icon in the header (or **Edit in Channel Registry** in the channel info panel) opens that channel's entry straight in edit mode, adding it first if it is missing.

@@ -456,6 +456,10 @@ Baue eine Schleife aus Repeatern und verfolge sie zurück zu deinem Funkgerät. 
 
 Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenzt du die Ergebnisse ein (Namen mit Leerzeichen in Anführungszeichen setzen). `region:` filtert nach der Region, mit der eine Nachricht gesendet wurde: ein Regionsname, `region:none` für Nachrichten ohne Region oder `region:unknown` für eine Region, die diese App nicht benennen kann. Klicke auf ein Ergebnis, um zu dieser Nachricht zu springen.
 
+### Erwähnungen
+
+Jede gespeicherte Nachricht, die dich als `@[Name deines Funkgeräts]` erwähnt, in Kanälen und DMs, neueste zuerst. Was der Chat ausblendet, fehlt auch hier (blockierte Absender, Bots wenn ausgeblendet, ausgeblendete Hop-Breiten und SFs, fehlerhafte und Spam-Nachrichten wenn ausgeblendet). Klicke auf eine Erwähnung, um dorthin zu springen; **Weitere Ergebnisse laden** geht weiter zurück, die Aktualisieren-Schaltfläche liest die Liste neu.
+
 ### Channel Registry (Kanalregister)
 
 Ein lokaler Katalog bekannter Kanäle. Es ist eine Nachschlageliste, nicht die Liste der Kanäle, die die App beobachtet. Du kannst Einträge hinzufügen, bearbeiten, filtern, importieren und exportieren, von einer externen Liste synchronisieren und mit **Zu Kanälen hinzufügen** einen Kanal beobachten. Private Einträge werden nie exportiert. In einem Kanal öffnet das Register-Symbol in der Kopfzeile (oder **Im Kanalregister bearbeiten** im Kanal-Infobereich) den Eintrag dieses Kanals direkt im Bearbeitungsmodus; fehlt er, wird er zuerst hinzugefügt.

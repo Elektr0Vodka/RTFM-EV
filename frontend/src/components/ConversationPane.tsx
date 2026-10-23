@@ -40,6 +40,7 @@ import { useT } from '../i18n';
 import { isMeshcomodCommandContact, isRiskyMeshcomodCommand } from '../utils/meshcomodContact';
 import { useIsMobile } from '../map/controls/breakpoints';
 import type { SearchNavigateTarget } from './SearchView';
+import { PaneSkeleton } from './ui/skeleton';
 
 const RepeaterDashboard = lazy(() =>
   import('./RepeaterDashboard').then((m) => ({ default: m.RepeaterDashboard }))
@@ -58,6 +59,9 @@ const MeshTrendsView = lazy(() =>
 );
 const SpamGuardView = lazy(() =>
   import('./SpamGuardView').then((m) => ({ default: m.SpamGuardView }))
+);
+const MentionsView = lazy(() =>
+  import('./MentionsView').then((m) => ({ default: m.MentionsView }))
 );
 const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
 const PerformanceView = lazy(() =>
@@ -249,9 +253,7 @@ interface ConversationPaneProps {
 }
 
 function LoadingPane({ label }: { label: string }) {
-  return (
-    <div className="flex-1 flex items-center justify-center text-muted-foreground">{label}</div>
-  );
+  return <PaneSkeleton label={label} />;
 }
 
 function ContactResolutionBanner({ variant }: { variant: 'unknown-full-key' | 'prefix-only' }) {
@@ -666,6 +668,19 @@ export function ConversationPane({
 
   if (activeConversation.type === 'search') {
     return null;
+  }
+
+  if (activeConversation.type === 'mentions') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading')} />}>
+        <MentionsView
+          contacts={contacts}
+          channels={channels}
+          radioName={config?.name ?? null}
+          onNavigateToMessage={(target) => onNavigateToMessage?.(target)}
+        />
+      </Suspense>
+    );
   }
 
   if (activeConversation.type === 'trace') {

@@ -119,6 +119,41 @@ async def list_team_beacons(
     )
 
 
+@router.get("/mentions", response_model=list[Message])
+async def list_mentions(
+    limit: int = Query(default=50, ge=1, le=200),
+    before: int | None = Query(
+        default=None, description="Cursor: received_at of the last mention shown"
+    ),
+    before_id: int | None = Query(default=None, description="Cursor: id of the last mention shown"),
+) -> list[Message]:
+    """Incoming messages that mention the connected radio's name (``@[name]``), newest first.
+
+    The same match and the same hidden traffic as the unread mention flag. Empty
+    while no radio name is known.
+    """
+    from app.services.bot_lists import bot_lists
+
+    mc = radio_manager.meshcore
+    name = (mc.self_info.get("name") or None) if mc and mc.self_info else None
+    if not name:
+        return []
+    settings = await AppSettingsRepository.get()
+    blocked_keys, blocked_names = await bot_lists.hidden_senders(settings)
+    return await MessageRepository.get_mentions(
+        name,
+        limit=limit,
+        before=before,
+        before_id=before_id,
+        blocked_keys=blocked_keys,
+        blocked_names=blocked_names,
+        hidden_hop_widths=settings.hidden_hop_widths or None,
+        hidden_radio_sfs=settings.hidden_radio_sfs or None,
+        hide_malformed=settings.hide_malformed,
+        hide_spam=settings.hide_spam,
+    )
+
+
 @router.get("/{message_id}/reaction-target", response_model=ReactionTargetResponse)
 async def get_reaction_target(message_id: int) -> ReactionTargetResponse:
     """Resolve an emoji reaction to the message it reacts to.

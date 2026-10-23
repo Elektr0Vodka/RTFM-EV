@@ -20,6 +20,7 @@ import type {
   ContactGroup,
   PathHashWidthStats,
 } from '../types';
+import { PaneSkeleton } from './ui/skeleton';
 
 interface ChannelInfoPaneProps {
   channelKey: string | null;
@@ -115,9 +116,7 @@ export function ChannelInfoPane({
         </SheetHeader>
 
         {loading && !detail ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            {t('common_loading')}
-          </div>
+          <PaneSkeleton label={t('common_loading')} />
         ) : channel ? (
           <div className="flex-1 overflow-y-auto">
             {/* Header */}
