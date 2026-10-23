@@ -196,6 +196,8 @@ Erwähnt jemand deinen Namen in einem Kanal, den du gerade nicht offen hast, ers
 
 Die Glocke in der Chat-Kopfzeile öffnet die Benachrichtigungseinstellungen: Hinweise, solange der Tab offen ist, Web-Push-Benachrichtigungen bei geschlossenem Browser (braucht HTTPS), das Stummschalten des Erwähnungstons und **Kanal stummschalten**. **Nachrichten filtern** blendet Nachrichten nach Hop-Größe aus. Weitere Schaltflächen in der Kopfzeile sind unter anderem Favorit, eine Regions-Überschreibung, Pfaderkennung und Direct Trace.
 
+Unten im Infobereich eines Kanals sendet **Kanaldaten senden (Entwickler)** ein binäres Datagramm per Flood an den Kanal: einen Datentyp in Hex (0001-FFFF; FF00-FFFF sind zum Testen frei) und bis zu 165 Bytes Inhalt in Hex. Es geht sofort auf Sendung und wird nicht gespeichert.
+
 <!-- id: contacts-nodes -->
 
 ## Kontakte und Knoten
@@ -602,6 +604,8 @@ Wähle eine Datei oder drücke **Wiederherstellen** neben einer Datei unter **Si
 **Die Seite ist leer oder veraltet nach einem Update.** Der Server liefert das gebaute Frontend aus. Baue das Frontend nach dem Update neu und lade die Seite neu.
 
 **Nachrichten bleiben auf dem Funkgerät und erscheinen nie.** Starte den Server mit `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true`, das das Funkgerät alle 10 Sekunden abfragt.
+
+**"Einige Nachrichten fehlen möglicherweise" nach einer Neuverbindung.** Solange RTFM-EV nicht verbunden ist, behält das Funkgerät nur wenige Nachrichten (16 auf den meisten Boards) und verwirft die ältesten Kanalnachrichten zuerst. Die Warnung erscheint, wenn die Warteschlange des Funkgeräts beim Verbinden voll war, sodass Kanalnachrichten aus dieser Zeit verloren sein können. Bleib verbunden, um das zu vermeiden.
 
 **Warnung, dass die automatische DM-Bestätigung eventuell nicht für alle Kontakte funktioniert.** Die Kontakttabelle des Funkgeräts ist voll oder konnte nicht gelesen werden. Senden und Empfangen funktionieren weiterhin. Senke **Max. Kontakte auf dem Funkgerät**, oder leere die Kontakttabelle des Funkgeräts mit einem anderen MeshCore-Client und starte neu.
 

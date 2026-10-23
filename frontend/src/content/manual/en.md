@@ -196,6 +196,8 @@ When someone mentions your name in a channel you are not viewing, it appears in 
 
 The bell in the chat header opens notification settings: alerts while the tab is open, Web Push alerts when the browser is closed (needs HTTPS), muting the mention sound, and **Mute channel**. **Filter messages** hides messages by hop size. Other header controls include the favorite toggle, a region override, Path Discovery and Direct Trace.
 
+At the bottom of a channel's info panel, **Send channel data (developers)** floods a binary datagram to the channel: a data type in hex (0001-FFFF; FF00-FFFF are free for testing) and up to 165 bytes of hex payload. It goes on air at once and is not stored.
+
 <!-- id: contacts-nodes -->
 
 ## Contacts and nodes
@@ -602,6 +604,8 @@ Choose a file, or press **Restore** next to a file under **Backups on the server
 **The page is blank or old after an upgrade.** The server serves the built frontend. After updating, rebuild the frontend and refresh the page.
 
 **Messages stay on the radio and never appear.** Start the server with `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true`, which polls the radio every 10 seconds.
+
+**"Some messages may be missing" after a reconnect.** While RTFM-EV is not connected the radio keeps only a few messages (16 on most boards) and drops the oldest channel messages first. The warning shows when the radio's queue was full on connect, so channel messages heard in that time may be lost. Keep the app connected to avoid it.
 
 **Warning that automatic DM acknowledgement may not work for all contacts.** The radio contact table is full or could not be read. Sending and receiving still work. Lower **Max Contacts on Radio**, or clear the radio's contact table with another MeshCore client and restart.
 

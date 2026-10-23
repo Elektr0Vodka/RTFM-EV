@@ -11,6 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (channel data send + missing-messages notice, feat/channel-data-send-rx-gap-notice)
+
+No migration, no new dependency.
+
+### Messaging
+- **Send channel data (developers)** at the bottom of a channel's info panel:
+  floods a binary datagram (GRP_DATA) with a data type (hex, 0001-FFFF) and
+  up to 165 bytes of hex payload. New endpoint `POST /api/messages/channel-data`.
+  Transmits; nothing is stored.
+
+### Radio
+- **"Some messages may be missing"**: when the radio's message queue is full
+  as RTFM-EV connects (16 messages on most boards), a warning says that
+  channel messages heard while the app was not connected may be lost; the
+  radio drops the oldest channel messages first when its queue is full.
+
 ## Update 2026-10-24 (radio queue on the Performance page + metrics endpoint, feat/radio-queue-metrics-endpoint)
 
 No migration, no new dependency. New environment variable `MESHCORE_METRICS_ENABLED` (off).

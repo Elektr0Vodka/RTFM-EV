@@ -1315,6 +1315,18 @@ class SendChannelMessageRequest(SendMessageRequest):
     )
 
 
+class SendChannelDataRequest(BaseModel):
+    """Flood a binary datagram (GRP_DATA) to a channel."""
+
+    channel_key: str = Field(description="Channel key (32-char hex)")
+    data_type: int = Field(
+        ge=1,
+        le=0xFFFF,
+        description="Application id of the datagram; 0xFF00-0xFFFF are free for testing",
+    )
+    payload_hex: str = Field(description="Payload as hex, at most 165 bytes")
+
+
 class RepeaterLoginRequest(BaseModel):
     """Request to log in to a repeater."""
 

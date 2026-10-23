@@ -196,6 +196,8 @@ Als iemand je naam noemt in een kanaal dat je niet open hebt, verschijnt dat in 
 
 De bel in de chatkop opent de meldingsinstellingen: meldingen terwijl het tabblad open is, Web Push-meldingen als de browser gesloten is (vereist HTTPS), het vermeldingsgeluid dempen, en **Kanaal dempen**. **Berichten filteren** verbergt berichten op hopgrootte. Andere knoppen in de kop zijn onder meer favoriet maken, een regio-override, Padontdekking en Directe Trace.
 
+Onderaan het infopaneel van een kanaal verzendt **Kanaaldata verzenden (ontwikkelaars)** een binair datagram via flood naar het kanaal: een datatype in hex (0001-FFFF; FF00-FFFF zijn vrij om te testen) en tot 165 bytes inhoud in hex. Het gaat meteen de lucht in en wordt niet opgeslagen.
+
 <!-- id: contacts-nodes -->
 
 ## Contacten en nodes
@@ -602,6 +604,8 @@ Kies een bestand, of druk op **Herstellen** naast een bestand onder **Back-ups o
 **De pagina is leeg of verouderd na een update.** De server levert de gebouwde frontend. Bouw na het bijwerken de frontend opnieuw en ververs de pagina.
 
 **Berichten blijven op de radio staan en verschijnen nooit.** Start de server met `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true`, dat de radio elke 10 seconden bevraagt.
+
+**"Sommige berichten ontbreken mogelijk" na een herverbinding.** Zolang RTFM-EV niet verbonden is, bewaart de radio maar een paar berichten (16 op de meeste borden) en gooit hij de oudste kanaalberichten eerst weg. De waarschuwing verschijnt als de wachtrij van de radio vol was bij het verbinden, dus kanaalberichten uit die tijd kunnen verloren zijn. Houd de app verbonden om dat te voorkomen.
 
 **Waarschuwing dat automatisch bevestigen van DM's misschien niet voor alle contacten werkt.** De contactentabel van de radio is vol of kon niet gelezen worden. Versturen en ontvangen werken gewoon. Verlaag **Max Contacten op Radio**, of wis de contactentabel van de radio met een andere MeshCore-client en herstart.
 

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time as _time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import HTTPException
@@ -225,8 +225,12 @@ async def send_channel_message_with_effective_scope(
     error_broadcast_fn: BroadcastFn,
     flood_scope_override: str | _ScopeUnset = SCOPE_UNSET,
     app_settings_repository=AppSettingsRepository,
+    send_on_slot: Callable[[int], Awaitable[Any]] | None = None,
 ) -> Any:
     """Send a channel message, temporarily overriding flood scope and/or path hash mode.
+
+    ``send_on_slot`` replaces the text send with another send on the channel's
+    radio slot (channel data); ``text`` and ``timestamp_bytes`` are then unused.
 
     ``flood_scope_override`` lets a single send override the channel's persisted
     ``flood_scope_override``: pass a region name to scope this send, an empty
@@ -377,11 +381,14 @@ async def send_channel_message_with_effective_scope(
                 action_label,
             )
 
-        send_result = await mc.commands.send_chan_msg(
-            chan=channel_slot,
-            msg=text,
-            timestamp=timestamp_bytes,
-        )
+        if send_on_slot is not None:
+            send_result = await send_on_slot(channel_slot)
+        else:
+            send_result = await mc.commands.send_chan_msg(
+                chan=channel_slot,
+                msg=text,
+                timestamp=timestamp_bytes,
+            )
         if send_result is None:
             logger.warning(
                 "No response from radio after %s for channel %s; send outcome is unknown",
@@ -1236,6 +1243,83 @@ async def send_channel_message_to_channel(
         logger.error("Echo watchdog setup failed", exc_info=True)
 
     return outgoing_message
+
+
+# Companion command CMD_SEND_CHANNEL_DATA (firmware companion_radio/MyMesh.cpp):
+# [0x3E, channel_idx, path_len (0xFF = flood), data_type LE16, payload].
+CMD_SEND_CHANNEL_DATA = 0x3E
+# MAX_GROUP_DATA_LENGTH in MeshCore.h: the most the radio sends in one datagram.
+MAX_CHANNEL_DATA_BYTES = 165
+
+
+def channel_data_frame(channel_slot: int, data_type: int, payload: bytes) -> bytes:
+    """The companion frame that floods ``payload`` as a channel datagram."""
+    return (
+        bytes([CMD_SEND_CHANNEL_DATA, channel_slot, 0xFF])
+        + data_type.to_bytes(2, "little")
+        + payload
+    )
+
+
+async def send_channel_data_to_channel(
+    *,
+    channel,
+    channel_key_upper: str,
+    key_bytes: bytes,
+    data_type: int,
+    payload: bytes,
+    radio_manager,
+    error_broadcast_fn: BroadcastFn,
+    temp_radio_slot: int,
+) -> None:
+    """Flood a binary datagram (GRP_DATA) to a channel.
+
+    ``data_type`` is the application id (1-0xFFFF; 0 is reserved and refused by
+    the radio); 0xFF00-0xFFFF are free for testing. Nothing is stored: the
+    datagram shows up like any received channel data when it is heard back.
+    """
+    if not 1 <= data_type <= 0xFFFF:
+        raise HTTPException(status_code=422, detail="data_type must be between 1 and 65535")
+    if len(payload) > MAX_CHANNEL_DATA_BYTES:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Payload is too long: {len(payload)} bytes, "
+                f"the radio sends at most {MAX_CHANNEL_DATA_BYTES}."
+            ),
+        )
+
+    async with radio_manager.radio_operation("send_channel_data") as mc:
+
+        async def send_on_slot(slot: int) -> Any:
+            return await mc.commands.send(
+                channel_data_frame(slot, data_type, payload),
+                [EventType.OK, EventType.ERROR],
+            )
+
+        logger.info(
+            "Sending channel data to %s (type 0x%04X, %d bytes)",
+            channel.name,
+            data_type,
+            len(payload),
+        )
+        result = await send_channel_message_with_effective_scope(
+            mc=mc,
+            channel=channel,
+            channel_key=channel_key_upper,
+            key_bytes=key_bytes,
+            text="",
+            timestamp_bytes=b"",
+            action_label="sending channel data",
+            radio_manager=radio_manager,
+            temp_radio_slot=temp_radio_slot,
+            error_broadcast_fn=error_broadcast_fn,
+            send_on_slot=send_on_slot,
+        )
+    if result.type == EventType.ERROR:
+        raise HTTPException(
+            status_code=422, detail=f"The radio refused the channel data: {result.payload}"
+        )
 
 
 async def resend_channel_message_record(

@@ -999,6 +999,16 @@ export const api = {
     const query = searchParams.toString();
     return fetchJson<Message[]>(`/messages/mentions${query ? `?${query}` : ''}`, { signal });
   },
+  /** Flood a binary datagram (GRP_DATA) to a channel. Transmits on air. */
+  sendChannelData: (channelKey: string, dataType: number, payloadHex: string) =>
+    fetchJson<{ status: string; bytes: number }>('/messages/channel-data', {
+      method: 'POST',
+      body: JSON.stringify({
+        channel_key: channelKey,
+        data_type: dataType,
+        payload_hex: payloadHex,
+      }),
+    }),
   getMessages: (
     params?: {
       limit?: number;

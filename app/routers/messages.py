@@ -11,6 +11,7 @@ from app.models import (
     ReactRequest,
     ResendChannelMessageResponse,
     ResendDirectMessageResponse,
+    SendChannelDataRequest,
     SendChannelMessageRequest,
     SendDirectMessageRequest,
     SharedLocationsResponse,
@@ -32,6 +33,7 @@ from app.services.message_send import (
     SCOPE_UNSET,
     resend_channel_message_record,
     resend_direct_message_record,
+    send_channel_data_to_channel,
     send_channel_message_to_channel,
     send_direct_message_to_contact,
 )
@@ -486,6 +488,36 @@ async def send_channel_message(request: SendChannelMessageRequest) -> Message:
         flood_scope_override=flood_scope_override,
         message_repository=MessageRepository,
     )
+
+
+@router.post("/channel-data")
+async def send_channel_data(request: SendChannelDataRequest) -> dict:
+    """Flood a binary datagram to a channel (transmits on air)."""
+    radio_manager.require_connected()
+    from app.repository import ChannelRepository
+
+    db_channel = await ChannelRepository.get_by_key(request.channel_key)
+    if not db_channel:
+        raise HTTPException(
+            status_code=404, detail=f"Channel {request.channel_key} not found in database"
+        )
+    try:
+        key_bytes = bytes.fromhex(request.channel_key)
+        payload = bytes.fromhex(request.payload_hex.replace(" ", ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Channel key and payload must be hex") from None
+
+    await send_channel_data_to_channel(
+        channel=db_channel,
+        channel_key_upper=request.channel_key.upper(),
+        key_bytes=key_bytes,
+        data_type=request.data_type,
+        payload=payload,
+        radio_manager=radio_manager,
+        error_broadcast_fn=broadcast_error,
+        temp_radio_slot=TEMP_RADIO_SLOT,
+    )
+    return {"status": "ok", "bytes": len(payload)}
 
 
 RESEND_WINDOW_SECONDS = 30

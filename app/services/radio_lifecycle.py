@@ -39,6 +39,7 @@ async def run_post_connect_setup(radio_manager) -> None:
         start_telemetry_collect,
         sync_and_offload_all,
         sync_radio_time,
+        warn_if_offline_queue_overflowed,
     )
     from app.services.radio_identity import register_connected_radio
     from app.services.team_beacon_sender import start_team_beacon
@@ -321,6 +322,7 @@ async def run_post_connect_setup(radio_manager) -> None:
                     drained = await drain_pending_messages(mc)
                     if drained > 0:
                         logger.info("Drained %d pending message(s)", drained)
+                    warn_if_offline_queue_overflowed(drained)
                     radio_manager.clear_pending_message_channel_slots()
 
                 await mc.start_auto_message_fetching()

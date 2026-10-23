@@ -863,6 +863,10 @@ The `SearchView` component (`components/SearchView.tsx`) provides full-text sear
 
 `PerfRadio` (Performance > Radio link, and the Overview card) starts with `PerfRadioQueueNow`: `snap.radio.queue` (optional, `PerfRadioQueue`) as "Running: <operation> <time>" and "Waiting #n: <operation> <time>", or "Nothing is using the radio." Read-only. It refreshes with the snapshot poll.
 
+## Channel data (developers)
+
+`ChannelInfoPane` ends with `ChannelDataSendSection` (a closed `<details>`): data type (hex, default `FF00`) and payload (hex, spaces allowed), byte count against `MAX_CHANNEL_DATA_BYTES` (165, mirrors the backend), and **Send on air** (`api.sendChannelData`, `POST /messages/channel-data`). The button stays disabled for a payload that is empty, not hex or too long, and for data type 0. It transmits; nothing is stored.
+
 ## Multi-radio mode (`src/gateway/`)
 
 Only active behind the multi-radio gateway (backend `app/gateway/`, `MESHCORE_MULTI_RADIO=true`). In single-radio mode every helper here is a no-op and nothing renders.

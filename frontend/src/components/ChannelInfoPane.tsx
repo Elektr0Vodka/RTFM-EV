@@ -296,6 +296,8 @@ export function ChannelInfoPane({
                 </div>
               </div>
             )}
+
+            <ChannelDataSendSection t={t} channelKey={channel.key} />
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -304,6 +306,87 @@ export function ChannelInfoPane({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+// MAX_GROUP_DATA_LENGTH in MeshCore.h; mirrors MAX_CHANNEL_DATA_BYTES in the backend.
+const MAX_CHANNEL_DATA_BYTES = 165;
+
+function hexBytes(value: string): number | null {
+  const hex = value.replace(/\s+/g, '');
+  if (hex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(hex)) return null;
+  return hex.length / 2;
+}
+
+/** Developer tool: flood a binary datagram (GRP_DATA) to this channel. */
+function ChannelDataSendSection({ t, channelKey }: { t: TFn; channelKey: string }) {
+  const [dataType, setDataType] = useState('FF00');
+  const [payload, setPayload] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const typeValue = /^[0-9a-fA-F]{1,4}$/.test(dataType.trim())
+    ? Number.parseInt(dataType.trim(), 16)
+    : null;
+  const size = hexBytes(payload);
+  const typeError = typeValue === null || typeValue === 0;
+  const payloadError = size === null || size === 0 || size > MAX_CHANNEL_DATA_BYTES;
+
+  const send = async () => {
+    if (typeError || payloadError || typeValue === null) return;
+    setSending(true);
+    try {
+      const result = await api.sendChannelData(channelKey, typeValue, payload.replace(/\s+/g, ''));
+      toast.success(t('channel_data_sent', { bytes: result.bytes }));
+    } catch (err) {
+      toast.error(t('channel_data_send_failed'), {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <details className="px-5 py-3 border-t border-border">
+      <summary className="cursor-pointer text-sm font-medium">{t('channel_data_heading')}</summary>
+      <div className="mt-2 space-y-2">
+        <p className="text-xs text-muted-foreground">{t('channel_data_help')}</p>
+        <label className="block text-xs">
+          <span className="text-muted-foreground">{t('channel_data_type_label')}</span>
+          <input
+            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-sm"
+            value={dataType}
+            onChange={(e) => setDataType(e.target.value)}
+            aria-invalid={typeError}
+          />
+        </label>
+        <label className="block text-xs">
+          <span className="text-muted-foreground">{t('channel_data_payload_label')}</span>
+          <textarea
+            className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-sm"
+            rows={3}
+            value={payload}
+            onChange={(e) => setPayload(e.target.value)}
+            aria-invalid={payload !== '' && payloadError}
+          />
+        </label>
+        <p
+          className={`text-xs ${size !== null && size > MAX_CHANNEL_DATA_BYTES ? 'text-destructive' : 'text-muted-foreground'}`}
+        >
+          {size === null
+            ? t('channel_data_not_hex')
+            : t('channel_data_size', { size, max: MAX_CHANNEL_DATA_BYTES })}
+        </p>
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1 text-sm hover:bg-accent disabled:opacity-50"
+          disabled={sending || typeError || payloadError}
+          onClick={() => void send()}
+        >
+          {t('channel_data_send')}
+        </button>
+      </div>
+    </details>
   );
 }
 

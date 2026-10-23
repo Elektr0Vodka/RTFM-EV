@@ -199,6 +199,8 @@ limit up to 5000, for the zoomed-in radiation patterns); `GET /sites/{id}`
 11. Echo count and routes: `reconcile_duplicate_message` stores a repeat's route with `MessageRepository.add_path_if_new` (a route already stored is not added again and, for our own channel message, not counted as another echo; at most `MAX_STORED_PATHS` = 64 routes). GRP_DATA rows (`txt_type` group data) keep `add_path`, since each image chunk is recorded there.
 12. Logging: the channel send log line names the channel and the byte length only, never the text.
 
+Messages lost while disconnected: the startup drain (`drain_pending_messages`) returns how many queued messages it fetched. `radio_sync.warn_if_offline_queue_overflowed` shows "Some messages may be missing" when that reaches `RADIO_OFFLINE_QUEUE_SIZE` (16, the firmware's default `OFFLINE_QUEUE_SIZE`; boards may build with more): while the app is not connected the radio only queues, and a full queue drops the oldest channel message for each new one (`MyMesh::addToOfflineQueue`). A board with a larger queue can reach 16 without loss, hence "may".
+
 ### Connection lifecycle
 
 - `RadioManager.start_connection_monitor()` checks health every 5s.
@@ -867,6 +869,7 @@ Named groups of channels and contacts loaded onto the radio in one action (plan 
 - `POST /messages/channel` - same 422 when `"<radio name>: "` plus the text is over 160 bytes; the radio would cut it short without saying so. The composer blocks earlier, at 156
 - `POST /messages/direct/{message_id}/resend` - retry a failed DM as a new message and remove the failed row (see Outgoing messages)
 - `POST /messages/channel/{message_id}/resend`
+- `POST /messages/channel-data` `{channel_key, data_type, payload_hex}` - flood a binary datagram (GRP_DATA) to a channel. `send_channel_data_to_channel` validates `data_type` 1-0xFFFF and at most `MAX_CHANNEL_DATA_BYTES` (165, the firmware's `MAX_GROUP_DATA_LENGTH`), then reuses `send_channel_message_with_effective_scope` with `send_on_slot`, so slot loading, region and hop-width overrides apply as for text. The frame is the companion `CMD_SEND_CHANNEL_DATA` (0x3E): `[0x3E, slot, 0xFF (flood), data_type LE16, payload]`, sent with `mc.commands.send(..., [OK, ERROR])` (the library has no wrapper). Nothing is stored; a radio ERROR is a 422. Transmits
 - `GET /messages/{message_id}/reaction-target` - resolve an emoji reaction to the message it reacts to: same conversation, up to 7 days before (`app/reaction_payloads.py`). Dialects:
   - `@[Name]emoji\nhash` / `emoji\nhash`: SHA-256 of the target's body (without `Sender: `) + its sender timestamp (LE uint32), first 5 bytes as Crockford Base32. Checked against real traffic and a known-answer vector.
   - meshcore-open `r:<hash>:<index>`: Dart `String.hashCode & 0xFFFF` of `<ts><sender name><first 5 UTF-16 units of body>` (sender name left out for 1:1 DMs). Only 16 bits, so the newest match wins. The Dart hash is ported from the Dart SDK source; there is no real-traffic vector yet.
