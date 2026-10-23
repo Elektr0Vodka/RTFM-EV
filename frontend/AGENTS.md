@@ -859,6 +859,10 @@ The `SearchView` component (`components/SearchView.tsx`) provides full-text sear
 
 `components/ui/skeleton.tsx` has `Skeleton` (a pulsing block, `aria-hidden`), `MessageListSkeleton` (chat bubbles, used by `MessageList` while the first page loads) and `PaneSkeleton` (title bar and text blocks, used by `ConversationPane`'s `LoadingPane` for lazy views, the channel and contact info panes, `ContactInfoView`, and the search and settings fallbacks in `AppShell`). Both wrappers are `role="status"` with the old loading text as `sr-only` label, so screen readers and `getByText` still find it. Spinners stay for actions in progress and for loading older or newer messages.
 
+## Performance: radio queue now
+
+`PerfRadio` (Performance > Radio link, and the Overview card) starts with `PerfRadioQueueNow`: `snap.radio.queue` (optional, `PerfRadioQueue`) as "Running: <operation> <time>" and "Waiting #n: <operation> <time>", or "Nothing is using the radio." Read-only. It refreshes with the snapshot poll.
+
 ## Multi-radio mode (`src/gateway/`)
 
 Only active behind the multi-radio gateway (backend `app/gateway/`, `MESHCORE_MULTI_RADIO=true`). In single-radio mode every helper here is a no-op and nothing renders.

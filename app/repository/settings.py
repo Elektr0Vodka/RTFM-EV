@@ -1510,6 +1510,33 @@ class AppSettingsRepository:
 
 class StatisticsRepository:
     @staticmethod
+    async def get_stored_counts() -> dict:
+        """Row counts for the metrics endpoint.
+
+        ``contacts`` maps contact type to a count and ``messages`` maps
+        ``CHAN``/``PRIV`` to a count; ``channels`` and ``raw_packets`` are totals.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT type, COUNT(*) AS n FROM contacts GROUP BY type"
+            ) as cur:
+                contacts = {row["type"]: row["n"] for row in await cur.fetchall()}
+            async with conn.execute(
+                "SELECT type, COUNT(*) AS n FROM messages GROUP BY type"
+            ) as cur:
+                messages = {row["type"]: row["n"] for row in await cur.fetchall()}
+            async with conn.execute("SELECT COUNT(*) AS n FROM channels") as cur:
+                channels_row = await cur.fetchone()
+            async with conn.execute("SELECT COUNT(*) AS n FROM raw_packets") as cur:
+                packets_row = await cur.fetchone()
+        return {
+            "contacts": contacts,
+            "messages": messages,
+            "channels": channels_row["n"] if channels_row else 0,
+            "raw_packets": packets_row["n"] if packets_row else 0,
+        }
+
+    @staticmethod
     async def get_database_message_totals() -> dict[str, int]:
         """Return message totals needed by lightweight debug surfaces."""
         async with db.readonly() as conn:

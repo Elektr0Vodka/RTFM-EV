@@ -328,7 +328,7 @@ Wat RTFM-EV zelf doet. **Overzicht** toont de algemene status (met de reden als 
 - **Achtergrondtaken:** elke doorlopende lus met status (gezond, bezig, te laat, inactief, mislukt), interval, laatste run, duur en een strook van 24 uur, plus alle asyncio-taken van dit moment.
 - **Pakketverwerking:** pakketten per minuut en de tijd per stap (ontleden, opslaan, verwerken, uitzenden), met dubbele, ontsleutelde en niet te ontsleutelen pakketten.
 - **Database:** grootte van het bestand en de WAL, bezette lezers, wachttijd op het slot en de traagste database-aanroepen van het laatste uur.
-- **Radioverbinding:** hoe lang radio-operaties de radio bezet houden, fouten, herverbindingen en de traagste operaties.
+- **Radioverbinding:** wat de radio nu gebruikt en wat erop wacht (en hoe lang), hoe lang radio-operaties de radio bezet houden, fouten, herverbindingen en de traagste operaties.
 - **Uitvoer:** MQTT en de andere fanout-modules, WebSocket-clients, TAK Stream en webpush.
 - **Verzoeken:** de drukste API-routes met hun tijden en serverfouten.
 - **Logs:** de laatste waarschuwingen en fouten uit de backend-log.

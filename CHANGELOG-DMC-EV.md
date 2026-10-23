@@ -11,6 +11,21 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (radio queue on the Performance page + metrics endpoint, feat/radio-queue-metrics-endpoint)
+
+No migration, no new dependency. New environment variable `MESHCORE_METRICS_ENABLED` (off).
+
+### Performance
+- **Radio queue now** (Performance > Radio link and the Overview card): which
+  operation holds the radio right now and which ones wait for it, with how
+  long. Read-only.
+
+### Integrations
+- **Metrics endpoint**: with `MESHCORE_METRICS_ENABLED=true`,
+  `GET /api/metrics` serves Prometheus text: the radio and its queue, stored
+  counts, the newest telemetry of every tracked node with its LPP sensors, and
+  MQTT counters. Off by default (404).
+
 ## Update 2026-10-24 (Community MQTT: payload type filter, offline queue, broker refusals, feat/community-mqtt-queue-filters)
 
 No migration, no new dependency. New keys in the community MQTT fanout config.

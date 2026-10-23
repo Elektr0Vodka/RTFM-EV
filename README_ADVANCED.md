@@ -17,6 +17,7 @@ These are intended for diagnosing or working around radios that behave oddly, or
 | `MESHCORE_TAK_STREAM_ENABLED` | false | Serve a plaintext CoT feed for ATAK / WinTAK ([docs](#tak-stream-atak--wintak)) |
 | `MESHCORE_TAK_STREAM_HOST` | 0.0.0.0 | Address the TAK Stream listens on |
 | `MESHCORE_TAK_STREAM_PORT` | 8088 | TCP port of the TAK Stream |
+| `MESHCORE_METRICS_ENABLED` | false | Serve `GET /api/metrics` in the Prometheus text format: the radio and its queue, stored counts, the newest telemetry of every tracked node (with LPP sensors) and MQTT counters. See "Metrics endpoint" below. |
 | `MESHCORE_FLEET_VAULT_ENABLED` | false | Switch on the fleet key vault: private keys and passwords of fleet assets, stored encrypted under a passphrase you set. See "Fleet key vault" below before you enable it. |
 
 By default the app relies on radio events plus MeshCore auto-fetch for incoming messages, and also runs a low-frequency hourly audit poll. That audit checks both:
@@ -43,6 +44,17 @@ If room sends appear to be using the wrong channel slot or another client is cha
 `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true` enables `GET /api/radio/private-key`, which returns the in-memory private key as hex for backup or migration. The key is held in memory only (exported from the radio on connect) and is never persisted to disk. Only enable this on a trusted network when you need to retrieve the key.
 
 Import via `PUT /api/radio/private-key` is always available regardless of this setting - it is write-only and does not expose key material.
+
+### Metrics endpoint
+
+`MESHCORE_METRICS_ENABLED=true` serves `GET /api/metrics` for Prometheus (scrape it with `metrics_path: /api/metrics`). Without it the endpoint answers 404. It reads only what the app already has in memory and in its database; nothing goes over the air.
+
+- `rtfm_radio_*`: whether a radio is connected, whether an operation holds the radio and how many wait, and the radio's own battery, noise floor, uptime, last RSSI/SNR, airtime and packet counters.
+- `rtfm_contacts{type}`, `rtfm_channels`, `rtfm_messages{type}`, `rtfm_raw_packets`: what is stored.
+- `rtfm_node_*{public_key,name}`: the newest telemetry of every tracked node (battery, noise floor, last RSSI/SNR, uptime, queue, packet and airtime counters, receive errors, age of the reading) and `rtfm_node_sensor{...,channel,sensor}` for each LPP sensor.
+- `rtfm_mqtt_*{name,type}`: connected, published, failed and reconnects per MQTT integration.
+
+Node names and public keys are labels. Keep the endpoint on a trusted network, or set `MESHCORE_BASIC_AUTH_USERNAME`/`MESHCORE_BASIC_AUTH_PASSWORD`, which also cover it.
 
 ### Fleet key vault
 

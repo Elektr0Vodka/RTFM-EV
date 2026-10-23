@@ -328,7 +328,7 @@ Was RTFM-EV selbst tut. **Übersicht** zeigt den Gesamtzustand (mit dem Grund, w
 - **Hintergrundaufgaben:** jede dauerhaft laufende Schleife mit Status (in Ordnung, läuft, überfällig, inaktiv, fehlgeschlagen), Intervall, letztem Lauf, Dauer und einem 24-Stunden-Streifen, dazu alle aktuellen Asyncio-Tasks.
 - **Paketverarbeitung:** Pakete pro Minute und die Zeit je Schritt (Parsen, Speichern, Verarbeiten, Verteilen), mit Duplikaten, entschlüsselten und nicht entschlüsselbaren Paketen.
 - **Datenbank:** Größe von Datei und WAL, belegte Leser, Wartezeit auf die Sperre und die langsamsten Datenbankaufrufe der letzten Stunde.
-- **Funkverbindung:** wie lange Funkoperationen das Funkgerät belegen, Fehler, Neuverbindungen und die langsamsten Operationen.
+- **Funkverbindung:** was das Funkgerät gerade nutzt und was darauf wartet (und wie lange), wie lange Funkoperationen das Funkgerät belegen, Fehler, Neuverbindungen und die langsamsten Operationen.
 - **Ausgaben:** MQTT und die anderen Fanout-Module, WebSocket-Clients, TAK Stream und Web-Push.
 - **Anfragen:** die meistgenutzten API-Routen mit ihren Zeiten und Serverfehlern.
 - **Logs:** die letzten Warnungen und Fehler aus dem Backend-Log.

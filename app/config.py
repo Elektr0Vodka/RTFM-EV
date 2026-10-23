@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     )
     enable_local_private_key_export: bool = False
     fleet_vault_enabled: bool = False
+    # GET /api/metrics (Prometheus text). Off: the endpoint answers 404.
+    metrics_enabled: bool = False
     load_with_autoevict: bool = False
     skip_post_connect_sync: bool = False
     basic_auth_username: str = ""

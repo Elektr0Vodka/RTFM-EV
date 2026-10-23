@@ -480,7 +480,8 @@ The Performance page reads the backend's own state. Everything is in memory and 
   - `radio_identity`: the active (most recently connected) radio `{id, public_key, name, status, pending_reason, owned_keys}` or null. `status: "pending"` drives the connect-time prompt; `owned_keys` (the radio plus predecessors linked with `carry_owned`) drive the sidebar Owned section.
 
 ### Performance
-- `GET /perf/snapshot`: `{generated_at, health, process, latest, loop, tasks, asyncio_tasks, pipeline, database, radio, outputs, routes, logs}`.
+- `GET /perf/snapshot`: `{generated_at, health, process, latest, loop, tasks, asyncio_tasks, pipeline, database, radio, outputs, routes, logs}`. `radio.queue` is the live radio lock: `{holder: {name, held_ms} | null, waiting: [{name, waited_ms}]}` (`RadioManager.operation_queue`; `_acquire_operation_lock` records a blocking waiter until it gets the lock or is cancelled, the holder is set on acquire and cleared in `_release_operation_lock`). Read-only: nothing can be cancelled from it.
+- `GET /metrics` (`routers/metrics.py`, `services/metrics_export.py`): Prometheus text 0.0.4, 404 unless `MESHCORE_METRICS_ENABLED`. Sections are independent (one failing is logged and left out). Stored counts come from `StatisticsRepository.get_stored_counts`, node rows from `RepeaterTelemetryRepository.get_latest_all` (names from contacts), the radio from `get_latest_radio_stats` and `operation_queue`, MQTT from `fanout_manager.get_mqtt_stats`. Values that are not finite numbers are skipped; label values are escaped.
 - `GET /perf/history?range=live|15m|1h|6h|24h|7d|30d`: `{range, step_s, points}`. Up to `1h` from the 10 s ring; longer ranges from `perf_samples`, bucketed to at most 720 points (`avg` for cpu / lag p50 / pkts, `max` for the p95s, rss and tasks, `sum` for stalls and warnings). Unknown range: 422.
 
 ### Radio identities (plan 18)

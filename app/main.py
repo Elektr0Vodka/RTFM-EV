@@ -87,6 +87,7 @@ from app.routers import (
     lan_discovery,
     links,
     messages,
+    metrics,
     openhop,
     packets,
     partial_resolution,
@@ -386,6 +387,7 @@ app.include_router(backup.router, prefix="/api")
 app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(perf.router, prefix="/api")
+app.include_router(metrics.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
 app.include_router(companion_filter.router, prefix="/api")

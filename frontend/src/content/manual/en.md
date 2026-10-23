@@ -328,7 +328,7 @@ What RTFM-EV itself is doing. **Overview** shows the overall state (with the rea
 - **Background tasks:** every long-running loop with its state (healthy, running, overdue, idle, failed), interval, last run, duration and a 24-hour strip, plus all asyncio tasks right now.
 - **Packet pipeline:** packets per minute and the time each step takes (parse, store, process, broadcast), with duplicates, decrypted and undecryptable packets.
 - **Database:** file and WAL size, readers busy, lock waits and the slowest database calls of the last hour.
-- **Radio link:** how long radio operations hold the radio, errors, reconnects and the slowest operations.
+- **Radio link:** what holds the radio right now and what waits for it (with how long), how long radio operations hold the radio, errors, reconnects and the slowest operations.
 - **Outputs:** MQTT and the other fanout modules, WebSocket clients, TAK Stream and web push.
 - **Requests:** the busiest API routes with their timings and server errors.
 - **Logs:** the latest warnings and errors from the backend log.
