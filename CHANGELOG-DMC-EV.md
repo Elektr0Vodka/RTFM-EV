@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (companion bridge for MeshCore apps, feat/companion-bridge)
+
+No migration, no new dependency. New environment variables
+`MESHCORE_COMPANION_BRIDGE_ENABLED` (off), `_HOST` (127.0.0.1), `_PORT` (5000),
+`_ALLOW_SEND` (true), `_MAX_CONTACTS` (500).
+
+### Integrations
+- **Companion bridge**: the MeshCore app (or another companion protocol
+  client) connects to RTFM-EV over TCP as if it were a WiFi companion radio.
+  It gets the radio's identity, RTFM-EV's contacts and channels and the
+  messages RTFM-EV receives, and its direct and channel messages go out
+  through RTFM-EV (a delivered DM is confirmed back to the app). Changing
+  radio settings, channels or contacts, keys, reboot, adverts, logins,
+  telemetry and CLI are refused. Off by default; listens on 127.0.0.1:5000
+  unless set otherwise. No password: trusted networks only. Status in
+  Settings > Radio-App Management.
+
 ## Update 2026-10-24 (channel data send + missing-messages notice, feat/channel-data-send-rx-gap-notice)
 
 No migration, no new dependency.

@@ -161,6 +161,7 @@ import type {
   TrackersResponse,
   TrackerSource,
   TakStreamStatusResponse,
+  CompanionBridgeStatusResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -1116,6 +1117,8 @@ export const api = {
     const query = qs.toString();
     return fetchJson<TrackersResponse>(`/trackers${query ? `?${query}` : ''}`, { signal });
   },
+  getCompanionBridgeStatus: (signal?: AbortSignal) =>
+    fetchJson<CompanionBridgeStatusResponse>('/companion-bridge/status', { signal }),
   getTakStreamStatus: (signal?: AbortSignal) =>
     fetchJson<TakStreamStatusResponse>('/tak-stream/status', { signal }),
   getMessagesAround: (

@@ -1119,6 +1119,15 @@ export interface TrackerObject {
   received_at: number;
 }
 
+/** GET /companion-bridge/status: companion apps connected over TCP (env-switched). */
+export interface CompanionBridgeStatusResponse {
+  enabled: boolean;
+  host: string | null;
+  port: number | null;
+  allow_send: boolean;
+  clients: { address: string; app_name: string; connected_at: number }[];
+}
+
 /** GET /tak-stream/status: the env-switched CoT feed for ATAK / WinTAK. */
 export interface TakStreamStatusResponse {
   enabled: boolean;

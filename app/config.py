@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     tak_stream_enabled: bool = False
     tak_stream_host: str = "0.0.0.0"
     tak_stream_port: int = 8088
+    # Companion bridge (env only): a MeshCore companion app connects over TCP as
+    # if RTFM-EV were a WiFi companion radio. No authentication: trusted networks.
+    companion_bridge_enabled: bool = False
+    companion_bridge_host: str = "127.0.0.1"
+    companion_bridge_port: int = 5000
+    companion_bridge_allow_send: bool = True
+    companion_bridge_max_contacts: int = 500
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":

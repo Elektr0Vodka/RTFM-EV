@@ -54,7 +54,15 @@ def free_port() -> int:
 # Not passed from the gateway to its workers, but a radio may set them in its
 # own env: the TAK Stream binds one TCP port, so every worker would fight over it.
 NOT_INHERITED_ENV = frozenset(
-    {"MESHCORE_TAK_STREAM_ENABLED", "MESHCORE_TAK_STREAM_HOST", "MESHCORE_TAK_STREAM_PORT"}
+    {
+        "MESHCORE_TAK_STREAM_ENABLED",
+        "MESHCORE_TAK_STREAM_HOST",
+        "MESHCORE_TAK_STREAM_PORT",
+        # Each radio's bridge needs its own port, like the TAK Stream.
+        "MESHCORE_COMPANION_BRIDGE_ENABLED",
+        "MESHCORE_COMPANION_BRIDGE_HOST",
+        "MESHCORE_COMPANION_BRIDGE_PORT",
+    }
 )
 
 

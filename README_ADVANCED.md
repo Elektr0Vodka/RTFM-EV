@@ -14,6 +14,11 @@ These are intended for diagnosing or working around radios that behave oddly, or
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | false | Enable autoevict mode for contact loading ([docs](#autoevict-mode)) |
 | `__CLOWNTOWN_DO_CLOCK_WRAPAROUND` | false | Highly experimental: if the radio clock is ahead of system time, try forcing the clock to `0xFFFFFFFF`, wait for uint32 wraparound, and then retry normal time sync before falling back to reboot ([docs](#clock-wraparound)) |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | false | Enable `GET /api/radio/private-key` to return the in-memory private key as hex for backup or migration. Only enable on a trusted network. Import via `PUT /api/radio/private-key` is always available. ([docs](#private-key-export)) |
+| `MESHCORE_COMPANION_BRIDGE_ENABLED` | false | Let a MeshCore companion app connect to RTFM-EV over TCP ([docs](#companion-bridge-meshcore-apps)) |
+| `MESHCORE_COMPANION_BRIDGE_HOST` | 127.0.0.1 | Address the companion bridge listens on (`0.0.0.0` for the LAN) |
+| `MESHCORE_COMPANION_BRIDGE_PORT` | 5000 | TCP port of the companion bridge |
+| `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND` | true | `false`: apps can read but not send through the bridge |
+| `MESHCORE_COMPANION_BRIDGE_MAX_CONTACTS` | 500 | Most contacts handed to an app (favorites first, then the most recently heard) |
 | `MESHCORE_TAK_STREAM_ENABLED` | false | Serve a plaintext CoT feed for ATAK / WinTAK ([docs](#tak-stream-atak--wintak)) |
 | `MESHCORE_TAK_STREAM_HOST` | 0.0.0.0 | Address the TAK Stream listens on |
 | `MESHCORE_TAK_STREAM_PORT` | 8088 | TCP port of the TAK Stream |
@@ -317,7 +322,7 @@ Each workspace lives at `/r/<key>/`, where `<key>` is the first 12 characters of
 - **Backups.** Each radio has its own database and its own backup settings. Give every radio its own backup folder: automatic backups from two radios use the same file names, and each radio's rotation would delete the other's files in a shared folder. A restore is applied when that radio restarts; use **Restart** on the radios page.
 - **Integrations.** MQTT, Home Assistant, webhooks and Apprise are configured in each workspace. See `README_HA.md` for how Home Assistant ids are built.
 - **Basic auth** is set once (`MESHCORE_BASIC_AUTH_USERNAME` / `MESHCORE_BASIC_AUTH_PASSWORD`) and protects the radios page and every workspace.
-- **Other `MESHCORE_*` variables** apply to every radio, except `MESHCORE_TAK_STREAM_*` ([TAK Stream](#tak-stream-atak--wintak)). A radio can override one through `env` in `data/radios.json` (the transport, database path, Basic auth and the switch itself cannot be overridden there).
+- **Other `MESHCORE_*` variables** apply to every radio, except `MESHCORE_TAK_STREAM_*` ([TAK Stream](#tak-stream-atak--wintak)) and `MESHCORE_COMPANION_BRIDGE_ENABLED` / `_HOST` / `_PORT` ([Companion bridge](#companion-bridge-meshcore-apps)). A radio can override one through `env` in `data/radios.json` (the transport, database path, Basic auth and the switch itself cannot be overridden there).
 
 ### Where the data lives
 
@@ -421,6 +426,34 @@ What differs from a firmware node:
 | Network | WiFi RSSI is always `-127` |
 
 SNMPv2c is not encrypted and the community is the only check. Anyone who can reach the port and knows the community can read these values, so set your own community and do not expose the port to the internet.
+
+## Companion bridge (MeshCore apps)
+
+With `MESHCORE_COMPANION_BRIDGE_ENABLED=true` RTFM-EV acts as a WiFi companion radio for the MeshCore app (or any other client of the companion protocol). The app connects to RTFM-EV over TCP instead of to the radio, so the radio keeps a single owner and you can chat from your phone while RTFM-EV stays connected.
+
+What the app gets:
+
+- Your radio's name, key, location and radio settings, as if it were connected to the radio.
+- RTFM-EV's contacts (favorites first, then the most recently heard, up to `MESHCORE_COMPANION_BRIDGE_MAX_CONTACTS`) and channels (Public first, then favorites, then by name, up to 40). The channel numbers are fixed while the app stays connected.
+- The direct and channel messages RTFM-EV receives while the app is connected (up to 256 waiting per app).
+- Sending: direct and channel messages go out through RTFM-EV's normal send path, so they show in RTFM-EV too; a delivered DM is confirmed back to the app.
+
+What it does not get: changing radio settings, channels or contacts, exporting or importing keys, reboot or factory reset, adverts, logins, telemetry and CLI commands are all refused (the app gets an "unsupported" answer). Set `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND=false` to make it read-only.
+
+The bridge listens on `127.0.0.1:5000` by default, so only the same machine can connect. For a phone on your network, set `MESHCORE_COMPANION_BRIDGE_HOST=0.0.0.0` and publish the port:
+
+```yaml
+ports:
+  - "8000:8000"
+  - "5000:5000"
+environment:
+  MESHCORE_COMPANION_BRIDGE_ENABLED: "true"
+  MESHCORE_COMPANION_BRIDGE_HOST: "0.0.0.0"
+```
+
+Then, in the MeshCore app, connect over TCP / WiFi to the RTFM-EV host and port 5000. **Settings > Radio-App Management > Companion bridge** shows whether it runs and which apps are connected.
+
+Like the firmware's own TCP interface, the bridge has no password and no encryption, and whoever connects can send messages through your radio. Keep it on a trusted network and never expose the port to the internet. At most 4 apps can connect at once. With `MESHCORE_MULTI_RADIO`, `MESHCORE_COMPANION_BRIDGE_ENABLED`, `_HOST` and `_PORT` are not passed on to the radios; set them in a radio's `env` in `data/radios.json`, with its own port.
 
 ## TAK Stream (ATAK / WinTAK)
 

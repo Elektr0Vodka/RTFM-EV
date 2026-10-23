@@ -603,6 +603,7 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_METRICS_ENABLED` | `false` | Serve `GET /api/metrics` (Prometheus text format 0.0.4: radio and radio queue, stored counts, tracked node telemetry with LPP sensors, MQTT counters). Off: 404 |
 | `MESHCORE_FLEET_VAULT_ENABLED` | `false` | Switch on the fleet key vault (Tools > Fleet): private keys and passwords of fleet assets, stored encrypted under a passphrase. Off by default; use it only over HTTPS on a trusted network. A forgotten passphrase cannot be recovered |
 | `MESHCORE_UPDATE_CHECK_ENABLED` | `true` | Check GitHub for a newer fork build and show the in-app update indicator (Settings > About also has a manual re-check). Set `false` to disable the outbound request. |
+| `MESHCORE_COMPANION_BRIDGE_ENABLED` | `false` | Companion bridge: MeshCore companion apps connect over TCP (`app/companion_bridge/`). `_HOST` (`127.0.0.1`), `_PORT` (`5000`), `_ALLOW_SEND` (`true`), `_MAX_CONTACTS` (`500`) |
 | `MESHCORE_MULTI_RADIO` | `false` | Run one worker process per radio behind a gateway (experimental); start `app.asgi:app`. See README_ADVANCED.md, Multiple Radios |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service (APNs) rejects the default `.local` domain with `403 BadJwtToken`, so iOS/Safari operators must set this to a real address. Google FCM (Chrome/Android) accepts the default. |
 

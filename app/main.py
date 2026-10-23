@@ -71,6 +71,7 @@ from app.routers import (
     channel_sets,
     channels,
     communities,
+    companion_bridge,
     companion_filter,
     contacts,
     debug,
@@ -286,11 +287,26 @@ async def lifespan(app: FastAPI):
         except OSError:
             logger.exception("Could not start the TAK Stream")
 
+    # Companion bridge (env only): companion apps connect to RTFM-EV over TCP.
+    from app.companion_bridge.server import companion_bridge as bridge_server
+
+    if server_settings.companion_bridge_enabled:
+        try:
+            await bridge_server.start(
+                server_settings.companion_bridge_host,
+                server_settings.companion_bridge_port,
+                allow_send=server_settings.companion_bridge_allow_send,
+                max_contacts=server_settings.companion_bridge_max_contacts,
+            )
+        except OSError:
+            logger.exception("Could not start the companion bridge")
+
     startup_radio_task = asyncio.create_task(_startup_radio_connect_and_setup())
     app.state.startup_radio_task = startup_radio_task
 
     yield
 
+    await bridge_server.stop()
     await tak_stream_server.stop()
 
     logger.info("Shutting down")
@@ -388,6 +404,7 @@ app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(perf.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
+app.include_router(companion_bridge.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
 app.include_router(companion_filter.router, prefix="/api")
