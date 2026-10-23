@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (Community MQTT: payload type filter, offline queue, broker refusals, feat/community-mqtt-queue-filters)
+
+No migration, no new dependency. New keys in the community MQTT fanout config.
+
+### Integrations
+- **Payload types to publish**: tick the MeshCore payload types that go to
+  the broker's packets topic; none ticked keeps sending every type.
+- **Keep packets while the broker cannot be reached** (on by default, up to
+  500, adjustable to 5000): packets heard while disconnected wait in memory
+  and are sent oldest first once the connection is back. When the queue is
+  full the oldest are dropped. The MQTT broker table in Mesh Trends shows how
+  many wait and how many were dropped.
+- Community MQTT packets carry the time they were heard, not the time they
+  were published.
+- **Show the broker's refusal messages** (off by default): subscribes to
+  this node's `.../error` topic and shows a refusal as the integration's
+  error, for brokers that publish one.
+
 ## Update 2026-10-24 (Mentions page + loading placeholders, feat/mentions-inbox-loading-placeholders)
 
 No migration, no new dependency.

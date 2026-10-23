@@ -2935,6 +2935,10 @@ export interface MqttBrokerStats {
   messages_published: number;
   publish_failures: number;
   reconnects: number;
+  /** Packets waiting while the broker cannot be reached (community MQTT). */
+  queued?: number;
+  /** Waiting packets dropped because the queue was full. */
+  queue_dropped?: number;
 }
 
 export interface StatisticsResponse {

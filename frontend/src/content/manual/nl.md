@@ -556,7 +556,7 @@ Versie, links naar de changelog en het melden van bugs, een updatecontrole, en *
 Open **Instellingen > MQTT en automatisering** en kies **Integratie toevoegen**. Soorten:
 
 - **Privé-MQTT:** berichten doorsturen naar je eigen broker, ruw en/of ontsleuteld. Ontsleutelde berichten gaan als platte tekst, dus gebruik een broker die je vertrouwt.
-- **Community MQTT/meshcoretomqtt:** een feed van ruwe pakketten voor community-aggregators, zodat je radio als observer kan dienen. Regionale voorinstellingen zijn ingebouwd.
+- **Community MQTT/meshcoretomqtt:** een feed van ruwe pakketten voor community-aggregators, zodat je radio als observer kan dienen. Regionale voorinstellingen zijn ingebouwd. Onder **Pakketten publiceren** kun je de payloadtypes aanvinken die verzonden worden (niets aangevinkt verzendt alles). Pakketten die binnenkomen terwijl de broker onbereikbaar is, worden bewaard (tot het ingestelde aantal, standaard 500) en met de tijd waarop ze zijn gehoord verzonden zodra de verbinding terug is. **Weigeringen van de broker tonen** leest het foutentopic van je node, voor brokers die er een publiceren.
 - **Home Assistant MQTT Discovery:** apparaten en entiteiten verschijnen automatisch in Home Assistant: een apparaat voor de lokale radio, een berichtgebeurtenis, telemetriesensoren voor gevolgde repeaters en GPS-trackers voor gekozen contacten. Repeaters moeten eerst gevolgd worden voor telemetrie voordat ze in de keuzelijst verschijnen.
 - **Webhook:** ontsleutelde berichten naar een URL, optioneel ondertekend.
 - **Apprise:** stuurt berichten door naar Discord, Telegram, e-mail en vele andere diensten.

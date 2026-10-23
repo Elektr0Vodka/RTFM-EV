@@ -541,6 +541,14 @@ export function MeshTrendsHistoricalPanel({ className }: { className?: string })
                                   {t('settings_statistics_mqtt_last_error')}: {b.last_error}
                                 </div>
                               )}
+                              {((b.queued ?? 0) > 0 || (b.queue_dropped ?? 0) > 0) && (
+                                <div className="text-xs text-muted-foreground">
+                                  {t('settings_statistics_mqtt_queue', {
+                                    queued: b.queued ?? 0,
+                                    dropped: b.queue_dropped ?? 0,
+                                  })}
+                                </div>
+                              )}
                             </td>
                             <td className="text-right py-1">{b.messages_published}</td>
                             <td className="text-right py-1">{b.publish_failures}</td>

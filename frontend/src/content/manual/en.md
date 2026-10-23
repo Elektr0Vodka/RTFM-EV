@@ -556,7 +556,7 @@ Version, links to the changelog and bug reports, an update check, and **Open deb
 Open **Settings > MQTT & Automation** and choose **Add Integration**. Types:
 
 - **Private MQTT:** forward messages to your own broker, raw and/or decrypted. Decrypted messages are sent in plain text, so use a broker you trust.
-- **Community MQTT/meshcoretomqtt:** a raw packet feed for community aggregators, so your radio can act as an observer. Regional presets are built in.
+- **Community MQTT/meshcoretomqtt:** a raw packet feed for community aggregators, so your radio can act as an observer. Regional presets are built in. Under **Publish packets** you can tick the payload types to send (none ticked sends all). Packets heard while the broker cannot be reached are kept (up to the number you set, 500 by default) and sent with the time they were heard once the connection is back. **Show the broker's refusal messages** reads the broker's error topic for your node, for brokers that publish one.
 - **Home Assistant MQTT Discovery:** devices and entities appear in Home Assistant automatically: a local radio device, a message event, telemetry sensors for tracked repeaters, and GPS trackers for selected contacts. Repeaters must be tracked for telemetry before they show up in the picker.
 - **Webhook:** decrypted messages to a URL, optionally signed.
 - **Apprise:** forwards messages to Discord, Telegram, email and many other services.

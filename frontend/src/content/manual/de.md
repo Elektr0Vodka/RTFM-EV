@@ -556,7 +556,7 @@ Version, Links zum Changelog und zum Melden von Fehlern, eine Update-Prüfung un
 Öffne **Einstellungen > MQTT & Automatisierung** und wähle **Integration hinzufügen**. Arten:
 
 - **Privates MQTT:** Nachrichten an deinen eigenen Broker weiterleiten, roh und/oder entschlüsselt. Entschlüsselte Nachrichten gehen im Klartext hinaus, nutze also einen Broker, dem du vertraust.
-- **Community MQTT/meshcoretomqtt:** ein Feed roher Pakete für Community-Aggregatoren, sodass dein Funkgerät als Beobachter dienen kann. Regionale Voreinstellungen sind eingebaut.
+- **Community MQTT/meshcoretomqtt:** ein Feed roher Pakete für Community-Aggregatoren, sodass dein Funkgerät als Beobachter dienen kann. Regionale Voreinstellungen sind eingebaut. Unter **Pakete veröffentlichen** kannst du die Payload-Typen anhaken, die gesendet werden (nichts angehakt sendet alle). Pakete, die empfangen werden, während der Broker nicht erreichbar ist, werden behalten (bis zur eingestellten Anzahl, standardmäßig 500) und mit ihrer Empfangszeit gesendet, sobald die Verbindung zurück ist. **Ablehnungen des Brokers anzeigen** liest das Fehler-Topic deines Knotens, für Broker, die eines veröffentlichen.
 - **Home Assistant MQTT Discovery:** Geräte und Entitäten erscheinen automatisch in Home Assistant: ein Gerät für das lokale Funkgerät, ein Nachrichtenereignis, Telemetriesensoren für verfolgte Repeater und GPS-Tracker für ausgewählte Kontakte. Repeater müssen erst für Telemetrie verfolgt werden, bevor sie in der Auswahl erscheinen.
 - **Webhook:** entschlüsselte Nachrichten an eine URL, optional signiert.
 - **Apprise:** leitet Nachrichten an Discord, Telegram, E-Mail und viele weitere Dienste weiter.

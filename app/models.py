@@ -3234,6 +3234,12 @@ class MqttBrokerStats(BaseModel):
     messages_published: int = 0
     publish_failures: int = 0
     reconnects: int = 0
+    queued: int = Field(
+        default=0, description="Packets waiting to be sent while the broker cannot be reached"
+    )
+    queue_dropped: int = Field(
+        default=0, description="Oldest waiting packets dropped because the queue was full"
+    )
 
 
 class StatisticsResponse(BaseModel):

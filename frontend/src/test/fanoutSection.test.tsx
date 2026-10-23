@@ -927,6 +927,10 @@ describe('SettingsFanoutSection', () => {
           publish_snmp_telemetry: false,
           filter_interval_ms: 60000,
           status_interval_ms: 300000,
+          packet_types: [],
+          offline_queue: true,
+          offline_queue_max: 500,
+          listen_broker_errors: false,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
@@ -1779,6 +1783,50 @@ describe('SettingsFanoutSection', () => {
       expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
         expect.objectContaining({
           config: expect.objectContaining({ publish_snmp_telemetry: true }),
+        })
+      )
+    );
+  });
+
+  it('community payload type filter, offline queue and broker errors are saved', async () => {
+    const created: FanoutConfig = {
+      id: 'comm-queue',
+      type: 'mqtt_community',
+      name: 'DMC-1',
+      enabled: true,
+      config: {},
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 4000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(created);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
+
+    renderSection();
+    await createCommunityPreset('dutchmeshcore-1');
+
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    expect(screen.getByText('None ticked: every type is published.')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('GRP_TXT'));
+    fireEvent.click(screen.getByLabelText('ADVERT'));
+    expect(screen.getByText('Only the 2 ticked types are published.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Keep packets while the broker cannot be reached')).toBeChecked();
+    fireEvent.change(screen.getByLabelText('Most packets kept'), { target: { value: '9000' } });
+    fireEvent.click(screen.getByLabelText("Show the broker's refusal messages"));
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            packet_types: [4, 5],
+            offline_queue: true,
+            offline_queue_max: 5000,
+            listen_broker_errors: true,
+          }),
         })
       )
     );

@@ -15,6 +15,7 @@ import json
 import logging
 import ssl
 import time
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -702,6 +703,69 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         self._last_status_publish: float = 0.0
         self._last_filter_publish: float = 0.0
         self._own_neighbors_published: int | None = None
+        # Called after every successful connect (the module flushes its offline queue).
+        self.after_connect: Callable[[], Awaitable[None]] | None = None
+        # Last refusal the broker reported on this node's error topic, if listening.
+        self.broker_error: str | None = None
+        self._error_reader: asyncio.Task | None = None
+
+    async def stop(self) -> None:
+        self._stop_error_reader()
+        await super().stop()
+
+    def _stop_error_reader(self) -> None:
+        if self._error_reader is not None:
+            self._error_reader.cancel()
+            self._error_reader = None
+
+    async def _listen_broker_errors(self, settings: object) -> None:
+        """Subscribe to the broker's error topic for this node, if asked for.
+
+        Only some brokers publish refusals there, as JSON ``{code, message, ...}``
+        on ``meshcore/{IATA}/{PUBLIC_KEY}/error``; another broker may refuse the
+        subscription, which is why this is opt-in.
+        """
+        from app.keystore import get_public_key
+
+        self._stop_error_reader()
+        self.broker_error = None
+        if not getattr(settings, "community_mqtt_listen_broker_errors", False):
+            return
+        client = self._client
+        public_key = get_public_key()
+        iata = str(getattr(settings, "community_mqtt_iata", "") or "").upper().strip()
+        if client is None or public_key is None or not iata:
+            return
+        topic = f"meshcore/{iata}/{public_key.hex().upper()}/error"
+        try:
+            await client.subscribe(topic)
+        except Exception as e:
+            logger.warning("%s: could not subscribe to %s: %s", self._log_prefix, topic, e)
+            return
+        self._error_reader = asyncio.create_task(self._read_broker_errors(client))
+
+    async def _read_broker_errors(self, client: aiomqtt.Client) -> None:
+        try:
+            async for message in client.messages:
+                if not str(message.topic).endswith("/error"):
+                    continue
+                try:
+                    payload = message.payload
+                    raw = payload.decode() if isinstance(payload, bytes | bytearray) else payload
+                    data = json.loads(str(raw))
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if not isinstance(data, dict):
+                    continue
+                code = str(data.get("code") or "unknown")
+                text = str(data.get("message") or "").strip()
+                self.broker_error = f"Broker refused: {code}" + (f" ({text})" if text else "")
+                logger.warning("%s: %s", self._log_prefix, self.broker_error)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The connection closed; the next connect subscribes again.
+            logger.debug("%s broker error reader ended", self._log_prefix, exc_info=True)
 
     async def start(self, settings: object) -> None:
         self._key_unavailable_warned = False
@@ -1106,6 +1170,12 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         await self._publish_config(settings)  # type: ignore[arg-type]
         await self._publish_filter(settings)  # type: ignore[arg-type]
         await self._publish_own_neighbors(settings)  # type: ignore[arg-type]
+        await self._listen_broker_errors(settings)
+        if self.after_connect is not None:
+            try:
+                await self.after_connect()
+            except Exception:
+                logger.warning("%s after-connect hook failed", self._log_prefix, exc_info=True)
 
     async def _on_periodic_wake(self, elapsed: float) -> None:
         if not self._settings:
