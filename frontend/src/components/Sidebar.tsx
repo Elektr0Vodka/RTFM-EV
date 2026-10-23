@@ -1076,10 +1076,13 @@ export function Sidebar({
   });
 
   const renderConversationRow = (row: ConversationRow) => {
+    // A room is a group chat: like a channel, its unread posts only turn red
+    // when they mention you. A DM is always red.
     const highlightUnread =
       row.isMention ||
       (row.type === 'contact' &&
         row.contact?.type !== CONTACT_TYPE_REPEATER &&
+        row.contact?.type !== CONTACT_TYPE_ROOM &&
         row.unreadCount > 0);
     const rowIsNew = isNew(getStateKey(row.type, row.id));
 

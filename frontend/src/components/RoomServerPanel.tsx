@@ -225,8 +225,12 @@ export function RoomServerPanel({
   );
 
   const performLogin = useCallback(
-    async (nextPassword: string, method: 'password' | 'blank', resyncHistory = false) => {
-      if (loginLoading) return;
+    async (
+      nextPassword: string,
+      method: 'password' | 'blank',
+      resyncHistory = false
+    ): Promise<boolean> => {
+      if (loginLoading) return false;
 
       setLoginLoading(true);
       setLoginError(null);
@@ -245,6 +249,7 @@ export function RoomServerPanel({
             description: result.message ?? t('room_login_unconfirmed_toast_default_desc'),
           });
         }
+        return result.authenticated;
       } catch (err) {
         const message = err instanceof Error ? err.message : t('error_unknown');
         setLastLoginAttempt(buildServerLoginAttemptFromError(method, message, 'room server'));
@@ -253,6 +258,7 @@ export function RoomServerPanel({
         toast.error(t('room_login_failed_toast_title'), {
           description: t('room_login_failed_toast_desc', { message }),
         });
+        return false;
       } finally {
         setLoginLoading(false);
       }
@@ -262,15 +268,14 @@ export function RoomServerPanel({
 
   const handleLogin = useCallback(
     async (nextPassword: string) => {
-      await performLogin(nextPassword, 'password');
-      persistAfterLogin(nextPassword);
+      // A password is remembered only once the room confirmed it.
+      if (await performLogin(nextPassword, 'password')) persistAfterLogin(nextPassword);
     },
     [performLogin, persistAfterLogin]
   );
 
   const handleLoginAsGuest = useCallback(async () => {
-    await performLogin('', 'blank');
-    persistAfterLogin('');
+    if (await performLogin('', 'blank')) persistAfterLogin('');
   }, [performLogin, persistAfterLogin]);
 
   // Log in once on open when we already know the password, so reopening a room

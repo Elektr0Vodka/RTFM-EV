@@ -194,8 +194,14 @@ def _format_raw_packet(data: dict[str, Any], device_name: str, public_key_hex: s
     if route == "U":
         return None
 
-    # Community observers clamp zone-less local timestamps; publish explicit UTC.
-    current_time = datetime.now(UTC)
+    # The time the packet was heard, not the time it is published (a packet can
+    # wait in the offline queue). Community observers clamp zone-less local
+    # timestamps; publish explicit UTC.
+    received = data.get("timestamp")
+    if isinstance(received, int | float) and not isinstance(received, bool) and received > 0:
+        current_time = datetime.fromtimestamp(received, UTC)
+    else:
+        current_time = datetime.now(UTC)
     ts_str = _format_utc_timestamp(current_time)
 
     # Keep numeric telemetry numeric so downstream analyzers can ingest it.

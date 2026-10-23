@@ -149,6 +149,23 @@ describe('fetchJson (via api methods)', () => {
       await expect(api.getHealth()).rejects.toThrow('Something broke on the server');
     });
 
+    it('replaces a proxy HTML error page with a short message', async () => {
+      installMockFetch();
+      const page = `<!DOCTYPE html><html><head><title>524</title></head><body>${'x'.repeat(5000)}</body></html>`;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 524,
+        statusText: '',
+        text: () => Promise.resolve(page),
+      });
+
+      const error = await api.getHealth().catch((err: Error) => err);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(
+        'Request failed (HTTP 524): the server or a proxy in front of it did not answer in time'
+      );
+    });
+
     it('uses statusText when error text is empty', async () => {
       installMockFetch();
       mockFetch.mockResolvedValueOnce({

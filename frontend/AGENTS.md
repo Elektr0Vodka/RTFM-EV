@@ -402,7 +402,7 @@ A buddy-led tour of the app. It never blocks the page (no backdrop, no focus tra
 
 ### New Message modal
 
-`NewMessageModal` resets form state on close. The component instance persists across open/close cycles for smooth animations.
+`NewMessageModal` resets form state on close. The component instance persists across open/close cycles for smooth animations. "Try decrypting stored packets" is on by default on the channel tabs (private, hashtag, bulk; it is local work, nothing goes on air) and off on the contact tab; switching tab resets it to that tab's default.
 
 The "Contact link" tab only renders when `onImportContactUri` is passed (App wires `handleImportContactUri` from `useContactsAndChannels`). It checks the `meshcore://` prefix locally, then `api.importContactUri` (`POST /contacts/import-uri`) does the real validation (hex, ADVERT, signature) and the radio import; the backend error is shown inline and the dialog stays open. On success the contact list is refetched and the imported contact's conversation opens. The historical-decrypt checkbox is hidden on this tab.
 
@@ -412,7 +412,12 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
 - Backend also emits WS `message` for outgoing sends so other clients stay in sync.
 - ACK/repeat updates arrive as `message_acked` events.
 - Outgoing channel messages show a 30-second resend control; resend calls `POST /api/messages/channel/{message_id}/resend`.
-- Byte limit: `MessageInput` does not send while the text is over the limit the counter shows (`overHardLimit`: Send disabled, Enter and form submit ignored, `aria-invalid`, hint `chat_too_long_to_send`). The firmware truncates an over-limit channel message (stored text then differs from on-air text and its echo is not recognised) and refuses an over-limit DM. A message that exactly fills the limit is sent.
+- Byte limit: `MessageInput` does not send while the text is over the limit the counter shows (`overHardLimit`: Send disabled, Enter and form submit ignored, `aria-invalid`, hint `chat_too_long_to_send`). The firmware truncates an over-limit channel message (stored text then differs from on-air text and its echo is not recognised) and refuses an over-limit DM. A message that exactly fills the limit is sent. The count is taken on the trimmed text (what is sent), and the mobile counter appears past 100 bytes, not characters.
+- Override dialogs (`ChannelFloodScopeOverrideModal`, `ChannelPathHashModeOverrideModal`) await `onSetOverride` and close only when it does not resolve `false`; the `useConversationActions` setters resolve `false` on a failed save (after their error toast), so the dialog stays open with the input kept. Buttons are disabled while saving.
+- Server passwords (`useRememberedServerPassword`): `persistAfterLogin` stores the password exactly as typed (spaces kept) and is called only when the login resolved `true` (`useRepeaterDashboard.login` / `loginAsGuest` and `RoomServerPanel.performLogin` return whether the server confirmed it). A rejected or unconfirmed attempt never replaces a remembered password.
+- Sidebar unread badges: a DM row is red when it has unread messages; a room row, like a channel, only for a mention (`highlightUnread` in `Sidebar.tsx`).
+- `api.ts` `fetchJson`: a non-JSON error body is kept only when it is short plain text (`plainErrorText`); an HTML page (a proxy's 524 and the like) becomes `Request failed (HTTP <status>)`, with a "did not answer in time" note for 502/503/504/520/522/524.
+- Build: production builds have no source maps; `FRONTEND_SOURCEMAP=1 npm run build` makes a debug build with them.
 - Unread summary: `ChannelUnreadSummaryBanner` (above the message list in `ConversationPane`) asks `api.summarizeChannelUnread(key, after)` once per channel open and renders nothing when the server returns no summary. `App.tsx` captures `summarizeAfter` (the channel's `last_read_at`) together with the unread marker, because opening the channel also marks it read, and passes `unreadSummaryAfter` only when `appSettings.ollama_enabled`. The banner's key must differ from the `MessageList` key (the conversation id): a shared key remounts it on every render and sends a request each time. Settings live in `settings/UnreadSummarySettings.tsx`.
 - Contact region: the chat header globe and `ChannelFloodScopeOverrideModal` (`kind="contact"`) also serve contact conversations; `useConversationActions.handleSetContactFloodScopeOverride` calls `api.setContactFloodScopeOverride` and merges the returned contact.
 - Unconfirmed sends: an outgoing message with `send_status === 'unknown'` and `acked === 0` gets a warning mark in front of the normal status (`chat_send_unconfirmed_title`). The radio never answered the send command, so the message may or may not be on air; the channel status/resend control next to it still works.
@@ -672,6 +677,7 @@ its `1m/5m/10m`/`session` windows stay in-memory (`isRawFeedLiveWindow`).
 - `blocked_keys`, `blocked_names`, `discovery_blocked_types`
 - `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`
 - `auto_resend_channel`
+- `send_gap_seconds` (Settings > Radio, "Spacing between sends"; 0-30, committed on blur or Enter)
 - `telemetry_interval_hours`
 - `telemetry_schedule_minute` (`-1` automatic, `0`-`59` fixed; the effective minute is in `TelemetrySchedule.schedule_minute`)
 

@@ -279,6 +279,27 @@ function validationText(detail: unknown[]): string {
     .join('; ');
 }
 
+const PLAIN_ERROR_MAX_CHARS = 200;
+const GATEWAY_TIMEOUT_STATUSES = new Set([502, 503, 504, 520, 522, 524]);
+
+/**
+ * Error text for a non-JSON error body. A reverse proxy (Cloudflare and the
+ * like) answers with a whole HTML page; that must not end up in a toast.
+ */
+export function plainErrorText(body: string, status: number, statusText: string): string {
+  const text = body.trim();
+  const looksLikeHtml =
+    /^<(!doctype|html|head|body)\b/i.test(text) || /<\/?[a-z][^>]*>/i.test(text);
+  if (text && !looksLikeHtml && text.length <= PLAIN_ERROR_MAX_CHARS) {
+    return text;
+  }
+  const label = statusText ? `HTTP ${status} ${statusText}` : `HTTP ${status}`;
+  if (GATEWAY_TIMEOUT_STATUSES.has(status)) {
+    return `Request failed (${label}): the server or a proxy in front of it did not answer in time`;
+  }
+  return `Request failed (${label})`;
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const hasBody = options?.body !== undefined;
   const res = await fetch(`${API_BASE}${url}`, {
@@ -309,7 +330,8 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
         errorMessage = JSON.stringify(errorJson.detail);
       }
     } catch {
-      // Not JSON, use raw text
+      // Not JSON: a short plain-text reason is kept, a proxy's HTML page is not.
+      errorMessage = plainErrorText(errorText, res.status, res.statusText);
     }
     // A reverse proxy whose session ran out answers instead of the backend.
     reportHttpFailure(res.status, errorText);

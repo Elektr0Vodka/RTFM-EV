@@ -9,6 +9,7 @@ from app.decoder import TXT_TYPE_GROUP_DATA
 from app.malformed import is_malformed_channel_message, malformed_reason
 from app.models import Message, MessagePath, RadioStamp
 from app.repository import ContactRepository, MessageRepository, RawPacketRepository
+from app.services import send_pacer
 from app.smaz import decode_message_text
 
 if TYPE_CHECKING:
@@ -199,6 +200,7 @@ async def increment_ack_and_broadcast(
     broadcast_fn: BroadcastFn,
 ) -> int:
     """Increment a message's ACK count and broadcast the update."""
+    send_pacer.note_echo(message_id)
     ack_count = await MessageRepository.increment_ack_count(message_id)
     broadcast_fn("message_acked", {"message_id": message_id, "ack_count": ack_count})
     return ack_count
@@ -223,14 +225,22 @@ async def reconcile_duplicate_message(
         existing_msg.outgoing,
     )
 
-    if path is not None:
+    new_route = True
+    if path is not None and existing_msg.txt_type == TXT_TYPE_GROUP_DATA:
+        # Image chunks share one row and each arrival is recorded, same route or not.
         paths = await MessageRepository.add_path(
+            existing_msg.id, path, received_at, path_len, rssi=rssi, snr=snr
+        )
+    elif path is not None:
+        paths, new_route = await MessageRepository.add_path_if_new(
             existing_msg.id, path, received_at, path_len, rssi=rssi, snr=snr
         )
     else:
         paths = existing_msg.paths or []
 
-    if existing_msg.outgoing and existing_msg.type == "CHAN":
+    # A route already stored is the same echo heard again: it is not counted twice.
+    if existing_msg.outgoing and existing_msg.type == "CHAN" and new_route:
+        send_pacer.note_echo(existing_msg.id)
         ack_count = await MessageRepository.increment_ack_count(existing_msg.id)
     else:
         ack_count = existing_msg.acked
@@ -483,7 +493,7 @@ def format_group_data_placeholder(decrypted: "DecryptedGroupData", sender_label:
 
 async def create_group_data_message(
     *,
-    packet_id: int,
+    packet_id: int | None,
     channel_key: str,
     decrypted: "DecryptedGroupData",
     received_at: int | None = None,
@@ -572,7 +582,8 @@ async def create_group_data_message(
         decrypted.data_type,
         len(decrypted.data),
     )
-    await RawPacketRepository.mark_decrypted(packet_id, msg_id)
+    if packet_id is not None:
+        await RawPacketRepository.mark_decrypted(packet_id, msg_id)
 
     broadcast_message(
         message=build_message_model(
@@ -792,6 +803,7 @@ async def create_outgoing_direct_message(
     received_at: int,
     send_status: MessageSendStatus = "confirmed",
     broadcast_fn: BroadcastFn,
+    broadcast: bool = True,
     message_repository=MessageRepository,
 ) -> Message | None:
     """Store and broadcast an outgoing direct message."""
@@ -818,7 +830,8 @@ async def create_outgoing_direct_message(
         acked=0,
         send_status=send_status,
     )
-    broadcast_message(message=message, broadcast_fn=broadcast_fn)
+    if broadcast:
+        broadcast_message(message=message, broadcast_fn=broadcast_fn)
     return message
 
 

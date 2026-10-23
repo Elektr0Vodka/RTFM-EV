@@ -1559,6 +1559,8 @@ export interface AppSettings {
   telemetry_routed_hourly: boolean;
   /** -1 = automatic (from the radio's key), 0-59 = a chosen minute. */
   telemetry_schedule_minute: number;
+  /** Longest wait between two sends in seconds (0-30, 0 = off). */
+  send_gap_seconds: number;
   show_mention_ticker: boolean;
   mention_sound_enabled: boolean;
   mention_sound_choice: string;
@@ -1959,6 +1961,7 @@ export interface AppSettingsUpdate {
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
   telemetry_schedule_minute?: number;
+  send_gap_seconds?: number;
   show_mention_ticker?: boolean;
   mention_sound_enabled?: boolean;
   mention_sound_choice?: string;

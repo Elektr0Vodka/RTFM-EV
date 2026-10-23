@@ -11,6 +11,60 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (send spacing, message ingest and privacy fixes, fix/send-pacing-ingest-privacy)
+
+Migration **_161** (`app_settings.send_gap_seconds`). No new dependency.
+
+### Sending
+- **Spacing between sends** (Settings > Radio, 0-30 s, default 5, 0 = off). A
+  repeater cannot hear while it repeats, so a message sent right behind another
+  was often lost. DMs, DM retries, channel sends, resends and the echo watchdog
+  now share one send slot: the next send goes 1 s after the previous one's
+  first echo or ACK, or after the set seconds at most, and waits for up to 3 s
+  until no packet was heard for 2 s.
+- Auto-resend waits 6 s for an echo instead of 2 s (repeaters repeat 2-5 s
+  after a send, so the resend collided with the normal repeat), and skips the
+  resend while another send is waiting.
+- An outgoing DM is stored before the radio sends it, like channel messages
+  already were; a send cut off by a restart is shown as "unknown" instead of
+  staying pending or missing.
+- The same echo route heard twice no longer counts as two echoes, and a
+  message keeps at most 64 routes (image chunks still record every arrival).
+- The channel send log line no longer contains the message text.
+
+### Receiving
+- Channel messages and channel data the radio hands over from its queue are
+  stored when they never arrived as raw packets (for example heard while the
+  app was not connected). Copies of stored messages are recognised as before.
+- The radio's "contact table full" signal shows a warning, at most once an
+  hour.
+- Raw packets are deduplicated on the firmware's packet identity (type +
+  payload, plus the path byte for a TRACE): two packets with the same payload
+  bytes but a different type are both kept.
+- Historical DM decryption runs one scan at a time and does not queue a
+  contact twice. The scan started by a new contact's advert no longer shows a
+  "Cannot decrypt historical DMs" warning for every new contact when the radio
+  does not export its key.
+- `GET /api/messages` accepts `after_id` or `after` on their own as a forward
+  cursor (before, only the pair worked and a single one was ignored).
+- Community MQTT packets carry the time they were heard, not the time they
+  were published.
+
+### Interface
+- Repeater, sensor and room passwords are remembered only after the server
+  confirmed the login, exactly as typed (spaces included). A rejected attempt
+  no longer replaces a remembered password.
+- Room unread badges follow the channel rule: red only for a mention.
+- The message box counts bytes of the trimmed text (what is sent), and the
+  mobile counter appears after 100 bytes instead of 100 characters.
+- "Try decrypting stored packets" is on by default when adding a channel.
+- The region and path hop width override dialogs stay open with your input
+  when saving fails, and close once saved.
+- A reverse proxy's HTML error page (for example a 524 timeout) no longer
+  lands in an error toast; a short "Request failed (HTTP 524)" message does.
+- Release builds no longer ship source maps (`FRONTEND_SOURCEMAP=1` for a
+  debug build).
+
 ## Update 2026-10-23 (guessed locations for direct-heard nodes + map Hops filter, feat/guessed-locations-direct-hop-filter)
 
 No migration, no new dependency. Frontend only.

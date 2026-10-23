@@ -63,12 +63,12 @@ export function useRememberedServerPassword(kind: ServerLoginKind, publicKey: st
 
   const persistAfterLogin = useCallback(
     (submittedPassword: string) => {
-      const trimmedPassword = submittedPassword.trim();
-      if (!trimmedPassword) {
+      // Stored exactly as sent: leading or trailing spaces are part of the password.
+      if (!submittedPassword.trim()) {
         return;
       }
 
-      inMemoryPasswords.set(storageKey, { password: trimmedPassword });
+      inMemoryPasswords.set(storageKey, { password: submittedPassword });
 
       if (!rememberPassword) {
         try {
@@ -78,13 +78,13 @@ export function useRememberedServerPassword(kind: ServerLoginKind, publicKey: st
         }
       } else {
         try {
-          localStorage.setItem(storageKey, JSON.stringify({ password: trimmedPassword }));
+          localStorage.setItem(storageKey, JSON.stringify({ password: submittedPassword }));
         } catch {
           // localStorage may be unavailable
         }
       }
 
-      setPassword(trimmedPassword);
+      setPassword(submittedPassword);
     },
     [rememberPassword, storageKey]
   );

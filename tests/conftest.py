@@ -82,6 +82,31 @@ def _reset_new_node_notify_state():
     new_node_notify.reset_state()
 
 
+@pytest.fixture(autouse=True)
+def _no_send_spacing():
+    """Turn send spacing off and start each test with fresh send history.
+
+    The send slot holds an ``asyncio.Lock`` (bound per event loop) and the
+    time of the last send; without a reset a test would wait for a send made
+    by an earlier test. Tests of the spacing itself turn it back on.
+
+    Saved and restored by hand: requesting ``monkeypatch`` from an autouse
+    fixture moves its undo after xunit ``teardown_method`` hooks, which then
+    see another test's patches still in place.
+    """
+    from app.services import send_pacer
+
+    async def _gap_off() -> int:
+        return 0
+
+    original = send_pacer._read_gap_seconds
+    send_pacer.reset()
+    send_pacer._read_gap_seconds = _gap_off
+    yield
+    send_pacer._read_gap_seconds = original
+    send_pacer.reset()
+
+
 @pytest.fixture
 async def test_db():
     """Create an in-memory test database with schema + migrations."""

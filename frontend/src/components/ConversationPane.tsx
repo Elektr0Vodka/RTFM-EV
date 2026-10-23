@@ -138,12 +138,18 @@ interface ConversationPaneProps {
   onDeleteContact: (publicKey: string) => Promise<void>;
   onDeleteChannel: (key: string) => Promise<void>;
   onAddRegistryChannels?: (channelNames: string[]) => Promise<void>;
-  onSetChannelFloodScopeOverride: (channelKey: string, floodScopeOverride: string) => Promise<void>;
-  onSetContactFloodScopeOverride: (publicKey: string, floodScopeOverride: string) => Promise<void>;
+  onSetChannelFloodScopeOverride: (
+    channelKey: string,
+    floodScopeOverride: string
+  ) => Promise<boolean>;
+  onSetContactFloodScopeOverride: (
+    publicKey: string,
+    floodScopeOverride: string
+  ) => Promise<boolean>;
   onSetChannelPathHashModeOverride?: (
     channelKey: string,
     pathHashModeOverride: number | null
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   cadCapable?: boolean;
   cadSupported?: boolean;
   cadEnabled?: boolean | null;

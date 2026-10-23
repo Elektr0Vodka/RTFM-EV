@@ -2811,10 +2811,19 @@ class AppSettings(BaseModel):
             "a fixed minute, so nodes near each other can be given different minutes."
         ),
     )
+    send_gap_seconds: int = Field(
+        default=5,
+        description=(
+            "Longest wait between two outgoing sends (DMs, channel messages, resends). "
+            "The next send goes out 1 second after the previous one's first echo or ACK, "
+            "or after this many seconds, whichever is sooner, once the air has been "
+            "quiet briefly. 0 = no spacing."
+        ),
+    )
     auto_resend_channel: bool = Field(
         default=False,
         description=(
-            "When enabled, outgoing channel messages that receive no echo within 2 seconds "
+            "When enabled, outgoing channel messages that receive no echo within 6 seconds "
             "are automatically byte-perfect resent once (within the 30-second dedup window)"
         ),
     )

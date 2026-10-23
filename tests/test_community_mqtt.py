@@ -234,6 +234,14 @@ class TestPacketFormatConversion:
         assert result is not None
         _assert_utc_z_timestamp(result["timestamp"])
 
+    def test_times_are_the_receive_time_not_the_publish_time(self):
+        data = {"timestamp": 1700000000, "data": "0100AA", "snr": None, "rssi": None}
+        result = _format_raw_packet(data, "Node", "AA" * 32)
+        assert result is not None
+        assert result["timestamp"] == "2023-11-14T22:13:20Z"
+        assert result["time"] == "22:13:20"
+        assert result["date"] == "14/11/2023"
+
     def test_snr_rssi_unknown_when_none(self):
         data = {"timestamp": 0, "data": "0100AA", "snr": None, "rssi": None}
         result = _format_raw_packet(data, "Node", "AA" * 32)

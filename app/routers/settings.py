@@ -549,7 +549,17 @@ class AppSettingsUpdate(BaseModel):
     )
     auto_resend_channel: bool | None = Field(
         default=None,
-        description="Auto-resend channel messages once if no echo heard within 2 seconds",
+        description="Auto-resend channel messages once if no echo heard within 6 seconds",
+    )
+    send_gap_seconds: int | None = Field(
+        default=None,
+        ge=0,
+        le=30,
+        description=(
+            "Longest wait between two outgoing sends in seconds; the next send goes "
+            "1 second after the previous one's first echo or ACK when that is sooner. "
+            "0 = no spacing."
+        ),
     )
     telemetry_interval_hours: int | None = Field(
         default=None,
@@ -975,6 +985,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.telemetry_schedule_minute is not None:
         logger.info("Updating telemetry_schedule_minute to %d", update.telemetry_schedule_minute)
         kwargs["telemetry_schedule_minute"] = update.telemetry_schedule_minute
+
+    # Spacing between outgoing sends (0 = off)
+    if update.send_gap_seconds is not None:
+        logger.info("Updating send_gap_seconds to %d", update.send_gap_seconds)
+        kwargs["send_gap_seconds"] = update.send_gap_seconds
 
     # Mention ticker
     if update.show_mention_ticker is not None:

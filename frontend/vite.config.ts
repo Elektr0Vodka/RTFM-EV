@@ -53,7 +53,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Source maps stay out of release builds (size, and the served assets);
+    // set FRONTEND_SOURCEMAP=1 for a debug build that has them.
+    sourcemap: process.env.FRONTEND_SOURCEMAP === '1',
   },
   server: {
     host: true,

@@ -181,6 +181,18 @@ async def lifespan(app: FastAPI):
     from app.radio_sync import ensure_default_channels
 
     await ensure_default_channels()
+
+    # A send still pending was cut off by the restart: the radio may or may not
+    # have put it on air, so it is kept and shown as unknown.
+    from app.repository import MessageRepository
+
+    try:
+        interrupted = await MessageRepository.mark_pending_sends_unknown()
+        if interrupted:
+            logger.info("Marked %d interrupted outgoing send(s) as unknown", interrupted)
+    except Exception:
+        logger.warning("Failed to mark interrupted sends as unknown", exc_info=True)
+
     await start_radio_stats_sampling()
     perf_sampler.start()
 
