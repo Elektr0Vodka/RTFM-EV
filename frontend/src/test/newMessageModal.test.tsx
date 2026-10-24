@@ -88,7 +88,7 @@ describe('NewMessageModal form reset', () => {
       await user.click(screen.getByRole('button', { name: 'Create' }));
 
       await waitFor(() => {
-        expect(onCreateHashtagChannel).toHaveBeenCalledWith('#testchan', false);
+        expect(onCreateHashtagChannel).toHaveBeenCalledWith('#testchan', true);
       });
       expect(onClose).toHaveBeenCalled();
       unmount();
@@ -140,7 +140,7 @@ describe('NewMessageModal form reset', () => {
       await user.click(screen.getByRole('button', { name: 'Create' }));
 
       await waitFor(() => {
-        expect(onCreateHashtagChannel).toHaveBeenCalledWith('#Cats&Dogs', false);
+        expect(onCreateHashtagChannel).toHaveBeenCalledWith('#Cats&Dogs', true);
       });
     });
   });
@@ -171,7 +171,7 @@ describe('NewMessageModal form reset', () => {
       await waitFor(() => {
         expect(onBulkAddHashtagChannels).toHaveBeenCalledWith(
           ['#ops', '#mesh-room', '#another-room'],
-          false
+          true
         );
       });
       expect(onClose).toHaveBeenCalled();
@@ -207,10 +207,7 @@ describe('NewMessageModal form reset', () => {
       await user.click(screen.getByRole('button', { name: 'Add Channels' }));
 
       await waitFor(() => {
-        expect(onBulkAddHashtagChannels).toHaveBeenCalledWith(
-          ['#Cats & Dogs', '#Mesh Room'],
-          false
-        );
+        expect(onBulkAddHashtagChannels).toHaveBeenCalledWith(['#Cats & Dogs', '#Mesh Room'], true);
       });
     });
   });
@@ -245,7 +242,7 @@ describe('NewMessageModal form reset', () => {
       await user.click(screen.getByRole('button', { name: 'Create' }));
 
       await waitFor(() => {
-        expect(onCreateChannel).toHaveBeenCalledWith('MyRoom', 'cc'.repeat(16), false);
+        expect(onCreateChannel).toHaveBeenCalledWith('MyRoom', 'cc'.repeat(16), true);
       });
       expect(onClose).toHaveBeenCalled();
     });
@@ -302,24 +299,31 @@ describe('NewMessageModal form reset', () => {
   });
 
   describe('tryHistorical checkbox resets', () => {
-    it('resets tryHistorical when switching tabs', async () => {
+    it('is on by default for a channel tab and reset to that when switching tabs', async () => {
       const user = userEvent.setup();
       renderModal();
       await switchToTab(user, 'Hashtag Channel');
 
-      // Check the "Try decrypting" checkbox
+      // On by default: decrypting stored packets sends nothing on air.
       const checkbox = screen.getByRole('checkbox', { name: /Try decrypting/ });
-      await user.click(checkbox);
-
-      // The streaming message should appear
+      expect(checkbox).toBeChecked();
       expect(screen.getByText(/Messages will stream in/)).toBeTruthy();
 
-      // Switch tab and come back
+      await user.click(checkbox);
+      expect(screen.queryByText(/Messages will stream in/)).toBeNull();
+
+      // Switch tab and come back: back to the channel default.
       await switchToTab(user, 'Contact');
       await switchToTab(user, 'Hashtag Channel');
+      expect(screen.getByRole('checkbox', { name: /Try decrypting/ })).toBeChecked();
+    });
 
-      // The streaming message should be gone (tryHistorical was reset)
-      expect(screen.queryByText(/Messages will stream in/)).toBeNull();
+    it('is off by default for a contact', async () => {
+      const user = userEvent.setup();
+      renderModal();
+      await switchToTab(user, 'Hashtag Channel');
+      await switchToTab(user, 'Contact');
+      expect(screen.getByRole('checkbox', { name: /Try decrypting/ })).not.toBeChecked();
     });
   });
 

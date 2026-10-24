@@ -1315,6 +1315,18 @@ class SendChannelMessageRequest(SendMessageRequest):
     )
 
 
+class SendChannelDataRequest(BaseModel):
+    """Flood a binary datagram (GRP_DATA) to a channel."""
+
+    channel_key: str = Field(description="Channel key (32-char hex)")
+    data_type: int = Field(
+        ge=1,
+        le=0xFFFF,
+        description="Application id of the datagram; 0xFF00-0xFFFF are free for testing",
+    )
+    payload_hex: str = Field(description="Payload as hex, at most 165 bytes")
+
+
 class RepeaterLoginRequest(BaseModel):
     """Request to log in to a repeater."""
 
@@ -2811,10 +2823,19 @@ class AppSettings(BaseModel):
             "a fixed minute, so nodes near each other can be given different minutes."
         ),
     )
+    send_gap_seconds: int = Field(
+        default=5,
+        description=(
+            "Longest wait between two outgoing sends (DMs, channel messages, resends). "
+            "The next send goes out 1 second after the previous one's first echo or ACK, "
+            "or after this many seconds, whichever is sooner, once the air has been "
+            "quiet briefly. 0 = no spacing."
+        ),
+    )
     auto_resend_channel: bool = Field(
         default=False,
         description=(
-            "When enabled, outgoing channel messages that receive no echo within 2 seconds "
+            "When enabled, outgoing channel messages that receive no echo within 6 seconds "
             "are automatically byte-perfect resent once (within the 30-second dedup window)"
         ),
     )
@@ -3225,6 +3246,12 @@ class MqttBrokerStats(BaseModel):
     messages_published: int = 0
     publish_failures: int = 0
     reconnects: int = 0
+    queued: int = Field(
+        default=0, description="Packets waiting to be sent while the broker cannot be reached"
+    )
+    queue_dropped: int = Field(
+        default=0, description="Oldest waiting packets dropped because the queue was full"
+    )
 
 
 class StatisticsResponse(BaseModel):

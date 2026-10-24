@@ -196,6 +196,8 @@ Als iemand je naam noemt in een kanaal dat je niet open hebt, verschijnt dat in 
 
 De bel in de chatkop opent de meldingsinstellingen: meldingen terwijl het tabblad open is, Web Push-meldingen als de browser gesloten is (vereist HTTPS), het vermeldingsgeluid dempen, en **Kanaal dempen**. **Berichten filteren** verbergt berichten op hopgrootte. Andere knoppen in de kop zijn onder meer favoriet maken, een regio-override, Padontdekking en Directe Trace.
 
+Onderaan het infopaneel van een kanaal verzendt **Kanaaldata verzenden (ontwikkelaars)** een binair datagram via flood naar het kanaal: een datatype in hex (0001-FFFF; FF00-FFFF zijn vrij om te testen) en tot 165 bytes inhoud in hex. Het gaat meteen de lucht in en wordt niet opgeslagen.
+
 <!-- id: contacts-nodes -->
 
 ## Contacten en nodes
@@ -277,6 +279,7 @@ De kaartbediening is verdeeld over **Weergave**, **Grootte & kleuren**, **Filter
 - **Bakens:** posities, waypoints en routes van MeshCore TEAM en signalk-meshcore in kanalen die je volgt. De nieuwste positie van elke afzender is een speld met een icoon voor het soort afzender (boot, autonome radio of persoon), en waypoints dragen hun TEAM-type-icoon; zet **Sporen** aan om het spoor over het tijdvenster te tekenen. Klik op een speld voor batterijen, status en **Openen in chat**. Een contact dat zulke bakens stuurde krijgt ook een sectie **Bakengeschiedenis** in de contactinfo.
 - **Verzenden in TEAM-formaat:** in een privékanaal kan **Share location > Kies op kaart** een MeshCore TEAM-waypoint invoegen in plaats van een locatiemarkering. **Instellingen > Radio-app-beheer > MeshCore TEAM-baken** kan de positie van deze radio als TEAM-baken op één privékanaal verzenden met een vast interval. Dit staat standaard uit en zendt elke keer via de radio. Stel **Vaartuigtype** in bij de contactinfo om een boot een eigen kaarticoon te geven.
 - **Trackers:** ATAK-gebruikers met de ATAK-plugin voor MeshCore (TAK-MESHCORE) en snelle GPS-bakens van MeshCore SAR. ATAK-gebruikers krijgen hun teamkleur; zet **Sporen** aan voor hun tracks, en kaartobjecten die ze delen verschijnen als paarse stippen. Voeg voor ATAK eerst het kanaal `ATAK_DATA` toe met sleutel `A3741E6A529CCF31D04B89FE1763B82D`; als de ATAK-gebruikers in de plugin een versleutelingswachtwoord instellen, is hun verkeer niet te lezen, en de Trackers-sectie toont hoeveel berichten dat waren. Hun GeoChat-berichten verschijnen in dat kanaal. MeshCore SAR `S:`-markeringen worden locatiekaarten in de chat en staan op **Gedeelde locaties**. Een contact dat SAR-bakens stuurde krijgt een sectie **MeshCore SAR-posities** in de contactinfo.
+- **Companion-brug:** de MeshCore-app kan via TCP met RTFM-EV verbinden alsof het je radio is: hij ziet je contacten, kanalen en nieuwe berichten en verzendt via RTFM-EV. Radio-instellingen, sleutels en CLI blijven buiten bereik. De beheerder van de server zet dit aan (een omgevingsvariabele, zie README_ADVANCED); **Instellingen > Radio-app-beheer > Companion-brug** laat zien of het draait en welke apps verbonden zijn.
 - **TAK Stream:** de server kan ATAK / WinTAK ook voeden met je nodes en trackers. De beheerder van de server zet dit aan (een omgevingsvariabele, zie README_ADVANCED); **Instellingen > Radio-app-beheer > TAK Stream** laat zien of het draait.
 - **Geraden locaties:** geschatte posities voor nodes zonder locatie, geplaatst bij de gelokaliseerde repeater(s) in hun advertentiepaden of, als ze direct gehoord zijn, bij je eigen radio; als holle markeringen op elk zoomniveau, met labels volgens de kaartinstelling Labels. Worden nooit opgeslagen of verstuurd.
 - **Relay-signaal:** ringen rond relays die flood-pakketten aan je radio doorgaven, gekleurd naar gemiddelde SNR.
@@ -328,7 +331,7 @@ Wat RTFM-EV zelf doet. **Overzicht** toont de algemene status (met de reden als 
 - **Achtergrondtaken:** elke doorlopende lus met status (gezond, bezig, te laat, inactief, mislukt), interval, laatste run, duur en een strook van 24 uur, plus alle asyncio-taken van dit moment.
 - **Pakketverwerking:** pakketten per minuut en de tijd per stap (ontleden, opslaan, verwerken, uitzenden), met dubbele, ontsleutelde en niet te ontsleutelen pakketten.
 - **Database:** grootte van het bestand en de WAL, bezette lezers, wachttijd op het slot en de traagste database-aanroepen van het laatste uur.
-- **Radioverbinding:** hoe lang radio-operaties de radio bezet houden, fouten, herverbindingen en de traagste operaties.
+- **Radioverbinding:** wat de radio nu gebruikt en wat erop wacht (en hoe lang), hoe lang radio-operaties de radio bezet houden, fouten, herverbindingen en de traagste operaties.
 - **Uitvoer:** MQTT en de andere fanout-modules, WebSocket-clients, TAK Stream en webpush.
 - **Verzoeken:** de drukste API-routes met hun tijden en serverfouten.
 - **Logs:** de laatste waarschuwingen en fouten uit de backend-log.
@@ -456,6 +459,10 @@ Bouw een lus van repeaters en trace die terug naar je radio. Zoek repeaters op n
 
 Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `user:` of `channel:` om te verfijnen (zet namen met spaties tussen aanhalingstekens). `region:` filtert op de regio waarmee een bericht is verzonden: een regionaam, `region:none` voor berichten zonder regio, of `region:unknown` voor een regio die deze app niet kan benoemen. Klik op een resultaat om naar dat bericht te springen.
 
+### Vermeldingen
+
+Elk opgeslagen bericht waarin je wordt vermeld als `@[naam van je radio]`, in kanalen en DM's, nieuwste eerst. Wat de chat verbergt, blijft hier ook weg (geblokkeerde afzenders, bots als die verborgen zijn, verborgen hopbreedtes en SF's, misvormde en spamberichten als die verborgen zijn). Klik op een vermelding om ernaartoe te springen; **Meer resultaten laden** gaat verder terug en de vernieuwknop leest de lijst opnieuw.
+
 ### Channel Registry (Kanaalregister)
 
 Een lokale catalogus van bekende kanalen. Het is een naslaglijst, niet de lijst met kanalen die de app volgt. Je kunt items toevoegen, bewerken, filteren, importeren en exporteren, synchroniseren vanaf een externe lijst, en met **Aan kanalen toevoegen** een kanaal gaan volgen. Privé-items worden nooit geëxporteerd. In een kanaal opent het registerpictogram in de kop (of **Bewerken in Kanaalregister** in het kanaalinfopaneel) het item van dat kanaal direct in bewerkmodus; ontbreekt het, dan wordt het eerst toegevoegd.
@@ -552,7 +559,7 @@ Versie, links naar de changelog en het melden van bugs, een updatecontrole, en *
 Open **Instellingen > MQTT en automatisering** en kies **Integratie toevoegen**. Soorten:
 
 - **Privé-MQTT:** berichten doorsturen naar je eigen broker, ruw en/of ontsleuteld. Ontsleutelde berichten gaan als platte tekst, dus gebruik een broker die je vertrouwt.
-- **Community MQTT/meshcoretomqtt:** een feed van ruwe pakketten voor community-aggregators, zodat je radio als observer kan dienen. Regionale voorinstellingen zijn ingebouwd.
+- **Community MQTT/meshcoretomqtt:** een feed van ruwe pakketten voor community-aggregators, zodat je radio als observer kan dienen. Regionale voorinstellingen zijn ingebouwd. Onder **Pakketten publiceren** kun je de payloadtypes aanvinken die verzonden worden (niets aangevinkt verzendt alles). Pakketten die binnenkomen terwijl de broker onbereikbaar is, worden bewaard (tot het ingestelde aantal, standaard 500) en met de tijd waarop ze zijn gehoord verzonden zodra de verbinding terug is. **Weigeringen van de broker tonen** leest het foutentopic van je node, voor brokers die er een publiceren.
 - **Home Assistant MQTT Discovery:** apparaten en entiteiten verschijnen automatisch in Home Assistant: een apparaat voor de lokale radio, een berichtgebeurtenis, telemetriesensoren voor gevolgde repeaters en GPS-trackers voor gekozen contacten. Repeaters moeten eerst gevolgd worden voor telemetrie voordat ze in de keuzelijst verschijnen.
 - **Webhook:** ontsleutelde berichten naar een URL, optioneel ondertekend.
 - **Apprise:** stuurt berichten door naar Discord, Telegram, e-mail en vele andere diensten.
@@ -598,6 +605,8 @@ Kies een bestand, of druk op **Herstellen** naast een bestand onder **Back-ups o
 **De pagina is leeg of verouderd na een update.** De server levert de gebouwde frontend. Bouw na het bijwerken de frontend opnieuw en ververs de pagina.
 
 **Berichten blijven op de radio staan en verschijnen nooit.** Start de server met `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true`, dat de radio elke 10 seconden bevraagt.
+
+**"Sommige berichten ontbreken mogelijk" na een herverbinding.** Zolang RTFM-EV niet verbonden is, bewaart de radio maar een paar berichten (16 op de meeste borden) en gooit hij de oudste kanaalberichten eerst weg. De waarschuwing verschijnt als de wachtrij van de radio vol was bij het verbinden, dus kanaalberichten uit die tijd kunnen verloren zijn. Houd de app verbonden om dat te voorkomen.
 
 **Waarschuwing dat automatisch bevestigen van DM's misschien niet voor alle contacten werkt.** De contactentabel van de radio is vol of kon niet gelezen worden. Versturen en ontvangen werken gewoon. Verlaag **Max Contacten op Radio**, of wis de contactentabel van de radio met een andere MeshCore-client en herstart.
 

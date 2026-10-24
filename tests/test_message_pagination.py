@@ -204,3 +204,34 @@ async def test_full_walk_collects_all_messages(test_db):
 
     assert len(collected_ids) == total
     assert len(set(collected_ids)) == total  # no duplicates
+
+
+async def _three_messages() -> list[int]:
+    ids = []
+    for received_at, text in [(100, "first"), (200, "second"), (300, "third")]:
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text=text,
+            conversation_key=CHAN_KEY,
+            sender_timestamp=received_at,
+            received_at=received_at,
+        )
+        assert msg_id is not None
+        ids.append(msg_id)
+    return ids
+
+
+@pytest.mark.asyncio
+async def test_after_id_alone_is_a_forward_cursor(test_db):
+    ids = await _three_messages()
+    page = await MessageRepository.get_all(
+        msg_type="CHAN", conversation_key=CHAN_KEY, after_id=ids[0]
+    )
+    assert [m.id for m in page] == ids[1:]
+
+
+@pytest.mark.asyncio
+async def test_after_alone_is_a_forward_cursor(test_db):
+    ids = await _three_messages()
+    page = await MessageRepository.get_all(msg_type="CHAN", conversation_key=CHAN_KEY, after=200)
+    assert [m.id for m in page] == ids[2:]

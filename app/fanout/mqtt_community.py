@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import string
+from collections import deque
 from types import SimpleNamespace
 from typing import Any
 
@@ -25,6 +26,28 @@ _TOPIC_TEMPLATE_FIELD_CANONICAL = {
     "iata": "IATA",
     "public_key": "PUBLIC_KEY",
 }
+
+# Packets kept while the broker cannot be reached (per integration, in memory).
+DEFAULT_OFFLINE_QUEUE_MAX = 500
+MAX_OFFLINE_QUEUE_MAX = 5000
+
+
+def _payload_type(data: dict) -> int | None:
+    """MeshCore payload type (header bits 2-5) of a raw packet broadcast."""
+    raw = data.get("data") or ""
+    try:
+        header = bytes.fromhex(raw[:2])
+    except ValueError:
+        return None
+    return (header[0] >> 2) & 0x0F if header else None
+
+
+def _type_allowed(config: dict, data: dict) -> bool:
+    """True when the integration publishes this packet's payload type (empty list = all)."""
+    allowed = config.get("packet_types") or []
+    if not allowed:
+        return True
+    return _payload_type(data) in allowed
 
 
 def _normalize_topic_template(topic_template: str) -> str:
@@ -76,6 +99,7 @@ def _config_to_settings(config: dict) -> SimpleNamespace:
         community_mqtt_publish_filter=bool(config.get("publish_filter", False)),
         community_mqtt_filter_interval_ms=config.get("filter_interval_ms", 60000),
         community_mqtt_publish_own_neighbors=bool(config.get("publish_own_neighbors", False)),
+        community_mqtt_listen_broker_errors=bool(config.get("listen_broker_errors", False)),
         # The config topic echoes the per-topic toggles, so hand the blob through.
         community_mqtt_fanout_config=dict(config),
     )
@@ -95,6 +119,9 @@ class MqttCommunityModule(FanoutModule):
         self._publisher = CommunityMqttPublisher()
         self._publisher.set_integration_name(name or config_id)
         self._publisher.set_config_id(config_id)
+        self._publisher.after_connect = self._flush_offline_queue
+        self._offline: deque[tuple[str, dict]] = deque()
+        self._offline_dropped = 0
 
     async def start(self) -> None:
         settings = _config_to_settings(self.config)
@@ -102,17 +129,58 @@ class MqttCommunityModule(FanoutModule):
 
     async def stop(self) -> None:
         await self._publisher.stop()
+        self._offline.clear()
+
+    def _queue_offline(self, topic: str, packet: dict) -> None:
+        limit = self.config.get("offline_queue_max", DEFAULT_OFFLINE_QUEUE_MAX)
+        if not isinstance(limit, int) or limit < 1:
+            limit = DEFAULT_OFFLINE_QUEUE_MAX
+        while len(self._offline) >= limit:
+            self._offline.popleft()
+            self._offline_dropped += 1
+        self._offline.append((topic, packet))
+
+    async def _flush_offline_queue(self) -> None:
+        """Send the packets heard while disconnected, oldest first."""
+        sent = 0
+        while self._offline and self._publisher.connected:
+            topic, packet = self._offline.popleft()
+            await self._publisher.publish(topic, packet)
+            if not self._publisher.connected:
+                # The publish failed and the connection dropped: keep it for next time.
+                self._offline.appendleft((topic, packet))
+                break
+            sent += 1
+        if sent:
+            logger.info(
+                "Community MQTT %s: sent %d packet(s) heard while disconnected",
+                self.name or self.config_id,
+                sent,
+            )
 
     async def on_message(self, data: dict) -> None:
         # Community MQTT only publishes raw packets, not decoded messages.
         pass
 
     async def on_raw(self, data: dict) -> None:
-        if not self._publisher.connected or self._publisher._settings is None:
+        if self._publisher._settings is None:
             return
         if not self.config.get("publish_packets", True):
             return
-        await _publish_community_packet(self._publisher, self.config, data)
+        if not _type_allowed(self.config, data):
+            return
+        prepared = _prepare_community_packet(self.config, data)
+        if prepared is None:
+            return
+        topic, packet = prepared
+        if self._publisher.connected:
+            if self._offline:
+                await self._flush_offline_queue()
+            if self._publisher.connected:
+                await self._publisher.publish(topic, packet)
+                return
+        if self.config.get("offline_queue", True) and self._publisher._is_configured():
+            self._queue_offline(topic, packet)
 
     async def on_telemetry(self, data: dict) -> None:
         if not self._publisher.connected or self._publisher._settings is None:
@@ -164,6 +232,8 @@ class MqttCommunityModule(FanoutModule):
     def last_error(self) -> str | None:
         if self._publisher.last_error:
             return self._publisher.last_error
+        if self._publisher.broker_error:
+            return self._publisher.broker_error
         return self._key_unavailable_reason()
 
     @property
@@ -172,6 +242,8 @@ class MqttCommunityModule(FanoutModule):
             "messages_published": self._publisher.messages_published,
             "publish_failures": self._publisher.publish_failures,
             "reconnects": self._publisher.reconnects,
+            "queued": len(self._offline),
+            "queue_dropped": self._offline_dropped,
         }
 
     def _key_unavailable_reason(self) -> str | None:
@@ -254,19 +326,19 @@ async def _publish_node_report(
         logger.warning("Community MQTT %s broadcast error: %s", kind, e, exc_info=True)
 
 
-async def _publish_community_packet(
-    publisher: CommunityMqttPublisher,
-    config: dict,
-    data: dict[str, Any],
-) -> None:
-    """Format and publish a raw packet to the community broker."""
+def _prepare_community_packet(config: dict, data: dict[str, Any]) -> tuple[str, dict] | None:
+    """Topic and payload for a raw packet, or None when it cannot be published.
+
+    Built when the packet is heard, so a packet that waits in the offline queue
+    keeps its receive time and the radio name it was heard with.
+    """
     try:
         from app.keystore import get_public_key
         from app.services.radio_runtime import radio_runtime as radio_manager
 
         public_key = get_public_key()
         if public_key is None:
-            return
+            return None
 
         pubkey_hex = public_key.hex().upper()
 
@@ -276,18 +348,31 @@ async def _publish_community_packet(
 
         packet = _format_raw_packet(data, device_name, pubkey_hex)
         if packet is None:
-            return
+            return None
         iata = config.get("iata", "").upper().strip()
         if not _IATA_RE.fullmatch(iata):
             logger.debug("Community MQTT: skipping publish - no valid IATA code configured")
-            return
+            return None
         topic = _render_packet_topic(
             str(config.get("topic_template", _DEFAULT_PACKET_TOPIC_TEMPLATE)),
             iata=iata,
             public_key=pubkey_hex,
         )
-
-        await publisher.publish(topic, packet)
+        return topic, packet
 
     except Exception as e:
         logger.warning("Community MQTT broadcast error: %s", e, exc_info=True)
+        return None
+
+
+async def _publish_community_packet(
+    publisher: CommunityMqttPublisher,
+    config: dict,
+    data: dict[str, Any],
+) -> None:
+    """Format and publish a raw packet to the community broker."""
+    prepared = _prepare_community_packet(config, data)
+    if prepared is None:
+        return
+    topic, packet = prepared
+    await publisher.publish(topic, packet)

@@ -196,6 +196,8 @@ When someone mentions your name in a channel you are not viewing, it appears in 
 
 The bell in the chat header opens notification settings: alerts while the tab is open, Web Push alerts when the browser is closed (needs HTTPS), muting the mention sound, and **Mute channel**. **Filter messages** hides messages by hop size. Other header controls include the favorite toggle, a region override, Path Discovery and Direct Trace.
 
+At the bottom of a channel's info panel, **Send channel data (developers)** floods a binary datagram to the channel: a data type in hex (0001-FFFF; FF00-FFFF are free for testing) and up to 165 bytes of hex payload. It goes on air at once and is not stored.
+
 <!-- id: contacts-nodes -->
 
 ## Contacts and nodes
@@ -277,6 +279,7 @@ The map controls are grouped under **Display**, **Size & colors**, **Filters** a
 - **Beacons:** positions, waypoints and routes sent by MeshCore TEAM and signalk-meshcore in channels you follow. Each sender's newest position is a pin with an icon for the kind of sender (boat, autonomous radio or person), and waypoints carry their TEAM type icon; switch on **Trails** to draw its track over the time window. Click a pin for batteries, status and **Open in chat**. A contact that sent such beacons also gets a **Beacon history** section in its contact info.
 - **Sending in TEAM format:** in a private channel, **Share location > Pick on map** can insert a MeshCore TEAM waypoint instead of a location marker. **Settings > Radio-App Management > MeshCore TEAM beacon** can send this radio's position as a TEAM beacon on one private channel at a set interval. It is off by default and transmits on the radio each time. To give a boat its own map icon, set **Vessel type** in its contact info.
 - **Trackers:** ATAK users who use the ATAK plugin for MeshCore (TAK-MESHCORE) and MeshCore SAR fast-GPS beacons. ATAK users show in their team colour; switch on **Trails** for their tracks, and map objects they share appear as purple dots. For ATAK, add the channel `ATAK_DATA` with key `A3741E6A529CCF31D04B89FE1763B82D` first; if the ATAK users set an encryption passphrase in the plugin, their traffic cannot be read, and the Trackers section says how many there were. Their GeoChat lines appear in that channel. MeshCore SAR `S:` markers show as location cards in chat and on **Shared locations**. A contact that sent SAR beacons gets a **MeshCore SAR positions** section in its contact info.
+- **Companion bridge:** the MeshCore app can connect to RTFM-EV over TCP as if it were your radio: it sees your contacts, channels and new messages and sends through RTFM-EV. Radio settings, keys and CLI stay out of reach. It is switched on by the server's administrator (an environment variable, see README_ADVANCED); **Settings > Radio-App Management > Companion bridge** shows whether it runs and which apps are connected.
 - **TAK Stream:** the server can also feed ATAK / WinTAK with your nodes and trackers. It is switched on by the server's administrator (an environment variable, see README_ADVANCED); **Settings > Radio-App Management > TAK Stream** shows whether it runs.
 - **Guessed locations:** estimated positions for nodes without a location, placed near the located repeater(s) in their advert paths or, when heard direct, near your own radio; shown as hollow markers at every zoom, labelled per the map's Labels setting. Never saved or sent.
 - **Relay signal:** rings around relays that passed flooded packets to your radio, colored by average SNR.
@@ -328,7 +331,7 @@ What RTFM-EV itself is doing. **Overview** shows the overall state (with the rea
 - **Background tasks:** every long-running loop with its state (healthy, running, overdue, idle, failed), interval, last run, duration and a 24-hour strip, plus all asyncio tasks right now.
 - **Packet pipeline:** packets per minute and the time each step takes (parse, store, process, broadcast), with duplicates, decrypted and undecryptable packets.
 - **Database:** file and WAL size, readers busy, lock waits and the slowest database calls of the last hour.
-- **Radio link:** how long radio operations hold the radio, errors, reconnects and the slowest operations.
+- **Radio link:** what holds the radio right now and what waits for it (with how long), how long radio operations hold the radio, errors, reconnects and the slowest operations.
 - **Outputs:** MQTT and the other fanout modules, WebSocket clients, TAK Stream and web push.
 - **Requests:** the busiest API routes with their timings and server errors.
 - **Logs:** the latest warnings and errors from the backend log.
@@ -456,6 +459,10 @@ Build a loop of repeaters and trace it back to your radio. Search repeaters by n
 
 Full-text search across direct and channel messages. Use `user:` or `channel:` to narrow results (put names with spaces in quotes). `region:` filters by the region a message was sent with: a region name, `region:none` for messages sent without a region, or `region:unknown` for a region this app cannot name. Click a result to jump to that message.
 
+### Mentions
+
+Every stored message that mentions you as `@[your radio name]`, in channels and DMs, newest first. It hides what the chat hides (blocked senders, bots when hidden, hidden hop widths and SFs, malformed and spam messages when hidden). Click a mention to jump to it; **Load more results** goes further back and the refresh button reads the list again.
+
 ### Channel Registry
 
 A local catalog of known channels. It is a reference list, not the channels the app monitors. You can add, edit, filter, import and export entries, sync from a remote list, and use **Add to Channels** to start monitoring one. Private entries are never exported. In a channel, the registry icon in the header (or **Edit in Channel Registry** in the channel info panel) opens that channel's entry straight in edit mode, adding it first if it is missing.
@@ -552,7 +559,7 @@ Version, links to the changelog and bug reports, an update check, and **Open deb
 Open **Settings > MQTT & Automation** and choose **Add Integration**. Types:
 
 - **Private MQTT:** forward messages to your own broker, raw and/or decrypted. Decrypted messages are sent in plain text, so use a broker you trust.
-- **Community MQTT/meshcoretomqtt:** a raw packet feed for community aggregators, so your radio can act as an observer. Regional presets are built in.
+- **Community MQTT/meshcoretomqtt:** a raw packet feed for community aggregators, so your radio can act as an observer. Regional presets are built in. Under **Publish packets** you can tick the payload types to send (none ticked sends all). Packets heard while the broker cannot be reached are kept (up to the number you set, 500 by default) and sent with the time they were heard once the connection is back. **Show the broker's refusal messages** reads the broker's error topic for your node, for brokers that publish one.
 - **Home Assistant MQTT Discovery:** devices and entities appear in Home Assistant automatically: a local radio device, a message event, telemetry sensors for tracked repeaters, and GPS trackers for selected contacts. Repeaters must be tracked for telemetry before they show up in the picker.
 - **Webhook:** decrypted messages to a URL, optionally signed.
 - **Apprise:** forwards messages to Discord, Telegram, email and many other services.
@@ -598,6 +605,8 @@ Choose a file, or press **Restore** next to a file under **Backups on the server
 **The page is blank or old after an upgrade.** The server serves the built frontend. After updating, rebuild the frontend and refresh the page.
 
 **Messages stay on the radio and never appear.** Start the server with `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true`, which polls the radio every 10 seconds.
+
+**"Some messages may be missing" after a reconnect.** While RTFM-EV is not connected the radio keeps only a few messages (16 on most boards) and drops the oldest channel messages first. The warning shows when the radio's queue was full on connect, so channel messages heard in that time may be lost. Keep the app connected to avoid it.
 
 **Warning that automatic DM acknowledgement may not work for all contacts.** The radio contact table is full or could not be read. Sending and receiving still work. Lower **Max Contacts on Radio**, or clear the radio's contact table with another MeshCore client and restart.
 

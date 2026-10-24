@@ -43,6 +43,7 @@ import type { SearchViewProps } from './SearchView';
 import type { SettingsModalProps } from './SettingsModal';
 import type { Conversation } from '../types';
 import { cn } from '@/lib/utils';
+import { PaneSkeleton } from './ui/skeleton';
 
 const SettingsModal = lazy(() =>
   import('./SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -491,13 +492,7 @@ export function AppShell({
                   'hidden'
               )}
             >
-              <Suspense
-                fallback={
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                    {t('common_loading_search')}
-                  </div>
-                }
-              >
+              <Suspense fallback={<PaneSkeleton label={t('common_loading_search')} />}>
                 <SearchView {...searchProps} />
               </Suspense>
             </div>
@@ -506,13 +501,7 @@ export function AppShell({
           {showSettings && (
             <div className="flex-1 flex flex-col min-h-0">
               <div className="flex-1 min-h-0 overflow-hidden">
-                <Suspense
-                  fallback={
-                    <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-                      {t('common_loading_settings')}
-                    </div>
-                  }
-                >
+                <Suspense fallback={<PaneSkeleton label={t('common_loading_settings')} />}>
                   <SettingsModal
                     {...settingsProps}
                     open={showSettings}

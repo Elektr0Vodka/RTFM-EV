@@ -196,6 +196,8 @@ Erwähnt jemand deinen Namen in einem Kanal, den du gerade nicht offen hast, ers
 
 Die Glocke in der Chat-Kopfzeile öffnet die Benachrichtigungseinstellungen: Hinweise, solange der Tab offen ist, Web-Push-Benachrichtigungen bei geschlossenem Browser (braucht HTTPS), das Stummschalten des Erwähnungstons und **Kanal stummschalten**. **Nachrichten filtern** blendet Nachrichten nach Hop-Größe aus. Weitere Schaltflächen in der Kopfzeile sind unter anderem Favorit, eine Regions-Überschreibung, Pfaderkennung und Direct Trace.
 
+Unten im Infobereich eines Kanals sendet **Kanaldaten senden (Entwickler)** ein binäres Datagramm per Flood an den Kanal: einen Datentyp in Hex (0001-FFFF; FF00-FFFF sind zum Testen frei) und bis zu 165 Bytes Inhalt in Hex. Es geht sofort auf Sendung und wird nicht gespeichert.
+
 <!-- id: contacts-nodes -->
 
 ## Kontakte und Knoten
@@ -277,6 +279,7 @@ Die Kartenbedienung ist in **Anzeige**, **Größe & Farben**, **Filter** und **O
 - **Baken:** Positionen, Wegpunkte und Routen von MeshCore TEAM und signalk-meshcore in Kanälen, denen du folgst. Die neueste Position jedes Absenders ist eine Stecknadel mit einem Symbol für die Art des Absenders (Boot, autonomes Funkgerät oder Person), und Wegpunkte tragen ihr TEAM-Typsymbol; schalte **Spuren** ein, um seine Spur über das Zeitfenster zu zeichnen. Klicke auf eine Stecknadel für Batterien, Status und **Im Chat öffnen**. Ein Kontakt, der solche Baken gesendet hat, bekommt außerdem einen Abschnitt **Baken-Verlauf** in den Kontaktinfos.
 - **Senden im TEAM-Format:** in einem privaten Kanal kann **Share location > Auf Karte auswählen** einen MeshCore-TEAM-Wegpunkt statt einer Standortmarkierung einfügen. **Einstellungen > Radio-App-Verwaltung > MeshCore-TEAM-Bake** kann die Position dieses Funkgeräts als TEAM-Bake auf einem privaten Kanal in einem festen Intervall senden. Das ist standardmäßig aus und sendet jedes Mal über das Funkgerät. Setze **Schiffstyp** in den Kontaktinfos, um einem Boot ein eigenes Kartensymbol zu geben.
 - **Tracker:** ATAK-Nutzer mit dem ATAK-Plugin für MeshCore (TAK-MESHCORE) und schnelle GPS-Baken von MeshCore SAR. ATAK-Nutzer erscheinen in ihrer Teamfarbe; schalte **Spuren** ein für ihre Tracks, und Kartenobjekte, die sie teilen, erscheinen als violette Punkte. Für ATAK zuerst den Kanal `ATAK_DATA` mit dem Schlüssel `A3741E6A529CCF31D04B89FE1763B82D` hinzufügen; wenn die ATAK-Nutzer im Plugin ein Verschlüsselungspasswort setzen, ist ihr Verkehr nicht lesbar, und der Tracker-Abschnitt zeigt, wie viele Nachrichten das waren. Ihre GeoChat-Nachrichten erscheinen in diesem Kanal. MeshCore-SAR-`S:`-Markierungen werden Standortkarten im Chat und stehen unter **Geteilte Standorte**. Ein Kontakt, der SAR-Baken gesendet hat, bekommt einen Abschnitt **MeshCore-SAR-Positionen** in den Kontaktinfos.
+- **Companion-Brücke:** die MeshCore-App kann sich per TCP mit RTFM-EV verbinden, als wäre es dein Funkgerät: sie sieht deine Kontakte, Kanäle und neuen Nachrichten und sendet über RTFM-EV. Funkeinstellungen, Schlüssel und CLI bleiben außer Reichweite. Das schaltet der Administrator des Servers ein (eine Umgebungsvariable, siehe README_ADVANCED); **Einstellungen > Radio-App-Verwaltung > Companion-Brücke** zeigt, ob sie läuft und welche Apps verbunden sind.
 - **TAK Stream:** der Server kann ATAK / WinTAK auch mit deinen Knoten und Trackern versorgen. Das schaltet der Administrator des Servers ein (eine Umgebungsvariable, siehe README_ADVANCED); **Einstellungen > Radio-App-Verwaltung > TAK Stream** zeigt, ob es läuft.
 - **Geschätzte Standorte:** geschätzte Positionen für Knoten ohne Standort, platziert nahe dem/den lokalisierten Repeater(n) in ihren Advert-Pfaden oder, wenn direkt gehört, nahe deinem eigenen Funkgerät; als hohle Markierungen auf jeder Zoomstufe, beschriftet gemäß der Karteneinstellung Beschriftungen. Werden nie gespeichert oder gesendet.
 - **Relay-Signal:** Ringe um Relays, die Flood-Pakete an dein Funkgerät weitergegeben haben, eingefärbt nach durchschnittlichem SNR.
@@ -328,7 +331,7 @@ Was RTFM-EV selbst tut. **Übersicht** zeigt den Gesamtzustand (mit dem Grund, w
 - **Hintergrundaufgaben:** jede dauerhaft laufende Schleife mit Status (in Ordnung, läuft, überfällig, inaktiv, fehlgeschlagen), Intervall, letztem Lauf, Dauer und einem 24-Stunden-Streifen, dazu alle aktuellen Asyncio-Tasks.
 - **Paketverarbeitung:** Pakete pro Minute und die Zeit je Schritt (Parsen, Speichern, Verarbeiten, Verteilen), mit Duplikaten, entschlüsselten und nicht entschlüsselbaren Paketen.
 - **Datenbank:** Größe von Datei und WAL, belegte Leser, Wartezeit auf die Sperre und die langsamsten Datenbankaufrufe der letzten Stunde.
-- **Funkverbindung:** wie lange Funkoperationen das Funkgerät belegen, Fehler, Neuverbindungen und die langsamsten Operationen.
+- **Funkverbindung:** was das Funkgerät gerade nutzt und was darauf wartet (und wie lange), wie lange Funkoperationen das Funkgerät belegen, Fehler, Neuverbindungen und die langsamsten Operationen.
 - **Ausgaben:** MQTT und die anderen Fanout-Module, WebSocket-Clients, TAK Stream und Web-Push.
 - **Anfragen:** die meistgenutzten API-Routen mit ihren Zeiten und Serverfehlern.
 - **Logs:** die letzten Warnungen und Fehler aus dem Backend-Log.
@@ -456,6 +459,10 @@ Baue eine Schleife aus Repeatern und verfolge sie zurück zu deinem Funkgerät. 
 
 Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenzt du die Ergebnisse ein (Namen mit Leerzeichen in Anführungszeichen setzen). `region:` filtert nach der Region, mit der eine Nachricht gesendet wurde: ein Regionsname, `region:none` für Nachrichten ohne Region oder `region:unknown` für eine Region, die diese App nicht benennen kann. Klicke auf ein Ergebnis, um zu dieser Nachricht zu springen.
 
+### Erwähnungen
+
+Jede gespeicherte Nachricht, die dich als `@[Name deines Funkgeräts]` erwähnt, in Kanälen und DMs, neueste zuerst. Was der Chat ausblendet, fehlt auch hier (blockierte Absender, Bots wenn ausgeblendet, ausgeblendete Hop-Breiten und SFs, fehlerhafte und Spam-Nachrichten wenn ausgeblendet). Klicke auf eine Erwähnung, um dorthin zu springen; **Weitere Ergebnisse laden** geht weiter zurück, die Aktualisieren-Schaltfläche liest die Liste neu.
+
 ### Channel Registry (Kanalregister)
 
 Ein lokaler Katalog bekannter Kanäle. Es ist eine Nachschlageliste, nicht die Liste der Kanäle, die die App beobachtet. Du kannst Einträge hinzufügen, bearbeiten, filtern, importieren und exportieren, von einer externen Liste synchronisieren und mit **Zu Kanälen hinzufügen** einen Kanal beobachten. Private Einträge werden nie exportiert. In einem Kanal öffnet das Register-Symbol in der Kopfzeile (oder **Im Kanalregister bearbeiten** im Kanal-Infobereich) den Eintrag dieses Kanals direkt im Bearbeitungsmodus; fehlt er, wird er zuerst hinzugefügt.
@@ -552,7 +559,7 @@ Version, Links zum Changelog und zum Melden von Fehlern, eine Update-Prüfung un
 Öffne **Einstellungen > MQTT & Automatisierung** und wähle **Integration hinzufügen**. Arten:
 
 - **Privates MQTT:** Nachrichten an deinen eigenen Broker weiterleiten, roh und/oder entschlüsselt. Entschlüsselte Nachrichten gehen im Klartext hinaus, nutze also einen Broker, dem du vertraust.
-- **Community MQTT/meshcoretomqtt:** ein Feed roher Pakete für Community-Aggregatoren, sodass dein Funkgerät als Beobachter dienen kann. Regionale Voreinstellungen sind eingebaut.
+- **Community MQTT/meshcoretomqtt:** ein Feed roher Pakete für Community-Aggregatoren, sodass dein Funkgerät als Beobachter dienen kann. Regionale Voreinstellungen sind eingebaut. Unter **Pakete veröffentlichen** kannst du die Payload-Typen anhaken, die gesendet werden (nichts angehakt sendet alle). Pakete, die empfangen werden, während der Broker nicht erreichbar ist, werden behalten (bis zur eingestellten Anzahl, standardmäßig 500) und mit ihrer Empfangszeit gesendet, sobald die Verbindung zurück ist. **Ablehnungen des Brokers anzeigen** liest das Fehler-Topic deines Knotens, für Broker, die eines veröffentlichen.
 - **Home Assistant MQTT Discovery:** Geräte und Entitäten erscheinen automatisch in Home Assistant: ein Gerät für das lokale Funkgerät, ein Nachrichtenereignis, Telemetriesensoren für verfolgte Repeater und GPS-Tracker für ausgewählte Kontakte. Repeater müssen erst für Telemetrie verfolgt werden, bevor sie in der Auswahl erscheinen.
 - **Webhook:** entschlüsselte Nachrichten an eine URL, optional signiert.
 - **Apprise:** leitet Nachrichten an Discord, Telegram, E-Mail und viele weitere Dienste weiter.
@@ -598,6 +605,8 @@ Wähle eine Datei oder drücke **Wiederherstellen** neben einer Datei unter **Si
 **Die Seite ist leer oder veraltet nach einem Update.** Der Server liefert das gebaute Frontend aus. Baue das Frontend nach dem Update neu und lade die Seite neu.
 
 **Nachrichten bleiben auf dem Funkgerät und erscheinen nie.** Starte den Server mit `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true`, das das Funkgerät alle 10 Sekunden abfragt.
+
+**"Einige Nachrichten fehlen möglicherweise" nach einer Neuverbindung.** Solange RTFM-EV nicht verbunden ist, behält das Funkgerät nur wenige Nachrichten (16 auf den meisten Boards) und verwirft die ältesten Kanalnachrichten zuerst. Die Warnung erscheint, wenn die Warteschlange des Funkgeräts beim Verbinden voll war, sodass Kanalnachrichten aus dieser Zeit verloren sein können. Bleib verbunden, um das zu vermeiden.
 
 **Warnung, dass die automatische DM-Bestätigung eventuell nicht für alle Kontakte funktioniert.** Die Kontakttabelle des Funkgeräts ist voll oder konnte nicht gelesen werden. Senden und Empfangen funktionieren weiterhin. Senke **Max. Kontakte auf dem Funkgerät**, oder leere die Kontakttabelle des Funkgeräts mit einem anderen MeshCore-Client und starte neu.
 

@@ -260,13 +260,60 @@ async def run_historical_dm_decryption(
         )
 
 
+# Historical scans read every undecrypted DM packet, so they run one at a time,
+# and a contact already being scanned (or waiting) is not queued twice.
+_historical_scans_pending: set[str] = set()
+_historical_scan_slot: tuple[asyncio.AbstractEventLoop, asyncio.Semaphore] | None = None
+
+
+def _historical_scan_semaphore() -> asyncio.Semaphore:
+    global _historical_scan_slot
+    loop = asyncio.get_running_loop()
+    if _historical_scan_slot is None or _historical_scan_slot[0] is not loop:
+        _historical_scan_slot = (loop, asyncio.Semaphore(1))
+    return _historical_scan_slot[1]
+
+
+async def _run_historical_dm_decryption_bounded(
+    private_key_bytes: bytes,
+    contact_public_key_bytes: bytes,
+    contact_public_key_hex: str,
+    display_name: str | None = None,
+) -> None:
+    try:
+        async with _historical_scan_semaphore():
+            await run_historical_dm_decryption(
+                private_key_bytes,
+                contact_public_key_bytes,
+                contact_public_key_hex,
+                display_name,
+            )
+    except Exception:
+        logger.exception("Historical DM decryption failed for %s", contact_public_key_hex[:12])
+    finally:
+        _historical_scans_pending.discard(contact_public_key_hex)
+
+
 async def start_historical_dm_decryption(
     background_tasks,
     contact_public_key_hex: str,
     display_name: str | None = None,
+    *,
+    automatic: bool = False,
 ) -> None:
-    """Start historical DM decryption using the stored private key."""
+    """Start historical DM decryption using the stored private key.
+
+    ``automatic`` is set for the scan a new contact's advert starts: a missing
+    private key is then expected (firmware without key export) and only logged,
+    instead of a warning toast for every new contact heard.
+    """
     if not has_private_key():
+        if automatic:
+            logger.debug(
+                "Skipping automatic historical DM decryption for %s: no private key",
+                contact_public_key_hex[:12],
+            )
+            return
         logger.warning(
             "Cannot start historical DM decryption: private key not available. "
             "Ensure radio firmware has ENABLE_PRIVATE_KEY_EXPORT=1."
@@ -290,22 +337,28 @@ async def start_historical_dm_decryption(
         )
         return
 
-    logger.info("Starting historical DM decryption for contact %s", contact_public_key_hex[:12])
+    key = contact_public_key_hex.lower()
+    if key in _historical_scans_pending:
+        logger.debug("Historical DM decryption for %s already queued", key[:12])
+        return
+    _historical_scans_pending.add(key)
+
+    logger.info("Starting historical DM decryption for contact %s", key[:12])
     if background_tasks is None:
         asyncio.create_task(
-            run_historical_dm_decryption(
+            _run_historical_dm_decryption_bounded(
                 private_key_bytes,
                 contact_public_key_bytes,
-                contact_public_key_hex.lower(),
+                key,
                 display_name,
             )
         )
     else:
         background_tasks.add_task(
-            run_historical_dm_decryption,
+            _run_historical_dm_decryption_bounded,
             private_key_bytes,
             contact_public_key_bytes,
-            contact_public_key_hex.lower(),
+            key,
             display_name,
         )
 
@@ -977,7 +1030,9 @@ async def _process_advertisement(
     if existing is None:
         settings = await AppSettingsRepository.get()
         if settings.auto_decrypt_dm_on_advert:
-            await start_historical_dm_decryption(None, advert.public_key.lower(), advert.name)
+            await start_historical_dm_decryption(
+                None, advert.public_key.lower(), advert.name, automatic=True
+            )
 
 
 async def _process_direct_message(

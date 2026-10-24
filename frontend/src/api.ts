@@ -161,6 +161,7 @@ import type {
   TrackersResponse,
   TrackerSource,
   TakStreamStatusResponse,
+  CompanionBridgeStatusResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -279,6 +280,27 @@ function validationText(detail: unknown[]): string {
     .join('; ');
 }
 
+const PLAIN_ERROR_MAX_CHARS = 200;
+const GATEWAY_TIMEOUT_STATUSES = new Set([502, 503, 504, 520, 522, 524]);
+
+/**
+ * Error text for a non-JSON error body. A reverse proxy (Cloudflare and the
+ * like) answers with a whole HTML page; that must not end up in a toast.
+ */
+export function plainErrorText(body: string, status: number, statusText: string): string {
+  const text = body.trim();
+  const looksLikeHtml =
+    /^<(!doctype|html|head|body)\b/i.test(text) || /<\/?[a-z][^>]*>/i.test(text);
+  if (text && !looksLikeHtml && text.length <= PLAIN_ERROR_MAX_CHARS) {
+    return text;
+  }
+  const label = statusText ? `HTTP ${status} ${statusText}` : `HTTP ${status}`;
+  if (GATEWAY_TIMEOUT_STATUSES.has(status)) {
+    return `Request failed (${label}): the server or a proxy in front of it did not answer in time`;
+  }
+  return `Request failed (${label})`;
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const hasBody = options?.body !== undefined;
   const res = await fetch(`${API_BASE}${url}`, {
@@ -309,7 +331,8 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
         errorMessage = JSON.stringify(errorJson.detail);
       }
     } catch {
-      // Not JSON, use raw text
+      // Not JSON: a short plain-text reason is kept, a proxy's HTML page is not.
+      errorMessage = plainErrorText(errorText, res.status, res.statusText);
     }
     // A reverse proxy whose session ran out answers instead of the backend.
     reportHttpFailure(res.status, errorText);
@@ -965,6 +988,28 @@ export const api = {
     }),
 
   // Messages
+  /** Incoming messages that mention the radio's name, newest first. */
+  getMentions: (
+    params?: { limit?: number; before?: number; before_id?: number },
+    signal?: AbortSignal
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.before !== undefined) searchParams.set('before', params.before.toString());
+    if (params?.before_id !== undefined) searchParams.set('before_id', params.before_id.toString());
+    const query = searchParams.toString();
+    return fetchJson<Message[]>(`/messages/mentions${query ? `?${query}` : ''}`, { signal });
+  },
+  /** Flood a binary datagram (GRP_DATA) to a channel. Transmits on air. */
+  sendChannelData: (channelKey: string, dataType: number, payloadHex: string) =>
+    fetchJson<{ status: string; bytes: number }>('/messages/channel-data', {
+      method: 'POST',
+      body: JSON.stringify({
+        channel_key: channelKey,
+        data_type: dataType,
+        payload_hex: payloadHex,
+      }),
+    }),
   getMessages: (
     params?: {
       limit?: number;
@@ -1072,6 +1117,8 @@ export const api = {
     const query = qs.toString();
     return fetchJson<TrackersResponse>(`/trackers${query ? `?${query}` : ''}`, { signal });
   },
+  getCompanionBridgeStatus: (signal?: AbortSignal) =>
+    fetchJson<CompanionBridgeStatusResponse>('/companion-bridge/status', { signal }),
   getTakStreamStatus: (signal?: AbortSignal) =>
     fetchJson<TakStreamStatusResponse>('/tak-stream/status', { signal }),
   getMessagesAround: (

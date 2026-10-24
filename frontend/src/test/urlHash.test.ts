@@ -539,3 +539,26 @@ describe('fleet (Tools > Fleet) route', () => {
     expect(getConversationHash({ type: 'fleet', id: 'new', name: 'Fleet' })).toBe('#fleet/new');
   });
 });
+
+describe('mentions (Tools > Mentions) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #mentions', () => {
+    window.location.hash = '#mentions';
+    expect(parseHashConversation()).toEqual({ type: 'mentions', name: 'mentions' });
+  });
+
+  it('builds #mentions', () => {
+    expect(getConversationHash({ type: 'mentions', id: 'mentions', name: 'Mentions' })).toBe(
+      '#mentions'
+    );
+  });
+});

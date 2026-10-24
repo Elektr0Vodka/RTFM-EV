@@ -24,6 +24,7 @@ import type {
   PathDiscoveryResponse,
   RadioConfig,
 } from '../types';
+import { PaneSkeleton } from './ui/skeleton';
 
 export interface ContactInfoViewProps {
   publicKey: string;
@@ -124,9 +125,7 @@ export function ContactInfoView({
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <MinimalTopBar t={t} onBack={onBack} title={t('contact_info_title')} />
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          {t('common_loading')}
-        </div>
+        <PaneSkeleton label={t('common_loading')} />
       </div>
     );
   }
