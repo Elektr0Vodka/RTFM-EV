@@ -3,8 +3,9 @@
  *
  * The "Offenders" block of the Mesh Health "Spam & bots" tab: one switch
  * between three tables (senders, channels, source repeaters), each sortable by
- * a click on its header, paged with the shared Mesh Health page size, and with
- * a CSV download of the rows the server returned.
+ * a click on its header, paged with the shared Mesh Health page size (picked in
+ * the header, like the Adverts and Power outage tables), and with a CSV download
+ * of the rows the server returned.
  */
 
 import { useMemo, useState, type ReactNode } from 'react';
@@ -27,6 +28,8 @@ import {
 
 type TableKey = 'senders' | 'channels' | 'sources';
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 0] as const;
+
 interface Column<T> {
   key: string;
   label: string;
@@ -41,6 +44,8 @@ interface Props {
   contacts: Contact[];
   /** Rows per page; 0 shows all. */
   pageSize: number;
+  /** Saves a new shared page size; without it the page size cannot be changed here. */
+  onPageSizeChange?: (size: number) => void;
   scrambled: boolean;
   onOpenNode?: (publicKey: string, name: string | null) => void;
   onNavigateToMap?: (focusKey?: string) => void;
@@ -179,6 +184,7 @@ export function MeshFilterStatsTables({
   report,
   contacts,
   pageSize,
+  onPageSizeChange,
   scrambled,
   onOpenNode,
   onNavigateToMap,
@@ -384,6 +390,21 @@ export function MeshFilterStatsTables({
               />
               {t('mesh_filter_protected_only')}
             </label>
+          )}
+          {onPageSizeChange && (
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              aria-label={t('mesh_health_page_size_label')}
+              title={t('mesh_health_page_size_label')}
+              className="h-6 rounded-md border border-input bg-background px-1.5 text-[11px] text-foreground"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? t('mesh_health_page_size_all') : n}
+                </option>
+              ))}
+            </select>
           )}
           <button
             type="button"
