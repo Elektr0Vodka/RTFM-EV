@@ -6,6 +6,7 @@ from hashlib import sha256
 from app.database import db
 from app.decoder import PayloadType, extract_payload, get_packet_payload_type
 from app.models import RadioStamp
+from app.path_utils import packet_identity_digest
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,17 @@ UNDECRYPTED_PACKET_BATCH_SIZE = 500
 
 
 def payload_hash_for(data: bytes) -> bytes:
-    """SHA-256 of the packet payload (routing/path excluded); full bytes if unparseable.
+    """SHA-256 of the packet's identity (routing path excluded); full bytes if unparseable.
 
-    The dedup key of ``raw_packets`` and the grouping key of ``packet_receptions``.
+    The identity is what the firmware hashes: payload type, the path byte for a
+    TRACE, and the payload. The dedup key of ``raw_packets`` and the grouping
+    key of ``packet_receptions``. Rows stored before this included the type
+    keep their old hash; only a packet heard on both sides of that change is
+    stored twice.
     """
+    digest = packet_identity_digest(data)
+    if digest is not None:
+        return digest
     payload = extract_payload(data)
     return sha256(payload).digest() if payload else sha256(data).digest()
 

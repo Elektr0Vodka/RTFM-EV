@@ -178,7 +178,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [conversationType, senderName]);
 
   // UTF-8 byte length of the current text (LoRa packets are byte-constrained)
-  const textByteLen = useMemo(() => byteLen(text), [text]);
+  // Counted on what is sent: leading and trailing whitespace is trimmed off.
+  const textByteLen = useMemo(() => byteLen(text.trim()), [text]);
 
   // Determine current limit state
   const { limitState, warningMessage } = useMemo((): {
@@ -281,9 +282,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const canSubmit = text.trim().length > 0 && !overHardLimit;
 
   // Show counter for messages (not raw).
-  // Desktop: always visible. Mobile: only show count after 100 characters.
+  // Desktop: always visible. Mobile: only show count after 100 bytes (an emoji
+  // takes 4, so a character count would show it too late).
   const showCharCounter = limits !== null;
-  const showMobileCounterValue = text.length > 100;
+  const showMobileCounterValue = textByteLen > 100;
 
   return (
     <form

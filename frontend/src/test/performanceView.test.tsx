@@ -154,6 +154,44 @@ describe('PerformanceView', () => {
     expect(mocks.getPerfHistory).toHaveBeenCalledWith('1h');
   });
 
+  it('shows what holds the radio and what waits for it', async () => {
+    const base = snapshot();
+    mocks.getPerfSnapshot.mockResolvedValue(
+      snapshot({
+        radio: {
+          ...base.radio,
+          queue: {
+            holder: { name: 'send_channel_message', held_ms: 820 },
+            waiting: [
+              { name: 'retry_direct_message', waited_ms: 640 },
+              { name: 'telemetry_poll', waited_ms: 120 },
+            ],
+          },
+        },
+      })
+    );
+    renderView();
+    await screen.findByText('Process CPU');
+    fireEvent.click(screen.getByRole('tab', { name: 'Radio link' }));
+
+    expect(screen.getByText('Radio queue now')).toBeInTheDocument();
+    expect(screen.getByText('send_channel_message')).toBeInTheDocument();
+    expect(screen.getByText('Waiting #1:')).toBeInTheDocument();
+    expect(screen.getByText('retry_direct_message')).toBeInTheDocument();
+    expect(screen.getByText('telemetry_poll')).toBeInTheDocument();
+  });
+
+  it('says so when nothing uses the radio', async () => {
+    const base = snapshot();
+    mocks.getPerfSnapshot.mockResolvedValue(
+      snapshot({ radio: { ...base.radio, queue: { holder: null, waiting: [] } } })
+    );
+    renderView();
+    await screen.findByText('Process CPU');
+    fireEvent.click(screen.getByRole('tab', { name: 'Radio link' }));
+    expect(screen.getByText('Nothing is using the radio.')).toBeInTheDocument();
+  });
+
   it('renders with empty history', async () => {
     renderView();
     expect(await screen.findByText('Process CPU')).toBeInTheDocument();

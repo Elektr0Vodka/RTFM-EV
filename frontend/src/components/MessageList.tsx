@@ -78,6 +78,7 @@ import { hashString } from '../utils/contactAvatar';
 import { PathModal } from './PathModal';
 import { ShareCardDialog } from '../share/ShareCardDialog';
 import { useMessageRouteBuild, type MessageShareTarget } from '../share/cards/useMessageRouteShare';
+import { MessageListSkeleton } from './ui/skeleton';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { MessageRowActions } from './MessageRowActions';
 import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
@@ -2009,11 +2010,7 @@ export function MessageList({
   };
 
   if (loading) {
-    return (
-      <div className="flex-1 overflow-y-auto p-5 text-center text-muted-foreground" role="status">
-        {t('common_loading_messages')}
-      </div>
-    );
+    return <MessageListSkeleton label={t('common_loading_messages')} />;
   }
 
   if (messages.length === 0) {

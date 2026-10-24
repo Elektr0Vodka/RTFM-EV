@@ -15,6 +15,7 @@ import {
   InfoItem,
 } from './ContactInfoBody';
 import type { AnalyzerSite, Contact, ContactGroup, RadioConfig } from '../types';
+import { PaneSkeleton } from './ui/skeleton';
 
 interface ContactInfoPaneProps {
   contactKey: string | null;
@@ -187,9 +188,7 @@ export function ContactInfoPane({
             />
           </div>
         ) : loading && !analytics && !contact ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            {t('common_loading')}
-          </div>
+          <PaneSkeleton label={t('common_loading')} />
         ) : contact ? (
           <div className="flex-1 overflow-y-auto">
             <ContactInfoBody

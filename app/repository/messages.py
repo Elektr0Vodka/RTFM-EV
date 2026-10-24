@@ -14,6 +14,10 @@ from app.models import (
     RadioStamp,
 )
 
+# Most routes stored per message. A busy flood can be heard over many routes;
+# past this the list only grows without telling the user anything new.
+MAX_STORED_PATHS = 64
+
 
 class MessageRepository:
     @dataclass
@@ -260,6 +264,61 @@ class MessageRepository:
             return []
 
         return [MessagePath(**p) for p in all_paths]
+
+    @staticmethod
+    async def add_path_if_new(
+        message_id: int,
+        path: str,
+        received_at: int | None = None,
+        path_len: int | None = None,
+        rssi: int | None = None,
+        snr: float | None = None,
+        *,
+        max_paths: int = MAX_STORED_PATHS,
+    ) -> tuple[list[MessagePath], bool]:
+        """Add a path to a message unless it is already stored or the list is full.
+
+        The same route heard again (a repeat of a repeat) adds nothing, and the
+        list stops growing at ``max_paths``. Returns the stored paths and
+        whether this path was added.
+        """
+        ts = received_at if received_at is not None else int(time.time())
+        entry: dict = {"path": path, "received_at": ts}
+        if path_len is not None:
+            entry["path_len"] = path_len
+        if rssi is not None:
+            entry["rssi"] = rssi
+        if snr is not None:
+            entry["snr"] = snr
+        new_entry = json.dumps(entry)
+        async with db.tx() as conn:
+            # One statement, so concurrent duplicates cannot both pass the checks.
+            async with conn.execute(
+                """UPDATE messages SET paths = json_insert(
+                    COALESCE(paths, '[]'), '$[#]', json(?)
+                ) WHERE id = ?
+                  AND json_array_length(COALESCE(paths, '[]')) < ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM json_each(COALESCE(messages.paths, '[]'))
+                      WHERE json_extract(json_each.value, '$.path') = ?
+                  )""",
+                (new_entry, message_id, max_paths, path),
+            ) as cursor:
+                added = cursor.rowcount > 0
+
+            async with conn.execute(
+                "SELECT paths FROM messages WHERE id = ?", (message_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row or not row["paths"]:
+            return [], added
+
+        try:
+            all_paths = json.loads(row["paths"])
+        except json.JSONDecodeError:
+            return [], added
+
+        return [MessagePath(**p) for p in all_paths], added
 
     @staticmethod
     async def claim_prefix_messages(full_key: str) -> int:
@@ -629,6 +688,60 @@ class MessageRepository:
         )
 
     @staticmethod
+    async def get_mentions(
+        name: str,
+        *,
+        limit: int = 50,
+        before: int | None = None,
+        before_id: int | None = None,
+        blocked_keys: list[str] | None = None,
+        blocked_names: list[str] | None = None,
+        hidden_hop_widths: list[int] | None = None,
+        hidden_radio_sfs: list[int] | None = None,
+        hide_malformed: bool = False,
+        hide_spam: bool = False,
+    ) -> list[Message]:
+        """Incoming messages that mention ``name`` as ``@[name]``, newest first.
+
+        Uses the same match as the unread mention flag (case-insensitive, no
+        reactions) and leaves out what the chat hides (blocked senders, hidden
+        hop widths and SFs, malformed and spam when hidden, CLI traffic).
+        ``before``/``before_id`` page backwards.
+        """
+        token = f"@[{name}]"
+        query = (
+            f"SELECT {MessageRepository._message_select('m')} FROM messages m "
+            "WHERE m.outgoing = 0 AND INSTR(LOWER(m.text), LOWER(?)) > 0 "
+            "AND NOT is_reaction_text(m.text)"
+        )
+        params: list[Any] = [token]
+        blocked_clause, blocked_params = MessageRepository._build_blocked_incoming_clause(
+            "m", blocked_keys, blocked_names
+        )
+        if blocked_clause:
+            query += f" AND {blocked_clause}"
+            params.extend(blocked_params)
+        for clause in (
+            MessageRepository._build_hidden_hop_width_clause("m", hidden_hop_widths),
+            MessageRepository._build_hidden_radio_sf_clause("m", hidden_radio_sfs),
+            MessageRepository._build_hidden_malformed_clause("m", hide_malformed),
+            MessageRepository._build_hidden_spam_clause("m", hide_spam),
+            MessageRepository._build_cli_command_clause("m"),
+        ):
+            if clause:
+                query += f" AND {clause}"
+        if before is not None and before_id is not None:
+            query += " AND (m.received_at < ? OR (m.received_at = ? AND m.id < ?))"
+            params.extend([before, before, before_id])
+        query += " ORDER BY m.received_at DESC, m.id DESC LIMIT ?"
+        params.append(limit)
+
+        async with db.readonly() as conn:
+            async with conn.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+        return [MessageRepository._row_to_message(row) for row in rows]
+
+    @staticmethod
     async def get_all(
         limit: int = 100,
         offset: int = 0,
@@ -697,13 +810,24 @@ class MessageRepository:
             query += " AND messages.text LIKE ? ESCAPE '\\' COLLATE NOCASE"
             params.append(f"%{escaped_q}%")
 
-        # Forward cursor (after/after_id) - mutually exclusive with before/before_id
-        if after is not None and after_id is not None:
-            query += (
-                " AND (messages.received_at > ? OR (messages.received_at = ? AND messages.id > ?))"
-            )
-            params.extend([after, after, after_id])
-            query += " ORDER BY messages.received_at ASC, messages.id ASC LIMIT ?"
+        # Forward cursor (after/after_id) - mutually exclusive with before/before_id.
+        # Either half works alone: after_id alone pages by id, after alone by time.
+        if after is not None or after_id is not None:
+            if after is not None and after_id is not None:
+                query += (
+                    " AND (messages.received_at > ?"
+                    " OR (messages.received_at = ? AND messages.id > ?))"
+                )
+                params.extend([after, after, after_id])
+                query += " ORDER BY messages.received_at ASC, messages.id ASC LIMIT ?"
+            elif after_id is not None:
+                query += " AND messages.id > ?"
+                params.append(after_id)
+                query += " ORDER BY messages.id ASC LIMIT ?"
+            else:
+                query += " AND messages.received_at > ?"
+                params.append(after)
+                query += " ORDER BY messages.received_at ASC, messages.id ASC LIMIT ?"
             params.append(limit)
         else:
             if before is not None and before_id is not None:
@@ -899,6 +1023,20 @@ class MessageRepository:
                 "UPDATE messages SET send_status = ? WHERE id = ? AND outgoing = 1",
                 (send_status, message_id),
             )
+
+    @staticmethod
+    async def mark_pending_sends_unknown() -> int:
+        """Turn every ``pending`` outgoing row into ``unknown``; returns how many.
+
+        A row is only pending while a send runs, so at startup any pending row
+        belongs to a send the previous process never finished.
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE messages SET send_status = 'unknown' "
+                "WHERE outgoing = 1 AND send_status = 'pending'"
+            ) as cursor:
+                return cursor.rowcount
 
     @staticmethod
     async def mark_failed(message_id: int, failed_at: int) -> bool:

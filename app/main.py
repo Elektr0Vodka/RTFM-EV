@@ -71,6 +71,7 @@ from app.routers import (
     channel_sets,
     channels,
     communities,
+    companion_bridge,
     companion_filter,
     contacts,
     debug,
@@ -87,6 +88,7 @@ from app.routers import (
     lan_discovery,
     links,
     messages,
+    metrics,
     openhop,
     packets,
     partial_resolution,
@@ -181,6 +183,18 @@ async def lifespan(app: FastAPI):
     from app.radio_sync import ensure_default_channels
 
     await ensure_default_channels()
+
+    # A send still pending was cut off by the restart: the radio may or may not
+    # have put it on air, so it is kept and shown as unknown.
+    from app.repository import MessageRepository
+
+    try:
+        interrupted = await MessageRepository.mark_pending_sends_unknown()
+        if interrupted:
+            logger.info("Marked %d interrupted outgoing send(s) as unknown", interrupted)
+    except Exception:
+        logger.warning("Failed to mark interrupted sends as unknown", exc_info=True)
+
     await start_radio_stats_sampling()
     perf_sampler.start()
 
@@ -273,11 +287,26 @@ async def lifespan(app: FastAPI):
         except OSError:
             logger.exception("Could not start the TAK Stream")
 
+    # Companion bridge (env only): companion apps connect to RTFM-EV over TCP.
+    from app.companion_bridge.server import companion_bridge as bridge_server
+
+    if server_settings.companion_bridge_enabled:
+        try:
+            await bridge_server.start(
+                server_settings.companion_bridge_host,
+                server_settings.companion_bridge_port,
+                allow_send=server_settings.companion_bridge_allow_send,
+                max_contacts=server_settings.companion_bridge_max_contacts,
+            )
+        except OSError:
+            logger.exception("Could not start the companion bridge")
+
     startup_radio_task = asyncio.create_task(_startup_radio_connect_and_setup())
     app.state.startup_radio_task = startup_radio_task
 
     yield
 
+    await bridge_server.stop()
     await tak_stream_server.stop()
 
     logger.info("Shutting down")
@@ -374,6 +403,8 @@ app.include_router(backup.router, prefix="/api")
 app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(perf.router, prefix="/api")
+app.include_router(metrics.router, prefix="/api")
+app.include_router(companion_bridge.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
 app.include_router(companion_filter.router, prefix="/api")

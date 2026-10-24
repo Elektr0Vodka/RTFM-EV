@@ -71,7 +71,7 @@ class AppSettingsRepository:
                    clock_sync_repeaters,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
-                   telemetry_schedule_minute,
+                   telemetry_schedule_minute, send_gap_seconds,
                    show_mention_ticker, auto_add_mentioned_channels,
                    chat_parse_pubkeys, chat_parse_coordinates,
                    chat_url_previews, chat_linkify_urls,
@@ -389,6 +389,12 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             telemetry_schedule_minute = -1
 
+        # Parse send_gap_seconds (0 = no spacing between sends)
+        try:
+            send_gap_seconds = int(row["send_gap_seconds"])
+        except (KeyError, TypeError, ValueError):
+            send_gap_seconds = 5
+
         # Parse show_mention_ticker boolean (migration adds it with default=1)
         try:
             show_mention_ticker = bool(row["show_mention_ticker"])
@@ -631,6 +637,7 @@ class AppSettingsRepository:
             telemetry_interval_hours=telemetry_interval_hours,
             telemetry_routed_hourly=telemetry_routed_hourly,
             telemetry_schedule_minute=telemetry_schedule_minute,
+            send_gap_seconds=send_gap_seconds,
             show_mention_ticker=show_mention_ticker,
             auto_add_mentioned_channels=auto_add_mentioned_channels,
             chat_parse_pubkeys=chat_parse_pubkeys,
@@ -724,6 +731,7 @@ class AppSettingsRepository:
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
         telemetry_schedule_minute: int | None = None,
+        send_gap_seconds: int | None = None,
         show_mention_ticker: bool | None = None,
         auto_add_mentioned_channels: bool | None = None,
         chat_parse_pubkeys: bool | None = None,
@@ -971,6 +979,10 @@ class AppSettingsRepository:
             updates.append("telemetry_schedule_minute = ?")
             params.append(telemetry_schedule_minute)
 
+        if send_gap_seconds is not None:
+            updates.append("send_gap_seconds = ?")
+            params.append(send_gap_seconds)
+
         if show_mention_ticker is not None:
             updates.append("show_mention_ticker = ?")
             params.append(1 if show_mention_ticker else 0)
@@ -1144,6 +1156,7 @@ class AppSettingsRepository:
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
         telemetry_schedule_minute: int | None = None,
+        send_gap_seconds: int | None = None,
         show_mention_ticker: bool | None = None,
         auto_add_mentioned_channels: bool | None = None,
         chat_parse_pubkeys: bool | None = None,
@@ -1235,6 +1248,7 @@ class AppSettingsRepository:
                 telemetry_interval_hours=telemetry_interval_hours,
                 telemetry_routed_hourly=telemetry_routed_hourly,
                 telemetry_schedule_minute=telemetry_schedule_minute,
+                send_gap_seconds=send_gap_seconds,
                 show_mention_ticker=show_mention_ticker,
                 auto_add_mentioned_channels=auto_add_mentioned_channels,
                 chat_parse_pubkeys=chat_parse_pubkeys,
@@ -1495,6 +1509,33 @@ class AppSettingsRepository:
 
 
 class StatisticsRepository:
+    @staticmethod
+    async def get_stored_counts() -> dict:
+        """Row counts for the metrics endpoint.
+
+        ``contacts`` maps contact type to a count and ``messages`` maps
+        ``CHAN``/``PRIV`` to a count; ``channels`` and ``raw_packets`` are totals.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT type, COUNT(*) AS n FROM contacts GROUP BY type"
+            ) as cur:
+                contacts = {row["type"]: row["n"] for row in await cur.fetchall()}
+            async with conn.execute(
+                "SELECT type, COUNT(*) AS n FROM messages GROUP BY type"
+            ) as cur:
+                messages = {row["type"]: row["n"] for row in await cur.fetchall()}
+            async with conn.execute("SELECT COUNT(*) AS n FROM channels") as cur:
+                channels_row = await cur.fetchone()
+            async with conn.execute("SELECT COUNT(*) AS n FROM raw_packets") as cur:
+                packets_row = await cur.fetchone()
+        return {
+            "contacts": contacts,
+            "messages": messages,
+            "channels": channels_row["n"] if channels_row else 0,
+            "raw_packets": packets_row["n"] if packets_row else 0,
+        }
+
     @staticmethod
     async def get_database_message_totals() -> dict[str, int]:
         """Return message totals needed by lightweight debug surfaces."""

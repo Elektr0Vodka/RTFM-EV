@@ -141,6 +141,62 @@ class TestChannelEchoDetection:
             assert p in path_values
 
     @pytest.mark.asyncio
+    async def test_same_route_heard_again_is_not_counted_twice(self, test_db, captured_broadcasts):
+        """An echo over a route already stored adds no path and no extra count."""
+        from app.packet_processor import create_message_from_decrypted
+
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="Sender: Once",
+            conversation_key=CHANNEL_KEY,
+            sender_timestamp=SENDER_TIMESTAMP,
+            received_at=SENDER_TIMESTAMP,
+            outgoing=True,
+        )
+        assert msg_id is not None
+
+        _broadcasts, mock_broadcast = captured_broadcasts
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            for i, path in enumerate(["aa", "aa", "bb"]):
+                pkt_id, _ = await RawPacketRepository.create(
+                    f"same_route_{i}".encode(), SENDER_TIMESTAMP + i + 1
+                )
+                await create_message_from_decrypted(
+                    packet_id=pkt_id,
+                    channel_key=CHANNEL_KEY,
+                    sender="Sender",
+                    message_text="Once",
+                    timestamp=SENDER_TIMESTAMP,
+                    received_at=SENDER_TIMESTAMP + i + 1,
+                    path=path,
+                )
+
+        msg = await MessageRepository.get_by_id(msg_id)
+        assert msg is not None
+        assert msg.acked == 2
+        assert [p.path for p in msg.paths or []] == ["aa", "bb"]
+
+    @pytest.mark.asyncio
+    async def test_stored_routes_stop_at_the_cap(self, test_db):
+        """The route list stops growing at the cap."""
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="Sender: Busy",
+            conversation_key=CHANNEL_KEY,
+            sender_timestamp=SENDER_TIMESTAMP,
+            received_at=SENDER_TIMESTAMP,
+            outgoing=False,
+        )
+        assert msg_id is not None
+        added = []
+        for i in range(5):
+            _paths, was_added = await MessageRepository.add_path_if_new(
+                msg_id, f"{i:02x}", SENDER_TIMESTAMP + i, max_paths=3
+            )
+            added.append(was_added)
+        assert added == [True, True, True, False, False]
+
+    @pytest.mark.asyncio
     async def test_incoming_duplicate_does_not_increment_ack(self, test_db, captured_broadcasts):
         """Duplicate of incoming (non-outgoing) channel message does NOT increment ack."""
         from app.packet_processor import create_message_from_decrypted

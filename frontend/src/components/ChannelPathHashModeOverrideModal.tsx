@@ -26,7 +26,8 @@ interface ChannelPathHashModeOverrideModalProps {
   channelName: string;
   currentOverride: number | null;
   radioDefault: number;
-  onSetOverride: (value: number | null) => void;
+  /** Resolves false when saving failed; the dialog then stays open. */
+  onSetOverride: (value: number | null) => Promise<boolean> | boolean | void;
 }
 
 export function ChannelPathHashModeOverrideModal({
@@ -39,6 +40,7 @@ export function ChannelPathHashModeOverrideModal({
 }: ChannelPathHashModeOverrideModalProps) {
   const t = useT();
   const [selected, setSelected] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -118,9 +120,15 @@ export function ChannelPathHashModeOverrideModal({
           <Button
             type="button"
             className="w-full"
-            onClick={() => {
-              onSetOverride(selected);
-              onClose();
+            disabled={saving}
+            onClick={async () => {
+              // Close only once saved; on failure the choice stays for another try.
+              setSaving(true);
+              try {
+                if ((await onSetOverride(selected)) !== false) onClose();
+              } finally {
+                setSaving(false);
+              }
             }}
           >
             {selected == null

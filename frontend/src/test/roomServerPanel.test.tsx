@@ -113,6 +113,25 @@ describe('RoomServerPanel', () => {
     expect(mockApi.roomLogin).not.toHaveBeenCalled();
   });
 
+  it('remembers a password only once the room confirmed the login', async () => {
+    localStorage.setItem(storageKey, JSON.stringify({ password: 'good-pw' }));
+    mockApi.roomLogin.mockResolvedValueOnce({
+      status: 'timeout',
+      authenticated: false,
+      message: 'not confirmed',
+    });
+
+    render(<RoomServerPanel contact={roomContact} />);
+    const input = await screen.findByDisplayValue('good-pw');
+    fireEvent.change(input, { target: { value: 'typo-pw' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() => expect(mockApi.roomLogin).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 20));
+    // The rejected attempt did not replace the remembered password.
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? '{}')).toEqual({ password: 'good-pw' });
+  });
+
   it('Sync Now re-issues the login once authenticated', async () => {
     mockApi.roomLogin.mockResolvedValue({ status: 'ok', authenticated: true, message: null });
 

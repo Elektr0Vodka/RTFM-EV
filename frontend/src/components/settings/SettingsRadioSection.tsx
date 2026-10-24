@@ -228,6 +228,7 @@ export function SettingsRadioSection({
   const [pathHashMode, setPathHashMode] = useState('0');
   const [advertLocationSource, setAdvertLocationSource] = useState<'off' | 'current'>('current');
   const [multiAcksEnabled, setMultiAcksEnabled] = useState(false);
+  const [sendGapDraft, setSendGapDraft] = useState(String(appSettings.send_gap_seconds ?? 5));
   const [telemetryModeBase, setTelemetryModeBase] = useState(0);
   const [telemetryModeLoc, setTelemetryModeLoc] = useState(0);
   const [telemetryModeEnv, setTelemetryModeEnv] = useState(0);
@@ -235,6 +236,24 @@ export function SettingsRadioSection({
   const [busy, setBusy] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Spacing between sends: kept as typed until it is committed (blur or Enter),
+  // then clamped to 0-30 whole seconds.
+  useEffect(() => {
+    setSendGapDraft(String(appSettings.send_gap_seconds ?? 5));
+  }, [appSettings.send_gap_seconds]);
+  const commitSendGap = () => {
+    const parsed = Math.round(Number(sendGapDraft));
+    if (sendGapDraft.trim() === '' || !Number.isFinite(parsed)) {
+      setSendGapDraft(String(appSettings.send_gap_seconds ?? 5));
+      return;
+    }
+    const clamped = Math.min(30, Math.max(0, parsed));
+    setSendGapDraft(String(clamped));
+    if (clamped !== appSettings.send_gap_seconds) {
+      void onSaveAppSettings({ send_gap_seconds: clamped });
+    }
+  };
 
   // Identity state
   const [privateKey, setPrivateKey] = useState('');
@@ -1525,6 +1544,27 @@ export function SettingsRadioSection({
               {t('settings_radio_auto_resend_desc')}
             </p>
           </div>
+        </div>
+
+        <div className="space-y-1 rounded-md border border-border/60 p-3">
+          <Label htmlFor="send-gap-seconds">{t('settings_radio_send_gap_label')}</Label>
+          <Input
+            id="send-gap-seconds"
+            type="number"
+            min={0}
+            max={30}
+            step={1}
+            className="w-24"
+            value={sendGapDraft}
+            onChange={(event) => setSendGapDraft(event.target.value)}
+            onBlur={commitSendGap}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') commitSendGap();
+            }}
+          />
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_radio_send_gap_desc')}
+          </p>
         </div>
 
         <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">

@@ -45,13 +45,12 @@ export function SensorDashboardBody({
   const { password, setPassword, rememberPassword, setRememberPassword, persistAfterLogin } =
     useRememberedServerPassword('sensor', conversation.id);
 
+  // A password is remembered only once the sensor confirmed it.
   const handleLogin = async (nextPassword: string) => {
-    await login(nextPassword);
-    persistAfterLogin(nextPassword);
+    if (await login(nextPassword)) persistAfterLogin(nextPassword);
   };
   const handleGuestLogin = async () => {
-    await loginAsGuest();
-    persistAfterLogin('');
+    if (await loginAsGuest()) persistAfterLogin('');
   };
 
   const anyLoading = [paneStates.lppTelemetry, paneStates.mma, paneStates.acl].some(

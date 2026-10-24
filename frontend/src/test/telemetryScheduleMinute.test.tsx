@@ -39,6 +39,7 @@ function settings(over: Partial<AppSettings> = {}): AppSettings {
     telemetry_interval_hours: 8,
     telemetry_routed_hourly: false,
     telemetry_schedule_minute: -1,
+    send_gap_seconds: 5,
     discovery_blocked_types: [],
     team_beacon: { enabled: false, channel_key: '', interval_seconds: 240 },
     ...over,

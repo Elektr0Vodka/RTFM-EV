@@ -566,6 +566,133 @@ class TestOutgoingDMBroadcast:
         ]
 
 
+class TestDirectMessageStoredBeforeSend:
+    """The outgoing DM row exists before the radio sends, so a crash cannot lose it."""
+
+    @pytest.mark.asyncio
+    async def test_row_is_pending_while_the_radio_sends_then_confirmed(self, test_db):
+        mc = _make_mc()
+        pub_key = "b1" * 32
+        await _insert_contact(pub_key, "Alice")
+        seen_during_send: list[str] = []
+
+        async def _send_msg(**_kwargs):
+            rows = await MessageRepository.get_all(msg_type="PRIV", conversation_key=pub_key)
+            seen_during_send.extend(row.send_status for row in rows)
+            return _make_radio_result()
+
+        mc.commands.send_msg = AsyncMock(side_effect=_send_msg)
+        broadcasts = []
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(
+                "app.routers.messages.broadcast_event",
+                side_effect=lambda t, d: broadcasts.append((t, d)),
+            ),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        assert seen_during_send == ["pending"]
+        rows = await MessageRepository.get_all(msg_type="PRIV", conversation_key=pub_key)
+        assert [row.send_status for row in rows] == ["confirmed"]
+        # Only the confirmed row is shown; the pending state never reaches the UI.
+        sent = [d for t, d in broadcasts if t == "message"]
+        assert len(sent) == 1
+        assert sent[0]["send_status"] == "confirmed"
+
+    @pytest.mark.asyncio
+    async def test_radio_error_removes_the_row(self, test_db):
+        mc = _make_mc()
+        pub_key = "b2" * 32
+        await _insert_contact(pub_key, "Alice")
+        error = MagicMock()
+        error.type = EventType.ERROR
+        error.payload = {"reason": "nope"}
+        mc.commands.send_msg = AsyncMock(return_value=error)
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+            pytest.raises(HTTPException),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        assert await MessageRepository.get_all(msg_type="PRIV", conversation_key=pub_key) == []
+
+    @pytest.mark.asyncio
+    async def test_no_radio_answer_keeps_the_row_as_unknown(self, test_db):
+        mc = _make_mc()
+        pub_key = "b3" * 32
+        await _insert_contact(pub_key, "Alice")
+        mc.commands.send_msg = AsyncMock(return_value=None)
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        assert exc_info.value.detail == NO_RADIO_RESPONSE_AFTER_SEND_DETAIL
+        rows = await MessageRepository.get_all(msg_type="PRIV", conversation_key=pub_key)
+        assert [row.send_status for row in rows] == ["unknown"]
+
+
+class TestInterruptedSends:
+    @pytest.mark.asyncio
+    async def test_pending_rows_become_unknown(self, test_db):
+        now = 1_700_000_000
+        pending_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="cut off",
+            conversation_key="c1" * 32,
+            sender_timestamp=now,
+            received_at=now,
+            outgoing=True,
+            send_status="pending",
+        )
+        confirmed_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="sent",
+            conversation_key="c1" * 32,
+            sender_timestamp=now + 1,
+            received_at=now + 1,
+            outgoing=True,
+        )
+        assert pending_id is not None and confirmed_id is not None
+
+        assert await MessageRepository.mark_pending_sends_unknown() == 1
+
+        pending = await MessageRepository.get_by_id(pending_id)
+        confirmed = await MessageRepository.get_by_id(confirmed_id)
+        assert pending is not None and pending.send_status == "unknown"
+        assert confirmed is not None and confirmed.send_status == "confirmed"
+
+
+class TestChannelSendLogging:
+    @pytest.mark.asyncio
+    async def test_channel_send_does_not_log_the_message_text(self, test_db, caplog):
+        mc = _make_mc()
+        chan_key = "C1" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#private-talk")
+        caplog.set_level("DEBUG", logger="app.services.message_send")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            await send_channel_message(
+                SendChannelMessageRequest(channel_key=chan_key, text="secret words here")
+            )
+
+        assert "secret words" not in caplog.text
+        assert "17 bytes" in caplog.text
+
+
 class TestRadioTextLimit:
     """Text the radio would refuse or cut short is rejected before anything is sent."""
 

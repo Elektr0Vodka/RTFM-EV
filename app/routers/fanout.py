@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.fanout.manager import fanout_manager
+from app.fanout.mqtt_community import DEFAULT_OFFLINE_QUEUE_MAX, MAX_OFFLINE_QUEUE_MAX
 from app.repository.fanout import FanoutConfigRepository
 
 logger = logging.getLogger(__name__)
@@ -209,6 +210,33 @@ def _validate_mqtt_community_config(config: dict) -> None:
     ):
         interval = 300000
     config["status_interval_ms"] = interval
+
+    # Payload types to publish (MeshCore header type 0-15); empty = every type.
+    packet_types = config.get("packet_types", [])
+    if not isinstance(packet_types, list) or any(
+        not isinstance(t, int) or isinstance(t, bool) or t < 0 or t > 15 for t in packet_types
+    ):
+        raise HTTPException(
+            status_code=400, detail="packet_types must be a list of payload types 0-15"
+        )
+    config["packet_types"] = sorted(set(packet_types))
+
+    # Packets heard while the broker is unreachable wait in memory and go out on
+    # reconnect, oldest first; past the limit the oldest are dropped.
+    config["offline_queue"] = bool(config.get("offline_queue", True))
+    queue_max = config.get("offline_queue_max", DEFAULT_OFFLINE_QUEUE_MAX)
+    if (
+        not isinstance(queue_max, int)
+        or isinstance(queue_max, bool)
+        or queue_max < 1
+        or queue_max > MAX_OFFLINE_QUEUE_MAX
+    ):
+        queue_max = DEFAULT_OFFLINE_QUEUE_MAX
+    config["offline_queue_max"] = queue_max
+
+    # Read the broker's own error topic for this node (only brokers that publish
+    # one; another broker may refuse the subscription), so refusals show up.
+    config["listen_broker_errors"] = bool(config.get("listen_broker_errors", False))
 
 
 def _validate_apprise_config(config: dict) -> None:

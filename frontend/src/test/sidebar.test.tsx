@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Sidebar } from '../components/Sidebar';
@@ -331,6 +331,19 @@ describe('Sidebar section summaries', () => {
       'bg-badge-mention',
       'text-badge-mention-foreground'
     );
+  });
+
+  it('keeps a room row badge neutral for posts and red only for a mention', () => {
+    const { roomName } = renderSidebar();
+    const roomRow = screen.getByText(roomName).closest('div');
+    if (!roomRow) throw new Error('Missing room row');
+    expect(within(roomRow).getByText('5')).not.toHaveClass('bg-badge-mention');
+
+    cleanup();
+    renderSidebar({ mentions: { [getStateKey('contact', '33'.repeat(32))]: true } });
+    const mentionedRow = screen.getByText(roomName).closest('div');
+    if (!mentionedRow) throw new Error('Missing room row');
+    expect(within(mentionedRow).getByText('5')).toHaveClass('bg-badge-mention');
   });
 
   it('turns favorite contact row badges red', () => {
