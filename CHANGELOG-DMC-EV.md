@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-24 (Offenders page size on Spam & bots, fix/offenders-page-size)
+
+No migration, no new dependency. Frontend only. From Richard: the Offenders
+list could get very long.
+
+### Mesh Health
+- The Offenders tables on the **Spam & bots** tab get a **Show max rows**
+  selector (10, 25, 50, 100, All). The tables already paged by the shared Mesh
+  Health page size (default 50), but it could only be changed on the Adverts and
+  Power Outage tabs. It is the same saved setting, so a change here also applies
+  there.
+
 ## Update 2026-10-24 (companion bridge for MeshCore apps, feat/companion-bridge)
 
 No migration, no new dependency. New environment variables
