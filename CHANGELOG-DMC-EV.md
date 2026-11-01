@@ -11,6 +11,43 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-01 (dependency updates, chore/dependency-upgrades-2026-11)
+
+Every dependency in the repo moved to its newest release that the rest of the
+toolchain supports. No migration, no feature change, no new dependency. Tested
+without a radio; `meshcore` 2.3.17 is not tried on hardware.
+
+### Security
+- `certifi` 2026.7.22 to 2026.10.23: drops the emSign root CAs with compromised
+  intermediate keys (PYSEC-2026-4320).
+- Frontend lockfile refreshed, which clears the npm advisories for `undici`,
+  `zod`, `moment` and `@humanfs/node`.
+- Still open in `npm audit`, no fix upstream: `image-size`, `fflate` and
+  `texture-compressor`, pulled in by deck.gl's loaders.gl packages, plus
+  `minimatch` in the eslint tooling. Their code was not found in the built
+  bundle (string search).
+
+### Backend (`pyproject.toml`, `uv.lock`)
+- `uv lock --upgrade`, 43 packages. Largest steps: FastAPI 0.143 to 0.162,
+  Starlette 1.7 to 1.10, apprise 2.0 to 2.1, pydantic-settings 2.15 to 2.16,
+  multidict 6 to 7, pycryptodome 3.24 to 4.2. We only use AES-ECB from
+  pycryptodome.
+- `meshcore` pin 2.3.16 to 2.3.17: fixes an import failure in messaging
+  commands on Python 3.10 and 3.11.
+- Tooling: ruff 0.16 to 0.17, pytest 9.1 to 9.2. `uv.lock` is now revision 5,
+  written by uv 0.13.6 to match the Docker image.
+
+### Frontend (`frontend/package.json`, `tests/e2e/package.json`)
+- All direct dependencies to latest: maplibre-gl 6.13 to 6.16, deck.gl 9.4.0
+  to 9.4.1, three 0.186 to 0.187, emojibase-data 17 to 18, lucide-react 1.54 to
+  1.66, Radix packages, React 19.3.1, Vite 8.3.5, Vitest 5.0.5, Playwright
+  1.64.1.
+- **TypeScript stays on 6.0.3.** `typescript-eslint` 8.72.1 still requires
+  `<6.1.0`, and lint is a CI gate.
+
+### Build and CI
+- `astral-sh/setup-uv` v10.3.0 to v10.3.3.
+
 ## Update 2026-11-01 (Observer web config over the LAN, plan 32 Phase 4, feat/fleet-lan-webconfig)
 
 No migration, no new dependency, no new environment variable. Needs the key vault switched on and unlocked. Built and tested against answers hand-built from the observer firmware's web config source; not yet tried on a real observer.
