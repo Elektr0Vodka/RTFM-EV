@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-01 (wardrive build font notices, fix/wardrive-font-notices)
+
+No change to the app.
+
+### Frontend build
+- `vite.wardrive.config.ts` marks `/fonts/` URLs as external, so Vite no longer
+  prints a "didn't resolve at build time" notice for each of the 19 fonts in the
+  wardrive build. The `wardriveFonts` plugin still points them at the copies
+  under `/wardrive/fonts/`.
+
 ## Update 2026-11-01 (hide by name pattern, feat/hide-by-name-pattern)
 
 Some senders change their name with every message (`Adriaan257`, `Adriaan502`),
