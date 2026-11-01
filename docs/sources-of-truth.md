@@ -145,6 +145,12 @@ machine this was authored on and may differ elsewhere.
   `src/helpers/CommonCLI_Observer.cpp` (branch `dmc-observer-dev`, read at
   `923fc428`). When the firmware changes a reply, the parser or a read-back
   check there changes with it.
+  The observer's **web config** (plan 32 Phase 4, `app/services/fleet_webconfig.py`)
+  follows DMC `src/helpers/esp32/WebConfigServer.cpp` (routes, login, the
+  save/result contract, the masked answers) and `src/helpers/WebConfigKeys.h`
+  (the keys a save takes), read on `dmc-observer-dev` at `923fc428`. The newer
+  `dmc-observer-dev-1171-regiongating` branch was not read for it. When the
+  allow-list there changes, `ALLOWED_SET_KEYS` changes with it.
 - MCCL (MeshCore channel lists / wordlist source): https://github.com/Elektr0Vodka/MCCL
   (local `G:\Github\repositories\Elektr0Vodka\mccl`). The channel finder's bundled
   "Known channels (MCCL)" list, `frontend/public/wordlists/known-channels.txt`, is

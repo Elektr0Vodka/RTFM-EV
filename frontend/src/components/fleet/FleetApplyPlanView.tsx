@@ -16,6 +16,7 @@ import { useT } from '../../i18n';
 import type { FleetApplyPlan } from '../../types';
 import {
   runApply,
+  type ApplyOptions,
   type ApplyOutcome,
   type ApplyStepResult,
   type CommandSender,
@@ -38,6 +39,7 @@ export function FleetApplyPlanView({
   onRunning,
   onFinished,
   onError,
+  transport,
 }: {
   plan: FleetApplyPlan;
   configId: number;
@@ -47,6 +49,8 @@ export function FleetApplyPlanView({
   onRunning: (running: boolean) => void;
   onFinished: (outcome: ApplyOutcome) => void;
   onError: (error: string) => void;
+  /** Another transport than the cable (the LAN): it runs each step itself. */
+  transport?: Required<ApplyOptions>;
 }) {
   const t = useT();
   const [confirmed, setConfirmed] = useState(false);
@@ -59,13 +63,17 @@ export function FleetApplyPlanView({
   const same = plan.rows.length - changes.length - skips.length;
 
   const send = async () => {
-    if (!cli || !confirmed || running) return;
+    if ((!cli && !transport) || !confirmed || running) return;
     setRunning(true);
     onRunning(true);
     setResults([]);
     try {
-      const done = await runApply(cli, configId, plan, (result) =>
-        setResults((current) => [...current, result])
+      const done = await runApply(
+        cli,
+        configId,
+        plan,
+        (result) => setResults((current) => [...current, result]),
+        transport ?? {}
       );
       setOutcome(done);
       onFinished(done);
@@ -165,7 +173,7 @@ export function FleetApplyPlanView({
           <Button
             size="sm"
             data-testid="fleet-usb-send"
-            disabled={!confirmed || disabled || running || !cli}
+            disabled={!confirmed || disabled || running || (!cli && !transport)}
             onClick={() => void send()}
           >
             {t('fleet_usb_send', { count: plan.steps.length })}

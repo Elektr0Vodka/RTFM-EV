@@ -173,14 +173,14 @@ class ApplyLogResult(BaseModel):
 
 
 class ApplyLogRequest(BaseModel):
-    transport: Literal["usb_browser"]
+    transport: Literal["usb_browser", "webconfig"]
     total: int = Field(ge=0, le=1000, description="Commands in the plan")
     results: list[ApplyLogResult] = Field(max_length=1000, description="The commands sent")
     stopped_reason: str | None = Field(default=None, max_length=64)
     reboot_needed: bool = False
 
 
-_TRANSPORT_NAMES = {"usb_browser": "USB in the browser"}
+_TRANSPORT_NAMES = {"usb_browser": "USB in the browser", "webconfig": "the web config (LAN)"}
 
 
 def _identity(identity: fleet_device_cli.DeviceIdentity) -> dict[str, Any]:
@@ -286,6 +286,41 @@ async def store_device_read(
     }
 
 
+VaultState = Literal["off", "locked", "open"]
+
+
+async def open_config_secrets(
+    config: dict[str, Any], vault_token: str | None
+) -> tuple[VaultState, dict[int, str]]:
+    """The vault's state for this caller, and the values of this config's secrets.
+
+    Only secrets of the config's own asset are opened: an id in a document is
+    not a permission. Used by every apply transport (cable and LAN).
+    """
+    vault: VaultState = "off"
+    values: dict[int, str] = {}
+    if not settings.fleet_vault_enabled:
+        return vault, values
+    data_key = fleet_vault.sessions.key_for(vault_token)
+    if data_key is None:
+        return "locked", values
+    for secret_id in fleet_config.secret_ids(config["document"]):
+        sealed = await FleetVaultRepository.get_sealed(secret_id)
+        if sealed is None or sealed["asset_id"] != config["asset_id"]:
+            continue
+        try:
+            value = fleet_vault.open_sealed(
+                data_key,
+                sealed["nonce"],
+                sealed["ciphertext"],
+                fleet_vault.secret_aad(sealed["asset_id"], sealed["kind"]),
+            )
+        except fleet_vault.VaultError:
+            continue
+        values[secret_id] = value.decode("utf-8")
+    return "open", values
+
+
 @router.post("/configs/{config_id}/apply-plan", response_model=ApplyPlanOut)
 async def apply_plan(
     config_id: int,
@@ -311,27 +346,7 @@ async def apply_plan(
             status_code=409, detail="Give this asset its public key before applying a config"
         )
 
-    vault: Literal["off", "locked", "open"] = "off"
-    values: dict[int, str] = {}
-    if settings.fleet_vault_enabled:
-        data_key = fleet_vault.sessions.key_for(x_fleet_vault_token)
-        vault = "locked" if data_key is None else "open"
-        if data_key is not None:
-            for secret_id in fleet_config.secret_ids(config["document"]):
-                sealed = await FleetVaultRepository.get_sealed(secret_id)
-                # Only this asset's own secrets: an id in a document is not a permission.
-                if sealed is None or sealed["asset_id"] != config["asset_id"]:
-                    continue
-                try:
-                    value = fleet_vault.open_sealed(
-                        data_key,
-                        sealed["nonce"],
-                        sealed["ciphertext"],
-                        fleet_vault.secret_aad(sealed["asset_id"], sealed["kind"]),
-                    )
-                except fleet_vault.VaultError:
-                    continue
-                values[secret_id] = value.decode("utf-8")
+    vault, values = await open_config_secrets(config, x_fleet_vault_token)
 
     try:
         plan = fleet_device_cli.plan_apply(
