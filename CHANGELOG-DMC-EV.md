@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-01 (remove vendored meshcore-decoder copy, chore/drop-vendored-meshcore-decoder)
+
+### Build and CI
+- Removed `frontend/lib/meshcore-decoder/` (104 files): a vendored copy of
+  `@michaelhart/meshcore-decoder` 0.2.7 with its own `package.json` and a
+  prebuilt `dist/`. It was added in `f472ff7c` (2026-03-08) as a `file:`
+  dependency and went unused the same day, when `77523c1b` switched
+  `frontend/package.json` to the published
+  `npm:meshcore-decoder-multibyte-patch` and dropped the Dockerfile `COPY`
+  line. Nothing references the directory: not `package.json`, the lock file,
+  the TypeScript, Vite, Vitest or ESLint config, the Dockerfile, the workflows,
+  `scripts/` or `pkg/aur/PKGBUILD`.
+- The decoder the app uses is unchanged and comes from the npm registry. No
+  dependency, lock file, feature or migration change. The source archive in
+  the release zip (`git archive` in `scripts/build/package_release_artifact.sh`)
+  no longer carries the directory.
+- Checked with the directory gone: `npm run lint`, `npm run format:check`,
+  `npm run test:run` (443 files, 4321 tests), `npm run build`.
+
 ## Update 2026-10-24 (Offenders page size on Spam & bots, fix/offenders-page-size)
 
 No migration, no new dependency. Frontend only. From Richard: the Offenders
