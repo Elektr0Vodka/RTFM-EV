@@ -141,10 +141,19 @@ export interface PerfRadioOp {
   last_error: string | null;
 }
 
+export interface PerfRadioQueue {
+  /** The operation holding the radio now, and for how long. */
+  holder: { name: string; held_ms: number } | null;
+  /** Operations waiting for the radio, oldest first. */
+  waiting: { name: string; waited_ms: number }[];
+}
+
 export interface PerfRadio {
   connected: boolean;
   desired: boolean;
   connection_info: string | null;
+  /** Absent from servers older than the live queue view. */
+  queue?: PerfRadioQueue;
   hold: PerfSummary;
   ops: PerfRadioOp[];
   errors: number;

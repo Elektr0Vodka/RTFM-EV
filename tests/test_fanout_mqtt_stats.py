@@ -185,7 +185,8 @@ class TestStatisticsEndpointMqtt:
                 resp = await client.get("/api/statistics")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["mqtt_brokers"] == fake
+        # The offline queue counters default to 0 for a broker that does not report them.
+        assert body["mqtt_brokers"] == [{**fake[0], "queued": 0, "queue_dropped": 0}]
 
     @pytest.mark.asyncio
     async def test_statistics_mqtt_brokers_defaults_empty(self, test_db):

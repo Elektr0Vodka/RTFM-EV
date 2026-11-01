@@ -179,6 +179,23 @@ describe('Mesh Health Spam & bots tab', () => {
     expect(screen.getAllByRole('button', { name: 'Add to bot list' })).toHaveLength(1);
   });
 
+  it('pages the offenders by the shared page size and saves a new one', async () => {
+    const onSaveAppSettings = vi.fn();
+    await openTab({ pageSize: 1, onSaveAppSettings });
+    const table = screen.getByTestId('filter-stats-table');
+    expect(within(table).getByText('UD6DWREK')).toBeInTheDocument();
+    expect(within(table).queryByText('PingBot')).not.toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(
+      within(screen.getByTestId('filter-stats-table')).getByText('PingBot')
+    ).toBeInTheDocument();
+
+    const select = screen.getByRole('combobox', { name: 'Show max rows' });
+    fireEvent.change(select, { target: { value: '25' } });
+    expect(onSaveAppSettings).toHaveBeenCalledWith({ mesh_health_page_size: 25 });
+  });
+
   it('switches to the channel and source repeater tables', async () => {
     await openTab();
     fireEvent.click(screen.getByRole('button', { name: 'Channels' }));

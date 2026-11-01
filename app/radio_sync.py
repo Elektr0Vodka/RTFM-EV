@@ -539,6 +539,35 @@ async def sync_and_offload_all(mc: MeshCore) -> dict:
     }
 
 
+# OFFLINE_QUEUE_SIZE in the companion firmware (companion_radio/MyMesh.h, a
+# default boards can raise): the frames the radio keeps for the app. Full, it
+# drops the oldest channel message for every new one.
+RADIO_OFFLINE_QUEUE_SIZE = 16
+
+
+def warn_if_offline_queue_overflowed(drained: int) -> bool:
+    """Warn when the startup drain emptied a full queue: messages may be missing.
+
+    While the app is not connected the radio only keeps its queue (no raw
+    packets reach the app), so a full queue means channel messages heard in
+    that time may have been dropped. Returns True when the warning was given.
+    """
+    if drained < RADIO_OFFLINE_QUEUE_SIZE:
+        return False
+    logger.warning(
+        "Startup drain emptied a full radio queue (%d messages): messages heard while "
+        "disconnected may be missing",
+        drained,
+    )
+    broadcast_error(
+        "Some messages may be missing",
+        f"The radio's message queue was full when RTFM-EV connected ({drained} messages). "
+        "While the app is not connected the radio keeps only a few messages and drops the "
+        "oldest channel messages first, so channel messages from that time may be missing.",
+    )
+    return True
+
+
 async def drain_pending_messages(mc: MeshCore) -> int:
     """
     Drain all pending messages from the radio.

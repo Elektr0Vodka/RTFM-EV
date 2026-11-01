@@ -75,9 +75,19 @@ interface ChatHeaderProps {
   onToggleMute?: (key: string) => void;
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
-  onSetChannelFloodScopeOverride?: (key: string, floodScopeOverride: string) => void;
-  onSetContactFloodScopeOverride?: (publicKey: string, floodScopeOverride: string) => void;
-  onSetChannelPathHashModeOverride?: (key: string, pathHashModeOverride: number | null) => void;
+  /** Override setters resolve false when saving failed (the dialog then stays open). */
+  onSetChannelFloodScopeOverride?: (
+    key: string,
+    floodScopeOverride: string
+  ) => Promise<boolean> | void;
+  onSetContactFloodScopeOverride?: (
+    publicKey: string,
+    floodScopeOverride: string
+  ) => Promise<boolean> | void;
+  onSetChannelPathHashModeOverride?: (
+    key: string,
+    pathHashModeOverride: number | null
+  ) => Promise<boolean> | void;
   cadCapable?: boolean;
   cadSupported?: boolean;
   cadEnabled?: boolean | null;

@@ -495,7 +495,9 @@ class TestAdvertisementPipeline:
             ) as mock_start:
                 await process_raw_packet(packet_bytes, timestamp=1700000000)
 
-        mock_start.assert_awaited_once_with(None, expected["public_key"], expected["name"])
+        mock_start.assert_awaited_once_with(
+            None, expected["public_key"], expected["name"], automatic=True
+        )
 
     @pytest.mark.asyncio
     async def test_advertisement_skips_historical_decrypt_for_existing_contact(

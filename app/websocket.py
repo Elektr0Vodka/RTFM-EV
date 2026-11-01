@@ -141,6 +141,11 @@ def broadcast_event(event_type: str, data: dict, *, realtime: bool = True) -> No
         elif event_type == "contact":
             asyncio.create_task(fanout_manager.broadcast_contact(data))
 
+        if event_type in ("message", "message_acked"):
+            from app.companion_bridge.server import companion_bridge
+
+            companion_bridge.on_event(event_type, data)
+
 
 def broadcast_error(message: str, details: str | None = None) -> None:
     """Broadcast an error notification to all connected clients.

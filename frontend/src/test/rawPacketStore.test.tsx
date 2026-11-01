@@ -157,7 +157,7 @@ function chatPaneProps(): any {
     onToggleMute: vi.fn(async () => {}),
     onDeleteContact: vi.fn(async () => {}),
     onDeleteChannel: vi.fn(async () => {}),
-    onSetChannelFloodScopeOverride: vi.fn(async () => {}),
+    onSetChannelFloodScopeOverride: vi.fn(async () => true),
     onSelectConversation: vi.fn(),
     onOpenContactInfo: vi.fn(),
     onOpenChannelInfo: vi.fn(),

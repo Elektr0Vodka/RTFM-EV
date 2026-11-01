@@ -10,6 +10,7 @@ import type {
   PerfLoopRow,
   PerfLoopState,
   PerfPoint,
+  PerfRadioQueue,
   PerfSnapshot,
 } from './perfTypes';
 
@@ -816,6 +817,7 @@ export function PerfRadio({ snap, limit }: { snap: PerfSnapshot; limit?: number 
           value={r.last_reconnect_at ? relTime(r.last_reconnect_at, t) : NA}
         />
       </div>
+      <PerfRadioQueueNow queue={r.queue} />
       <h4 className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {t('perf_radio_slowest')}
       </h4>
@@ -847,6 +849,45 @@ export function PerfRadio({ snap, limit }: { snap: PerfSnapshot; limit?: number 
         </Table>
       )}
     </PerfCard>
+  );
+}
+
+/** What holds the radio right now and what waits for it (read-only). */
+function PerfRadioQueueNow({ queue }: { queue?: PerfRadioQueue }) {
+  const t = useT();
+  if (!queue) return null;
+  return (
+    <div className="mb-3">
+      <h4 className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {t('perf_radio_queue_title')}
+      </h4>
+      {queue.holder === null && queue.waiting.length === 0 ? (
+        <Empty text={t('perf_radio_queue_idle')} />
+      ) : (
+        <ul className={`${MONO} space-y-0.5`}>
+          {queue.holder && (
+            <li className="flex justify-between gap-2">
+              <span>
+                <span className="text-muted-foreground">{t('perf_radio_queue_running')} </span>
+                {queue.holder.name}
+              </span>
+              <span className="text-muted-foreground">{fmtMs(queue.holder.held_ms)}</span>
+            </li>
+          )}
+          {queue.waiting.map((w, i) => (
+            <li key={`${w.name}-${i}`} className="flex justify-between gap-2">
+              <span>
+                <span className="text-muted-foreground">
+                  {t('perf_radio_queue_waiting', { n: i + 1 })}{' '}
+                </span>
+                {w.name}
+              </span>
+              <span className="text-muted-foreground">{fmtMs(w.waited_ms)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

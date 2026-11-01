@@ -115,6 +115,7 @@ const baseSettings: AppSettings = {
   telemetry_interval_hours: 8,
   telemetry_routed_hourly: false,
   telemetry_schedule_minute: -1,
+  send_gap_seconds: 5,
   show_mention_ticker: true,
   mention_sound_enabled: false,
   mention_sound_choice: 'beep',
@@ -453,6 +454,20 @@ describe('SettingsModal', () => {
 
     await waitFor(() => {
       expect(onSaveAppSettings).toHaveBeenCalledWith({ max_radio_contacts: 250 });
+    });
+  });
+
+  it('saves the spacing between sends, clamped to 0-30 seconds', async () => {
+    const { onSaveAppSettings } = renderModal();
+    openRadioSection();
+
+    const input = screen.getByLabelText('Spacing between sends (seconds)');
+    expect(input).toHaveValue(5);
+    fireEvent.change(input, { target: { value: '45' } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(onSaveAppSettings).toHaveBeenCalledWith({ send_gap_seconds: 30 });
     });
   });
 

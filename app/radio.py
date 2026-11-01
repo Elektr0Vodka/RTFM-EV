@@ -195,6 +195,24 @@ class RadioManager:
         self._channel_slot_by_key: OrderedDict[str, int] = OrderedDict()
         self._channel_key_by_slot: dict[int, str] = {}
         self._pending_message_channel_key_by_slot: dict[int, str] = {}
+        # Live view of the radio lock (Performance > Radio queue): who holds it
+        # since when, and who waits for it since when (monotonic seconds).
+        self._op_holder: tuple[str, float] | None = None
+        self._op_waiting: dict[int, tuple[str, float]] = {}
+        self._op_wait_seq = 0
+
+    def operation_queue(self) -> dict:
+        """The operation holding the radio and the ones waiting, oldest first."""
+        now = time.monotonic()
+        holder = None
+        if self._op_holder is not None:
+            name, since = self._op_holder
+            holder = {"name": name, "held_ms": round((now - since) * 1000)}
+        waiting = [
+            {"name": name, "waited_ms": round((now - since) * 1000)}
+            for _seq, (name, since) in sorted(self._op_waiting.items())
+        ]
+        return {"holder": holder, "waiting": waiting}
 
     async def _acquire_operation_lock(
         self,
@@ -215,13 +233,21 @@ class RadioManager:
             # yield). The await returns immediately for an uncontested lock.
             await self._operation_lock.acquire()
         else:
-            await self._operation_lock.acquire()
+            self._op_wait_seq += 1
+            seq = self._op_wait_seq
+            self._op_waiting[seq] = (name, time.monotonic())
+            try:
+                await self._operation_lock.acquire()
+            finally:
+                self._op_waiting.pop(seq, None)
 
+        self._op_holder = (name, time.monotonic())
         logger.debug("Acquired radio operation lock (%s)", name)
 
     def _release_operation_lock(self, name: str) -> None:
         """Release the shared radio operation lock."""
         if self._operation_lock and self._operation_lock.locked():
+            self._op_holder = None
             self._operation_lock.release()
             logger.debug("Released radio operation lock (%s)", name)
         else:

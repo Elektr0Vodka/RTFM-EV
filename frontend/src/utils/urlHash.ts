@@ -13,6 +13,7 @@ interface ParsedHashConversation {
     | 'visualizer'
     | 'search'
     | 'trace'
+    | 'mentions'
     | 'channel-registry'
     | 'node'
     | 'mesh-health'
@@ -126,6 +127,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'wardrive/drivers') {
     return { type: 'wardrive', name: 'drivers' };
+  }
+
+  if (hash === 'mentions') {
+    return { type: 'mentions', name: 'mentions' };
   }
 
   // SNMP page of one node: #snmp/<public key>
@@ -309,6 +314,7 @@ export function getConversationHash(conv: Conversation | null): string {
     if (conv.id === 'drivers') return '#wardrive/drivers';
     return '#wardrive';
   }
+  if (conv.type === 'mentions') return '#mentions';
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;

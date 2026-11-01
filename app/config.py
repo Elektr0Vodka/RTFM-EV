@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     )
     enable_local_private_key_export: bool = False
     fleet_vault_enabled: bool = False
+    # GET /api/metrics (Prometheus text). Off: the endpoint answers 404.
+    metrics_enabled: bool = False
     load_with_autoevict: bool = False
     skip_post_connect_sync: bool = False
     basic_auth_username: str = ""
@@ -51,6 +53,13 @@ class Settings(BaseSettings):
     # the DutchMeshCore wardrive collectors and keep a copy here. Off = no page,
     # no API, no admin section.
     wardrive: bool = False
+    # Companion bridge (env only): a MeshCore companion app connects over TCP as
+    # if RTFM-EV were a WiFi companion radio. No authentication: trusted networks.
+    companion_bridge_enabled: bool = False
+    companion_bridge_host: str = "127.0.0.1"
+    companion_bridge_port: int = 5000
+    companion_bridge_allow_send: bool = True
+    companion_bridge_max_contacts: int = 500
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":

@@ -7,7 +7,7 @@ import pytest
 
 import app.routers.wardrive as router_module
 import app.routers.wardrive_admin as admin_module
-from app.migrations._162_create_wardrive_config import migrate
+from app.migrations._163_create_wardrive_config import migrate
 from app.repository.channels import ChannelRepository
 from app.wardrive import sessions
 from app.wardrive.config import (

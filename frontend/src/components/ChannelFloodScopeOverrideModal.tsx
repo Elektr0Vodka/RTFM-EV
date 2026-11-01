@@ -25,7 +25,8 @@ interface ChannelFloodScopeOverrideModalProps {
   onClose: () => void;
   roomName: string;
   currentOverride: string | null;
-  onSetOverride: (value: string) => void;
+  /** Resolves false when saving failed; the dialog then stays open. */
+  onSetOverride: (value: string) => Promise<boolean> | boolean | void;
 }
 
 export function ChannelFloodScopeOverrideModal({
@@ -38,6 +39,18 @@ export function ChannelFloodScopeOverrideModal({
 }: ChannelFloodScopeOverrideModalProps) {
   const t = useT();
   const [region, setRegion] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Close only once the change is saved; on failure the dialog stays open with
+  // what was typed, so it can be tried again.
+  const save = async (value: string) => {
+    setSaving(true);
+    try {
+      if ((await onSetOverride(value)) !== false) onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) {
@@ -91,11 +104,8 @@ export function ChannelFloodScopeOverrideModal({
             <Button
               type="button"
               className="w-full"
-              disabled={trimmedRegion.length === 0}
-              onClick={() => {
-                onSetOverride(trimmedRegion);
-                onClose();
-              }}
+              disabled={saving || trimmedRegion.length === 0}
+              onClick={() => void save(trimmedRegion)}
             >
               {trimmedRegion.length > 0
                 ? t('region_override_scope_to_region_button', {
@@ -108,10 +118,8 @@ export function ChannelFloodScopeOverrideModal({
               type="button"
               variant="outline"
               className="w-full"
-              onClick={() => {
-                onSetOverride(UNSCOPED_OVERRIDE_MARKER);
-                onClose();
-              }}
+              disabled={saving}
+              onClick={() => void save(UNSCOPED_OVERRIDE_MARKER)}
             >
               {t('region_override_always_unscoped_button', { room: roomName })}
             </Button>
@@ -119,10 +127,8 @@ export function ChannelFloodScopeOverrideModal({
               type="button"
               variant="outline"
               className="w-full"
-              onClick={() => {
-                onSetOverride('');
-                onClose();
-              }}
+              disabled={saving}
+              onClick={() => void save('')}
             >
               {t('region_override_use_global_button', { room: roomName })}
             </Button>

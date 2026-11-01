@@ -36,18 +36,19 @@ interface UseConversationActionsResult {
   handleSendMessage: (text: string) => Promise<void>;
   handleResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
   handleRetryDirectMessage: (messageId: number) => Promise<void>;
+  /** The override setters resolve true once saved, false when saving failed. */
   handleSetContactFloodScopeOverride: (
     publicKey: string,
     floodScopeOverride: string
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   handleSetChannelFloodScopeOverride: (
     channelKey: string,
     floodScopeOverride: string
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   handleSetChannelPathHashModeOverride: (
     channelKey: string,
     pathHashModeOverride: number | null
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   handleSenderClick: (sender: string) => void;
   handleReactToMessage: (messageId: number, emoji: string) => Promise<void>;
   handleReplyToMessage: (message: Message) => void;
@@ -158,10 +159,12 @@ export function useConversationActions({
         toast.success(
           updated.flood_scope_override ? 'Regional override saved' : 'Regional override cleared'
         );
+        return true;
       } catch (err) {
         toast.error('Failed to update regional override', {
           description: err instanceof Error ? err.message : 'Unknown error',
         });
+        return false;
       }
     },
     [mergeChannelIntoList]
@@ -175,10 +178,12 @@ export function useConversationActions({
         toast.success(
           updated.flood_scope_override ? 'Regional override saved' : 'Regional override cleared'
         );
+        return true;
       } catch (err) {
         toast.error('Failed to update regional override', {
           description: err instanceof Error ? err.message : 'Unknown error',
         });
+        return false;
       }
     },
     [setContacts]
@@ -194,10 +199,12 @@ export function useConversationActions({
             ? 'Path hop width override saved'
             : 'Path hop width override cleared'
         );
+        return true;
       } catch (err) {
         toast.error('Failed to update path hop width override', {
           description: err instanceof Error ? err.message : 'Unknown error',
         });
+        return false;
       }
     },
     [mergeChannelIntoList]

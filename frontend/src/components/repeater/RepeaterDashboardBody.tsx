@@ -116,13 +116,12 @@ export function RepeaterDashboardBody({
     void loginAsGuest().then(() => loadAll());
   }, [autoLoginAndLoadAll, onAutoLoginConsumed, loginAsGuest, loadAll]);
 
+  // A password is remembered only once the repeater confirmed it.
   const handleRepeaterLogin = async (nextPassword: string) => {
-    await login(nextPassword);
-    persistAfterLogin(nextPassword);
+    if (await login(nextPassword)) persistAfterLogin(nextPassword);
   };
   const handleRepeaterGuestLogin = async () => {
-    await loginAsGuest();
-    persistAfterLogin('');
+    if (await loginAsGuest()) persistAfterLogin('');
   };
 
   const anyLoading = Object.values(paneStates).some((s) => s.loading);

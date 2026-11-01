@@ -19,6 +19,12 @@ import { formatNumber } from '../utils/localeFormat';
 
 type Tab = 'new-contact' | 'contact-link' | 'new-channel' | 'hashtag' | 'bulk-hashtag';
 
+// Decrypting stored packets for a new channel is local work (nothing goes on
+// air), so the channel tabs try it by default.
+function tryHistoricalByDefault(tab: Tab): boolean {
+  return tab === 'new-channel' || tab === 'hashtag' || tab === 'bulk-hashtag';
+}
+
 const TAB_GRID_COLS: Record<number, string> = {
   3: 'grid-cols-3',
   4: 'grid-cols-4',
@@ -140,14 +146,14 @@ export function NewMessageModal({
   const hashtagInputRef = useRef<HTMLInputElement>(null);
   const bulkTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const resetForm = () => {
+  const resetForm = (nextTab: Tab) => {
     setName('');
     setContactType(1);
     setContactKey('');
     setContactUri('');
     setChannelKey('');
     setBulkChannelText('');
-    setTryHistorical(false);
+    setTryHistorical(tryHistoricalByDefault(nextTab));
     setPermitExtended(false);
     setError('');
   };
@@ -161,7 +167,7 @@ export function NewMessageModal({
       setTab(prefillRequest.tab);
       setChannelKey('');
       setBulkChannelText('');
-      setTryHistorical(false);
+      setTryHistorical(tryHistoricalByDefault(prefillRequest.tab));
       setPermitExtended(false);
       setError('');
       setLoading(false);
@@ -186,7 +192,7 @@ export function NewMessageModal({
       setContactKey('');
       setChannelKey('');
       setBulkChannelText('');
-      setTryHistorical(false);
+      setTryHistorical(tryHistoricalByDefault('bulk-hashtag'));
       setPermitExtended(false);
       setError('');
       setLoading(false);
@@ -249,7 +255,7 @@ export function NewMessageModal({
         await onBulkAddHashtagChannels(channelNames, tryHistorical);
       }
 
-      resetForm();
+      resetForm('new-contact');
       onClose();
     } catch (err) {
       toast.error(t('toast_failed_create_conversation'), {
@@ -294,7 +300,7 @@ export function NewMessageModal({
       open={open}
       onOpenChange={(isOpen) => {
         if (!isOpen) {
-          resetForm();
+          resetForm('new-contact');
           onClose();
         }
       }}
@@ -315,7 +321,7 @@ export function NewMessageModal({
           value={tab}
           onValueChange={(value) => {
             setTab(value as Tab);
-            resetForm();
+            resetForm(value as Tab);
           }}
           className="w-full"
         >
@@ -523,7 +529,7 @@ export function NewMessageModal({
           <Button
             variant="outline"
             onClick={() => {
-              resetForm();
+              resetForm('new-contact');
               onClose();
             }}
           >

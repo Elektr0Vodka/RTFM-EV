@@ -1,4 +1,5 @@
 import { TakStreamStatus } from './TakStreamStatus';
+import { CompanionBridgeStatus } from './CompanionBridgeStatus';
 import { TeamBeaconSettings } from './TeamBeaconSettings';
 import { SnmpAgentSettings } from './SnmpAgentSettings';
 import { UnreadSummarySettings } from './UnreadSummarySettings';
@@ -534,6 +535,10 @@ export function SettingsRadioAppSection({
       <Separator />
 
       <TakStreamStatus />
+
+      <Separator />
+
+      <CompanionBridgeStatus />
 
       <Separator />
 

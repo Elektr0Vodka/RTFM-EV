@@ -39,6 +39,9 @@ function getTypeLabels(t: TFn): Record<string, string> {
   };
 }
 
+// Mirrors app/fanout/mqtt_community.py.
+const DEFAULT_OFFLINE_QUEUE_MAX = 500;
+const MAX_OFFLINE_QUEUE_MAX = 5000;
 const DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE = 'meshcore/{IATA}/{PUBLIC_KEY}/packets';
 const DEFAULT_COMMUNITY_BROKER_HOST = 'mqtt-us-v1.letsmesh.net';
 const DEFAULT_COMMUNITY_BROKER_PORT = 443;
@@ -70,6 +73,10 @@ function createCommunityConfigDefaults(
     publish_snmp_telemetry: false,
     filter_interval_ms: 60000,
     status_interval_ms: 300000,
+    packet_types: [],
+    offline_queue: true,
+    offline_queue_max: DEFAULT_OFFLINE_QUEUE_MAX,
+    listen_broker_errors: false,
     ...overrides,
   };
 }
@@ -306,6 +313,20 @@ function normalizeIntegrationConfigForSave(
         : Number(normalized.status_interval_ms);
     normalized.status_interval_ms =
       Number.isFinite(interval) && interval >= 1000 && interval <= 3600000 ? interval : 300000;
+    normalized.packet_types = Array.isArray(normalized.packet_types)
+      ? [...new Set(normalized.packet_types as unknown[])]
+          .filter(
+            (v): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 15
+          )
+          .sort((a, b) => a - b)
+      : [];
+    normalized.offline_queue = normalized.offline_queue !== false;
+    const queueMax = Number(normalized.offline_queue_max);
+    normalized.offline_queue_max =
+      Number.isInteger(queueMax) && queueMax >= 1 && queueMax <= MAX_OFFLINE_QUEUE_MAX
+        ? queueMax
+        : DEFAULT_OFFLINE_QUEUE_MAX;
+    normalized.listen_broker_errors = normalized.listen_broker_errors === true;
   }
 
   if (configType === 'map_upload') {
@@ -1384,6 +1405,69 @@ function MqttHaConfigEditor({
   );
 }
 
+// MeshCore payload types (header bits 2-5); protocol names, not translated.
+const PAYLOAD_TYPE_NAMES: ReadonlyArray<readonly [number, string]> = [
+  [0, 'REQ'],
+  [1, 'RESPONSE'],
+  [2, 'TXT_MSG'],
+  [3, 'ACK'],
+  [4, 'ADVERT'],
+  [5, 'GRP_TXT'],
+  [6, 'GRP_DATA'],
+  [7, 'ANON_REQ'],
+  [8, 'PATH'],
+  [9, 'TRACE'],
+  [10, 'MULTIPART'],
+  [11, 'CONTROL'],
+  [12, '12'],
+  [13, '13'],
+  [14, '14'],
+  [15, 'RAW_CUSTOM'],
+];
+
+/** Which payload types go to the broker; none ticked publishes every type. */
+function CommunityPacketTypeFilter({
+  config,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const t = useT();
+  const selected = new Set(
+    Array.isArray(config.packet_types) ? (config.packet_types as number[]) : []
+  );
+  const toggle = (type: number, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(type);
+    else next.delete(type);
+    onChange({ ...config, packet_types: [...next].sort((a, b) => a - b) });
+  };
+  return (
+    <fieldset className="ml-7 space-y-1">
+      <legend className="text-sm">{t('settings_fanout_packet_types')}</legend>
+      <p className="text-xs text-muted-foreground">
+        {selected.size === 0
+          ? t('settings_fanout_packet_types_all')
+          : t('settings_fanout_packet_types_some', { count: selected.size })}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1">
+        {PAYLOAD_TYPE_NAMES.map(([type, name]) => (
+          <label key={type} className="flex items-center gap-2 cursor-pointer text-xs">
+            <input
+              type="checkbox"
+              checked={selected.has(type)}
+              onChange={(e) => toggle(type, e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-border"
+            />
+            <span className="font-mono">{name}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function CommunityTopicControls({
   config,
   onChange,
@@ -1424,6 +1508,51 @@ function CommunityTopicControls({
         />
         <span className="text-sm">{t('settings_fanout_publish_packets')}</span>
       </label>
+      {config.publish_packets !== false && (
+        <CommunityPacketTypeFilter config={config} onChange={onChange} />
+      )}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.offline_queue !== false}
+          onChange={(e) => onChange({ ...config, offline_queue: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_offline_queue')}</span>
+      </label>
+      <p className="text-xs text-muted-foreground">{t('settings_fanout_offline_queue_desc')}</p>
+      {config.offline_queue !== false && (
+        <div className="space-y-2">
+          <Label htmlFor="fanout-comm-queue-max">{t('settings_fanout_offline_queue_max')}</Label>
+          <Input
+            id="fanout-comm-queue-max"
+            type="number"
+            min="1"
+            max={MAX_OFFLINE_QUEUE_MAX}
+            className="w-32"
+            value={Number(config.offline_queue_max) || DEFAULT_OFFLINE_QUEUE_MAX}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10);
+              const clamped = Number.isNaN(n)
+                ? DEFAULT_OFFLINE_QUEUE_MAX
+                : Math.min(MAX_OFFLINE_QUEUE_MAX, Math.max(1, n));
+              onChange({ ...config, offline_queue_max: clamped });
+            }}
+          />
+        </div>
+      )}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.listen_broker_errors === true}
+          onChange={(e) => onChange({ ...config, listen_broker_errors: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_listen_broker_errors')}</span>
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {t('settings_fanout_listen_broker_errors_desc')}
+      </p>
       <label className="flex items-center gap-3 cursor-pointer">
         <input
           type="checkbox"

@@ -1,62 +1,40 @@
-"""Tests for migration 161: the wardrive plugin tables."""
+"""Tests for migration 161: the send gap setting."""
 
 import aiosqlite
 import pytest
 
 from app.migrations import get_version, run_migrations, set_version
-from app.migrations._161_create_wardrive_tables import RETENTION_COLUMN, migrate
 from tests.test_migrations.conftest import LATEST_SCHEMA_VERSION
 
-TABLES = {
-    "wardrive_users",
-    "wardrive_radios",
-    "wardrive_groups",
-    "wardrive_group_members",
-    "wardrive_sessions",
-    "wardrive_obs",
-    "wardrive_tracks",
-}
 
+class TestMigration161:
+    @pytest.mark.asyncio
+    async def test_adds_the_setting_with_a_five_second_default(self):
+        conn = await aiosqlite.connect(":memory:")
+        conn.row_factory = aiosqlite.Row
+        try:
+            await set_version(conn, 160)
+            await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
+            await conn.execute("INSERT INTO app_settings (id) VALUES (1)")
+            await conn.commit()
 
-async def _names(conn: aiosqlite.Connection, kind: str) -> set[str]:
-    rows = await (
-        await conn.execute("SELECT name FROM sqlite_master WHERE type = ?", (kind,))
-    ).fetchall()
-    return {r[0] for r in rows}
+            assert await run_migrations(conn) == LATEST_SCHEMA_VERSION - 160
+            assert await get_version(conn) == LATEST_SCHEMA_VERSION
 
+            row = await (await conn.execute("SELECT send_gap_seconds FROM app_settings")).fetchone()
+            assert row[0] == 5
+        finally:
+            await conn.close()
 
-async def _columns(conn: aiosqlite.Connection, table: str) -> set[str]:
-    return {c[1] for c in await (await conn.execute(f"PRAGMA table_info({table})")).fetchall()}
+    @pytest.mark.asyncio
+    async def test_is_idempotent_and_skips_an_absent_table(self):
+        from app.migrations._161_send_gap_seconds import migrate
 
-
-@pytest.mark.asyncio
-async def test_creates_tables_and_retention_column():
-    conn = await aiosqlite.connect(":memory:")
-    try:
-        await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
-        await set_version(conn, 160)
-        await conn.commit()
-
-        assert await run_migrations(conn) == LATEST_SCHEMA_VERSION - 160
-        assert await get_version(conn) == LATEST_SCHEMA_VERSION
-
-        assert await _names(conn, "table") >= TABLES
-        assert {
-            "idx_wardrive_obs_rx_ts",
-            "idx_wardrive_obs_user_rx_ts",
-            "idx_wardrive_tracks_t0_ts",
-        } <= await _names(conn, "index")
-        assert RETENTION_COLUMN in await _columns(conn, "app_settings")
-    finally:
-        await conn.close()
-
-
-@pytest.mark.asyncio
-async def test_idempotent_and_without_app_settings():
-    conn = await aiosqlite.connect(":memory:")
-    try:
-        await migrate(conn)
-        await migrate(conn)
-        assert await _names(conn, "table") >= TABLES
-    finally:
-        await conn.close()
+        conn = await aiosqlite.connect(":memory:")
+        try:
+            await migrate(conn)
+            await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
+            await migrate(conn)
+            await migrate(conn)
+        finally:
+            await conn.close()

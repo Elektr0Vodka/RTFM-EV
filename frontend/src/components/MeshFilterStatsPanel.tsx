@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { Contact } from '../types';
+import type { AppSettingsUpdate, Contact } from '../types';
 import { useT } from '../i18n';
 import { useSeriesColor } from '../hooks/useCvdColors';
 import { AddToBotListDialog, type BotListTarget } from './AddToBotListDialog';
@@ -52,6 +52,8 @@ interface Props {
   onNavigateToMap?: (focusKey?: string) => void;
   /** The shared Mesh Health page size; 0 shows all rows. */
   pageSize?: number;
+  /** Saves the shared page size when it is changed on the Offenders tables. */
+  onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }
 
 const SERIES = [
@@ -239,6 +241,7 @@ export function MeshFilterStatsPanel({
   onOpenNode,
   onNavigateToMap,
   pageSize = 50,
+  onSaveAppSettings,
 }: Props) {
   const t = useT();
   const [raw, setRaw] = useState<FilterStatsReport | null>(null);
@@ -588,6 +591,11 @@ export function MeshFilterStatsPanel({
           report={report}
           contacts={contacts}
           pageSize={pageSize}
+          onPageSizeChange={
+            onSaveAppSettings
+              ? (size) => onSaveAppSettings({ mesh_health_page_size: size })
+              : undefined
+          }
           scrambled={scramble}
           onOpenNode={onOpenNode}
           onNavigateToMap={onNavigateToMap}

@@ -204,8 +204,9 @@ export interface UseRepeaterDashboardResult {
   paneStates: Record<PaneName, PaneState>;
   consoleHistory: ConsoleEntry[];
   consoleLoading: boolean;
-  login: (password: string) => Promise<void>;
-  loginAsGuest: () => Promise<void>;
+  /** Resolves true only when the server confirmed the login. */
+  login: (password: string) => Promise<boolean>;
+  loginAsGuest: () => Promise<boolean>;
   refreshPane: (pane: PaneName) => Promise<void>;
   loadAll: () => Promise<void>;
   sendConsoleCommand: (command: string) => Promise<void>;
@@ -373,10 +374,11 @@ export function useRepeaterDashboard(
     return activeConversation.id;
   }, [activeConversation]);
 
+  /** Resolves true only when the server confirmed the login. */
   const login = useCallback(
-    async (password: string) => {
+    async (password: string): Promise<boolean> => {
       const publicKey = getPublicKey();
-      if (!publicKey) return;
+      if (!publicKey) return false;
       const conversationId = publicKey;
       const method = password.trim().length > 0 ? 'password' : 'blank';
 
@@ -384,7 +386,7 @@ export function useRepeaterDashboard(
       setLoginError(null);
       try {
         const result = await api.repeaterLogin(publicKey, password);
-        if (activeIdRef.current !== conversationId) return;
+        if (activeIdRef.current !== conversationId) return false;
         setLastLoginAttempt(buildServerLoginAttemptFromResponse(method, result, 'repeater'));
         setLoggedIn(true);
         if (!result.authenticated) {
@@ -392,8 +394,9 @@ export function useRepeaterDashboard(
           setLoginError(msg);
           toast.error(getLoginToastTitle(result.status), { description: msg });
         }
+        return result.authenticated;
       } catch (err) {
-        if (activeIdRef.current !== conversationId) return;
+        if (activeIdRef.current !== conversationId) return false;
         const msg = err instanceof Error ? err.message : 'Login failed';
         setLastLoginAttempt(buildServerLoginAttemptFromError(method, msg, 'repeater'));
         setLoggedIn(true);
@@ -401,6 +404,7 @@ export function useRepeaterDashboard(
         toast.error('Login request failed', {
           description: `${msg}. The dashboard is still available, but repeater operations may fail until a login succeeds.`,
         });
+        return false;
       } finally {
         if (activeIdRef.current === conversationId) {
           setLoginLoading(false);
@@ -410,9 +414,7 @@ export function useRepeaterDashboard(
     [getPublicKey]
   );
 
-  const loginAsGuest = useCallback(async () => {
-    await login('');
-  }, [login]);
+  const loginAsGuest = useCallback(async () => login(''), [login]);
 
   const refreshPane = useCallback(
     async (pane: PaneName) => {

@@ -9,7 +9,7 @@ from app.packet_processor import process_raw_packet
 from app.repository import (
     ContactRepository,
 )
-from app.services import dm_ack_tracker
+from app.services import dm_ack_tracker, queued_channel_ingest, send_pacer
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     record_contact_name_and_reconcile,
@@ -24,7 +24,7 @@ from app.services.dm_ingest import (
 from app.services.host_repeater import host_repeater
 from app.services.host_repeater_link import radio_snapshot
 from app.services.new_node_notify import notify_new_node
-from app.websocket import broadcast_event
+from app.websocket import broadcast_error, broadcast_event
 
 if TYPE_CHECKING:
     from meshcore.events import Event, Subscription
@@ -153,6 +153,7 @@ async def on_rx_log_data(event: "Event") -> None:
     raw_hex = payload["payload"]
     raw_bytes = bytes.fromhex(raw_hex)
     arrival = time.monotonic()
+    send_pacer.note_rx()
     # Host repeater shadow mode (plan 29): read pending-ACK state before the
     # packet processor consumes it; judge the frame afterwards. Never transmits.
     pre = host_repeater.pre_observe(raw_bytes)
@@ -368,6 +369,34 @@ def _make_contact_deleted_handler(meshcore):
     return on_contact_deleted
 
 
+# Seconds between two "contact table full" warnings to the UI.
+CONTACTS_FULL_WARN_INTERVAL_SECONDS = 3600.0
+_contacts_full_warned_at: float | None = None
+
+
+def on_contacts_full(event: "Event") -> None:
+    """The radio's contact table is full (0x90): new contacts are not stored on it.
+
+    Warned once an hour at most; contacts stay in the app's database and are
+    loaded again when room frees up.
+    """
+    global _contacts_full_warned_at
+    now = time.monotonic()
+    if (
+        _contacts_full_warned_at is not None
+        and now - _contacts_full_warned_at < CONTACTS_FULL_WARN_INTERVAL_SECONDS
+    ):
+        logger.debug("Radio contact table full (warned recently)")
+        return
+    _contacts_full_warned_at = now
+    logger.warning("Radio reports its contact table is full")
+    broadcast_error(
+        "Radio contact table is full",
+        "The radio cannot store more contacts. Remove contacts from the radio, or set "
+        "MESHCORE_LOAD_WITH_AUTOEVICT=true so it replaces the oldest ones.",
+    )
+
+
 async def on_binary_response(event: "Event") -> None:
     """MeshCore 1.18 sensor telemetry pushes arrive as unsolicited binary responses."""
     from app.services import sensor_push
@@ -381,9 +410,10 @@ async def on_binary_response(event: "Event") -> None:
 def register_event_handlers(meshcore) -> None:
     """Register event handlers with the MeshCore instance.
 
-    Note: CHANNEL_MSG_RECV and ADVERTISEMENT events are NOT subscribed.
-    These are handled by the packet processor via RX_LOG_DATA to avoid
-    duplicate processing and ensure consistent handling.
+    Note: ADVERTISEMENT events are NOT subscribed; adverts and channel
+    messages are handled by the packet processor via RX_LOG_DATA. Queued
+    CHANNEL_MSG_RECV / CHANNEL_DATA_RECV frames are subscribed only to store
+    what never arrived as a raw packet; copies of stored rows are deduplicated.
 
     This function is safe to call multiple times (e.g., after reconnect).
     Existing handlers are unsubscribed before new ones are registered.
@@ -409,5 +439,14 @@ def register_event_handlers(meshcore) -> None:
     _active_subscriptions.append(meshcore.subscribe(EventType.BINARY_RESPONSE, on_binary_response))
     _active_subscriptions.append(
         meshcore.subscribe(EventType.CONTACT_DELETED, _make_contact_deleted_handler(meshcore))
+    )
+    _active_subscriptions.append(meshcore.subscribe(EventType.CONTACTS_FULL, on_contacts_full))
+    # Frames the library fetches from the radio's queue on its own; see
+    # queued_channel_ingest for why these are stored as well.
+    _active_subscriptions.append(
+        meshcore.subscribe(EventType.CHANNEL_MSG_RECV, queued_channel_ingest.on_channel_message)
+    )
+    _active_subscriptions.append(
+        meshcore.subscribe(EventType.CHANNEL_DATA_RECV, queued_channel_ingest.on_channel_data)
     )
     logger.info("Event handlers registered")

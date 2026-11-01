@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   Cpu,
   Search as SearchIcon,
+  AtSign,
   Settings2,
   SquarePen,
   Trash2,
@@ -599,6 +600,7 @@ export function Sidebar({
       | 'mesh-discovery'
       | 'snmp'
       | 'lan-scan'
+      | 'mentions'
       | 'fleet'
       | 'spam-guard'
       | 'wardrive'
@@ -1081,10 +1083,13 @@ export function Sidebar({
   });
 
   const renderConversationRow = (row: ConversationRow) => {
+    // A room is a group chat: like a channel, its unread posts only turn red
+    // when they mention you. A DM is always red.
     const highlightUnread =
       row.isMention ||
       (row.type === 'contact' &&
         row.contact?.type !== CONTACT_TYPE_REPEATER &&
+        row.contact?.type !== CONTACT_TYPE_ROOM &&
         row.unreadCount > 0);
     const rowIsNew = isNew(getStateKey(row.type, row.id));
 
@@ -1651,6 +1656,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'mentions':
+        return renderSidebarActionRow({
+          key: 'tool-mentions',
+          active: isActive('mentions', 'mentions'),
+          icon: <AtSign className="h-4 w-4" />,
+          label: t('nav_mentions'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'mentions',
+              id: 'mentions',
+              name: t('nav_mentions'),
+            }),
+          iconOnly,
+        });
       case 'channel-registry':
         return renderSidebarActionRow({
           key: 'tool-channel-registry',
@@ -2140,6 +2159,7 @@ export function Sidebar({
     visualizer: t('nav_mesh_visualizer'),
     trace: t('nav_trace'),
     search: t('nav_message_search'),
+    mentions: t('nav_mentions'),
     'channel-registry': 'Channel Registry',
     cracker: t('nav_show_channel_finder'),
     'knowledge-base': t('nav_knowledge_base'),

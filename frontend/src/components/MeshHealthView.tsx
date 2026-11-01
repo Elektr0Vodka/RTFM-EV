@@ -302,6 +302,7 @@ export function MeshHealthView({
                 onOpenNode={onOpenNode}
                 onNavigateToMap={onNavigateToMap}
                 pageSize={pageSize}
+                onSaveAppSettings={onSaveAppSettings}
               />
             )}
             {activeTab === 'fuota' && (

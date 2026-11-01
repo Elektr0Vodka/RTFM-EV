@@ -75,6 +75,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     telemetry_interval_hours: 8,
     telemetry_routed_hourly: false,
     telemetry_schedule_minute: -1,
+    send_gap_seconds: 5,
     show_mention_ticker: true,
     mention_sound_enabled: false,
     mention_sound_choice: 'beep',

@@ -122,6 +122,20 @@ describe('MessageInput', () => {
     });
   });
 
+  describe('counts what is sent', () => {
+    it('does not count leading or trailing whitespace, which is trimmed off', () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.change(getInput(), { target: { value: '  Hello  ' } });
+      expect(screen.getByText(/5\/156/)).toBeTruthy();
+    });
+
+    it('allows text at the limit followed by a trailing space', () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.change(getInput(), { target: { value: `${'a'.repeat(156)} ` } });
+      expect(getSendButton()).toBeEnabled();
+    });
+  });
+
   describe('channel limit adjusts for sender name', () => {
     it('reduces limit based on sender name byte length', () => {
       // Sender name "LongNodeName" = 12 bytes + 2 for ": " = 14 overhead

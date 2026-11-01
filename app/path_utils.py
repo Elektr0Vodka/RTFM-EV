@@ -432,6 +432,24 @@ def bucket_region_scope(rows: Iterable) -> dict[str, int | float]:
     }
 
 
+def packet_identity_digest(raw_bytes: bytes) -> bytes | None:
+    """Full SHA-256 of a packet's identity, as MeshCore's calculatePacketHash() hashes it.
+
+    payload_type (1 byte) [+ path byte (2 bytes LE) for TRACE] + payload. Two
+    packets with the same payload bytes but a different type are different
+    packets; each TRACE step is too. ``None`` when the framing does not parse.
+    """
+    envelope = parse_packet_envelope(raw_bytes) if raw_bytes else None
+    if envelope is None:
+        return None
+    hash_obj = hashlib.sha256()
+    hash_obj.update(bytes([envelope.payload_type]))
+    if envelope.payload_type == 9:  # PAYLOAD_TYPE_TRACE
+        hash_obj.update(envelope.path_byte.to_bytes(2, byteorder="little"))
+    hash_obj.update(envelope.payload)
+    return hash_obj.digest()
+
+
 def calculate_packet_hash(raw_bytes: bytes) -> str:
     """Calculate packet hash matching MeshCore's Packet::calculatePacketHash().
 

@@ -59,8 +59,21 @@ def _radio() -> dict:
         "connected": bool(getattr(radio_manager, "is_connected", False)),
         "desired": bool(getattr(radio_manager, "connection_desired", True)),
         "connection_info": getattr(radio_manager, "connection_info", None),
+        "queue": _radio_queue(radio_manager),
         **radio_ops.snapshot(),
     }
+
+
+def _radio_queue(radio_manager) -> dict:
+    empty: dict = {"holder": None, "waiting": []}
+    queue = getattr(radio_manager, "operation_queue", None)
+    if not callable(queue):
+        return empty
+    try:
+        result = queue()
+    except Exception:
+        return empty
+    return result if isinstance(result, dict) else empty
 
 
 async def _outputs() -> dict:

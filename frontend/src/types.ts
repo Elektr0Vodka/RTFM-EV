@@ -1121,6 +1121,15 @@ export interface TrackerObject {
   received_at: number;
 }
 
+/** GET /companion-bridge/status: companion apps connected over TCP (env-switched). */
+export interface CompanionBridgeStatusResponse {
+  enabled: boolean;
+  host: string | null;
+  port: number | null;
+  allow_send: boolean;
+  clients: { address: string; app_name: string; connected_at: number }[];
+}
+
 /** GET /tak-stream/status: the env-switched CoT feed for ATAK / WinTAK. */
 export interface TakStreamStatusResponse {
   enabled: boolean;
@@ -1172,6 +1181,7 @@ type ConversationType =
   | 'map'
   | 'visualizer'
   | 'search'
+  | 'mentions'
   | 'trace'
   | 'channel-registry'
   | 'node'
@@ -1563,6 +1573,8 @@ export interface AppSettings {
   telemetry_routed_hourly: boolean;
   /** -1 = automatic (from the radio's key), 0-59 = a chosen minute. */
   telemetry_schedule_minute: number;
+  /** Longest wait between two sends in seconds (0-30, 0 = off). */
+  send_gap_seconds: number;
   show_mention_ticker: boolean;
   mention_sound_enabled: boolean;
   mention_sound_choice: string;
@@ -1964,6 +1976,7 @@ export interface AppSettingsUpdate {
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
   telemetry_schedule_minute?: number;
+  send_gap_seconds?: number;
   show_mention_ticker?: boolean;
   mention_sound_enabled?: boolean;
   mention_sound_choice?: string;
@@ -2337,7 +2350,7 @@ export interface WardriveUser {
   radios: WardriveRadio[];
   group_ids: number[];
   obs_count: number;
-  /** Unix seconds of the last login, null when never (migration _165). */
+  /** Unix seconds of the last login, null when never (migration _166). */
   last_login_at?: number | null;
 }
 
@@ -3022,6 +3035,10 @@ export interface MqttBrokerStats {
   messages_published: number;
   publish_failures: number;
   reconnects: number;
+  /** Packets waiting while the broker cannot be reached (community MQTT). */
+  queued?: number;
+  /** Waiting packets dropped because the queue was full. */
+  queue_dropped?: number;
 }
 
 export interface StatisticsResponse {
