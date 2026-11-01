@@ -414,6 +414,8 @@ class RadioManager:
 
     def note_channel_slot_loaded(self, channel_key: str, slot: int) -> None:
         """Record that a channel is now resident in the given radio slot."""
+        # Queued frames name only the slot, also where the send cache below is off.
+        self.remember_pending_message_channel_slot(channel_key, slot)
         if not self.channel_slot_reuse_enabled():
             return
 

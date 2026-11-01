@@ -30,6 +30,23 @@ the change. Upstream development is on hold; the fork is the active repository.
 - Checked with the directory gone: `npm run lint`, `npm run format:check`,
   `npm run test:run` (443 files, 4321 tests), `npm run build`.
 
+## Update 2026-11-01 (ghost messages in the wrong channel, fix/unscoped-ghost-messages)
+
+No migration, no new dependency. Backend only. From Richard: messages from one
+channel showed up a second time in another channel, marked Unscoped and without
+a path.
+
+### Receiving
+- A message the radio hands over from its queue names only a channel slot. On a
+  TCP radio every channel send shares slot 0, and the app kept the channel that
+  slot held at connect. After a send to another channel, that channel's incoming
+  messages also landed in the old one. The app now records every slot write.
+- The slot is read when the frame arrives, so a send during the 3 second wait
+  cannot move a message to another channel.
+- A queued copy of a message another channel stored in the last 60 seconds is
+  skipped, whatever caused the slot to be wrong.
+- Ghost rows stored before this fix stay until they are deleted by hand.
+
 ## Update 2026-10-24 (Offenders page size on Spam & bots, fix/offenders-page-size)
 
 No migration, no new dependency. Frontend only. From Richard: the Offenders

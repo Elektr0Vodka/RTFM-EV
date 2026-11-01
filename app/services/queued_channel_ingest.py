@@ -12,8 +12,10 @@ passed the same packet on as a raw packet. A queued copy is therefore stored
 only after ``QUEUED_FRAME_GRACE_SECONDS``: the raw packet, which carries the
 route, signal and region, is stored first and the late copy is a duplicate.
 
-The channel is looked up from the slots the app itself configured; no radio
-command is sent from here.
+The channel is looked up from the slots the app itself configured, when the
+frame arrives; no radio command is sent from here. A frame names only a slot,
+so a copy of a message another channel just stored is skipped: the raw packet
+decrypted to the real channel.
 """
 
 import asyncio
@@ -28,8 +30,9 @@ from app.decoder import (
     parse_group_data_image_chunk,
 )
 from app.radio import radio_manager
-from app.repository import ChannelRepository
+from app.repository import ChannelRepository, MessageRepository
 from app.services.messages import create_fallback_channel_message, create_group_data_message
+from app.smaz import decode_message_text
 from app.websocket import broadcast_event
 
 if TYPE_CHECKING:
@@ -38,6 +41,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 QUEUED_FRAME_GRACE_SECONDS = 3.0
+OTHER_CHANNEL_COPY_WINDOW_SECONDS = 60
 _pending: set[asyncio.Task] = set()
 
 
@@ -70,16 +74,8 @@ def _split_sender(text: str) -> tuple[str | None, str]:
 
 async def on_channel_message(event: "Event") -> None:
     """Store a queued channel message (CHANNEL_MSG_RECV) after the grace period."""
-    _store_later(store_channel_message(dict(event.payload or {})))
-
-
-async def on_channel_data(event: "Event") -> None:
-    """Store queued channel data (CHANNEL_DATA_RECV) after the grace period."""
-    _store_later(store_channel_data(dict(event.payload or {})))
-
-
-async def store_channel_message(payload: dict) -> None:
-    """Store a queued channel message unless it is already stored."""
+    payload = dict(event.payload or {})
+    # Read the slot now: a send during the grace period can load another channel.
     channel_key = _channel_key_for_slot(payload.get("channel_idx"))
     if channel_key is None:
         logger.debug(
@@ -87,10 +83,34 @@ async def store_channel_message(payload: dict) -> None:
             payload.get("channel_idx"),
         )
         return
+    _store_later(store_channel_message(channel_key, payload))
+
+
+async def on_channel_data(event: "Event") -> None:
+    """Store queued channel data (CHANNEL_DATA_RECV) after the grace period."""
+    payload = dict(event.payload or {})
+    channel_key = _channel_key_for_slot(payload.get("channel_idx"))
+    if channel_key is None:
+        logger.debug("Queued channel data on unknown slot %r", payload.get("channel_idx"))
+        return
+    _store_later(store_channel_data(channel_key, payload))
+
+
+async def store_channel_message(channel_key: str, payload: dict) -> None:
+    """Store a queued channel message unless it is already stored."""
     channel = await ChannelRepository.get_by_key(channel_key)
     received_at = int(time.time())
     ts = payload.get("sender_timestamp")
     sender_name, message_text = _split_sender(payload.get("text", ""))
+    # A frame names only a slot, and the slot may have changed under us. The raw
+    # packet decrypted to the real channel, so its row wins over this copy.
+    decoded = decode_message_text(message_text)
+    stored_text = f"{sender_name}: {decoded}" if sender_name else decoded
+    if ts is not None and await MessageRepository.has_recent_copy_in_other_channel(
+        stored_text, ts, channel_key, received_at - OTHER_CHANNEL_COPY_WINDOW_SECONDS
+    ):
+        logger.debug("Queued channel message already stored in another channel; skipped")
+        return
     try:
         await create_fallback_channel_message(
             conversation_key=channel_key,
@@ -108,12 +128,8 @@ async def store_channel_message(payload: dict) -> None:
         logger.warning("Failed to store a queued channel message", exc_info=True)
 
 
-async def store_channel_data(payload: dict) -> None:
+async def store_channel_data(channel_key: str, payload: dict) -> None:
     """Store a queued channel datagram like a received GRP_DATA."""
-    channel_key = _channel_key_for_slot(payload.get("channel_idx"))
-    if channel_key is None:
-        logger.debug("Queued channel data on unknown slot %r", payload.get("channel_idx"))
-        return
     try:
         blob = bytes.fromhex(payload.get("payload") or "")
         data_type = int(payload.get("data_type", 0))
