@@ -182,9 +182,12 @@ class TestHealthFanoutStatus:
         assert data["radio_connected"] is False
 
 
+# These tests patch the real RadioManager, not the RadioRuntime proxy. monkeypatch
+# looks at the target's own __dict__, which on the proxy is empty, so undoing it
+# would delete the attribute from the real manager for every later test.
 @pytest.mark.asyncio
 async def test_health_reports_is_openhop_true(monkeypatch):
-    rm = health_module.radio_manager
+    rm = health_module.radio_manager.manager
     monkeypatch.setattr(rm, "device_info_loaded", True, raising=False)
     monkeypatch.setattr(rm, "device_model", "openHop-Repeater-Companion", raising=False)
     monkeypatch.setattr(rm, "firmware_version", "13.0", raising=False)
@@ -198,7 +201,7 @@ async def test_health_reports_is_openhop_true(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_health_reports_is_openhop_false_for_other_models(monkeypatch):
-    rm = health_module.radio_manager
+    rm = health_module.radio_manager.manager
     monkeypatch.setattr(rm, "device_info_loaded", True, raising=False)
     monkeypatch.setattr(rm, "device_model", "Heltec V3", raising=False)
     monkeypatch.setattr(rm, "firmware_version", "v1.17.0", raising=False)
@@ -211,7 +214,7 @@ async def test_health_reports_is_openhop_false_for_other_models(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_health_reports_cli_supported_for_1_18(monkeypatch):
-    rm = health_module.radio_manager
+    rm = health_module.radio_manager.manager
     monkeypatch.setattr(rm, "device_info_loaded", True, raising=False)
     monkeypatch.setattr(rm, "device_model", "Heltec V3", raising=False)
     monkeypatch.setattr(rm, "firmware_version", "v1.18.0", raising=False)

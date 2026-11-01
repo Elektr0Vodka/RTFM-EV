@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-01 (test fix after pytest 9.2, fix/health-tests-radio-proxy)
+
+No change to the app. Fixes the `backend-checks` failure on `main` after the
+dependency update.
+
+### Tests
+- pytest 9.2 `monkeypatch` reads the target's own `__dict__`. On the
+  `RadioRuntime` proxy that is empty, so undoing a patch deleted the attribute
+  from the real `RadioManager`. Three tests in `test_health_mqtt_status.py` left
+  it without `firmware_ver_code` and other fields, which failed a later test on
+  the same xdist worker. They now patch the real manager.
+
 ## Update 2026-11-01 (dependency updates, chore/dependency-upgrades-2026-11)
 
 Every dependency in the repo moved to its newest release that the rest of the
