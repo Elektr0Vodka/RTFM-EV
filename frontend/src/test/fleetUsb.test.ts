@@ -168,3 +168,29 @@ describe('runApply', () => {
     expect(outcome).toMatchObject({ completed: true, logged: false });
   });
 });
+
+describe('runApply with another transport', () => {
+  it('lets the transport run each step and logs it under its name', async () => {
+    mocks.logFleetConfigApply.mockResolvedValue({ id: 1 });
+    const runStep = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, reason: null, reply: 'OK' })
+      .mockResolvedValueOnce({ ok: false, reason: 'readback_differs', reply: 'OK' });
+    const { cli, sent } = fakeCli({});
+
+    const outcome = await runApply(cli, 12, plan([step(0), step(1), step(2)]), vi.fn(), {
+      runStep,
+      transport: 'webconfig',
+    });
+
+    expect(sent).toEqual([]);
+    expect(runStep).toHaveBeenCalledTimes(2);
+    expect(mocks.checkFleetApplyStep).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({ completed: false, stopped: { index: 1 } });
+    expect(mocks.logFleetConfigApply.mock.calls[0][1]).toMatchObject({
+      transport: 'webconfig',
+      total: 3,
+      stopped_reason: 'readback_differs',
+    });
+  });
+});

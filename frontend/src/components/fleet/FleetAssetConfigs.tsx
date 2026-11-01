@@ -8,7 +8,8 @@
  * one and whether the vault has it.
  *
  * The stored files are read and written here. Reading a device and applying a
- * config to it over a USB cable is FleetUsbDevice, at the end of this block.
+ * config to it over a USB cable is FleetUsbDevice, at the end of this block,
+ * and over an observer's web config on the LAN FleetLanDevice, after it.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, isAbortError } from '../../api';
@@ -37,6 +38,7 @@ import {
   type ConfigLeaf,
 } from './fleetConfigShared';
 import { downloadFleetFile } from './fleetShared';
+import { FleetLanDevice } from './FleetLanDevice';
 import { FleetUsbDevice } from './FleetUsbDevice';
 
 type VaultState = 'off' | 'locked' | 'open';
@@ -1022,6 +1024,13 @@ export function FleetAssetConfigs({
         vault={vault}
         onStored={() => void load()}
         onAssetChanged={() => onAssetChanged?.()}
+        onLogChanged={() => onLogChanged?.()}
+      />
+      <FleetLanDevice
+        assetId={assetId}
+        configs={configs ?? []}
+        vault={vault}
+        onStored={() => void load()}
         onLogChanged={() => onLogChanged?.()}
       />
     </div>

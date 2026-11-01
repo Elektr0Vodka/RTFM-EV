@@ -5,6 +5,8 @@
  */
 import { api } from '../api';
 import type {
+  FleetApplyCheck,
+  FleetApplyLogInput,
   FleetApplyLogResult,
   FleetApplyPlan,
   FleetApplyStep,
@@ -38,6 +40,19 @@ export async function readDevice(
   throw new Error('The device read did not finish');
 }
 
+async function sendAndCheck(
+  cli: CommandSender | null,
+  step: FleetApplyStep
+): Promise<FleetApplyCheck> {
+  if (!cli) throw new Error('No device is connected');
+  const reply = await cli.send(step.command);
+  const readback: FleetDeviceReplies = {};
+  if (reply !== null && step.check === 'value') {
+    for (const command of step.readback) readback[command] = await cli.send(command);
+  }
+  return api.checkFleetApplyStep(step, reply, readback);
+}
+
 export interface ApplyStepResult {
   step: FleetApplyStep;
   ok: boolean;
@@ -53,26 +68,34 @@ export interface ApplyOutcome {
   logged: boolean;
 }
 
+export type ApplyTransport = FleetApplyLogInput['transport'];
+
+export interface ApplyOptions {
+  /**
+   * Runs one step and checks it, for a transport the browser does not drive
+   * itself (the web config over the LAN: the server sends, waits and reads
+   * back). Without it the step goes over `cli` and the server checks it.
+   */
+  runStep?: (step: FleetApplyStep) => Promise<FleetApplyCheck>;
+  transport?: ApplyTransport;
+}
+
 /**
  * Send the plan's commands one at a time. After each, read the setting back
  * and let the server check both; stop at the first that is not as expected.
  * The outcome is written to the asset's log, with the shown commands only.
  */
 export async function runApply(
-  cli: CommandSender,
+  cli: CommandSender | null,
   configId: number,
   plan: FleetApplyPlan,
-  onStep: (result: ApplyStepResult) => void
+  onStep: (result: ApplyStepResult) => void,
+  options: ApplyOptions = {}
 ): Promise<ApplyOutcome> {
   const results: ApplyStepResult[] = [];
   let stopped: ApplyOutcome['stopped'] = null;
   for (const step of plan.steps) {
-    const reply = await cli.send(step.command);
-    const readback: FleetDeviceReplies = {};
-    if (reply !== null && step.check === 'value') {
-      for (const command of step.readback) readback[command] = await cli.send(command);
-    }
-    const check = await api.checkFleetApplyStep(step, reply, readback);
+    const check = options.runStep ? await options.runStep(step) : await sendAndCheck(cli, step);
     const result = { step, ok: check.ok, reason: check.reason, reply: check.reply };
     results.push(result);
     onStep(result);
@@ -89,7 +112,7 @@ export async function runApply(
   let logged = true;
   try {
     await api.logFleetConfigApply(configId, {
-      transport: 'usb_browser',
+      transport: options.transport ?? 'usb_browser',
       total: plan.steps.length,
       results: logResults,
       stopped_reason: stopped?.reason ?? null,

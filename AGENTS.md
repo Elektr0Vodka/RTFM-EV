@@ -425,7 +425,12 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/fleet/assets/{id}/configs/read` | Store a completed device read as a `snapshot` (source `usb_browser`); only for the asset with the device's public key |
 | POST | `/api/fleet/configs/{id}/apply-plan` | The `set` commands that make the device of the replies match this config, with read-backs; vault secrets only when unlocked (audited); `Cache-Control: no-store` |
 | POST | `/api/fleet/device/check` | Whether one sent command's reply and read-back are as its step expects |
-| POST | `/api/fleet/configs/{id}/apply-log` | Write an apply's outcome to the asset's log (`config_applied`) |
+| POST | `/api/fleet/configs/{id}/apply-log` | Write an apply's outcome to the asset's log (`config_applied`); transport `usb_browser` or `webconfig` |
+| POST | `/api/fleet/assets/{id}/webconfig/read` | Read a DMC observer's settings over its web config on the LAN (admin password from the vault); `store` keeps them as a `snapshot` (source `webconfig`) |
+| POST | `/api/fleet/configs/{id}/webconfig/plan` | The `set` commands over the web config that make the node match this config; `Cache-Control: no-store` |
+| POST | `/api/fleet/configs/{id}/webconfig/step` | Send ONE planned command as a one-key save, wait for its result, read the config back |
+| POST | `/api/fleet/assets/{id}/webconfig/start` | Send `start webconfig` to the asset's node over the mesh; needs `{confirm: true}` |
+| POST | `/api/fleet/assets/{id}/webconfig/stop` | Send `stop webconfig` to the asset's node over the mesh; needs `{confirm: true}` |
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |
 | POST | `/api/contacts/{public_key}/telemetry` | Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout) |
 | GET | `/api/contacts/{public_key}/telemetry-history` | Stored LPP telemetry history for a contact (read-only, no radio access) |

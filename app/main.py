@@ -83,6 +83,7 @@ from app.routers import (
     fleet_config,
     fleet_device,
     fleet_vault,
+    fleet_webconfig,
     health,
     host_repeater,
     lan_discovery,
@@ -434,6 +435,7 @@ app.include_router(fleet.router, prefix="/api")
 app.include_router(fleet_vault.router, prefix="/api")
 app.include_router(fleet_config.router, prefix="/api")
 app.include_router(fleet_device.router, prefix="/api")
+app.include_router(fleet_webconfig.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
 app.include_router(channel_sets.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")

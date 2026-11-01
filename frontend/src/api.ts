@@ -93,6 +93,8 @@ import type {
   FleetApplyLogInput,
   FleetApplyPlan,
   FleetApplyStep,
+  FleetLanReadResult,
+  FleetWebconfigToggleResult,
   FleetConfigSummary,
   FleetConfigTemplate,
   FleetConfigTemplateFields,
@@ -2119,6 +2121,37 @@ export const api = {
   /** Drives and reports (components/wardriveAdminDrivesApi.ts builds the paths). */
   wardriveAdmin: <T>(path: string, init?: RequestInit) =>
     fetchJson<T>(`/wardrive-admin${path}`, init),
+  // Plan 32 Phase 4: an observer's web config over the LAN. The server talks
+  // to the node with the admin password from the vault; only start and stop
+  // go over the radio, and only on a confirmed button press.
+  fleetWebconfigRead: (assetId: number, host: string, store: boolean, label: string | null) =>
+    fetchJson<FleetLanReadResult>(`/fleet/assets/${assetId}/webconfig/read`, {
+      method: 'POST',
+      body: JSON.stringify({ host, store, label }),
+      headers: fleetVaultHeaders(),
+    }),
+  fleetWebconfigPlan: (configId: number, host: string, allowRadio: boolean) =>
+    fetchJson<FleetApplyPlan>(`/fleet/configs/${configId}/webconfig/plan`, {
+      method: 'POST',
+      body: JSON.stringify({ host, allow_radio: allowRadio }),
+      headers: fleetVaultHeaders(),
+    }),
+  fleetWebconfigStep: (configId: number, host: string, step: FleetApplyStep) =>
+    fetchJson<FleetApplyCheck>(`/fleet/configs/${configId}/webconfig/step`, {
+      method: 'POST',
+      body: JSON.stringify({ host, step }),
+      headers: fleetVaultHeaders(),
+    }),
+  startFleetWebconfig: (assetId: number) =>
+    fetchJson<FleetWebconfigToggleResult>(`/fleet/assets/${assetId}/webconfig/start`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true }),
+    }),
+  stopFleetWebconfig: (assetId: number) =>
+    fetchJson<FleetWebconfigToggleResult>(`/fleet/assets/${assetId}/webconfig/stop`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true }),
+    }),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>
     fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),

@@ -885,6 +885,27 @@ Applying (`plan_apply`, `check_step`):
 
 Tests: `tests/test_fleet_device_cli.py` (rules, no database), `tests/test_fleet_device_router.py`, `tests/fleet_device_cli_samples.py` (replies hand-built from the firmware source's formats, no real device).
 
+`open_config_secrets(config, vault_token)` in `routers/fleet_device.py` opens a config's own vault secrets for any apply transport (cable and LAN).
+
+#### Over an observer's web config on the LAN (plan 32, Phase 4)
+
+Router `routers/fleet_webconfig.py` (under `/fleet`), rules `services/fleet_webconfig.py` (pure), HTTP calls `services/fleet_webconfig_client.py` (httpx; tests swap `_client_factory` for a client on `httpx.MockTransport`). The observer side is DMC `src/helpers/esp32/WebConfigServer.cpp` and `src/helpers/WebConfigKeys.h` (`dmc-observer-dev`, read at `923fc428`): plain HTTP on port 80, `POST /api/login {password}` (the node's admin password; a `wcs` cookie; 5 wrong tries lock it for 30 s), `GET /api/config` (its own JSON names; Wi-Fi and broker passwords and tokens answered as `********`), `POST /api/config {set: {<CLI key>: <text>}, reboot, reqid}` (16 hex) answered 202, then `GET /api/config/result?reqid=` until `state` is `done` (`all_ok`, `results[].reply`). Only the keys of `WC_ALLOWED_SET_KEYS` and `mqtt1..6.<field>` are taken (`ALLOWED_SET_KEYS`).
+
+- `POST /fleet/assets/{id}/webconfig/read` - `{host, store?, label?}`; `{status, document, secrets, stored}`. `document` is `document_from_config`: the toolbox file shape of what the web config shows (vars, mqtt), never a masked value, with every secret as a placeholder. `store` keeps it through `store_config` (source `webconfig`). A node-side problem is 502 `{code, message}`
+- `POST /fleet/configs/{id}/webconfig/plan` - `{host, allow_radio}`; the `ApplyPlanOut` shape of the cable (`readback` empty, `rekey` false), `no-store`; vault secrets audited as `config_apply_planned`
+- `POST /fleet/configs/{id}/webconfig/step` - `{host, step}`; `step_key_value` turns `set <key> <value>` into one `set` entry (422 for anything else, so never `erase`, `password`, `guest.password`, `region ...`); one save, its result, then a fresh `GET /api/config` checked by `check_webconfig_step`. A node-side problem is answered as the step's `reason` (`unreachable`, `not_running`, `wrong_password`, `locked`, `session`, `busy`, `refused`, `no_result`, `bad_answer`) so the browser stops and logs it
+- `POST /fleet/assets/{id}/webconfig/start`, `/stop` - `{confirm: true}` (422 without); sends `start webconfig` / `stop webconfig` to the asset's node through `send_contact_cli_command` (the mesh). The only radio use in plan 32; the page sends it only on a second, confirming click. `parse_start_reply` takes the address from `WebConfig started: http://<ip>/`
+
+Rules that must hold:
+
+- **Only the LAN**: `lan_address` normalises the host (`snmp.address.normalize_host`), resolves it, and every address must be in 10/8, 172.16/12, 192.168/16 or fc00::/7 (`_LAN_NETWORKS`; `is_private` is not used because it also counts loopback, link-local and the documentation ranges). The client connects to that address, not the name.
+- **The node must be the asset, in LAN mode**: `/api/status` before the login; `mode` must be `lan` (409 for `setup`) and `node_id` (8 bytes) must start the asset's public key (409). The private key is never sent over the LAN, so there is no re-key here.
+- **The admin password** is the newest `admin_password` secret of the asset (409 when there is none, 401/403 from the vault). It is never logged, and every session logs out at the end.
+- **One key per save, never `reboot: true`, never `/api/cli`** (the web config's terminal is not allow-listed).
+- **Planning** (`plan_webconfig`): vars in `_LAN_VARS` with the cable's comparison and formatting (`same_var`, `_var_text`; radio behind `allow_radio`); mqtt through the cable's `_plan_mqtt_field` with the web config's fields (`_LAN_MQTT`, `_LAN_MQTT_END`, slots with the preset first). Everything else of the file is a `not_over_webconfig` row. An empty value is never sent (`empty_not_sent`). A secret the node hides (`********`) is `secret_unknown`: it cannot be compared, so it is only set when the node has none; such a step is checked by its reply only.
+
+Tests: `tests/test_fleet_webconfig.py` (rules), `tests/test_fleet_webconfig_client.py` (HTTP against `FakeObserver`), `tests/test_fleet_webconfig_router.py`, `tests/fleet_webconfig_samples.py` (answers hand-built from the firmware source, `FakeObserver`).
+
 ### Channels
 - `GET /channels`
 - `GET /channels/{key}/detail`

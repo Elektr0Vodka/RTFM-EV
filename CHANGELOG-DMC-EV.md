@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-01 (Observer web config over the LAN, plan 32 Phase 4, feat/fleet-lan-webconfig)
+
+No migration, no new dependency, no new environment variable. Needs the key vault switched on and unlocked. Built and tested against answers hand-built from the observer firmware's web config source; not yet tried on a real observer.
+
+### Fleet
+- **Web config (LAN).** The Configs block of an asset has a "Web config
+  (LAN)" part for a DMC observer. Give the node's LAN address; the server
+  reads its settings through the observer's web config and can apply a stored
+  config to it, logging in with the node's admin password from the key vault
+  (store it there as kind "admin password").
+- **Read** shows the node and can store what the web config shows as a
+  snapshot. That is not a full backup: the web config shows no packet
+  filter, region, hardware, alerts, guest password, private key or owner info,
+  and hides the Wi-Fi and broker passwords.
+- **Apply** works as over the cable: every difference and every command first,
+  a confirm, then one command at a time. Each is its own save on the node; the
+  server waits for its result and reads the setting back, and the apply stops
+  at the first unexpected answer and writes the log. What the web config
+  cannot set is listed and left out (the private key and the guest password
+  among them: use the cable). A password the web config hides is only set when
+  the node has none. The radio settings need their own tick. The node is never
+  told to restart, and the web config's command terminal is never used.
+- **Checks before each call:** the address must be a LAN address (10/8,
+  172.16/12, 192.168/16, fc00::/7; a name must resolve only to those), the web
+  config must be in LAN mode, and the node's public key must start with the
+  node id it reports.
+- **Start and stop the web config** over the radio: two buttons that each send
+  one CLI command (`start webconfig`, `stop webconfig`) to the node, only on a
+  second, confirming click. Log in to the node on its repeater page first. On
+  an observer without Wi-Fi settings, start opens its setup access point,
+  which has no login. LAN mode runs until it is stopped.
+- **Security:** the web config is plain HTTP, so the admin password crosses
+  the LAN unencrypted, as it does from the web config's own page.
+
 ## Update 2026-11-01 (remove vendored meshcore-decoder copy, chore/drop-vendored-meshcore-decoder)
 
 ### Build and CI

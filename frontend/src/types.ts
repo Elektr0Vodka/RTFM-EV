@@ -2713,11 +2713,39 @@ export interface FleetApplyLogResult {
 }
 
 export interface FleetApplyLogInput {
-  transport: 'usb_browser';
+  transport: 'usb_browser' | 'webconfig';
   total: number;
   results: FleetApplyLogResult[];
   stopped_reason: string | null;
   reboot_needed: boolean;
+}
+
+// Plan 32 Phase 4: an observer's web config over the LAN. The server talks
+// to the node; the browser only gives the address and runs the steps in turn.
+
+export interface FleetLanStatus {
+  mode: string | null;
+  name: string | null;
+  /** The first 8 bytes of the node's public key. */
+  node_id: string | null;
+  fw: string | null;
+  role: string | null;
+  board: string | null;
+}
+
+export interface FleetLanReadResult {
+  status: FleetLanStatus;
+  /** Each secret is {"$secret": null}: a preview holds no secret value. */
+  document: Record<string, unknown>;
+  secrets: number;
+  /** The import answer when the read was stored. */
+  stored: FleetConfigImportResult | null;
+}
+
+export interface FleetWebconfigToggleResult {
+  reply: string;
+  /** The LAN address the node gave when it started. */
+  host: string | null;
 }
 
 export interface FleetConfigExport {
