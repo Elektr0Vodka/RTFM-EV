@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from app.perf import health
+from app.perf import health, recorders
 from app.perf.middleware import PerfRouteMiddleware
 from app.perf.recorders import RouteRecorder
 from app.perf.sampler import RANGES, Sampler, combine
@@ -36,7 +36,10 @@ class TestRouter:
         assert body["health"]["state"] in {"ok", "degraded", "critical"}
         assert isinstance(body["asyncio_tasks"], list)
 
-    async def test_api_requests_are_timed_by_full_route(self, test_db, client):
+    async def test_api_requests_are_timed_by_full_route(self, test_db, client, monkeypatch):
+        # The recorder is process-wide and the snapshot lists the 25 busiest
+        # routes, so other tests on this worker could push this one out.
+        monkeypatch.setattr(recorders.routes, "_routes", {})
         async with client as c:
             await c.get("/api/perf/history", params={"range": "1h"})
             body = (await c.get("/api/perf/snapshot")).json()
