@@ -1,1 +1,0 @@
-{"version":3,"file":"channel-crypto.d.ts","sourceRoot":"","sources":["../../src/crypto/channel-crypto.ts"],"names":[],"mappings":"AAIA,OAAO,EAAE,gBAAgB,EAAE,MAAM,iBAAiB,CAAC;AAGnD,qBAAa,aAAa;IACxB;;;;OAIG;IACH,MAAM,CAAC,uBAAuB,CAC5B,UAAU,EAAE,MAAM,EAClB,SAAS,EAAE,MAAM,EACjB,UAAU,EAAE,MAAM,GACjB,gBAAgB;IAuFnB;;;OAGG;IACH,MAAM,CAAC,oBAAoB,CAAC,YAAY,EAAE,MAAM,GAAG,MAAM;CAK1D"}
