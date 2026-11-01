@@ -49,6 +49,8 @@ export interface UseWebSocketOptions {
   onMessageDeleted?: (messageId: number) => void;
   /** Spam Guard set or cleared the spam flag on messages already in chat. */
   onMessageSpam?: (messageIds: number[], spam: boolean, duplicate?: boolean) => void;
+  /** New name patterns changed the flag on stored messages. */
+  onNameFilterApplied?: () => void;
   onNewNode?: (payload: NewNodePayload) => void;
   onError?: (error: ErrorEvent) => void;
   onSuccess?: (success: SuccessEvent) => void;
@@ -201,6 +203,9 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             } else {
               handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam, msg.data.duplicate);
             }
+            break;
+          case 'name_filter_applied':
+            handlers.onNameFilterApplied?.();
             break;
           case 'bot_lists':
             setBotListsState(msg.data);

@@ -408,6 +408,15 @@ Spam Guard detects channel spam behaviour and, in Protect mode, keeps the host r
 - **A repeater is shared.** What your repeater does not forward disappears for everyone downstream, and they cannot see why. Run Monitor for a day before switching to Protect.
 - **On an OpenHop radio** the node forwards on its own, so Protect writes the blocks into the node's policy through its API, as rules named `rtfm-spam:...` placed before and after your own rules. The end of a rule name says where its block came from: `(yours)` for one you made or kept, `(duplicate)` for routine duplicate suppression, `(repeat)` for the repeat guard, `(auto)` for the rest. Every drop rule also says `local_transmission` is not true: OpenHop runs what its own companions send (the one RTFM-EV is connected to included) through the same rules and would not send a message a rule drops, so Spam Guard never stops your own messages there. Your own rules, objects and groups are passed through untouched. It needs the API URL and token under OpenHop management, switches the node's policy engine on, checks the node every minute and puts its rules back if they were changed there. The rules are removed when you switch to Monitor, pause, switch Spam Guard off, connect another radio or shut RTFM-EV down: an OpenHop rule does not expire by itself. A private channel is only enforced on the node after you agree, per channel, to its key being copied into the node's policy file. Nothing is written to a node that already has `spamguard:` rules. With an OpenHop radio the Spam Guard page also holds the node's policy editor (the **Policy** tab); Settings > OpenHop shows it only while Spam Guard is off. Not tested against a real OpenHop node yet.
 
+### Hide by name pattern
+
+For senders who change their name with every message (`Adriaan257`, `Adriaan502`), which Blocked Names cannot catch. Add regular expressions under Settings > Radio-App Management > Contact Management, one per line (at most 16), and turn on **Hide by name pattern** there or in the chat filter menu.
+
+- A pattern has to match the whole name and ignores case: `Adriaan\d+` catches `Adriaan257`, but not `Adriaan` or `MijnAdriaan1`. Use `.*bot.*` to match part of a name.
+- With the filter on, matching incoming channel messages are hidden in chat and stay out of unread counts, mentions, notifications and unread summaries. They are not deleted, and your own messages are never hidden.
+- Saving the list checks stored messages again, so a new pattern also clears older messages and a removed pattern brings them back.
+- It only hides messages here. They are still forwarded, and the raw packet feed and the chat popup window still show them.
+
 ### Bot lists
 
 A bot list names known bots: an exact sender name, with an optional public key and note. Lists live under Settings > Local Configuration > Bot lists.

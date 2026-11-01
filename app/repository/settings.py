@@ -40,6 +40,15 @@ SECONDS_72H = 259200
 SECONDS_7D = 604800
 
 
+def _parse_patterns(raw: str | None) -> list[str]:
+    """The stored name patterns (a JSON list); nothing when it does not parse."""
+    try:
+        parsed = json.loads(raw or "[]")
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return [p for p in parsed if isinstance(p, str)] if isinstance(parsed, list) else []
+
+
 class AppSettingsRepository:
     """Repository for app_settings table (single-row pattern).
 
@@ -64,6 +73,7 @@ class AppSettingsRepository:
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
                    blocked_keys, blocked_names, hidden_hop_widths, hidden_radio_sfs, hide_malformed,
+                   name_filter_patterns, hide_name_filtered,
                    ollama_enabled, ollama_base_url, ollama_model,
                    spam_guard_enabled, hide_spam, hide_bots,
                    discovery_blocked_types,
@@ -304,6 +314,14 @@ class AppSettingsRepository:
             hide_malformed = bool(row["hide_malformed"])
         except (KeyError, TypeError, IndexError):
             hide_malformed = False
+
+        # Parse the name filter (migration _167)
+        try:
+            name_filter_patterns = _parse_patterns(row["name_filter_patterns"])
+            hide_name_filtered = bool(row["hide_name_filtered"])
+        except (KeyError, TypeError, IndexError):
+            name_filter_patterns = []
+            hide_name_filtered = False
 
         # Ollama unread-summary settings (migration _136)
         try:
@@ -624,6 +642,8 @@ class AppSettingsRepository:
             hidden_hop_widths=hidden_hop_widths,
             hidden_radio_sfs=hidden_radio_sfs,
             hide_malformed=hide_malformed,
+            name_filter_patterns=name_filter_patterns,
+            hide_name_filtered=hide_name_filtered,
             ollama_enabled=ollama_enabled,
             ollama_base_url=ollama_base_url,
             ollama_model=ollama_model,
@@ -719,6 +739,8 @@ class AppSettingsRepository:
         hidden_hop_widths: list[int] | None = None,
         hidden_radio_sfs: list[int] | None = None,
         hide_malformed: bool | None = None,
+        name_filter_patterns: list[str] | None = None,
+        hide_name_filtered: bool | None = None,
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
@@ -926,6 +948,14 @@ class AppSettingsRepository:
         if hide_malformed is not None:
             updates.append("hide_malformed = ?")
             params.append(1 if hide_malformed else 0)
+
+        if name_filter_patterns is not None:
+            updates.append("name_filter_patterns = ?")
+            params.append(json.dumps(name_filter_patterns))
+
+        if hide_name_filtered is not None:
+            updates.append("hide_name_filtered = ?")
+            params.append(1 if hide_name_filtered else 0)
 
         if ollama_enabled is not None:
             updates.append("ollama_enabled = ?")
@@ -1146,6 +1176,8 @@ class AppSettingsRepository:
         hidden_hop_widths: list[int] | None = None,
         hidden_radio_sfs: list[int] | None = None,
         hide_malformed: bool | None = None,
+        name_filter_patterns: list[str] | None = None,
+        hide_name_filtered: bool | None = None,
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
@@ -1239,6 +1271,8 @@ class AppSettingsRepository:
                 hidden_hop_widths=hidden_hop_widths,
                 hidden_radio_sfs=hidden_radio_sfs,
                 hide_malformed=hide_malformed,
+                name_filter_patterns=name_filter_patterns,
+                hide_name_filtered=hide_name_filtered,
                 ollama_enabled=ollama_enabled,
                 ollama_base_url=ollama_base_url,
                 ollama_model=ollama_model,
@@ -1358,6 +1392,16 @@ class AppSettingsRepository:
                 "UPDATE app_settings SET vapid_private_key = ?, vapid_public_key = ? WHERE id = 1",
                 (private_key, public_key),
             )
+
+    @staticmethod
+    async def get_name_filter_patterns() -> list[str]:
+        """The name patterns alone: read for every arriving channel message."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT name_filter_patterns FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        return _parse_patterns(row["name_filter_patterns"]) if row else []
 
     @staticmethod
     async def get_push_conversations() -> list[str]:

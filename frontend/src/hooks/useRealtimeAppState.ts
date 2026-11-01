@@ -54,6 +54,8 @@ interface UseRealtimeAppStateArgs {
   hiddenRadioSfsRef?: MutableRefObject<ReadonlySet<number>>;
   /** Whether the chat "Hide malformed" filter is on. */
   hideMalformedRef?: MutableRefObject<boolean>;
+  /** Whether the chat "Hide by name pattern" filter is on. */
+  hideNameFilteredRef?: MutableRefObject<boolean>;
   /** Whether the chat "Hide spam" filter is on. */
   hideSpamRef?: MutableRefObject<boolean>;
   /** Whether the chat "Hide bots" filter is on. */
@@ -84,6 +86,8 @@ interface UseRealtimeAppStateArgs {
   receiveMessageFailed?: (messageId: number, failedAt: number) => void;
   /** Spam Guard set or cleared the spam flag on messages already in chat. */
   receiveMessageSpam?: (messageIds: number[], spam: boolean, duplicate?: boolean) => void;
+  /** New name patterns changed the flag on stored messages: load them again. */
+  reloadForNameFilter?: () => void;
   /** A message row was removed on the server (e.g. a failed DM replaced by a retry). */
   removeMessage?: (messageId: number) => void;
   notifyIncomingMessage?: (msg: Message) => void;
@@ -140,6 +144,7 @@ export function useRealtimeAppState({
   hiddenHopWidthsRef,
   hiddenRadioSfsRef,
   hideMalformedRef,
+  hideNameFilteredRef,
   hideSpamRef,
   hideBotsRef,
   channelsRef,
@@ -156,6 +161,7 @@ export function useRealtimeAppState({
   receiveMessageAck,
   receiveMessageFailed,
   receiveMessageSpam,
+  reloadForNameFilter,
   removeMessage,
   notifyIncomingMessage,
   notifyNewNode,
@@ -263,7 +269,7 @@ export function useRealtimeAppState({
           msg.type === 'CHAN' &&
           !!msg.conversation_key &&
           channelsRef.current.some((c) => c.key === msg.conversation_key && c.muted);
-        // Hidden by the chat hop-size, malformed or spam filter: stored (the list
+        // Hidden by the chat hop-size, malformed, name or spam filter: stored (the list
         // filters it from view) but treated like a muted channel, so it raises
         // no unread count, notification, sound or mention ticker. Matches the
         // server's /unreads and Web Push, which apply the same settings.
@@ -276,6 +282,7 @@ export function useRealtimeAppState({
           !!hiddenRadioSfsRef &&
           hiddenRadioSfsRef.current.has(sfBucket(msg.radio_stamp));
         const isMalformedHidden = !msg.outgoing && !!msg.malformed && !!hideMalformedRef?.current;
+        const isNameHidden = !msg.outgoing && !!msg.name_filtered && !!hideNameFilteredRef?.current;
         const isSpamHidden = !msg.outgoing && !!msg.spam && !!hideSpamRef?.current;
         const isBotHidden = !!hideBotsRef?.current && isBotMessage(msg);
         // A command another companion sent to our radio (MeshCore 1.18 txt_type 3)
@@ -286,6 +293,7 @@ export function useRealtimeAppState({
           isHopHidden ||
           isSfHidden ||
           isMalformedHidden ||
+          isNameHidden ||
           isSpamHidden ||
           isBotHidden ||
           isRemoteCliCommand;
@@ -429,6 +437,9 @@ export function useRealtimeAppState({
         // just left (or rejoined) the count: take the server's totals.
         if (hideSpamRef?.current) void refreshUnreads();
       },
+      onNameFilterApplied: () => {
+        reloadForNameFilter?.();
+      },
       onMessageDeleted: (messageId: number) => {
         removeMessage?.(messageId);
         // Deleting an unread message changes its conversation's count (and
@@ -454,6 +465,7 @@ export function useRealtimeAppState({
       hiddenHopWidthsRef,
       hiddenRadioSfsRef,
       hideMalformedRef,
+      hideNameFilteredRef,
       hideSpamRef,
       hideBotsRef,
       checkMention,
@@ -470,6 +482,7 @@ export function useRealtimeAppState({
       receiveMessageAck,
       receiveMessageFailed,
       receiveMessageSpam,
+      reloadForNameFilter,
       removeMessage,
       observeMessage,
       refreshUnreads,

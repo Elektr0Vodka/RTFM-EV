@@ -135,8 +135,8 @@ class PushManager:
             return
 
         # Skip blocked senders (contacts and channel sender names), and messages
-        # the chat 'Hide by hop size', 'Hide malformed messages' and 'Hide spam'
-        # filters hide.
+        # the chat 'Hide by hop size', 'Hide malformed messages', 'Hide by name
+        # pattern' and 'Hide spam' filters hide.
         try:
             settings = await AppSettingsRepository.get()
             hidden_keys, hidden_names = await bot_lists.hidden_senders(settings)
@@ -147,6 +147,8 @@ class PushManager:
             if message_hidden_by_radio_sf(data.get("radio_stamp"), settings.hidden_radio_sfs):
                 return
             if settings.hide_malformed and data.get("malformed"):
+                return
+            if settings.hide_name_filtered and data.get("name_filtered"):
                 return
             if settings.hide_spam and data.get("spam"):
                 return

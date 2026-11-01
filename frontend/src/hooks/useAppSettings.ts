@@ -92,6 +92,22 @@ export function useAppSettings() {
     }
   }, []);
 
+  // Chat "Hide by name pattern" filter (`messages.name_filtered`), same pattern.
+  const handleSetHideNameFiltered = useCallback(async (hide: boolean) => {
+    setAppSettings((prev) => (prev ? { ...prev, hide_name_filtered: hide } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hide_name_filtered: hide }));
+      setHiddenHopWidthsVersion((v) => v + 1);
+    } catch (err) {
+      console.error('Failed to save name filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
+
   // Chat "Hide spam" filter (Spam Guard's flag), same pattern.
   const handleSetHideSpam = useCallback(async (hide: boolean) => {
     setAppSettings((prev) => (prev ? { ...prev, hide_spam: hide } : prev));
@@ -335,6 +351,7 @@ export function useAppSettings() {
     handleSetHideMalformed,
     handleSetHideSpam,
     handleSetHideBots,
+    handleSetHideNameFiltered,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,

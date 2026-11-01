@@ -389,6 +389,7 @@ class TestContactMessageCLIFiltering:
             "region",
             "failed_at",
             "malformed",
+            "name_filtered",
             "spam",
             "duplicate",
             "cli_permitted",

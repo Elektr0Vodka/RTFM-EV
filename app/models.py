@@ -933,6 +933,13 @@ class Message(BaseModel):
             "Hidden by the chat 'Hide malformed messages' filter."
         ),
     )
+    name_filtered: bool = Field(
+        default=False,
+        description=(
+            "True when the sender of an incoming channel message matches a name pattern "
+            "('name_filter_patterns'). Hidden by the chat 'Hide by name pattern' filter."
+        ),
+    )
     spam: bool = Field(
         default=False,
         description=(
@@ -2649,6 +2656,20 @@ class AppSettings(BaseModel):
         description=(
             "Hide incoming channel messages flagged as malformed in chat and exclude them "
             "from unread counts, mentions and Web Push ('Hide malformed messages')."
+        ),
+    )
+    name_filter_patterns: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Regular expressions for sender names. A pattern has to match the whole name "
+            "and ignores case; matching incoming channel messages are flagged 'name_filtered'."
+        ),
+    )
+    hide_name_filtered: bool = Field(
+        default=False,
+        description=(
+            "Hide incoming channel messages flagged 'name_filtered' in chat and exclude them "
+            "from unread counts, mentions and Web Push ('Hide by name pattern')."
         ),
     )
     ollama_enabled: bool = Field(

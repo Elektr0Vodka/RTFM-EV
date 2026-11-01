@@ -21,6 +21,7 @@ from app.models import (
     SidebarHidden,
     TeamBeaconSettings,
 )
+from app.name_filter import clean_patterns
 from app.region_scope import normalize_region_scope
 from app.repository import (
     AppSettingsRepository,
@@ -28,6 +29,7 @@ from app.repository import (
     ContactRepository,
     MentionSoundRepository,
 )
+from app.services.name_filter import rescan_messages
 from app.services.ollama_summary import OllamaConfigError, normalize_ollama_base_url
 from app.telemetry_interval import (
     DEFAULT_TELEMETRY_INTERVAL_HOURS,
@@ -519,6 +521,20 @@ class AppSettingsUpdate(BaseModel):
             "from unread counts, mentions and Web Push."
         ),
     )
+    name_filter_patterns: list[str] | None = Field(
+        default=None,
+        description=(
+            "Regular expressions for sender names. Replaces the list and re-checks stored "
+            "messages. An invalid pattern is refused with a 400."
+        ),
+    )
+    hide_name_filtered: bool | None = Field(
+        default=None,
+        description=(
+            "Hide incoming channel messages whose sender matches a name pattern in chat and "
+            "exclude them from unread counts, mentions and Web Push."
+        ),
+    )
     ollama_enabled: bool | None = Field(
         default=None, description="Enable Ollama unread-summary banners for channels"
     )
@@ -934,6 +950,15 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.hide_malformed is not None:
         kwargs["hide_malformed"] = update.hide_malformed
 
+    if update.name_filter_patterns is not None:
+        try:
+            kwargs["name_filter_patterns"] = clean_patterns(update.name_filter_patterns)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if update.hide_name_filtered is not None:
+        kwargs["hide_name_filtered"] = update.hide_name_filtered
+
     if update.ollama_enabled is not None:
         logger.info("Updating ollama_enabled to %s", update.ollama_enabled)
         kwargs["ollama_enabled"] = update.ollama_enabled
@@ -1251,6 +1276,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
 
             await spam_guard.ensure_loaded()
             await spam_guard.set_enabled(result.spam_guard_enabled)
+
+        # Stored messages follow the new list before the answer goes out.
+        if "name_filter_patterns" in kwargs:
+            await rescan_messages()
 
         return result
 

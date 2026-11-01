@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-01 (hide by name pattern, feat/hide-by-name-pattern)
+
+Some senders change their name with every message (`Adriaan257`, `Adriaan502`),
+so Blocked Names cannot catch them. Migration `_167`, next free `_168`.
+
+### Chat
+- New chat filter **Hide by name pattern**, next to Hide malformed. Patterns are
+  regular expressions in Settings, under Contact Management, one per line: at
+  most 16, 128 characters each. A pattern has to match the whole name and
+  ignores case.
+- Matching incoming channel messages are flagged on arrival
+  (`messages.name_filtered`). With the filter on they are hidden in chat and
+  stay out of unread counts, mentions, Web Push and unread summaries. Nothing is
+  deleted, and your own messages are never hidden.
+- Saving the list re-checks stored messages; browsers reload on the new
+  `name_filter_applied` event. An invalid pattern is refused with a 400.
+- Not covered: the chat popup window, like the other server-side chat filters;
+  the raw packet feed; Spam Guard scoring.
+
 ## Update 2026-11-01 (test fix after pytest 9.2, fix/health-tests-radio-proxy)
 
 No change to the app. Fixes the `backend-checks` failure on `main` after the

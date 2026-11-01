@@ -614,6 +614,50 @@ describe('useRealtimeAppState', () => {
     });
   });
 
+  describe('name filter', () => {
+    const filteredChan: Message = { ...incomingChan, name_filtered: true };
+
+    function run(msg: Message, hideNameFiltered: boolean) {
+      const fns = {
+        recordMessageEvent: vi.fn(),
+        notifyIncomingMessage: vi.fn(),
+      };
+      const { args } = createRealtimeArgs({
+        ...fns,
+        hideNameFilteredRef: { current: hideNameFiltered },
+        observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onMessage?.(msg);
+      });
+      return { ...fns, observeMessage: args.observeMessage };
+    }
+
+    it('stores but does not count or notify a matching message when hidden', () => {
+      const fns = run(filteredChan, true);
+      expect(fns.observeMessage).toHaveBeenCalledWith(filteredChan);
+      expect(fns.recordMessageEvent).not.toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).not.toHaveBeenCalled();
+    });
+
+    it('counts and notifies a matching message while the filter is off', () => {
+      const fns = run(filteredChan, false);
+      expect(fns.recordMessageEvent).toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).toHaveBeenCalledWith(filteredChan);
+    });
+
+    it('reloads when new patterns changed stored messages', () => {
+      const reloadForNameFilter = vi.fn();
+      const { args } = createRealtimeArgs({ reloadForNameFilter });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onNameFilterApplied?.();
+      });
+      expect(reloadForNameFilter).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('spam filter', () => {
     const spamChan: Message = { ...incomingChan, spam: true };
 

@@ -246,6 +246,7 @@ export function App() {
     handleSetHideMalformed,
     handleSetHideSpam,
     handleSetHideBots,
+    handleSetHideNameFiltered,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,
@@ -355,6 +356,13 @@ export function App() {
   useEffect(() => {
     hideMalformedRef.current = hideMalformed;
   }, [hideMalformed]);
+
+  // Chat "Hide by name pattern" filter (server setting), same consumers.
+  const hideNameFiltered = appSettings?.hide_name_filtered ?? false;
+  const hideNameFilteredRef = useRef(false);
+  useEffect(() => {
+    hideNameFilteredRef.current = hideNameFiltered;
+  }, [hideNameFiltered]);
 
   // Spam Guard: the master switch decides whether the page and the chat
   // actions exist at all; "Hide spam" works like "Hide malformed".
@@ -702,6 +710,13 @@ export function App() {
     [notifyMentionSound, shouldNotifyHere]
   );
 
+  const handleVisibilityPolicyChanged = useCallback(() => {
+    clearConversationMessages();
+    reloadCurrentConversation();
+    void refreshUnreads();
+    setVisibilityVersion((current) => current + 1);
+  }, [clearConversationMessages, refreshUnreads, reloadCurrentConversation]);
+
   const wsHandlers = useRealtimeAppState({
     prevHealthRef,
     setHealth,
@@ -716,6 +731,7 @@ export function App() {
     hiddenHopWidthsRef,
     hiddenRadioSfsRef,
     hideMalformedRef,
+    hideNameFilteredRef,
     hideSpamRef,
     hideBotsRef,
     channelsRef,
@@ -732,18 +748,13 @@ export function App() {
     receiveMessageAck,
     receiveMessageFailed,
     receiveMessageSpam,
+    reloadForNameFilter: handleVisibilityPolicyChanged,
     removeMessage,
     notifyIncomingMessage: gatedNotifyIncomingMessage,
     notifyNewNode: gatedNotifyNewNode,
     onChannelMention: handleChannelMention,
     notifyMentionSound: gatedNotifyMentionSound,
   });
-  const handleVisibilityPolicyChanged = useCallback(() => {
-    clearConversationMessages();
-    reloadCurrentConversation();
-    void refreshUnreads();
-    setVisibilityVersion((current) => current + 1);
-  }, [clearConversationMessages, refreshUnreads, reloadCurrentConversation]);
 
   const handleBlockKey = useCallback(
     async (key: string) => {
@@ -1030,6 +1041,8 @@ export function App() {
     onHiddenRadioSfsChange: handleSetHiddenRadioSfs,
     hideMalformed,
     onHideMalformedChange: handleSetHideMalformed,
+    hideNameFiltered,
+    onHideNameFilteredChange: handleSetHideNameFiltered,
     spamGuardEnabled,
     hideSpam,
     onHideSpamChange: handleSetHideSpam,

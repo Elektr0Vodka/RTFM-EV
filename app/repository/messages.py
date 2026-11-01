@@ -18,6 +18,14 @@ from app.models import (
 # past this the list only grows without telling the user anything new.
 MAX_STORED_PATHS = 64
 
+# The name chat shows for a channel row: the stored sender, or for a row stored
+# without one the "Sender: " prefix of its text (``reaction_payloads.channel_sender``).
+_TEXT_SENDER = "substr(text, 1, instr(text, ': ') - 1)"
+_SHOWN_SENDER = (
+    "COALESCE(NULLIF(sender_name, ''), CASE WHEN instr(text, ': ') BETWEEN 2 AND 50 "
+    f"AND instr({_TEXT_SENDER}, ':') = 0 THEN {_TEXT_SENDER} END)"
+)
+
 
 class MessageRepository:
     @dataclass
@@ -76,6 +84,7 @@ class MessageRepository:
         region: str | None = None,
         malformed: bool = False,
         malformed_reason: str | None = None,
+        name_filtered: bool = False,
         bot: bool = False,
         cli_permitted: bool | None = None,
         radio_stamp: RadioStamp | None = None,
@@ -117,9 +126,10 @@ class MessageRepository:
                                                 received_at, paths, txt_type, signature, outgoing,
                                                 send_status, sender_name, sender_key,
                                                 transport_code, region, malformed,
-                                                malformed_reason, bot, cli_permitted,
+                                                malformed_reason, name_filtered, bot,
+                                                cli_permitted,
                                                 radio_freq, radio_bw, radio_sf, radio_cr)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -138,6 +148,7 @@ class MessageRepository:
                     region,
                     1 if malformed else 0,
                     malformed_reason,
+                    1 if name_filtered else 0,
                     1 if bot else 0,
                     None if cli_permitted is None else (1 if cli_permitted else 0),
                     radio_stamp.freq if radio_stamp else None,
@@ -169,6 +180,33 @@ class MessageRepository:
                     if cursor.rowcount:
                         changed.append(message_id)
         return changed
+
+    @staticmethod
+    async def get_incoming_channel_senders() -> list[str]:
+        """Every name chat shows on a stored incoming channel row (``_SHOWN_SENDER``)."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                f"SELECT DISTINCT {_SHOWN_SENDER} AS name FROM messages "
+                "WHERE type = 'CHAN' AND outgoing = 0"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [row["name"] for row in rows if row["name"]]
+
+    @staticmethod
+    async def set_name_filtered(names: list[str]) -> int:
+        """Flag incoming channel rows from exactly these senders and clear the rest.
+
+        Returns how many rows changed.
+        """
+        matches = f"COALESCE({_SHOWN_SENDER} IN (SELECT value FROM json_each(?)), 0)"
+        names_json = json.dumps(names)
+        async with db.tx() as conn:
+            async with conn.execute(
+                f"UPDATE messages SET name_filtered = {matches} "
+                f"WHERE type = 'CHAN' AND outgoing = 0 AND name_filtered != {matches}",
+                (names_json, names_json),
+            ) as cursor:
+                return cursor.rowcount
 
     @staticmethod
     async def set_duplicate(message_ids: list[int], duplicate: bool = True) -> list[int]:
@@ -600,6 +638,16 @@ class MessageRepository:
         return f"NOT ({prefix}outgoing = 0 AND {prefix}malformed = 1)"
 
     @staticmethod
+    def _build_hidden_name_filter_clause(
+        message_alias: str = "", hide_name_filtered: bool = False
+    ) -> str:
+        """Exclude incoming messages hidden by the chat 'Hide by name pattern' filter."""
+        if not hide_name_filtered:
+            return ""
+        prefix = f"{message_alias}." if message_alias else ""
+        return f"NOT ({prefix}outgoing = 0 AND {prefix}name_filtered = 1)"
+
+    @staticmethod
     def _build_cli_command_clause(message_alias: str = "") -> str:
         """Exclude incoming txt_type 3 rows (remote CLI commands are not chat)."""
         prefix = f"{message_alias}." if message_alias else ""
@@ -621,6 +669,7 @@ class MessageRepository:
         region = None
         failed_at = None
         malformed = False
+        name_filtered = False
         send_status = "confirmed"
         spam = False
         duplicate = False
@@ -638,6 +687,8 @@ class MessageRepository:
                 failed_at = row["failed_at"]
             if "malformed" in row_keys:
                 malformed = bool(row["malformed"])
+            if "name_filtered" in row_keys:
+                name_filtered = bool(row["name_filtered"])
             if "send_status" in row_keys:
                 send_status = row["send_status"]
             if "spam" in row_keys:
@@ -674,6 +725,7 @@ class MessageRepository:
             region=region,
             failed_at=failed_at,
             malformed=malformed,
+            name_filtered=name_filtered,
             spam=spam,
             duplicate=duplicate,
             cli_permitted=cli_permitted,
@@ -699,13 +751,14 @@ class MessageRepository:
         hidden_hop_widths: list[int] | None = None,
         hidden_radio_sfs: list[int] | None = None,
         hide_malformed: bool = False,
+        hide_name_filtered: bool = False,
         hide_spam: bool = False,
     ) -> list[Message]:
         """Incoming messages that mention ``name`` as ``@[name]``, newest first.
 
         Uses the same match as the unread mention flag (case-insensitive, no
         reactions) and leaves out what the chat hides (blocked senders, hidden
-        hop widths and SFs, malformed and spam when hidden, CLI traffic).
+        hop widths and SFs, malformed, name-filtered and spam when hidden, CLI traffic).
         ``before``/``before_id`` page backwards.
         """
         token = f"@[{name}]"
@@ -725,6 +778,7 @@ class MessageRepository:
             MessageRepository._build_hidden_hop_width_clause("m", hidden_hop_widths),
             MessageRepository._build_hidden_radio_sf_clause("m", hidden_radio_sfs),
             MessageRepository._build_hidden_malformed_clause("m", hide_malformed),
+            MessageRepository._build_hidden_name_filter_clause("m", hide_name_filtered),
             MessageRepository._build_hidden_spam_clause("m", hide_spam),
             MessageRepository._build_cli_command_clause("m"),
         ):
@@ -858,13 +912,14 @@ class MessageRepository:
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool = False,
+        hide_name_filtered: bool = False,
         hide_spam: bool = False,
         hidden_radio_sfs: list[int] | None = None,
     ) -> list[Message]:
         """Newest ``limit`` messages of a conversation received at or after ``since``.
 
         Returned oldest first. Blocked senders and incoming messages hidden by
-        the hop-size, malformed or spam filters are left out before the limit applies,
+        the hop-size, malformed, name or spam filters are left out before the limit applies,
         so the result is what the chat shows.
         """
         clause, norm_key = MessageRepository._normalize_conversation_key(conversation_key)
@@ -886,6 +941,7 @@ class MessageRepository:
             MessageRepository._build_hidden_hop_width_clause("messages", hidden_hop_widths),
             MessageRepository._build_hidden_radio_sf_clause("messages", hidden_radio_sfs),
             MessageRepository._build_hidden_malformed_clause("messages", hide_malformed),
+            MessageRepository._build_hidden_name_filter_clause("messages", hide_name_filtered),
             MessageRepository._build_hidden_spam_clause("messages", hide_spam),
         ):
             if filter_clause:
@@ -1322,6 +1378,7 @@ class MessageRepository:
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool = False,
+        hide_name_filtered: bool = False,
         hide_spam: bool = False,
         hidden_radio_sfs: list[int] | None = None,
     ) -> dict:
@@ -1336,6 +1393,8 @@ class MessageRepository:
                 boundary and last message times, like blocked traffic.
             hide_malformed: Exclude incoming messages flagged as malformed
                 (``messages.malformed``) the same way.
+            hide_name_filtered: Exclude incoming messages whose sender matches a
+                name pattern (``messages.name_filtered``) the same way.
             hide_spam: Exclude incoming messages flagged as spam (``messages.spam``)
                 the same way.
 
@@ -1365,6 +1424,9 @@ class MessageRepository:
         malformed_clause = MessageRepository._build_hidden_malformed_clause("m", hide_malformed)
         if malformed_clause:
             blocked_sql += f" AND {malformed_clause}"
+        name_clause = MessageRepository._build_hidden_name_filter_clause("m", hide_name_filtered)
+        if name_clause:
+            blocked_sql += f" AND {name_clause}"
         spam_clause = MessageRepository._build_hidden_spam_clause("m", hide_spam)
         if spam_clause:
             blocked_sql += f" AND {spam_clause}"
@@ -1383,6 +1445,7 @@ class MessageRepository:
                 MessageRepository._build_hidden_hop_width_clause("", hidden_hop_widths),
                 MessageRepository._build_hidden_radio_sf_clause("", hidden_radio_sfs),
                 MessageRepository._build_hidden_malformed_clause("", hide_malformed),
+                MessageRepository._build_hidden_name_filter_clause("", hide_name_filtered),
                 MessageRepository._build_hidden_spam_clause("", hide_spam),
                 MessageRepository._build_cli_command_clause(""),
             )

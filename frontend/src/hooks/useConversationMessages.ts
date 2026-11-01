@@ -214,7 +214,8 @@ function messagesEqual(left: Message, right: Message): boolean {
     (left.transport_code ?? null) === (right.transport_code ?? null) &&
     (left.region ?? null) === (right.region ?? null) &&
     (left.failed_at ?? null) === (right.failed_at ?? null) &&
-    Boolean(left.malformed) === Boolean(right.malformed)
+    Boolean(left.malformed) === Boolean(right.malformed) &&
+    Boolean(left.name_filtered) === Boolean(right.name_filtered)
   );
 }
 
