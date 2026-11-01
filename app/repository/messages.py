@@ -1295,6 +1295,27 @@ class MessageRepository:
                 return await cursor.fetchone() is not None
 
     @staticmethod
+    async def has_recent_copy_in_other_channel(
+        text: str, sender_timestamp: int, conversation_key: str, since: int
+    ) -> bool:
+        """True if another channel stored this text + timestamp since ``since``.
+
+        Bounded by ``received_at`` so the (type, received_at, ...) index serves it
+        instead of scanning every stored channel message.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT 1 FROM messages
+                WHERE type = 'CHAN' AND received_at >= ? AND conversation_key <> ?
+                  AND text = ? AND sender_timestamp = ?
+                LIMIT 1
+                """,
+                (since, conversation_key, text, sender_timestamp),
+            ) as cursor:
+                return await cursor.fetchone() is not None
+
+    @staticmethod
     async def get_unread_counts(
         name: str | None = None,
         blocked_keys: list[str] | None = None,
