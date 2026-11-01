@@ -49,6 +49,9 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       input: path.resolve(import.meta.dirname, 'wardrive.html'),
+      // wardriveFonts handles these, but vite:css sees them first and would warn
+      // about each one: public/fonts is not this build's public folder.
+      external: [/^\/fonts\//],
     },
   },
 });
