@@ -201,6 +201,13 @@ import type {
   SnmpNodeOverview,
   SnmpAgentSettings,
   SnmpAgentState,
+  WardriveAdminConfig,
+  WardriveAdminStatus,
+  WardriveAuditEntry,
+  WardriveData,
+  WardriveGroup,
+  WardriveUser,
+  WardriveVisibility,
   SnmpDiscoverAddressResponse,
   LanScanRequest,
   LanScanStatus,
@@ -225,6 +232,7 @@ import type {
 } from './types';
 import { reportHttpFailure } from './utils/authRedirect';
 import { fleetVaultHeaders } from './utils/fleetVault';
+import type { WardriveLiveDriver } from './wardrive/api';
 
 const API_BASE = './api';
 
@@ -2033,6 +2041,84 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  // Wardrive plugin owner admin (only registered when MESHCORE_WARDRIVE is on)
+  getWardriveAdminStatus: () => fetchJson<WardriveAdminStatus>('/wardrive-admin/status'),
+  getWardriveUsers: () => fetchJson<WardriveUser[]>('/wardrive-admin/users'),
+  patchWardriveUser: (
+    userId: number,
+    update: { visibility?: WardriveVisibility; disabled?: boolean }
+  ) =>
+    fetchJson<WardriveUser>(`/wardrive-admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  deleteWardriveUser: (userId: number) =>
+    fetchJson<{ status: string }>(`/wardrive-admin/users/${userId}`, { method: 'DELETE' }),
+  deleteWardriveRadio: (publicKey: string) =>
+    fetchJson<{ status: string }>(`/wardrive-admin/radios/${publicKey}`, { method: 'DELETE' }),
+  getWardriveGroups: () => fetchJson<WardriveGroup[]>('/wardrive-admin/groups'),
+  createWardriveGroup: (name: string) =>
+    fetchJson<WardriveGroup>('/wardrive-admin/groups', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  renameWardriveGroup: (groupId: number, name: string) =>
+    fetchJson<WardriveGroup>(`/wardrive-admin/groups/${groupId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  setWardrivePassword: async (userId: number, password: string) => {
+    await fetchJson<{ status: string }>(`/wardrive-admin/users/${userId}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  },
+  getWardriveAudit: (limit = 100) =>
+    fetchJson<{ entries: WardriveAuditEntry[] }>(`/wardrive-admin/audit?limit=${limit}`),
+  deleteWardriveGroup: (groupId: number) =>
+    fetchJson<{ status: string }>(`/wardrive-admin/groups/${groupId}`, { method: 'DELETE' }),
+  getWardriveAdminData: (params: {
+    since: number;
+    until: number;
+    user_id?: number;
+    group_id?: number;
+    radio_key?: string;
+  }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    return fetchJson<WardriveData>(`/wardrive-admin/data?${q.toString()}`);
+  },
+  /** Drivers whose page uploaded in the last 10 minutes. */
+  getWardriveAdminLive: (params: { user_id?: number; group_id?: number } = {}) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    const qs = q.toString();
+    return fetchJson<{ window_s: number; drivers: WardriveLiveDriver[] }>(
+      `/wardrive-admin/live${qs ? `?${qs}` : ''}`
+    );
+  },
+  getWardriveConfig: () => fetchJson<WardriveAdminConfig>('/wardrive-admin/config'),
+  /** Partial: only the keys sent change. */
+  putWardriveConfig: (
+    body: Partial<
+      Pick<
+        WardriveAdminConfig,
+        'hashtag_channels' | 'rssi_calibration_db' | 'brokers' | 'analyzer_region'
+      >
+    >
+  ) =>
+    fetchJson<WardriveAdminConfig>('/wardrive-admin/config', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  setWardriveGroupMembers: (groupId: number, userIds: number[]) =>
+    fetchJson<WardriveGroup>(`/wardrive-admin/groups/${groupId}/members`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+  /** Drives and reports (components/wardriveAdminDrivesApi.ts builds the paths). */
+  wardriveAdmin: <T>(path: string, init?: RequestInit) =>
+    fetchJson<T>(`/wardrive-admin${path}`, init),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>
     fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),

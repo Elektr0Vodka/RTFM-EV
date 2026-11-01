@@ -196,6 +196,19 @@ Migration **_161** (`app_settings.send_gap_seconds`). No new dependency.
 - Release builds no longer ship source maps (`FRONTEND_SOURCEMAP=1` for a
   debug build).
 
+## Update 2026-10-23 (coverage map receptions list stays on the map, feat/wardrive-plugin)
+
+No migration. No new dependency.
+
+### Wardrive
+- The coverage map's receptions list moved within the live log's limits
+  (centred at the top of the window): it could not move up at all, it
+  stopped short of the map's right edge, and it went off the left of the
+  map over the sidebar and down past the bottom. It now moves anywhere on
+  the map and stops at the map's edges. A spot saved with the old limits,
+  or one the list outgrows as its rows load, is pulled back onto the map.
+  The live log on the wardrive page keeps its limits.
+
 ## Update 2026-10-23 (guessed locations for direct-heard nodes + map Hops filter, feat/guessed-locations-direct-hop-filter)
 
 No migration, no new dependency. Frontend only.
@@ -300,6 +313,197 @@ dependency. For people near a border between meshes on different settings
 - Translations for nl and de were written with the change; the rtfm-ev-i18n
   pull may replace them.
 
+## Update 2026-10-20 (coverage map and driver management, feat/wardrive-plugin)
+
+Migration `_166` (wardrive last login and audit log). No new dependency.
+Nothing is sent over the radio and nothing is published.
+
+### Wardrive
+- The Map tab of Tools > Wardrive is a **coverage map** after
+  map.mesh-hunter.eu (web 1.27.0), and drivers have the same map on their
+  page (Drives tab, **Open the coverage map**) for what their visibility
+  shows: Hex, Points and Auto with two cell sizes handing over by zoom, 2D
+  and 3D with terrain, a driver picker, a target picker, time ranges with a
+  frozen-link copy, filters (packet type, sender id, No path, ignored
+  senders, Filtered/All), a receptions list two-way with the map, node
+  positions against their estimates and every repeater's reach with
+  selection, Locate (their maths, checked against their code), a Repeaters
+  heard share card, map settings and a first-time walkthrough. The map's
+  state is in the address (query string beside `#wardrive`).
+- Server: `GET /api/wardrive/map/points|cells|drivers` and the same under
+  `/api/wardrive-admin/map/` with `as_user` / `as_group`; senders read from
+  the stored frames by the page's own rules (shared test vectors);
+  `GET /api/wardrive-admin/nodes`.
+- **View as** (owner): the map exactly as one driver, or a group's members
+  together, would see it.
+- New **Drivers** tab (`#wardrive/drivers`): the users, radios and groups
+  that were in Settings > Wardrive, plus last login, **Set password** (ends
+  the driver's sessions; `POST /api/wardrive-admin/users/{id}/password`),
+  the audit log (`GET /api/wardrive-admin/audit`) and View the map as.
+  Settings > Wardrive keeps the page address, channels, brokers and
+  calibration.
+- The old stored-data map (WardriveMap, MapPanel) is replaced; its
+  every-stored-field reception popup lives on as the reception card.
+- Page on a phone narrower than 380 px: Add, Ignore and Float in the HUD
+  show only their icon, so the five tools keep one row (the Filtered/All
+  button wrapped to a row of its own at 360 px; the HUD is 38 px lower).
+
+## Update 2026-10-20 (Tools > Wardrive, feat/wardrive-plugin)
+
+No migration, no new dependency.
+
+### Wardrive
+- Tools > Wardrive map and Tools > Wardrive reports are one page, **Tools >
+  Wardrive**, with a Map and a Reports tab (`#wardrive`, `#wardrive/reports`;
+  old links open their tab; a customised sidebar keeps the tool's place).
+- Map tab: **On the road now**, the drivers whose page uploaded in the last
+  10 minutes, listed and on the map with their name (new
+  `GET /api/wardrive-admin/live`), refreshed every 30 seconds.
+- A tap on a reception (Tools and the page) shows every stored field,
+  including who it came through, named by the reports' rules.
+- Share cards of the reports: **Frame the map** pans and zooms the view the
+  card and its GIF are drawn on.
+
+## Update 2026-10-20 (wardrive page on a phone, feat/wardrive-plugin)
+
+No migration, no new dependency. From the owner's phone test.
+
+### Wardrive
+- The live log is its own block: it scrolls inside without moving the top
+  bar, can be dragged by its handle (the spot is kept in that browser,
+  double-tap puts it back) and stays on screen.
+- Follow mode keeps your position (and a picked reception) in the part of
+  the map between the top bar and the HUD instead of under the HUD.
+- A Full screen button in the top bar (not on an iPhone).
+- Float uses picture-in-picture on Android too (a small window over the
+  navigation app; fullscreen only where there is no picture-in-picture),
+  without the portrait lock; the readout takes the phone's shape and turns
+  with it. Not tested on a phone.
+- The map credits start folded.
+
+## Update 2026-10-20 (wardrive deferred minors, feat/wardrive-plugin)
+
+Migration **_165** (`wardrive_drive_tombstones`: drive ids the driver deleted,
+merged away or split). No new dependency. Nothing new goes over the radio.
+
+### Wardrive
+- Drives: an upload is stored in one transaction. A deleted drive no longer
+  comes back when a phone sends its rows again (they are dropped and counted
+  as `discarded`); late rows of a merged or split drive land in the drive
+  their time belongs to. Retention pruning fits partly pruned drives to the
+  rows left. A merge whose notes would pass 1000 characters is refused
+  instead of making later saves fail. Names and notes lose control
+  characters. Split starts at the middle of the drive.
+- Reports: at most 1000 picked drives. GPX points and report track points
+  carry the time of their position fix. A file from a cut report says so
+  (`-truncated` in the name, a GeoJSON flag, a GPX note). The Drive card
+  shows nodes heard; the Weak spots card shows the time in every weak cell
+  and the best node nearby. The page's Reports tab can narrow to one of the
+  driver's groups. Picked drives are cleared on a filter change (Tools) and
+  when another driver logs in (page). A refused export on the Tools page now
+  shows the server's message. A new tool in a customised sidebar order goes
+  next to its default neighbour instead of the end.
+- Brokers: removing one in Settings asks first; region codes are taken in
+  lower case; an address with a bad port or an account in it is refused. A
+  served list that says the same as the built-in one no longer restarts the
+  DutchMeshCore forwarders, and a forwarder rebuilt for the same broker no
+  longer sends a row twice. A served RSSI calibration outside -30..30 dB is
+  ignored.
+- Page: contact last-heard times are put on the page's clock (the radio's
+  clock is read, never set). Node colours follow colourblind mode. Discover
+  replies are matched against every known node (faster, and ambiguous with
+  a node off the map). Selection pans no longer keep heading mode's
+  look-ahead. Backlog points below zoom 12 cannot be tapped. "Battery -"
+  until the radio answers.
+- Auto-discover: frames still in the radio's queue hold the next cycle, and
+  a held-up cycle buys its airtime floor from its first frame out; a refused
+  trace ping no longer drops another live one; only full keys count as
+  companion targets (a channel or short id no longer brings an advert each
+  cycle); the log says how well a node answering our trace heard us. The
+  switch works once its engine exists (fixes a test flake). Not tested on a
+  real radio.
+
+## Update 2026-10-20 (wardrive page Auto-discover, feat/wardrive-plugin)
+
+No migration, no new dependency. The page now has one transmitting function,
+off at every start.
+
+### Wardrive
+- Auto-discover, as rx.mesh-hunter.eu has it: a rail switch, never stored,
+  only while a radio is connected. Each cycle (10 s or 50 m, never inside the
+  10% airtime floor) sends a Discover request, trace pings to picked
+  repeaters or a sweep of heard ones, your own advert with Introduce my node
+  to targets on (Settings tab, off by default) and a companion picked, and at
+  most one telemetry or anonymous request, always zero-hop. Answers to these
+  asks are named after the node asked. Frames and timings as core-hunter;
+  not tested on a real radio.
+- The About and start screen now say the page transmits only while
+  Auto-discover is on.
+- Tools > Wardrive map: the map takes the window's height below the filters
+  instead of a fixed 320 px strip (716 px on a 1910 x 965 window).
+
+## Update 2026-10-20 (wardrive page radio, signal and brokers, feat/wardrive-plugin)
+
+No migration, no new dependency. Nothing is sent over the radio: the stats
+the page reads are a local question to the radio.
+
+### Wardrive
+- The page reads the radio's battery (every minute) and noise floor (every
+  10 s or 50 m). The Status tab shows the battery, the radio dot turns amber
+  below 3.5 V, the HUD shows the noise floor, and a Settings switch (off by
+  default) draws noise floor rings on the map.
+- Attenuator setting (0, 10, 20, 30 dB) and an owner RSSI calibration
+  (-30 to 30 dB, Settings > Wardrive): both shift colours, hexes and
+  pillars; the numbers shown, stored, reported and forwarded stay measured.
+- Float: the HUD reading in a floating window (picture-in-picture, or
+  fullscreen on Android), where the browser can.
+- Brokers are now an owner list in Settings > Wardrive: the DutchMeshCore
+  hunter and wardriver collectors and meshcore-analyzer.eu are built in
+  (all off until a driver switches them on), and the owner can add up to 20
+  more (observer packets or wardrive messages, radio-signed token or an
+  account). Observer brokers get packets in RTFM-EV's own community MQTT
+  shape. on8ar is removed, with the account an older page kept for it.
+  The page asks for the list every 10 minutes; a broker no longer served
+  stops and loses its switch. Owner broker accounts are removed from the
+  browser on log out. A radio reporting 0 mV (no battery sensing) shows no
+  battery line.
+
+## Update 2026-10-20 (wardrive page map functions, feat/wardrive-plugin)
+
+No migration, no new dependency. Nothing is sent over the radio.
+
+### Wardrive
+- The page's map gets rx's functions: five views (2D points, 2D hexes and
+  points, 3D hexes, 3D points, 3D hexes and points), live hex cells with
+  labels, 3D cells and pillars by signal, rides (earlier rides faint), terrain
+  with hillshade and a terrain setting (1x to 10x), a time-of-day sky, compass
+  modes (off, follow north up, follow heading with look-ahead) and a node
+  positions layer (advertised, our estimate, drift, reach lines).
+- Names: "newer" now uses RTFM-EV's own last-seen time and the radio's own
+  contact time instead of the node's clock.
+- The HUD's start hint has its own line on a phone.
+
+## Update 2026-10-20 (wardrive drives and reports, feat/wardrive-plugin)
+
+Migration **_164** (`wardrive_drives`; `drive_id` on wardrive receptions and
+tracks, `wardrive_tracks.t1_ts`; stored rows split into drives by the
+10-minute gap rule). No new dependency. Nothing is sent over the radio; the
+collectors' messages are unchanged.
+
+### Wardrive
+- Every drive is stored with its own id: Start driving to Stop driving, a new
+  drive after more than 10 minutes without anything written, one radio per
+  drive. The page tags its rows with the drive id in the browser and uploads
+  one drive per batch; rows from older pages join a drive by the gap rule.
+- Drives tab on the page and **Tools > Wardrive reports** for the owner: list,
+  rename, notes, split, merge, delete; drivers change their own, see what their
+  visibility shows.
+- Reports over picked drives or a filter: what was driven, coverage by hexagon
+  cell (CoreScope's grid, 720 to 40 m), weak spots and gaps with the nodes
+  heard next door, nodes heard (receptions, signal, cells, reach). Share cards
+  Drive (animated replay), Coverage (animated) and Weak spots; exports
+  receptions CSV, cells CSV, GeoJSON and GPX.
+
 ## Update 2026-10-20 (Spam Guard and packet filter feedback round 4, fix/spam-guard-feedback-4)
 
 No migration, no new dependency. Nothing is sent over the radio. From Richard's
@@ -375,6 +579,119 @@ and must renumber.
   sampler keeps an hour in memory and writes one row per minute (30 days).
 - `GET /api/perf/snapshot`, `GET /api/perf/history?range=live|15m|1h|6h|24h|7d|30d`.
 
+## Update 2026-10-19 (wardrive plugin, feat/wardrive-plugin)
+
+Opt-in: nothing changes unless `MESHCORE_WARDRIVE=true`. Migrations `_162`, `_163`
+(renumbered after main's `_159` perf_samples, `_160` temporary radio settings and `_161` send gap). New
+dependencies: `mqtt` (the page's broker client) and `fake-indexeddb` (tests). Nothing is sent over the
+radio and the home radio is never used.
+
+### Wardrive page
+- **Reads what it hears** (phase 2 of the HUD design): receptions are
+  decoded on the phone (packet type, hops, sender, channel and channel
+  text; forged adverts lose their identity) and named from RTFM-EV's own
+  nodes and the driver radio's contacts (`~` marks a guess). Targets
+  (search, Top list), an ignore list, filters (time window, 14 packet
+  types, sender id kind, No path) and a Filtered/All switch shared by the
+  map, the log and the HUD; a direction arrow toward the shown sender
+  (compass when slow, GPS course when moving). The log keeps up to 5000
+  receptions plus what the browser stored in the last 7 days, rows render
+  only when they change, Space no longer scrolls, Back to live returns to
+  the newest, and re-picking a row pans again. A USB GPS's speed and
+  course now reach the fix. The page asks the radio for its contact list
+  (a local exchange, nothing over the air) and now ships the packet
+  decoder (wardrive chunk 633 kB to 802 kB, 195 kB to 247 kB gzip).
+- **Map-first screen** (phases 0 and 1 of the HUD design): a full-screen
+  live map with trail and receptions, top bar with status dots, notes,
+  a live log of what the radio hears (also when not driving), a HUD
+  with signal, SNR, age, speed and backlog, a button rail (3D, follow,
+  sound), a start screen and a menu with the earlier panels. In the
+  RTFM-EV theme: the page now loads the theme styles and ships its own
+  copies of the fonts (offline too). Signal colours follow the RX app's
+  six bands, with a colourblind ramp.
+- **`/wardrive/`**, a separate build served outside the main login. Log in
+  or create an account with the radio connected; add a radio to the account
+  or start a separate account.
+- **The driver's own radio** over Bluetooth (Web Bluetooth; iPhone through
+  Bluefy) or USB (Web Serial). The page only listens and asks the radio to
+  sign; it sends nothing over the air.
+- **Position** from the phone's location or a USB GPS (NMEA); laptops only
+  with a USB GPS. A reception is kept only with a fix better than 100 m and
+  at most 10 s old.
+- **Obs and tracks** built byte for byte like core-hunter's wardrive
+  messages (checked against vectors produced by core-hunter itself),
+  written to the browser first and uploaded in batches; a service worker
+  keeps the page working offline and uploads wait until RTFM-EV is back.
+- **Forward to the DutchMeshCore collectors** (`hunter`, `wardriver`) from
+  the phone over MQTT/WSS, each switched on per radio and starting with
+  what is heard from then on; the radio signs the sign-in token itself.
+  on8ar's EMQX only with the driver's own account. Settings stay in the
+  browser. New dependency: `mqtt` (MQTT over WebSocket in the browser).
+- **Maps**: the page shows the driver's visible data and **Tools >
+  Wardrive map** (moved out of Settings > Wardrive, shown only with the
+  module on) a coverage map of everything (user, group, radio, 24 h / 7 d /
+  30 d): receptions coloured by RSSI and the track lines.
+- **Start driving sticks**: a drive started right as the page finished
+  loading could end at once (an older cleanup stopped it); only leaving
+  the page ends a drive now.
+- **Driving aids**: a screen wake lock while driving; log out forgets the
+  on8ar password and the collector tokens; uploads retry on 404, 408 and
+  429; a broker switched off while connecting closes the late session.
+- **Smaller page**: Dutch and German load only when picked, and the page
+  no longer pulls in the packet decoder. After an update the service worker
+  drops cached files the new build does not list (`assets.json`), and a
+  browser whose cache storage fails still loads the page from the network.
+  On a stalled link the cached page opens after 4 s instead of waiting,
+  and also when the server answers with an error; a new version replaces
+  the cached one only once all its files are in.
+- **Two drivers, one browser**: uploads to RTFM-EV run per radio, and only
+  for radios on the logged-in account. Another account's receptions wait in
+  the browser for that account (kept 7 days) instead of being refused and
+  set aside. A radio removed from the account (a 403) waits the same way.
+- **Steadier radio and storage**: a late error from a timed-out signing no
+  longer fails the next one; the page asks the browser to keep its stored
+  drive data; a broker switched on again shows Connecting, not its old
+  status.
+
+### Wardrive server side
+- **Channels and names for drivers** (phase 2, migration `_163`
+  `wardrive_config`): `GET /api/wardrive/config` serves the hashtag channel
+  names drivers decode (names only, never keys; private channels never),
+  set by the owner in Settings > Wardrive (default: the home radio's
+  hashtag channels) through `GET/PUT /api/wardrive-admin/config`.
+  `GET /api/wardrive/nodes` serves names, roles and advertised positions
+  of RTFM-EV's contacts and imported map nodes in a box (public advert
+  data only).
+- **Module switch.** `MESHCORE_WARDRIVE=true` registers the wardrive API and
+  shows **Settings > Wardrive**. Health reports `wardrive_enabled` and
+  `wardrive_unprotected`. Not available in multi-radio mode.
+- **Own accounts, outside the main login.** `/wardrive/` and
+  `/api/wardrive/` skip the Basic auth gate; the owner admin
+  (`/api/wardrive-admin/`) stays behind it. With the main login off,
+  RTFM-EV logs a warning at startup and Settings > Wardrive shows one,
+  because anyone who can open the wardrive page could then open the app.
+- **Accounts proven by the radio.** An account starts with a paired radio
+  that signs a one-time challenge with its own key; more radios can be
+  added to the account the same way. A radio is on one account at most.
+  Passwords need 10 characters; logins are throttled after 5 failures in
+  15 minutes.
+- **Local copy.** The page uploads receptions and listening intervals
+  in core-hunter's wardrive obs/track shape; a re-sent batch is not stored
+  twice, and every row must belong to the batch's radio.
+- **Who sees what.** Per user, set by the owner: own data only (default),
+  my groups, or all drivers. The owner manages groups and members, can
+  disable or delete a user and remove a radio.
+- **Retention.** New row "Wardrive receptions and tracks" in Data
+  retention (0 = keep forever).
+- **Tighter input checks.** Infinity/NaN, counts above 2^31 and data
+  windows out of range are a 422 (a validation error that echoed Infinity
+  used to come back as a 500, anywhere in the app); one instant written two
+  ways is one row. The login throttle and the radio challenges stay bounded
+  in memory; a radio challenge only works in the browser that asked for it
+  (device cookie), so another device cannot replace or use it.
+- **Owner admin.** A failed action shows its error (the reload after it
+  used to clear it at once); a refused group rename puts the stored name
+  back; the group Delete button names the group for screen readers.
 ## Update 2026-10-19 (collapsible map panel sections, feat/collapsible-map-panel-sections)
 
 No migration, no new dependency.

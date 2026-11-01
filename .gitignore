@@ -16,6 +16,7 @@ frontend/test-results/
 frontend/dist/
 frontend/prebuilt/
 frontend/.eslintcache
+frontend/*.tsbuildinfo
 
 # Release artifacts
 remoteterm-prebuilt-frontend-v*.zip

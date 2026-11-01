@@ -6,7 +6,7 @@ import {
   RETENTION_ANALYZER_VALUES,
   RETENTION_DEFAULT_VALUES,
 } from '../components/settings/SettingsRetentionSection';
-import type { RetentionStats } from '../types';
+import type { HealthStatus, RetentionStats } from '../types';
 
 function makeSettings(overrides = {}) {
   return {
@@ -40,11 +40,15 @@ function makeStats(overrides: Partial<RetentionStats> = {}): RetentionStats {
   };
 }
 
-function renderSection(onSave = vi.fn().mockResolvedValue(undefined), settings = makeSettings()) {
+function renderSection(
+  onSave = vi.fn().mockResolvedValue(undefined),
+  settings = makeSettings(),
+  health: HealthStatus | null = null
+) {
   render(
     <SettingsDatabaseSection
       appSettings={settings}
-      health={null}
+      health={health}
       onSaveAppSettings={onSave}
       onHealthRefresh={vi.fn().mockResolvedValue(undefined)}
     />
@@ -205,5 +209,23 @@ describe('Database settings: data retention', () => {
     await waitFor(() => expect(api.runRetentionPrune).toHaveBeenCalledTimes(1));
     // Stats reload after the run (mount + after prune).
     await waitFor(() => expect(api.getRetentionStats).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the wardrive retention field only when wardrive is enabled', async () => {
+    renderSection();
+    expect(screen.queryByLabelText('Wardrive receptions and tracks (days)')).toBeNull();
+  });
+
+  it('saves the wardrive retention when wardrive is enabled', async () => {
+    const onSave = renderSection(undefined, makeSettings(), {
+      wardrive_enabled: true,
+    } as unknown as HealthStatus);
+    const input = screen.getByLabelText(
+      'Wardrive receptions and tracks (days)'
+    ) as HTMLInputElement;
+    expect(input.value).toBe('0');
+    fireEvent.change(input, { target: { value: '90' } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ wardrive_retention_days: 90 }));
   });
 });

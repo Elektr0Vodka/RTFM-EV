@@ -16,6 +16,7 @@ from app.perf.recorders import loops as perf_loops
 from app.repository import AppSettingsRepository
 from app.repository.retention import RetentionRepository
 from app.repository.spam import SpamEvidenceRepository, SpamGuardConfigRepository
+from app.repository.wardrive import WardriveDriveRepository
 from app.services.relay_reception import rollup_relay_history
 from app.spam.evidence import retention_days as spam_evidence_days
 
@@ -89,6 +90,8 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "tracker_positions": s.device_history_retention_days,
             "tracker_objects": s.device_history_retention_days,
             "rx_bad_frames": RX_BAD_FRAME_RETENTION_DAYS,
+            "wardrive_obs": s.wardrive_retention_days,
+            "wardrive_tracks": s.wardrive_retention_days,
         }
         for key, days in age_settings.items():
             if days > 0:
@@ -100,6 +103,10 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
                         key, cutoff
                     ),
                 )
+
+        if s.wardrive_retention_days > 0:
+            # A drive whose rows were all pruned is gone too.
+            await _run_step(result, "wardrive_drives", WardriveDriveRepository.delete_empty)
 
         if s.telemetry_max_rows_per_node > 0:
             for key, table in (

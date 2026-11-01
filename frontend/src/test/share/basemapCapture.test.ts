@@ -127,6 +127,23 @@ describe('captureBasemap', () => {
     );
   });
 
+  it('takes the view the driver framed instead of fitting the points', async () => {
+    const p = captureBasemap(
+      [
+        { lat: 52, lon: 5 },
+        { lat: 52.5, lon: 5.5 },
+      ],
+      { w: 690, h: 630 },
+      40,
+      undefined,
+      { center: { lat: 52.3, lon: 5.2 }, zoom: 12.5 }
+    );
+    rendered();
+    await p;
+    // (fitBounds is shared with maps of earlier tests here, so only the jump is checked.)
+    expect(stub.jumpTo).toHaveBeenLastCalledWith({ center: [5.2, 52.3], zoom: 12.5 });
+  });
+
   it('returns a projector that still works after the map is removed', async () => {
     const p = captureBasemap([{ lat: 52, lon: 5 }], { w: 200, h: 100 }, 10);
     rendered();

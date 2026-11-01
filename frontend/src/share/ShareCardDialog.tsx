@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,23 @@ import { useT } from '../i18n';
 import { BasemapLoadError } from './basemapCapture';
 import { getHidePosition, setHidePosition } from './hidePosition';
 import { copyPng, downloadBlob, getShareCapabilities, shareFile } from './shareActions';
+import type { LatLon } from './geo';
+
+// The framing map pulls in MapLibre: only loaded when a card is framed.
+const FramingMap = lazy(() => import('./FramingMap'));
+
+/** A view framed on the dialog's map, in the card's map area. */
+export interface CardFrame {
+  center: LatLon;
+  zoom: number;
+}
 
 export interface ShareBuildOptions {
   hidePosition: boolean;
   noMap: boolean;
   flags: Record<string, boolean>;
+  /** The framed view; null (or absent) fits the card's data. */
+  view?: CardFrame | null;
 }
 
 export interface ShareCardResult {
@@ -56,6 +68,7 @@ export function ShareCardDialog({
   title,
   supportsHidePosition,
   toggles = [],
+  framing,
   build,
 }: {
   open: boolean;
@@ -63,6 +76,8 @@ export function ShareCardDialog({
   title: string;
   supportsHidePosition: boolean;
   toggles?: ShareToggle[];
+  /** Map cards that may be framed by hand: the points the card shows. */
+  framing?: { located: LatLon[] };
   build: (opts: ShareBuildOptions) => Promise<ShareCardResult>;
 }) {
   const t = useT();
@@ -72,6 +87,8 @@ export function ShareCardDialog({
 
   const [hidePosition, setHide] = useState(() => supportsHidePosition && getHidePosition());
   const [noMap, setNoMap] = useState(false);
+  const [view, setView] = useState<CardFrame | null>(null);
+  const [framingOpen, setFramingOpen] = useState(false);
   const [flags, setFlags] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(toggles.map((tg) => [tg.key, tg.defaultOn]))
   );
@@ -92,7 +109,7 @@ export function ShareCardDialog({
     setGifBlob(null);
     setGifState('none');
     buildRef
-      .current({ hidePosition, noMap, flags })
+      .current({ hidePosition, noMap, flags, view })
       .then((res) => {
         if (cancelled) return;
         setResult(res);
@@ -118,7 +135,7 @@ export function ShareCardDialog({
       cancelled = true;
       controller.abort();
     };
-  }, [open, hidePosition, noMap, flags]);
+  }, [open, hidePosition, noMap, flags, view]);
 
   const pngFile = result
     ? new File([result.png], `${result.filenameBase}.png`, { type: 'image/png' })
@@ -193,6 +210,39 @@ export function ShareCardDialog({
           <p className="text-xs text-muted-foreground" role="status">
             {t('share_animation_failed')}
           </p>
+        )}
+
+        {framing && !hidePosition && framing.located.length > 0 && (
+          <div className="space-y-2">
+            {framingOpen ? (
+              <Suspense fallback={null}>
+                <FramingMap
+                  located={framing.located}
+                  onUse={(v) => {
+                    setView(v);
+                    setFramingOpen(false);
+                  }}
+                  onCancel={() => setFramingOpen(false)}
+                />
+              </Suspense>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setFramingOpen(true)}
+                >
+                  {t('share_frame_open')}
+                </Button>
+                {view && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setView(null)}>
+                    {t('share_frame_fit')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {(supportsHidePosition || toggles.length > 0) && (

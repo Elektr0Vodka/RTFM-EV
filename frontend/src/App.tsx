@@ -902,6 +902,7 @@ export function App() {
     channels,
     activeConversation,
     spamGuardEnabled,
+    wardriveEnabled: health?.wardrive_enabled === true,
     onSelectConversation: handleSelectConversationWithTargetReset,
     onNewMessage: handleOpenNewMessage,
     lastMessageTimes,

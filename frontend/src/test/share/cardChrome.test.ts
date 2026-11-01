@@ -59,18 +59,25 @@ describe('drawCardChrome', () => {
     expect(texts).toContain('RTFM-EV');
   });
 
-  it('draws at most four figures', () => {
+  it('draws at most six figures', () => {
     const ctx = recordingCtx();
     drawCardChrome(
       ctx,
       {
         ...text,
-        figures: Array.from({ length: 6 }, (_, i) => ({ value: `${i}`, label: `f${i}` })),
+        figures: Array.from({ length: 8 }, (_, i) => ({ value: `${i}`, label: `f${i}` })),
       },
       brand,
       'dark'
     );
-    expect(ctx.texts().filter((s) => /^f\d$/.test(s))).toEqual(['f0', 'f1', 'f2', 'f3']);
+    expect(ctx.texts().filter((s) => /^f\d$/.test(s))).toEqual([
+      'f0',
+      'f1',
+      'f2',
+      'f3',
+      'f4',
+      'f5',
+    ]);
   });
 
   it('omits the credit when none is given and draws it when given', () => {

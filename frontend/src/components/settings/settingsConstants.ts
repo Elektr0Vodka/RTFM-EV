@@ -1,4 +1,5 @@
 import {
+  Car,
   Database,
   Info,
   Lightbulb,
@@ -21,6 +22,7 @@ export type SettingsSection =
   | 'map'
   | 'database'
   | 'fanout'
+  | 'wardrive'
   | 'openhop'
   | 'handy-info'
   | 'about';
@@ -30,6 +32,7 @@ export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
   'host-repeater',
   'local',
   'fanout',
+  'wardrive',
   'openhop',
   'radio-app',
   'map',
@@ -46,6 +49,7 @@ const SETTINGS_SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
   map: 'settings_section_map',
   database: 'settings_section_database',
   fanout: 'settings_section_fanout',
+  wardrive: 'settings_section_wardrive',
   openhop: 'settings_section_openhop',
   'handy-info': 'settings_section_handy_info',
   about: 'settings_section_about',
@@ -63,6 +67,7 @@ export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   map: MapPin,
   database: Database,
   fanout: Share2,
+  wardrive: Car,
   openhop: ShieldAlert,
   'handy-info': Lightbulb,
   about: Info,

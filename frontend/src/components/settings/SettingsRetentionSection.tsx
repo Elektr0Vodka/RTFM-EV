@@ -21,6 +21,7 @@ type RetentionField =
   | 'noise_floor_retention_days'
   | 'battery_retention_days'
   | 'airtime_retention_days'
+  | 'wardrive_retention_days'
   | 'advert_paths_per_contact'
   | 'retention_prune_interval_hours';
 
@@ -38,6 +39,8 @@ interface RowDef {
   /** Keys in RetentionStats.classes whose rows are summed for this row. */
   statKeys: string[];
   fields: FieldDef[];
+  /** Shown only while the wardrive module (MESHCORE_WARDRIVE) is on. */
+  wardriveOnly?: boolean;
 }
 
 const DAYS = (field: RetentionField): FieldDef => ({ field, unit: 'days', min: 0, max: 3650 });
@@ -79,6 +82,12 @@ const ROWS: RowDef[] = [
     fields: [DAYS('airtime_retention_days')],
   },
   {
+    id: 'wardrive',
+    statKeys: ['wardrive_obs', 'wardrive_tracks'],
+    fields: [DAYS('wardrive_retention_days')],
+    wardriveOnly: true,
+  },
+  {
     id: 'advert_paths',
     statKeys: ['advert_paths'],
     fields: [{ field: 'advert_paths_per_contact', unit: 'paths', min: 1, max: 100 }],
@@ -110,6 +119,7 @@ export const RETENTION_DEFAULT_VALUES: Record<RetentionField, number> = {
   noise_floor_retention_days: 0,
   battery_retention_days: 0,
   airtime_retention_days: 0,
+  wardrive_retention_days: 0,
   advert_paths_per_contact: 10,
 };
 
@@ -128,6 +138,7 @@ export const RETENTION_ANALYZER_VALUES: AppSettingsUpdate = {
   noise_floor_retention_days: 0,
   battery_retention_days: 0,
   airtime_retention_days: 0,
+  wardrive_retention_days: 0,
 };
 
 function currentValue(settings: AppSettings, field: RetentionField): number {
@@ -145,11 +156,13 @@ export function SettingsRetentionSection({
   appSettings,
   persist,
   onAfterPrune,
+  wardriveEnabled = false,
 }: {
   appSettings: AppSettings;
   /** Save an update; ``revert`` runs if the save fails. */
   persist: (update: AppSettingsUpdate, revert: () => void) => Promise<void>;
   onAfterPrune?: () => Promise<void>;
+  wardriveEnabled?: boolean;
 }) {
   const t = useT();
   const [drafts, setDrafts] = useState<Record<RetentionField, string>>(() =>
@@ -325,7 +338,7 @@ export function SettingsRetentionSection({
       </div>
 
       <div className="space-y-2">
-        {ROWS.map((row) => {
+        {ROWS.filter((row) => !row.wardriveOnly || wardriveEnabled).map((row) => {
           const name = t(`settings_retention_class_${row.id}`);
           const { rows, oldest } = statFor(row);
           return (

@@ -53,7 +53,15 @@ async function vectorSourceDef(): Promise<unknown> {
 // the buildings layer just below whichever of them is lowest in the current
 // layer order. The order is read from the map, not assumed: rt-external is
 // re-added last after every basemap switch, so it is not always the bottom one.
-const OVERLAY_ANCHORS = ['rt-external', 'rt-nodes', 'rt-node-labels', 'rt-telemetry-badges'];
+const OVERLAY_ANCHORS = [
+  'rt-external',
+  'rt-nodes',
+  'rt-node-labels',
+  'rt-telemetry-badges',
+  // The wardrive page's live map.
+  'wd-trail',
+  'wd-live-points',
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function overlayAnchor(m: any): string | undefined {

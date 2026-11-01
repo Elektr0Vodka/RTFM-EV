@@ -1,0 +1,52 @@
+/* Wardrive screen: the HUD covers the bottom of the map, so the map's own
+   bottom controls (the attribution) sit just above it, and the top stack
+   (top bar, notes, live log) never runs into it. --wd-hud-h is the HUD's
+   measured height, set by WardriveScreen. */
+.wd-screen .maplibregl-ctrl-bottom-left,
+.wd-screen .maplibregl-ctrl-bottom-right {
+  bottom: var(--wd-hud-h, 0px);
+}
+
+/* Clear of the button rail at the right edge (44 px buttons, 12 px margin). */
+.wd-screen .maplibregl-ctrl-bottom-right {
+  right: 3.75rem;
+}
+
+/* Clear of the rail and the HUD, and of the notch at the top. */
+.wd-screen .wd-top-stack {
+  max-height: calc(
+    100dvh - var(--wd-bottom-h, 0px) - max(0.75rem, env(safe-area-inset-top)) - 0.5rem
+  );
+  overflow-y: auto;
+}
+
+/* The live log starts under the top stack and ends above the rail and HUD;
+   it scrolls inside (its block can still be dragged elsewhere). */
+.wd-screen .wd-log {
+  top: calc(var(--wd-top-h, 4rem) + 0.5rem);
+  max-height: calc(100dvh - var(--wd-top-h, 4rem) - var(--wd-bottom-h, 0px) - 1rem);
+}
+
+/* Short screens (a phone on its side): the rail lies in a row above the HUD,
+   so it cannot climb into the top bar's corner. */
+@media (max-height: 480px) {
+  .wd-screen .wd-rail nav {
+    flex-direction: row;
+  }
+
+  /* Clear of the rail lying in a row (three 44 px buttons, gaps, margin). */
+  .wd-screen .maplibregl-ctrl-bottom-right {
+    right: 10.5rem;
+  }
+}
+
+/* The coverage map opens over the drive screen: its map keeps its own
+   corners (there is no HUD or rail of the drive screen over it). */
+.wd-screen .cov-map .maplibregl-ctrl-bottom-left,
+.wd-screen .cov-map .maplibregl-ctrl-bottom-right {
+  bottom: 0;
+}
+
+.wd-screen .cov-map .maplibregl-ctrl-bottom-right {
+  right: 0;
+}

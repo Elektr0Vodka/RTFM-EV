@@ -398,6 +398,12 @@ class AppSettingsUpdate(BaseModel):
         le=3650,
         description="Days of hourly per-relay reception history to keep; 0 = keep forever",
     )
+    wardrive_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of wardrive receptions and listening intervals to keep; 0 = keep forever",
+    )
     advert_interval: int | None = Field(
         default=None,
         ge=0,

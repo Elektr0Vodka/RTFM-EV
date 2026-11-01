@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     tak_stream_enabled: bool = False
     tak_stream_host: str = "0.0.0.0"
     tak_stream_port: int = 8088
+    # Wardrive plugin: drivers pair their own radio in the browser, forward to
+    # the DutchMeshCore wardrive collectors and keep a copy here. Off = no page,
+    # no API, no admin section.
+    wardrive: bool = False
     # Companion bridge (env only): a MeshCore companion app connects over TCP as
     # if RTFM-EV were a WiFi companion radio. No authentication: trusted networks.
     companion_bridge_enabled: bool = False

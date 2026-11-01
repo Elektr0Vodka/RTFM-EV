@@ -367,6 +367,8 @@ export interface HealthStatus {
   oldest_undecrypted_timestamp: number | null;
   fanout_statuses: Record<string, FanoutStatusEntry>;
   basic_auth_enabled?: boolean;
+  wardrive_enabled?: boolean;
+  wardrive_unprotected?: boolean;
   /** The active radio (plan 18); status "pending" means the connect-time question is open. */
   radio_identity?: RadioIdentityHealth | null;
 }
@@ -1190,6 +1192,7 @@ type ConversationType =
   | 'lan-scan'
   | 'fleet'
   | 'spam-guard'
+  | 'wardrive'
   | 'performance'
   | 'analyze'
   | 'packet-history'
@@ -1504,6 +1507,7 @@ export interface AppSettings {
   link_edge_retention_days: number;
   packet_reception_retention_days: number;
   device_history_retention_days: number;
+  wardrive_retention_days?: number;
   relay_history_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
@@ -1935,6 +1939,7 @@ export interface AppSettingsUpdate {
   link_edge_retention_days?: number;
   packet_reception_retention_days?: number;
   device_history_retention_days?: number;
+  wardrive_retention_days?: number;
   relay_history_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
@@ -2325,6 +2330,92 @@ export interface SnmpAgentSettings {
   enabled: boolean;
   port: number;
   community: string;
+}
+
+/** Wardrive plugin (MESHCORE_WARDRIVE): owner admin view of a wardrive account. */
+export type WardriveVisibility = 'own' | 'groups' | 'all';
+
+export interface WardriveRadio {
+  public_key: string;
+  name: string | null;
+  added_at: number;
+}
+
+export interface WardriveUser {
+  id: number;
+  username: string;
+  visibility: WardriveVisibility;
+  disabled: boolean;
+  created_at: number;
+  radios: WardriveRadio[];
+  group_ids: number[];
+  obs_count: number;
+  /** Unix seconds of the last login, null when never (migration _166). */
+  last_login_at?: number | null;
+}
+
+export interface WardriveAuditEntry {
+  id: number;
+  at: number;
+  actor_kind: 'owner' | 'driver';
+  actor_id: number | null;
+  actor_name: string | null;
+  action: string;
+  target_kind: string | null;
+  target_id: string | null;
+  detail: Record<string, unknown> | null;
+}
+
+export interface WardriveGroup {
+  id: number;
+  name: string;
+  created_at: number;
+  member_ids: number[];
+}
+
+/** Stored wardrive receptions and tracks (GET /api/wardrive-admin/data). */
+export type { WardriveData } from './wardrive/api';
+
+/** A broker the owner adds for the wardrive page (app/wardrive/brokers.py). */
+export interface WardriveBrokerIn {
+  id: string;
+  name: string;
+  url: string;
+  auth: 'companion' | 'password';
+  username?: string;
+  password?: string;
+  format: 'wardrive' | 'packets';
+  label?: string;
+  region?: string;
+}
+
+/** A broker as served, with its token audience. */
+export interface WardriveBroker extends WardriveBrokerIn {
+  audience: string;
+  builtin: boolean;
+}
+
+/** Owner settings for the wardrive page (GET/PUT /api/wardrive-admin/config). */
+export interface WardriveAdminConfig {
+  /** The owner's list; null when unset (drivers then get the default). */
+  hashtag_channels: string[] | null;
+  /** The home radio's hashtag channels whose key follows from the name. */
+  default_hashtag_channels: string[];
+  /** dB the page adds to every RSSI it colours (-30..30). */
+  rssi_calibration_db: number;
+  /** DutchMeshCore hunter and wardriver, meshcore-analyzer.eu. */
+  builtin_brokers: WardriveBroker[];
+  /** The owner's own brokers. */
+  brokers: WardriveBrokerIn[];
+  /** Region code in the meshcore-analyzer.eu topic. */
+  analyzer_region: string;
+}
+
+export interface WardriveAdminStatus {
+  active: boolean;
+  /** True when the main Basic login is off: wardrive users could open the main app. */
+  unprotected: boolean;
+  page_path: string;
 }
 
 export interface SnmpAgentState {

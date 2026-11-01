@@ -26,6 +26,7 @@ import {
   Plus,
   Radar,
   Router,
+  Car,
   ScanSearch,
   ShieldCheck,
   Cpu,
@@ -247,6 +248,8 @@ function loadCollapsedState(): CollapseState {
 interface SidebarProps {
   /** Spam Guard master switch: its tool row only exists while it is on. */
   spamGuardEnabled?: boolean;
+  /** Wardrive module (MESHCORE_WARDRIVE): the Wardrive map tool only exists while it is on. */
+  wardriveEnabled?: boolean;
   contacts: Contact[];
   channels: Channel[];
   activeConversation: Conversation | null;
@@ -315,6 +318,7 @@ function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
 
 export function Sidebar({
   spamGuardEnabled = false,
+  wardriveEnabled = false,
   contacts,
   channels,
   activeConversation,
@@ -599,6 +603,7 @@ export function Sidebar({
       | 'mentions'
       | 'fleet'
       | 'spam-guard'
+      | 'wardrive'
       | 'performance'
       | 'analyze'
       | 'packet-history'
@@ -1511,6 +1516,17 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'wardrive':
+        return renderSidebarActionRow({
+          key: 'tool-wardrive',
+          // Current on both tabs (#wardrive and #wardrive/reports).
+          active: activeConversation?.type === 'wardrive',
+          icon: <Car className="h-4 w-4" />,
+          label: t('nav_wardrive'),
+          onClick: () =>
+            handleSelectConversation({ type: 'wardrive', id: 'map', name: t('nav_wardrive') }),
+          iconOnly,
+        });
       case 'fleet':
         return renderSidebarActionRow({
           key: 'tool-fleet',
@@ -1729,7 +1745,9 @@ export function Sidebar({
   const hiddenFavoriteSet = new Set<string>(hidden.favorites);
 
   // A tool that belongs to a switched-off feature is not offered at all.
-  const availableToolOrder = toolOrder.filter((k) => k !== 'spam-guard' || spamGuardEnabled);
+  const availableToolOrder = toolOrder.filter(
+    (k) => (k !== 'spam-guard' || spamGuardEnabled) && (k !== 'wardrive' || wardriveEnabled)
+  );
   const visibleToolOrder = availableToolOrder.filter((k) => !hiddenToolSet.has(k));
   const toolRows = !query ? visibleToolOrder.map((k) => buildToolRow(k, false)) : [];
   const toolIconRows = visibleToolOrder.map((k) => buildToolRow(k, true));
@@ -2132,6 +2150,7 @@ export function Sidebar({
     'lan-scan': t('nav_lan_scan'),
     fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
+    wardrive: t('nav_wardrive'),
     performance: t('nav_performance'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),

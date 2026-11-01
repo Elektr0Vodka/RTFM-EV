@@ -76,6 +76,7 @@ function renderSidebar(overrides?: {
   contacts?: Contact[];
   activeConversation?: Conversation | null;
   spamGuardEnabled?: boolean;
+  wardriveEnabled?: boolean;
   ownPublicKey?: string | null;
   ownedKeys?: string[];
   sectionFilter?: 'chats' | 'tools';
@@ -113,6 +114,7 @@ function renderSidebar(overrides?: {
     <Sidebar
       contacts={overrides?.contacts ?? [alice, board, relay]}
       spamGuardEnabled={overrides?.spamGuardEnabled}
+      wardriveEnabled={overrides?.wardriveEnabled}
       ownPublicKey={overrides?.ownPublicKey}
       ownedKeys={overrides?.ownedKeys}
       channels={channels}
@@ -1025,6 +1027,22 @@ describe('Sidebar customisation (plan 17)', () => {
       type: 'spam-guard',
       id: 'spam-guard',
       name: 'Spam Guard',
+    });
+  });
+
+  it('offers one Wardrive tool only while the wardrive module is on', () => {
+    const off = renderSidebar();
+    expect(screen.queryByRole('button', { name: 'Wardrive' })).toBeNull();
+    off.unmount();
+
+    const { onSelectConversation } = renderSidebar({ wardriveEnabled: true });
+    expect(screen.queryByRole('button', { name: 'Wardrive map' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Wardrive reports' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Wardrive' }));
+    expect(onSelectConversation).toHaveBeenCalledWith({
+      type: 'wardrive',
+      id: 'map',
+      name: 'Wardrive',
     });
   });
 

@@ -61,7 +61,8 @@ describe('sidebarLayout server-order reconcilers', () => {
 
   it('reconciles tool order, dropping unknown keys', () => {
     const out = resolveToolOrder(['map', 'bogus-old-key', 'my-node']);
-    expect(out.slice(0, 2)).toEqual(['map', 'my-node']);
+    // Stored keys keep their order; missing ones go next to their default neighbours.
+    expect(out.indexOf('map')).toBeLessThan(out.indexOf('my-node'));
     expect(out).not.toContain('bogus-old-key');
     expect([...out].sort()).toEqual([...ALL_TOOL_KEYS].sort());
   });
@@ -208,6 +209,35 @@ describe('sidebarLayout rail collapse (client-local)', () => {
     resetSidebarLayout();
     expect(loadRailCollapsed()).toBe(false);
     expect(localStorage.getItem('remoteterm-sidebar-section-order')).toBeNull();
+  });
+
+  it('puts a new tool next to its default neighbour in a stored order, not at the end', () => {
+    // A user who moved Map to the top before the wardrive tools existed.
+    const stored = [
+      'map',
+      ...ALL_TOOL_KEYS.filter((k) => !k.startsWith('wardrive') && k !== 'map'),
+    ];
+    const out = resolveToolOrder(stored);
+    expect(out[0]).toBe('map');
+    const at = out.indexOf('spam-guard');
+    expect(out.slice(at, at + 2)).toEqual(['spam-guard', 'wardrive']);
+    expect([...out].sort()).toEqual([...ALL_TOOL_KEYS].sort());
+  });
+
+  it('turns the old wardrive map and reports tools into the one Wardrive tool', () => {
+    const stored = ['wardrive-reports', 'map', 'wardrive-map', 'my-node'];
+    const out = resolveToolOrder(stored);
+    // It takes the place of the first old key; the stored keys keep their order.
+    expect(out[0]).toBe('wardrive');
+    expect(out.indexOf('map')).toBeLessThan(out.indexOf('my-node'));
+    expect(out.filter((k) => k === 'wardrive')).toHaveLength(1);
+    expect(out).not.toContain('wardrive-map');
+    expect(resolveHidden({ tools: ['wardrive-map'] }).tools).toEqual(['wardrive']);
+  });
+
+  it('puts a new first tool first in a stored order', () => {
+    const stored = ALL_TOOL_KEYS.filter((k) => k !== 'my-node').reverse();
+    expect(resolveToolOrder(stored)[0]).toBe('my-node');
   });
 
   const tk: SidebarToolKey = 'cracker';

@@ -113,6 +113,8 @@ from app.routers import (
     trackers,
     unfurl,
     update_status,
+    wardrive,
+    wardrive_admin,
     wordlists,
     ws,
 )
@@ -133,7 +135,11 @@ from app.services.sensor_push import start_sensor_push_loop, stop_sensor_push_lo
 from app.services.snmp_agent import start_snmp_agent, stop_snmp_agent
 from app.services.snmp_poll import start_snmp_poll_schedule, stop_snmp_poll_schedule
 from app.services.team_beacon_sender import stop_team_beacon
+from app.validation_errors import install_validation_error_handler
 from app.version_info import get_app_build_info
+from app.wardrive.module import startup_warnings as wardrive_startup_warnings
+from app.wardrive.module import wardrive_active
+from app.wardrive.static import register_wardrive_page_routes
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -154,6 +160,9 @@ async def _startup_radio_connect_and_setup() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage database and radio connection lifecycle."""
+    for warning in wardrive_startup_warnings(server_settings):
+        logger.warning(warning)
+
     # A restore staged from Settings is swapped in before the database opens
     # (the current database is snapshotted first); migrations then upgrade it.
     if db.db_path != ":memory:":
@@ -372,6 +381,9 @@ app.add_middleware(
 )
 
 
+install_validation_error_handler(app)
+
+
 @app.exception_handler(RadioDisconnectedError)
 async def radio_disconnected_handler(request: Request, exc: RadioDisconnectedError):
     """Return 423 when a radio disconnect race occurs during an operation."""
@@ -449,10 +461,16 @@ app.include_router(tak_stream.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")
+if wardrive_active(server_settings):
+    app.include_router(wardrive.router, prefix="/api")
+    app.include_router(wardrive_admin.router, prefix="/api")
 
 # Serve frontend static files in production
 FRONTEND_DIST_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 FRONTEND_PREBUILT_DIR = Path(__file__).parent.parent / "frontend" / "prebuilt"
+if wardrive_active(server_settings):
+    # Before the SPA catch-all, which would otherwise answer /wardrive/.
+    register_wardrive_page_routes(app, [FRONTEND_DIST_DIR, FRONTEND_PREBUILT_DIR])
 if not register_first_available_frontend_static_routes(
     app, [FRONTEND_DIST_DIR, FRONTEND_PREBUILT_DIR]
 ):

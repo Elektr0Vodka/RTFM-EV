@@ -42,6 +42,7 @@ interface CommandPaletteProps {
   onOpenSettings: (section: SettingsSection) => void;
   onRepeaterAutoLogin: (publicKey: string, displayName: string) => void;
   isOpenHop?: boolean;
+  isWardrive?: boolean;
 }
 
 interface Searchable {
@@ -96,18 +97,18 @@ function buildToolItems(t: TFn): ToolItem[] {
   });
 }
 
-function buildSettingItems(t: TFn, isOpenHop: boolean): SettingItem[] {
-  return SETTINGS_SECTION_ORDER.filter((section) => section !== 'openhop' || isOpenHop).map(
-    (section) => {
-      const label = settingsSectionLabel(section, t);
-      return {
-        section,
-        label,
-        icon: SETTINGS_SECTION_ICONS[section],
-        searchText: `settings ${label}`.toLowerCase(),
-      };
-    }
-  );
+function buildSettingItems(t: TFn, isOpenHop: boolean, isWardrive: boolean): SettingItem[] {
+  return SETTINGS_SECTION_ORDER.filter(
+    (section) => (section !== 'openhop' || isOpenHop) && (section !== 'wardrive' || isWardrive)
+  ).map((section) => {
+    const label = settingsSectionLabel(section, t);
+    return {
+      section,
+      label,
+      icon: SETTINGS_SECTION_ICONS[section],
+      searchText: `settings ${label}`.toLowerCase(),
+    };
+  });
 }
 
 function fuzzyMatch(text: string, query: string): boolean {
@@ -139,13 +140,17 @@ export function CommandPalette({
   onOpenSettings,
   onRepeaterAutoLogin,
   isOpenHop = false,
+  isWardrive = false,
 }: CommandPaletteProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
   const toolItems = useMemo(() => buildToolItems(t), [t]);
-  const settingItems = useMemo(() => buildSettingItems(t, isOpenHop), [t, isOpenHop]);
+  const settingItems = useMemo(
+    () => buildSettingItems(t, isOpenHop, isWardrive),
+    [t, isOpenHop, isWardrive]
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

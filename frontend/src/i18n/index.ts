@@ -12,4 +12,5 @@ export {
   type Params,
   type PluralForms,
 } from './i18n';
-export { I18nProvider, useT, useLocale, type TFn } from './I18nProvider';
+export { useT, useLocale, type TFn } from './context';
+export { I18nProvider } from './I18nProvider';

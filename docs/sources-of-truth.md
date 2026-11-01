@@ -198,6 +198,101 @@ machine this was authored on and may differ elsewhere.
   `packet_hash`).
 - collector-wardrive (wardrive ingest reference): local
   `G:\Github\repositories\Dutch-MeshCore\collector-wardrive`.
+  `docs/observer-feed-contract.md` fixes the topic grammar
+  (`meshcore/{label}/{PUBKEY}/wardriver/obs|track`, labels `hunter` and
+  `wardriver`), that the topic key is the authenticated key, and that the
+  payload `origin_id` matches it. It does not define the obs/track fields.
+- Wardrive page map functions (phase 3): core-hunter `app/src/{maplayers,hexlabels,rides,trail,terrain,sky,rotation,nodelayer,nodeposmode,coverage}.js` (behaviour, written fresh); terrain from the AWS Open Data terrarium tiles `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` (key-free, z10, attribution "DEM: Mapzen / AWS Open Data").
+- Wardrive report cells: CoreScope's server hex grid (`cmd/server/hexgrid.go`,
+  the grid of the analyzer coverage maps), as ported in core-hunter
+  `app/src/hexgrid.js`; `tests/fixtures/wardrive_hex_vectors.json` was made by
+  running that file (core-hunter 3928ebf) and pins `app/wardrive/hexgrid.py`
+  and `frontend/src/wardrive/map/hexgrid.ts`. Ride gap (more than 10 minutes):
+  core-hunter `app/src/rides.js`.
+- Wardrive obs/track fields and companion-signed broker tokens: core-hunter
+  (https://github.com/Elektr0Vodka/core-hunter, fork of efiten/core-hunter,
+  the mesh-hunter.eu code), `app/src/wardrive.js` (`buildObs`, `buildTrack`,
+  `v: 1`) and `app/src/companionsign.js` (`CMD_SIGN_START/DATA/FINISH`
+  33/34/35, token `header.payload.signature`, username `v1_{PUBKEY}`). The
+  wardrive plugin (`app/wardrive/models.py`) stores exactly those fields.
+- Companion protocol the wardrive page uses (`frontend/src/wardrive/radio/`):
+  core-hunter `app/src/transport.js` (BLE Nordic UART UUIDs), `selfinfo.js`
+  (APP_START 0x01, SELF_INFO 0x05 with the key at bytes 4-35), `frames.js`
+  (RX log push 0x88: SNR int8 / 4, RSSI int8, raw), `companionsign.js`
+  (sign 33/34/35); USB serial framing from the `meshcore` Python package this
+  repo pins (`serial_cx.py`: host 0x3c, radio 0x3e, uint16 LE length, frames
+  over 300 bytes are invalid; 115200 baud). The contact table
+  (`CMD_GET_CONTACTS` 0x04, `CONTACT_START` 0x02 with the count, `CONTACT`
+  0x03, `CONTACT_END` 0x04; contact layout key 32, type, flags,
+  out_path_len, out_path 64, name 32, last_advert u32, lat/lon i32 / 1e6)
+  from that package's `reader.py` and `commands/contact.py`. Contact
+  `lastmod` (u32 at byte 144) is the radio's clock when it last heard the
+  contact (MeshCore `src/helpers/BaseChatMesh.cpp`, `getRTCClock()` on
+  advert, path and message receipt) or the value another app wrote
+  (`examples/companion_radio/MyMesh.cpp` CMD_ADD_UPDATE_CONTACT). The page
+  reads the radio's clock first (`CMD_GET_DEVICE_TIME` 0x05 answered by
+  `RESP_CODE_CURR_TIME` 9 with a u32, `MyMesh.cpp`, a local read) and puts
+  `lastmod` on its own clock; it never sets the radio's clock.
+- Wardrive page decoding and naming rules (phase 2): core-hunter
+  `upstream/master` 000bb89, `app/src/meshpacket.js` (`classifyReception`),
+  `names.js`, `namerules.js`, `attribution.js`, `feed.js`, `targetlist.js`,
+  `filters.js`, `arrow.js`, read for behaviour only; the decoder is
+  `@michaelhart/meshcore-decoder` (the patched multibyte build the app
+  pins).
+- Coverage map (Tools > Wardrive Map tab and the page's Map tab): behaviour
+  of map.mesh-hunter.eu, core-hunter `upstream/master` 000bb89 `web/` (web
+  1.27.0, the version the live site served on 2026-10-20) and
+  `server/internal/httpapi`, read for behaviour only. The server's sender
+  rules (`app/wardrive/senders.py`) follow the page's
+  `frontend/src/wardrive/decode/reception.ts` and meshcore-decoder 0.3.0's
+  payload validity checks; `tests/fixtures/wardrive_sender_vectors.json` is
+  written by the page's decoder and checks both.
+  The client's Locate maths (`frontend/src/wardrive/coverage/locate.ts`),
+  attribution by reach, hues, rays and node rows (`attribution.ts`,
+  `reach.ts`, `nodePositions.ts`) follow their `web/locate.js`,
+  `attribution.js`, `coverage.js` and `nodelayer.js`; `locateVectors.json`
+  and `reachVectors.json` in `frontend/src/test/wardrive/coverage/` came from
+  running those files (generators in the coverage map ledger). Their zoom
+  thresholds (`zoomfade.js`) are kept; the cell size hand-over is drawn for
+  our grid (CoreScope sizes 6 to 15), not their 3 to 18 grid.
+- Wardrive brokers (`app/wardrive/brokers.py` `BUILTIN_BROKERS`, served
+  to the page; `frontend/src/wardrive/forward/brokers.ts` `DEFAULT_BROKERS`
+  before the first answer): the DutchMeshCore entries are the `brokers` list
+  in rx.mesh-hunter.eu's live `config.json` (read 2026-10-19):
+  `wss://collector1.dutchmeshcore.nl:443` label `hunter`,
+  `wss://collector2.dutchmeshcore.nl:443` label `wardriver`, both companion
+  auth. meshcore-analyzer.eu: `wss://mqtt.meshcore-analyzer.eu:443`, token
+  audience `mqtt.meshcore-analyzer.eu`, companion sign-in (owner answer,
+  2026-10-20). on8ar was removed (owner answer). Observer packets for a
+  `packets` broker follow RTFM-EV's own community MQTT publisher
+  (`app/fanout/community_mqtt.py` `_format_raw_packet` and the topic
+  builders: `meshcore/{IATA upper}/{KEY}/packets`); not checked against the
+  analyzer's ingest.
+- Companion stats (`frontend/src/wardrive/radio/protocol.ts`): the meshcore
+  Python library `reader.py`, `RESP_CODE_STATS` 24 answering
+  `CMD_GET_STATS` 0x38 with a type byte: core (0) `<B B H I H B>` with
+  battery mV at bytes 2-3, radio (1) `<B B h b b I I>` with the noise floor
+  int16 at bytes 2-3. Battery percent and the low threshold: core-hunter
+  3928ebf `app/src/battery.js` (the firmware's 3000/4200 mV and 3500 mV).
+- Auto-discover (`frontend/src/wardrive/discover/`): core-hunter
+  `upstream/master` 000bb89 (2026-10-02) `app/src/discover.js`,
+  `autoping.js`, `airtime.js`, `sweep.js`, `announce.js`, `tracetag.js`,
+  `telemetryreq.js`, `anonreq.js`, `contactpath.js`, `feed.js`
+  (`selectedRepeaterIds`, `selectedCompanionIds` (RTFM-EV keeps only full
+  keys as companion targets, unlike rx), `heardRepeaterIds`) and
+  `app.js` (`autoPingTick`, `toggleAutoPing`, `stopAutoPing`), read for
+  behaviour; `src/test/wardrive/discoverVectors.json` is their output for
+  fixed inputs. Companion replies (MeshCore-dev
+  `examples/companion_radio/MyMesh.cpp`): CMD_SEND_CONTROL_DATA and
+  CMD_SEND_SELF_ADVERT answer OK or ERR, CMD_SEND_TRACE_PATH,
+  CMD_SEND_TELEMETRY_REQ and CMD_SEND_ANON_REQ answer SENT (6) or ERR.
+  Battery 0 mV on boards without sensing: MeshCore-dev
+  `src/helpers/stm32/STM32Board.h` and the Station G2/G3 variants.
+- Float readout: core-hunter 3928ebf `app/src/floatreadout.js` (canvas into
+  a video, picture-in-picture, fullscreen first on Android), read for
+  behaviour only. RTFM-EV differs on the owner's request (2026-10-20):
+  picture-in-picture first on Android too, no orientation lock, an upright
+  canvas on an upright phone.
 - MGRS conversion: the `mgrs` npm package (proj4js, MIT),
   https://github.com/proj4js/mgrs, v2.2.0. The frontend uses it directly;
   `app/mgrs.py` ports its inverse (`decode` + `UTMtoLL` + `toPoint`), and

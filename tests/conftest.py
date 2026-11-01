@@ -157,6 +157,7 @@ async def test_db():
         snmp_agent,
         spam,
         trackers,
+        wardrive,
         wordlists,
     )
     from app.repository import fanout as fanout_repo
@@ -213,6 +214,7 @@ async def test_db():
         raw_feed_stats,
         sensor_push,
         trackers,
+        wardrive,
         perf_sampler,
         perf_snapshot,
     ]

@@ -64,6 +64,9 @@ const MentionsView = lazy(() =>
   import('./MentionsView').then((m) => ({ default: m.MentionsView }))
 );
 const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
+const WardrivePage = lazy(() =>
+  import('./WardrivePage').then((m) => ({ default: m.WardrivePage }))
+);
 const PerformanceView = lazy(() =>
   import('./PerformanceView').then((m) => ({ default: m.PerformanceView }))
 );
@@ -573,6 +576,19 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_lan_scan')} />}>
         <LanScanView onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'wardrive') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_wardrive')} />}>
+        <WardrivePage
+          tab={activeConversation.id}
+          onTab={(tab) =>
+            onSelectConversation({ type: 'wardrive', id: tab, name: t('nav_wardrive') })
+          }
+        />
       </Suspense>
     );
   }

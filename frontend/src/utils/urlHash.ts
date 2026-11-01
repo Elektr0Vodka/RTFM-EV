@@ -23,6 +23,7 @@ interface ParsedHashConversation {
     | 'lan-scan'
     | 'fleet'
     | 'spam-guard'
+    | 'wardrive'
     | 'performance'
     | 'analyze'
     | 'packet-history'
@@ -46,6 +47,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
   'radio-app',
   'map',
   'fanout',
+  'wardrive',
   'openhop',
   'database',
   'about',
@@ -111,6 +113,20 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'lan-scan') {
     return { type: 'lan-scan', name: 'lan-scan' };
+  }
+
+  // Tools > Wardrive: #wardrive (Map tab) and #wardrive/reports. The two
+  // pages it replaced keep working as links to their tab.
+  if (hash === 'wardrive' || hash === 'wardrive-map') {
+    return { type: 'wardrive', name: 'map' };
+  }
+
+  if (hash === 'wardrive/reports' || hash === 'wardrive-reports') {
+    return { type: 'wardrive', name: 'reports' };
+  }
+
+  if (hash === 'wardrive/drivers') {
+    return { type: 'wardrive', name: 'drivers' };
   }
 
   if (hash === 'mentions') {
@@ -293,6 +309,11 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'spam-guard') return '#spam-guard';
   if (conv.type === 'performance') return '#performance';
   if (conv.type === 'lan-scan') return '#lan-scan';
+  if (conv.type === 'wardrive') {
+    if (conv.id === 'reports') return '#wardrive/reports';
+    if (conv.id === 'drivers') return '#wardrive/drivers';
+    return '#wardrive';
+  }
   if (conv.type === 'mentions') return '#mentions';
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.

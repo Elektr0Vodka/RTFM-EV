@@ -2489,6 +2489,7 @@ RETENTION_DEFAULTS: dict[str, int] = {
     "packet_reception_retention_days": 2,
     "device_history_retention_days": 0,
     "relay_history_retention_days": 365,
+    "wardrive_retention_days": 0,
 }
 
 
@@ -2582,6 +2583,13 @@ class AppSettings(BaseModel):
         description=(
             "Days of device history to keep: repeater/room pane snapshots and contact "
             "positions (by last seen); 0 keeps forever"
+        ),
+    )
+    wardrive_retention_days: int = Field(
+        default=0,
+        description=(
+            "Days of wardrive receptions and listening intervals (the local copy of "
+            "drivers' radios) to keep; 0 keeps forever"
         ),
     )
     relay_history_retention_days: int = Field(

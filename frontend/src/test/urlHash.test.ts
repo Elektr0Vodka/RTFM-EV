@@ -175,6 +175,12 @@ describe('settings URL hashes', () => {
     expect(parseHashSettingsSection()).toBe('database');
   });
 
+  it('parses the wardrive settings section hash', () => {
+    window.location.hash = '#settings/wardrive';
+
+    expect(parseHashSettingsSection()).toBe('wardrive');
+  });
+
   it('returns null for an invalid settings section hash', () => {
     window.location.hash = '#settings/not-a-section';
 
@@ -483,6 +489,49 @@ describe('lan-scan (Tools > Network scan) route', () => {
   it('builds #lan-scan', () => {
     expect(getConversationHash({ type: 'lan-scan', id: 'lan-scan', name: 'Network scan' })).toBe(
       '#lan-scan'
+    );
+  });
+});
+
+describe('wardrive (Tools > Wardrive) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #wardrive as the Map tab and #wardrive/reports as Reports', () => {
+    window.location.hash = '#wardrive';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'map' });
+    window.location.hash = '#wardrive/reports';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'reports' });
+  });
+
+  it('opens the right tab for the old #wardrive-map and #wardrive-reports links', () => {
+    window.location.hash = '#wardrive-map';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'map' });
+    window.location.hash = '#wardrive-reports';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'reports' });
+  });
+
+  it('parses and builds #wardrive/drivers as the Drivers tab', () => {
+    window.location.hash = '#wardrive/drivers';
+    expect(parseHashConversation()).toEqual({ type: 'wardrive', name: 'drivers' });
+    expect(getConversationHash({ type: 'wardrive', id: 'drivers', name: 'Wardrive' })).toBe(
+      '#wardrive/drivers'
+    );
+  });
+
+  it('builds #wardrive and #wardrive/reports', () => {
+    expect(getConversationHash({ type: 'wardrive', id: 'map', name: 'Wardrive' })).toBe(
+      '#wardrive'
+    );
+    expect(getConversationHash({ type: 'wardrive', id: 'reports', name: 'Wardrive' })).toBe(
+      '#wardrive/reports'
     );
   });
 });

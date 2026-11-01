@@ -11,6 +11,8 @@ from typing import Any
 
 from starlette.datastructures import Headers
 
+from app.wardrive.module import API_PREFIX, PAGE_PREFIX, wardrive_active
+
 logger = logging.getLogger(__name__)
 
 _AUTH_REALM = "RemoteTerm"
@@ -20,12 +22,40 @@ _UNAUTHORIZED_BODY = json.dumps({"detail": "Unauthorized"}).encode("utf-8")
 class BasicAuthMiddleware:
     """Protect all HTTP and WebSocket entrypoints with HTTP Basic auth."""
 
-    def __init__(self, app, *, username: str, password: str, realm: str = _AUTH_REALM) -> None:
+    def __init__(
+        self,
+        app,
+        *,
+        username: str,
+        password: str,
+        realm: str = _AUTH_REALM,
+        exempt_prefixes: tuple[str, ...] = (),
+    ) -> None:
         self.app = app
         self.username = username
         self.password = password
         self.realm = realm
+        self.exempt_prefixes = exempt_prefixes
         self._challenge_value = f'Basic realm="{realm}", charset="UTF-8"'.encode("latin-1")
+
+    def _is_exempt(self, path: str) -> bool:
+        """A prefix ending in "/" matches below it; one without also matches
+        itself exactly, so "/wardrive" covers "/wardrive" and "/wardrive/..."
+        but not "/wardrivex".
+
+        uvicorn hands over the decoded path without resolving dot segments,
+        and the SPA fallback resolves them itself, so a path with a "." or
+        ".." segment or a backslash is never exempt: "/wardrive/../x" must
+        not reach "/x" without a login."""
+        if "\\" in path or any(seg in (".", "..") for seg in path.split("/")):
+            return False
+        for prefix in self.exempt_prefixes:
+            if prefix.endswith("/"):
+                if path.startswith(prefix):
+                    return True
+            elif path == prefix or path.startswith(prefix + "/"):
+                return True
+        return False
 
     def _is_authorized(self, scope: dict[str, Any]) -> bool:
         headers = Headers(scope=scope)
@@ -98,7 +128,7 @@ class BasicAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
-        if self._is_authorized(scope):
+        if self._is_exempt(scope.get("path", "")) or self._is_authorized(scope):
             await self.app(scope, receive, send)
             return
 
@@ -114,10 +144,14 @@ def add_optional_basic_auth_middleware(app, settings) -> None:
     if not settings.basic_auth_enabled:
         return
 
+    # The wardrive page and its API have their own accounts and sessions; the
+    # owner admin (/api/wardrive-admin/) stays behind this login.
+    exempt = (PAGE_PREFIX, API_PREFIX) if wardrive_active(settings) else ()
     app.add_middleware(
         BasicAuthMiddleware,
         username=settings.basic_auth_username,
         password=settings.basic_auth_password,
+        exempt_prefixes=exempt,
     )
 
 
