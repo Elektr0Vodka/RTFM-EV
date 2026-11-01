@@ -26,7 +26,7 @@ machine this was authored on and may differ elsewhere.
   sensor `REQ_TYPE_SUBSCRIBE` 0x08 / `REQ_TYPE_UNSUBSCRIBE` 0x09 with pushes as
   `PUSH_CODE_BINARY_RESPONSE` (`examples/simple_sensor/SensorMesh.cpp`; thresholds use
   `LPPData::getDataSize`/`getMultiplier` in `src/helpers/sensors/LPPDataHelpers.h`);
-  transport code 0 is the wildcard region (`RegionMap::findMatch`). meshcore_py 2.3.16 has
+  transport code 0 is the wildcard region (`RegionMap::findMatch`). meshcore_py 2.3.17 has
   `run_cli_command` but its `BinaryReqType` stops at 0x06.
 
 ### DMC-MeshCore (two flavours - this distinction matters for the Repeater Manager)
