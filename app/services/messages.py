@@ -8,7 +8,13 @@ from app.atak_payloads import envelope_body
 from app.decoder import TXT_TYPE_GROUP_DATA
 from app.malformed import is_malformed_channel_message, malformed_reason
 from app.models import Message, MessagePath, RadioStamp
-from app.repository import ContactRepository, MessageRepository, RawPacketRepository
+from app.name_filter import name_matches, shown_sender
+from app.repository import (
+    AppSettingsRepository,
+    ContactRepository,
+    MessageRepository,
+    RawPacketRepository,
+)
 from app.services import send_pacer
 from app.smaz import decode_message_text
 
@@ -80,6 +86,7 @@ def build_message_model(
     transport_code: int | None = None,
     region: str | None = None,
     malformed: bool = False,
+    name_filtered: bool = False,
     spam: bool = False,
     duplicate: bool = False,
     cli_permitted: bool | None = None,
@@ -114,6 +121,7 @@ def build_message_model(
         transport_code=transport_code,
         region=region,
         malformed=malformed,
+        name_filtered=name_filtered,
         spam=spam,
         duplicate=duplicate,
         cli_permitted=cli_permitted,
@@ -306,6 +314,18 @@ async def handle_duplicate_message(
     )
 
 
+async def is_name_filtered(sender_name: str | None, text: str) -> bool:
+    """Whether a new channel row gets the flag. A lookup problem never costs a message."""
+    try:
+        name = shown_sender(sender_name, text)
+        if not name:
+            return False
+        return name_matches(name, await AppSettingsRepository.get_name_filter_patterns())
+    except Exception:
+        logger.warning("Name filter check failed", exc_info=True)
+        return False
+
+
 async def _is_listed_bot(sender: str | None, sender_key: str | None) -> bool:
     """Whether the sender is on an enabled bot list right now.
 
@@ -372,6 +392,7 @@ async def create_message_from_decrypted(
     channel_key_normalized = channel_key.upper()
     malformed = is_malformed_channel_message(message_text, timestamp, received)
     reason = malformed_reason(message_text, timestamp, received) if malformed else None
+    name_filtered = await is_name_filtered(sender, text)
 
     resolved_sender_key: str | None = None
     if sender:
@@ -395,6 +416,7 @@ async def create_message_from_decrypted(
         region=region,
         malformed=malformed,
         malformed_reason=reason,
+        name_filtered=name_filtered,
         bot=await _is_listed_bot(sender, resolved_sender_key),
     )
 
@@ -463,6 +485,7 @@ async def create_message_from_decrypted(
             transport_code=transport_code,
             region=region,
             malformed=malformed,
+            name_filtered=name_filtered,
             spam=bool(verdict and verdict.spam),
             duplicate=bool(verdict and verdict.duplicate),
         ),
@@ -531,6 +554,8 @@ async def create_group_data_message(
             sender_label = chunk.sender_prefix.upper()
 
     text = format_group_data_placeholder(decrypted, sender_label)
+    sender_name = sender_label if resolved_sender_key else None
+    name_filtered = await is_name_filtered(sender_name, text)
 
     msg_id = await MessageRepository.create(
         msg_type="CHAN",
@@ -543,10 +568,11 @@ async def create_group_data_message(
         rssi=rssi,
         snr=snr,
         txt_type=TXT_TYPE_GROUP_DATA,
-        sender_name=sender_label if resolved_sender_key else None,
+        sender_name=sender_name,
         sender_key=resolved_sender_key,
         transport_code=transport_code,
         region=region,
+        name_filtered=name_filtered,
     )
 
     if msg_id is None:
@@ -595,12 +621,13 @@ async def create_group_data_message(
             received_at=received,
             paths=build_message_paths(path, received, path_len, rssi=rssi, snr=snr),
             txt_type=TXT_TYPE_GROUP_DATA,
-            sender_name=sender_label if resolved_sender_key else None,
+            sender_name=sender_name,
             sender_key=resolved_sender_key,
             channel_name=channel_name,
             packet_id=packet_id,
             transport_code=transport_code,
             region=region,
+            name_filtered=name_filtered,
         ),
         broadcast_fn=broadcast_fn,
         realtime=realtime,
@@ -722,6 +749,7 @@ async def create_fallback_channel_message(
     text = f"{sender_name}: {message_text}" if sender_name else message_text
     malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at)
     reason = malformed_reason(message_text, sender_timestamp, received_at) if malformed else None
+    name_filtered = await is_name_filtered(sender_name, text)
 
     resolved_sender_key: str | None = None
     if sender_name:
@@ -742,6 +770,7 @@ async def create_fallback_channel_message(
         sender_key=resolved_sender_key,
         malformed=malformed,
         malformed_reason=reason,
+        name_filtered=name_filtered,
         bot=await _is_listed_bot(sender_name, resolved_sender_key),
     )
     if msg_id is None:
@@ -788,6 +817,7 @@ async def create_fallback_channel_message(
         sender_key=resolved_sender_key,
         channel_name=channel_name,
         malformed=malformed,
+        name_filtered=name_filtered,
         spam=verdict.spam,
         duplicate=verdict.duplicate,
     )

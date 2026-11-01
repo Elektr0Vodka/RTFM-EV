@@ -13,6 +13,7 @@ import { api } from '../../api';
 import { formatTime } from '../../utils/messageParser';
 import { lppDisplayUnit } from '../repeater/repeaterPaneShared';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
+import { NameFilterSettings } from './NameFilterSettings';
 import { BulkDeleteContactsModal } from './BulkDeleteContactsModal';
 import { BulkDeleteChannelsModal } from './BulkDeleteChannelsModal';
 import { PartialNodeSyncModal } from './PartialNodeSyncModal';
@@ -679,6 +680,8 @@ export function SettingsRadioAppSection({
             </div>
           )}
         </div>
+
+        <NameFilterSettings appSettings={appSettings} onSaveAppSettings={onSaveAppSettings} />
 
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">{t('settings_radioapp_bulk_delete_heading')}</h4>

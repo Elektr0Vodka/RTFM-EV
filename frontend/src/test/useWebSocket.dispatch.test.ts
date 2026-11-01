@@ -228,6 +228,15 @@ describe('useWebSocket dispatch', () => {
     expect(received).toEqual([payload]);
   });
 
+  it('routes name_filter_applied to onNameFilterApplied', () => {
+    const onNameFilterApplied = vi.fn();
+    renderHook(() => useWebSocket({ onNameFilterApplied }));
+
+    fireMessage({ type: 'name_filter_applied', data: { changed: 3 } });
+
+    expect(onNameFilterApplied).toHaveBeenCalledOnce();
+  });
+
   it('routes message_spam to onMessageSpam', () => {
     const onMessageSpam = vi.fn();
     renderHook(() => useWebSocket({ onMessageSpam }));

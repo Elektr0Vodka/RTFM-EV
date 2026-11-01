@@ -180,6 +180,8 @@ interface ConversationPaneProps {
   onHiddenRadioSfsChange?: (sfs: number[]) => void;
   hideMalformed?: boolean;
   onHideMalformedChange?: (hide: boolean) => void;
+  hideNameFiltered?: boolean;
+  onHideNameFilteredChange?: (hide: boolean) => void;
   /** Spam Guard master switch: the page and the chat spam actions exist only while on. */
   spamGuardEnabled?: boolean;
   hideSpam?: boolean;
@@ -337,6 +339,8 @@ export function ConversationPane({
   onHiddenRadioSfsChange,
   hideMalformed,
   onHideMalformedChange,
+  hideNameFiltered,
+  onHideNameFilteredChange,
   spamGuardEnabled,
   hideSpam,
   onHideSpamChange,
@@ -988,6 +992,8 @@ export function ConversationPane({
           onHiddenRadioSfsChange={onHiddenRadioSfsChange}
           hideMalformed={hideMalformed}
           onHideMalformedChange={onHideMalformedChange}
+          hideNameFiltered={hideNameFiltered}
+          onHideNameFilteredChange={onHideNameFilteredChange}
           spamGuardEnabled={spamGuardEnabled}
           hideSpam={hideSpam}
           onHideSpamChange={onHideSpamChange}

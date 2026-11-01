@@ -87,6 +87,7 @@ export type KnownWsEvent =
   | { type: 'host_repeater'; data: HostRepeaterEventPayload }
   | { type: 'spam_guard'; data: SpamGuardSummary }
   | { type: 'message_spam'; data: MessageSpamPayload }
+  | { type: 'name_filter_applied'; data: { changed: number } }
   | { type: 'bot_lists'; data: BotListsState }
   | { type: 'tracker'; data: TrackerEventPayload }
   | { type: 'temp_radio_state'; data: TempRadioState }
@@ -140,6 +141,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'host_repeater':
     case 'spam_guard':
     case 'message_spam':
+    case 'name_filter_applied':
     case 'bot_lists':
     case 'tracker':
     case 'temp_radio_state':

@@ -925,6 +925,11 @@ export interface Message {
    */
   malformed?: boolean;
   /**
+   * True when the sender of this incoming channel message matches a name
+   * pattern. Hidden by the chat "Hide by name pattern" filter.
+   */
+  name_filtered?: boolean;
+  /**
    * True when Spam Guard flagged this incoming channel message as spam, at
    * ingest or afterwards (earlier copies of a campaign arrive in a
    * `message_spam` event). Hidden by the chat "Hide spam" filter.
@@ -1526,6 +1531,10 @@ export interface AppSettings {
    * Web Push.
    */
   hide_malformed: boolean;
+  /** Regular expressions for sender names; each has to match the whole name. */
+  name_filter_patterns?: string[];
+  /** Hide messages from matching names in chat, unread counts, mentions and Web Push. */
+  hide_name_filtered?: boolean;
   /** Ollama unread summaries: off until enabled and a model is named. */
   ollama_enabled: boolean;
   ollama_base_url: string;
@@ -1950,6 +1959,8 @@ export interface AppSettingsUpdate {
   hidden_hop_widths?: number[];
   hidden_radio_sfs?: number[];
   hide_malformed?: boolean;
+  name_filter_patterns?: string[];
+  hide_name_filtered?: boolean;
   ollama_enabled?: boolean;
   ollama_base_url?: string;
   ollama_model?: string;

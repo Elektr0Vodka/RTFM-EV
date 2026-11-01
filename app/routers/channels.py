@@ -377,7 +377,7 @@ async def summarize_channel_unread(
     Nothing is sent anywhere unless the feature is enabled and a model is set.
     Only what the chat shows is summarized: blocked senders are left out, and so
     are messages hidden by the hop-size filter or, when "Hide malformed
-    messages" or "Hide spam" is on, flagged as malformed or as spam. With more
+    messages", "Hide by name pattern" or "Hide spam" is on, flagged that way. With more
     unread messages than fit, the newest are taken. Asking again about the same
     messages returns the earlier answer instead of asking the model again.
     """
@@ -401,6 +401,7 @@ async def summarize_channel_unread(
         hidden_hop_widths=settings.hidden_hop_widths or None,
         hidden_radio_sfs=settings.hidden_radio_sfs or None,
         hide_malformed=settings.hide_malformed,
+        hide_name_filtered=settings.hide_name_filtered,
         hide_spam=settings.hide_spam,
     )
     if not messages:

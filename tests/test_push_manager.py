@@ -19,6 +19,7 @@ def _settings(
     hide_malformed=False,
     hide_spam=False,
     hidden_radio_sfs=(),
+    hide_name_filtered=False,
 ):
     return SimpleNamespace(
         blocked_keys=list(blocked_keys),
@@ -26,6 +27,7 @@ def _settings(
         hidden_hop_widths=list(hidden_hop_widths),
         hidden_radio_sfs=list(hidden_radio_sfs),
         hide_malformed=hide_malformed,
+        hide_name_filtered=hide_name_filtered,
         hide_spam=hide_spam,
         hide_bots=False,
     )
@@ -166,6 +168,20 @@ async def test_malformed_channel_message_gets_no_push_when_hidden():
 @pytest.mark.asyncio
 async def test_malformed_channel_message_still_pushed_when_filter_off():
     msg = {**_chan_msg([]), "malformed": True}
+    send = await _dispatch(msg, _settings())
+    send.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_name_filtered_channel_message_gets_no_push_when_hidden():
+    msg = {**_chan_msg([]), "name_filtered": True}
+    send = await _dispatch(msg, _settings(hide_name_filtered=True))
+    send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_name_filtered_channel_message_still_pushed_when_filter_off():
+    msg = {**_chan_msg([]), "name_filtered": True}
     send = await _dispatch(msg, _settings())
     send.assert_called_once()
 

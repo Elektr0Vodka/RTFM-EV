@@ -133,6 +133,10 @@ interface MessageListProps {
   hideMalformed?: boolean;
   /** Persist the "Hide malformed" filter. */
   onHideMalformedChange?: (hide: boolean) => void;
+  /** Hide messages whose sender matches a name pattern (app setting `hide_name_filtered`). */
+  hideNameFiltered?: boolean;
+  /** Persist the "Hide by name pattern" filter; without it the menu leaves the option out. */
+  onHideNameFilteredChange?: (hide: boolean) => void;
   /**
    * Spam Guard master switch. While on, flagged messages carry a marker, the
    * filter menu offers "Hide spam" and each incoming channel message gets
@@ -1045,6 +1049,8 @@ export function MessageList({
   onHiddenRadioSfsChange,
   hideMalformed: hideMalformedProp,
   onHideMalformedChange,
+  hideNameFiltered = false,
+  onHideNameFilteredChange,
   spamGuardEnabled = false,
   hideSpam: hideSpamProp,
   onHideSpamChange,
@@ -1329,6 +1335,7 @@ export function MessageList({
       hiddenRadioSfs.size === 0 &&
       !hideUnscoped &&
       !hideMalformed &&
+      !hideNameFiltered &&
       !hideSpam &&
       !hideBots
     ) {
@@ -1355,6 +1362,9 @@ export function MessageList({
       if (hideMalformed && m.malformed) {
         return false;
       }
+      if (hideNameFiltered && m.name_filtered) {
+        return false;
+      }
       if (hideSpam && m.spam) {
         return false;
       }
@@ -1371,6 +1381,7 @@ export function MessageList({
     hiddenRadioSfs,
     hideUnscoped,
     hideMalformed,
+    hideNameFiltered,
     hideSpam,
     hideBots,
     botLists,
@@ -2054,6 +2065,7 @@ export function MessageList({
               hiddenRadioSfs.size > 0 ||
               hideUnscoped ||
               hideMalformed ||
+              hideNameFiltered ||
               hideSpam ||
               hideBots
               ? 'text-status-connected'
@@ -2138,6 +2150,23 @@ export function MessageList({
             <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
               {t('chat_filter_malformed_hint')}
             </div>
+            {onHideNameFilteredChange && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="accent-current"
+                    checked={hideNameFiltered}
+                    onChange={() => onHideNameFilteredChange(!hideNameFiltered)}
+                  />
+                  {t('chat_filter_hide_name_filtered')}
+                </label>
+                <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+                  {t('chat_filter_name_filtered_hint')}
+                </div>
+              </>
+            )}
             {spamGuardEnabled && onHideSpamChange && (
               <>
                 <div className="my-1.5 h-px bg-border" />

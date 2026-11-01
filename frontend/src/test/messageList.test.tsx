@@ -924,6 +924,55 @@ describe('MessageList hop-size filter', () => {
     expect(onChange).toHaveBeenCalledWith(false);
   });
 
+  const nameFilteredIncoming = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'Adriaan589',
+      text: `Adriaan589: Rustig Bassie ${id}`,
+      name_filtered: true,
+      received_at: 1700000000 + id,
+    });
+
+  it('hides name-filtered incoming messages but not your own, and reports toggles', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const mine = createMessage({
+      id: 22,
+      outgoing: true,
+      text: 'mine',
+      name_filtered: true,
+      received_at: 1700000022,
+    });
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), nameFilteredIncoming(21), mine]}
+        contacts={[]}
+        loading={false}
+        hideNameFiltered={true}
+        onHideNameFilteredChange={onChange}
+      />
+    );
+    expect(row(container, 20)).not.toBeNull();
+    expect(row(container, 21)).toBeNull();
+    expect(row(container, 22)).not.toBeNull();
+
+    await openFilterAndCheck(user, /hide by name pattern/i);
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  it('shows name-filtered messages while the filter is off', () => {
+    const { container } = render(
+      <MessageList
+        messages={[nameFilteredIncoming(21)]}
+        contacts={[]}
+        loading={false}
+        hideNameFiltered={false}
+        onHideNameFilteredChange={vi.fn()}
+      />
+    );
+    expect(row(container, 21)).not.toBeNull();
+  });
+
   const spamIncoming = (id: number) =>
     createMessage({
       id,
