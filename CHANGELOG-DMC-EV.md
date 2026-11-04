@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-04 (malformed: sender clock ahead, feat/malformed-clock-ahead)
+
+Migration `_169`, next free `_170`.
+
+### Chat
+- **Hide malformed** also hides channel messages from a sender clock running
+  ahead: stamped more than N minutes after they were received (Settings >
+  Radio-App Management > Contact Management, **Malformed: sender clock
+  ahead**, default 60, 0 = off). Migration `_169` adds the setting and flags
+  stored messages with the default; saving the limit checks stored messages
+  again and open browsers reload the chat (`malformed_applied` event). They
+  count as reason `clock` in the Spam & bots statistics, and for Spam Guard's
+  malformed signal when that is on.
+
 ## Update 2026-11-04 (message details + age limit, feat/message-details-age-future)
 
 ### Chat

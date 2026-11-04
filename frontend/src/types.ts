@@ -1535,6 +1535,11 @@ export interface AppSettings {
   name_filter_patterns?: string[];
   /** Hide messages from matching names in chat, unread counts, mentions and Web Push. */
   hide_name_filtered?: boolean;
+  /**
+   * An incoming channel message stamped more than this many minutes after it
+   * was received is flagged malformed (sender clock running fast). 0 = off.
+   */
+  malformed_clock_ahead_minutes?: number;
   /** Ollama unread summaries: off until enabled and a model is named. */
   ollama_enabled: boolean;
   ollama_base_url: string;
@@ -1961,6 +1966,7 @@ export interface AppSettingsUpdate {
   hide_malformed?: boolean;
   name_filter_patterns?: string[];
   hide_name_filtered?: boolean;
+  malformed_clock_ahead_minutes?: number;
   ollama_enabled?: boolean;
   ollama_base_url?: string;
   ollama_model?: string;

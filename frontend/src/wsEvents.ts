@@ -88,6 +88,7 @@ export type KnownWsEvent =
   | { type: 'spam_guard'; data: SpamGuardSummary }
   | { type: 'message_spam'; data: MessageSpamPayload }
   | { type: 'name_filter_applied'; data: { changed: number } }
+  | { type: 'malformed_applied'; data: { changed: number } }
   | { type: 'bot_lists'; data: BotListsState }
   | { type: 'tracker'; data: TrackerEventPayload }
   | { type: 'temp_radio_state'; data: TempRadioState }
@@ -142,6 +143,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'spam_guard':
     case 'message_spam':
     case 'name_filter_applied':
+    case 'malformed_applied':
     case 'bot_lists':
     case 'tracker':
     case 'temp_radio_state':

@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from app.atak_payloads import envelope_body
 from app.decoder import TXT_TYPE_GROUP_DATA
-from app.malformed import is_malformed_channel_message, malformed_reason
+from app.malformed import (
+    DEFAULT_CLOCK_AHEAD_MINUTES,
+    is_malformed_channel_message,
+    malformed_reason,
+)
 from app.models import Message, MessagePath, RadioStamp
 from app.name_filter import name_matches, shown_sender
 from app.repository import (
@@ -314,6 +318,15 @@ async def handle_duplicate_message(
     )
 
 
+async def clock_ahead_minutes() -> int:
+    """The malformed clock-ahead limit; a lookup problem falls back to the default."""
+    try:
+        return await AppSettingsRepository.get_malformed_clock_ahead_minutes()
+    except Exception:
+        logger.warning("Clock-ahead limit lookup failed", exc_info=True)
+        return DEFAULT_CLOCK_AHEAD_MINUTES
+
+
 async def is_name_filtered(sender_name: str | None, text: str) -> bool:
     """Whether a new channel row gets the flag. A lookup problem never costs a message."""
     try:
@@ -390,8 +403,9 @@ async def create_message_from_decrypted(
     message_text = decode_message_text(message_text)
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
-    malformed = is_malformed_channel_message(message_text, timestamp, received)
-    reason = malformed_reason(message_text, timestamp, received) if malformed else None
+    ahead = await clock_ahead_minutes()
+    malformed = is_malformed_channel_message(message_text, timestamp, received, ahead)
+    reason = malformed_reason(message_text, timestamp, received, ahead) if malformed else None
     name_filtered = await is_name_filtered(sender, text)
 
     resolved_sender_key: str | None = None
@@ -747,8 +761,11 @@ async def create_fallback_channel_message(
     wire_text = message_text  # what Spam Guard reads, as in create_message_from_decrypted
     message_text = decode_message_text(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
-    malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at)
-    reason = malformed_reason(message_text, sender_timestamp, received_at) if malformed else None
+    ahead = await clock_ahead_minutes()
+    malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at, ahead)
+    reason = (
+        malformed_reason(message_text, sender_timestamp, received_at, ahead) if malformed else None
+    )
     name_filtered = await is_name_filtered(sender_name, text)
 
     resolved_sender_key: str | None = None

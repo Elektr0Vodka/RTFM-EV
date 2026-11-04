@@ -419,6 +419,13 @@ For senders who change their name with every message (`Adriaan257`, `Adriaan502`
 - Saving the list checks stored messages again, so a new pattern also clears older messages and a removed pattern brings them back.
 - It only hides messages here. They are still forwarded, and the raw packet feed and the chat popup window still show them.
 
+### Hide malformed: sender clock ahead
+
+**Hide malformed** in the chat filter menu hides channel messages of random characters and messages from a sender whose clock was never set. It also hides messages stamped too far after the time they were received: a sender clock running fast. Set how far under Settings > Radio-App Management > Contact Management, **Malformed: sender clock ahead** (minutes, default 60, 0 = off).
+
+- Saving the limit checks stored messages again. The first start with this version flags stored messages with the default.
+- With **Treat malformed messages as spam** on in Spam Guard, these messages count there too.
+
 ### Bot lists
 
 A bot list names known bots: an exact sender name, with an optional public key and note. Lists live under Settings > Local Configuration > Bot lists.

@@ -2672,6 +2672,13 @@ class AppSettings(BaseModel):
             "from unread counts, mentions and Web Push ('Hide by name pattern')."
         ),
     )
+    malformed_clock_ahead_minutes: int = Field(
+        default=60,
+        description=(
+            "An incoming channel message stamped more than this many minutes after it was "
+            "received is flagged malformed (a sender clock running fast). 0 = off."
+        ),
+    )
     ollama_enabled: bool = Field(
         default=False,
         description=(

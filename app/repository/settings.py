@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import aiosqlite
 
 from app.database import db
+from app.malformed import DEFAULT_CLOCK_AHEAD_MINUTES
 from app.models import (
     BATTERY_CHEMISTRIES,
     RETENTION_DEFAULTS,
@@ -73,7 +74,7 @@ class AppSettingsRepository:
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
                    blocked_keys, blocked_names, hidden_hop_widths, hidden_radio_sfs, hide_malformed,
-                   name_filter_patterns, hide_name_filtered,
+                   name_filter_patterns, hide_name_filtered, malformed_clock_ahead_minutes,
                    ollama_enabled, ollama_base_url, ollama_model,
                    spam_guard_enabled, hide_spam, hide_bots,
                    discovery_blocked_types,
@@ -322,6 +323,12 @@ class AppSettingsRepository:
         except (KeyError, TypeError, IndexError):
             name_filter_patterns = []
             hide_name_filtered = False
+
+        # Clock-ahead limit of the malformed flag (migration _169)
+        try:
+            malformed_clock_ahead_minutes = int(row["malformed_clock_ahead_minutes"])
+        except (KeyError, TypeError, IndexError, ValueError):
+            malformed_clock_ahead_minutes = DEFAULT_CLOCK_AHEAD_MINUTES
 
         # Ollama unread-summary settings (migration _136)
         try:
@@ -644,6 +651,7 @@ class AppSettingsRepository:
             hide_malformed=hide_malformed,
             name_filter_patterns=name_filter_patterns,
             hide_name_filtered=hide_name_filtered,
+            malformed_clock_ahead_minutes=malformed_clock_ahead_minutes,
             ollama_enabled=ollama_enabled,
             ollama_base_url=ollama_base_url,
             ollama_model=ollama_model,
@@ -741,6 +749,7 @@ class AppSettingsRepository:
         hide_malformed: bool | None = None,
         name_filter_patterns: list[str] | None = None,
         hide_name_filtered: bool | None = None,
+        malformed_clock_ahead_minutes: int | None = None,
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
@@ -956,6 +965,10 @@ class AppSettingsRepository:
         if hide_name_filtered is not None:
             updates.append("hide_name_filtered = ?")
             params.append(1 if hide_name_filtered else 0)
+
+        if malformed_clock_ahead_minutes is not None:
+            updates.append("malformed_clock_ahead_minutes = ?")
+            params.append(malformed_clock_ahead_minutes)
 
         if ollama_enabled is not None:
             updates.append("ollama_enabled = ?")
@@ -1178,6 +1191,7 @@ class AppSettingsRepository:
         hide_malformed: bool | None = None,
         name_filter_patterns: list[str] | None = None,
         hide_name_filtered: bool | None = None,
+        malformed_clock_ahead_minutes: int | None = None,
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
@@ -1273,6 +1287,7 @@ class AppSettingsRepository:
                 hide_malformed=hide_malformed,
                 name_filter_patterns=name_filter_patterns,
                 hide_name_filtered=hide_name_filtered,
+                malformed_clock_ahead_minutes=malformed_clock_ahead_minutes,
                 ollama_enabled=ollama_enabled,
                 ollama_base_url=ollama_base_url,
                 ollama_model=ollama_model,
@@ -1392,6 +1407,16 @@ class AppSettingsRepository:
                 "UPDATE app_settings SET vapid_private_key = ?, vapid_public_key = ? WHERE id = 1",
                 (private_key, public_key),
             )
+
+    @staticmethod
+    async def get_malformed_clock_ahead_minutes() -> int:
+        """The clock-ahead limit alone: read for every arriving channel message."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT malformed_clock_ahead_minutes FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        return int(row["malformed_clock_ahead_minutes"]) if row else DEFAULT_CLOCK_AHEAD_MINUTES
 
     @staticmethod
     async def get_name_filter_patterns() -> list[str]:
