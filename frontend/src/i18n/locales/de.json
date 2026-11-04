@@ -4684,6 +4684,19 @@
     "other": "Nachrichtenpfade ({count})"
   },
   "path_modal_title_status": "Nachrichtenstatus",
+  "message_details_title": "Details",
+  "message_details_sent": "Gesendet",
+  "message_details_sent_title": "Die eigene Uhr des Absenders, wie gestempelt. RTFM-EV korrigiert sie nicht.",
+  "message_details_received": "Empfangen",
+  "message_details_clock_ahead": "Uhr des Absenders {offset} vor",
+  "message_details_clock_behind": "{offset} vor dem Empfang",
+  "message_details_hops": "Hops",
+  "message_details_path_hash": "Pfad-Hash",
+  "message_details_bytes": {
+    "one": "{count} Byte",
+    "other": "{count} Bytes"
+  },
+  "message_details_region": "Region",
   "path_modal_no_echoes": "Noch keine Echos gehört. Echos erscheinen, wenn Repeater deine Nachricht erneut aussenden.",
   "path_modal_single_route_prefix": "Dies zeigt ",
   "path_modal_single_route_emphasis": "eine Route",
@@ -5600,7 +5613,7 @@
   "settings_host_repeater_filter_advert_hours": "Advert-Fenster pro Node (Stunden)",
   "settings_host_repeater_filter_advert_hours_desc": "Das Flood-Advert jedes Nodes höchstens einmal pro so vielen Stunden weiterleiten (0-720, 0 = aus). Läuft vor dem ADVERT-Ratenlimit, damit ein gesprächiger Node nicht das Budget anderer aufbraucht.",
   "settings_host_repeater_filter_age": "Maximales Nachrichtenalter (Minuten)",
-  "settings_host_repeater_filter_age_desc": "Gruppennachrichten verwerfen, deren Zeitstempel mehr als so viele Minuten zurückliegt (1-10080, 0 = aus). Nur Public und beobachtete Kanäle sind lesbar. Lass Spielraum für Absender mit nachgehender Uhr.",
+  "settings_host_repeater_filter_age_desc": "Gruppennachrichten verwerfen, deren Zeitstempel mehr als so viele Minuten zurückliegt oder in der Zukunft liegt (1-10080, 0 = aus). Nur Public und beobachtete Kanäle sind lesbar. Lass Spielraum für Absender mit nach- oder vorgehender Uhr.",
   "settings_host_repeater_filter_paths_heading": "Blockierte Pfad-Präfixe",
   "settings_host_repeater_filter_paths_desc": "Floods verwerfen, die ein Repeater weitergeleitet hat, dessen ID mit einem dieser Präfixe beginnt (2-8 Hex-Zeichen, max. 8). Ein Präfix passt nur auf ganze Pfadeinträge: A1B2 passt nie auf die 1-Byte-Hops A1 und dann B2. Kurze Präfixe treffen auch andere Repeater mit gleichem Anfang.",
   "settings_host_repeater_filter_path_placeholder": "Hex-Präfix",

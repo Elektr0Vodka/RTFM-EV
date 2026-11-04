@@ -1385,11 +1385,14 @@ class ForwardingEngine:
                 c.malformed[reason] += 1
                 return "filter_malformed"
 
-        # MessageAge::tooOld; a failed MAC (len < 4) has no timestamp to read.
+        # MessageAge::tooOld, but symmetric: a stamp more than the limit in the
+        # future is dropped too (our deliberate deviation; the DMC firmware lets
+        # every future stamp through and leaves it to the +-1 week malformed
+        # check). A failed MAC (len < 4) has no timestamp to read.
         if secret is not None and s.filter_age_minutes > 0 and len(data) >= 4:
             stamp = int.from_bytes(data[0:4], "little")
             now_s = int(when)
-            if dmc_clock_set(when) and stamp < now_s and now_s - stamp > s.filter_age_minutes * 60:
+            if dmc_clock_set(when) and abs(now_s - stamp) > s.filter_age_minutes * 60:
                 c.age += 1
                 return "filter_age"
 

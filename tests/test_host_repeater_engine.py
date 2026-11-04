@@ -753,8 +753,12 @@ def test_dmc_message_age_limit():
     assert eng.decide(old, RxFacts(), NOW, wall_now=now_wall).reason == "filter_age"
     fresh = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(now_wall) - 60, b"a: new"))
     assert eng.decide(fresh, RxFacts(), NOW, wall_now=now_wall).forward
+    # Symmetric: a stamp more than the limit ahead is dropped as well, one
+    # within the limit (a sender clock running slightly fast) is not.
     future = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(now_wall) + 7200, b"a: f"))
-    assert eng.decide(future, RxFacts(), NOW, wall_now=now_wall).forward
+    assert eng.decide(future, RxFacts(), NOW, wall_now=now_wall).reason == "filter_age"
+    near = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(now_wall) + 120, b"a: n"))
+    assert eng.decide(near, RxFacts(), NOW, wall_now=now_wall).forward
     # Inactive while the clock is unset.
     unset = 1715731200.0
     stale = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(unset) - 86400, b"a: x"))

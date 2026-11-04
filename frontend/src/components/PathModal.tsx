@@ -1,6 +1,6 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, type ReactNode } from 'react';
 import { Share2 } from 'lucide-react';
-import type { Contact, RadioConfig, MessagePath, PartialNodeResolution } from '../types';
+import type { Contact, RadioConfig, Message, MessagePath, PartialNodeResolution } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import {
@@ -12,8 +12,17 @@ import {
   type SenderInfo,
   type ResolvedPath,
   type PathHop,
+  pathHopWidths,
 } from '../utils/pathUtils';
 import { formatTime } from '../utils/messageParser';
+import { formatDateTime } from '../utils/dateTimeFormat';
+import { classifyMessageScope, formatTransportCode } from '../utils/messageScope';
+import {
+  CLOCK_OFFSET_NOTE_SECONDS,
+  formatOffsetDuration,
+  pathHopCounts,
+  senderClockOffset,
+} from '../utils/messageDetails';
 import { getMapFocusHash } from '../utils/urlHash';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import type { DistanceUnit } from '../utils/distanceUnits';
@@ -40,7 +49,15 @@ interface PathModalProps {
   onAnalyzePacket?: () => void;
   /** Opens the share-as-image dialog for this message. */
   onShare?: () => void;
+  /** The message itself, for the Details block (times, hops, path hash, region). */
+  message?: MessageDetailsFields;
 }
+
+/** The message fields the Details block reads. */
+export type MessageDetailsFields = Pick<
+  Message,
+  'sender_timestamp' | 'received_at' | 'outgoing' | 'transport_code' | 'region'
+>;
 
 export function PathModal({
   open,
@@ -56,6 +73,7 @@ export function PathModal({
   onResend,
   onAnalyzePacket,
   onShare,
+  message,
 }: PathModalProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
@@ -74,6 +92,7 @@ export function PathModal({
     : [];
 
   const hasSinglePath = paths.length === 1;
+  const detailsBlock = message ? <MessageDetails message={message} paths={paths} t={t} /> : null;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -103,8 +122,11 @@ export function PathModal({
           </DialogDescription>
         </DialogHeader>
 
+        {!hasPaths && detailsBlock}
+
         {hasPaths && (
           <div className="flex-1 overflow-y-auto py-2 space-y-4">
+            {detailsBlock}
             {onShare ? (
               <Button type="button" variant="outline" className="w-full gap-2" onClick={onShare}>
                 <Share2 className="h-4 w-4" aria-hidden="true" />
@@ -311,6 +333,110 @@ export function PathModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const FULL_TIME: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+};
+
+function formatFullTime(unixSeconds: number): string {
+  return formatDateTime(unixSeconds * 1000, FULL_TIME);
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap gap-x-2">
+      <dt className="text-muted-foreground">{label}:</dt>
+      <dd className="font-medium">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Per-message facts next to the routes: the sender's own stamp next to our
+ * receive time (a clock that is off shows here, the stamp is never corrected),
+ * hop count, path hash size and region scope.
+ */
+function MessageDetails({
+  message,
+  paths,
+  t,
+}: {
+  message: MessageDetailsFields;
+  paths: MessagePath[];
+  t: TFn;
+}) {
+  const incoming = !message.outgoing;
+  const sentAt = message.sender_timestamp ?? (incoming ? null : message.received_at);
+  const offset = incoming ? senderClockOffset(message.sender_timestamp, message.received_at) : null;
+  const hops = incoming ? pathHopCounts(paths) : [];
+  const widths = pathHopWidths(paths);
+  const scope = classifyMessageScope(message.transport_code, message.region);
+
+  let offsetNote: string | null = null;
+  if (offset != null && Math.abs(offset) >= CLOCK_OFFSET_NOTE_SECONDS) {
+    const duration = formatOffsetDuration(offset);
+    offsetNote =
+      offset > 0
+        ? t('message_details_clock_ahead', { offset: duration })
+        : t('message_details_clock_behind', { offset: duration });
+  }
+
+  return (
+    <section
+      className="text-sm pb-2 border-b border-border"
+      aria-label={t('message_details_title')}
+    >
+      <h3 className="text-foreground/70 font-semibold mb-1">{t('message_details_title')}</h3>
+      <dl className="space-y-0.5">
+        {sentAt != null && (
+          <DetailRow label={t('message_details_sent')}>
+            <span title={t('message_details_sent_title')}>{formatFullTime(sentAt)}</span>
+            {offsetNote && (
+              <span
+                className={
+                  offset! > 0
+                    ? 'ml-1.5 text-warning font-normal'
+                    : 'ml-1.5 text-muted-foreground font-normal'
+                }
+              >
+                ({offsetNote})
+              </span>
+            )}
+          </DetailRow>
+        )}
+        {incoming && (
+          <DetailRow label={t('message_details_received')}>
+            {formatFullTime(message.received_at)}
+          </DetailRow>
+        )}
+        {hops.length > 0 && (
+          <DetailRow label={t('message_details_hops')}>
+            {hops.map((n) => (n === 0 ? t('chat_scope_direct') : String(n))).join(' / ')}
+          </DetailRow>
+        )}
+        {widths.length > 0 && (
+          <DetailRow label={t('message_details_path_hash')}>
+            {widths.map((w) => t('message_details_bytes', { count: w })).join(' / ')}
+          </DetailRow>
+        )}
+        {incoming && (
+          <DetailRow label={t('message_details_region')}>
+            {scope === 'named'
+              ? message.region
+              : scope === 'unknown'
+                ? `${t('chat_scope_unknown')} (${formatTransportCode(message.transport_code!)})`
+                : t('chat_scope_unscoped')}
+          </DetailRow>
+        )}
+      </dl>
+    </section>
   );
 }
 
