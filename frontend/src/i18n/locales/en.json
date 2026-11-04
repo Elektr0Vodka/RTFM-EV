@@ -4682,6 +4682,19 @@
     "other": "Message Paths ({count})"
   },
   "path_modal_title_status": "Message Status",
+  "message_details_title": "Details",
+  "message_details_sent": "Sent",
+  "message_details_sent_title": "The sender's own clock, shown as stamped. RTFM-EV does not correct it.",
+  "message_details_received": "Received",
+  "message_details_clock_ahead": "sender clock {offset} ahead",
+  "message_details_clock_behind": "{offset} before it was received",
+  "message_details_hops": "Hops",
+  "message_details_path_hash": "Path hash",
+  "message_details_bytes": {
+    "one": "{count} byte",
+    "other": "{count} bytes"
+  },
+  "message_details_region": "Region",
   "path_modal_no_echoes": "No echoes heard yet. Echoes appear when repeaters re-broadcast your message.",
   "path_modal_single_route_prefix": "This shows ",
   "path_modal_single_route_emphasis": "one route",
@@ -5598,7 +5611,7 @@
   "settings_host_repeater_filter_advert_hours": "Advert window per node (hours)",
   "settings_host_repeater_filter_advert_hours_desc": "Forward each node’s flood advert at most once per this many hours (0-720, 0 = off). Runs before the ADVERT rate limit, so a chatty node cannot use up the budget of others.",
   "settings_host_repeater_filter_age": "Message age limit (minutes)",
-  "settings_host_repeater_filter_age_desc": "Drop group texts stamped more than this many minutes ago (1-10080, 0 = off). Only Public and watched channels can be read. Leave a margin for senders whose clock runs behind.",
+  "settings_host_repeater_filter_age_desc": "Drop group texts stamped more than this many minutes ago or ahead (1-10080, 0 = off). Only Public and watched channels can be read. Leave a margin for senders whose clock runs behind or fast.",
   "settings_host_repeater_filter_paths_heading": "Blocked path prefixes",
   "settings_host_repeater_filter_paths_desc": "Drop floods relayed by a repeater whose ID starts with one of these (2-8 hex digits, max 8). A prefix only matches whole path entries: A1B2 never matches the 1-byte hops A1 then B2. Short prefixes also catch other repeaters with the same start.",
   "settings_host_repeater_filter_path_placeholder": "Hex prefix",

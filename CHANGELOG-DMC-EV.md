@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-04 (message details + age limit, feat/message-details-age-future)
+
+### Chat
+- The message route dialog (opened from a message's hop count or tick) has a
+  **Details** block: the sender's own send time next to the receive time, hop
+  count, path hash size and region. The send time is shown as the sender
+  stamped it; when it is a minute or more off the receive time it says by how
+  much (for example "sender clock 2d 8h ahead"). Outgoing messages show the
+  send time and path hash size only.
+
+### Host repeater
+- The DMC filter's message age limit (`filter_age_minutes`) now also drops
+  group texts stamped more than the limit in the future. The DMC firmware's
+  `MessageAge::tooOld` lets every future stamp through and leaves it to the
+  malformed scan's one-week window, so a sender clock days ahead slipped past
+  the limit. This is a deliberate deviation from the firmware.
+
 ## Update 2026-11-04 (antenna test, feat/antenna-test)
 
 Compare antennas on the connected radio by tracing nearby nodes. Migration

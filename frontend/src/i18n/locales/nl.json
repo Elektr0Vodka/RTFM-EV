@@ -4684,6 +4684,19 @@
     "other": "Berichtroutes ({count})"
   },
   "path_modal_title_status": "Berichtstatus",
+  "message_details_title": "Details",
+  "message_details_sent": "Verzonden",
+  "message_details_sent_title": "De eigen klok van de afzender, zoals gestempeld. RTFM-EV past die niet aan.",
+  "message_details_received": "Ontvangen",
+  "message_details_clock_ahead": "klok van afzender {offset} voor",
+  "message_details_clock_behind": "{offset} voordat het ontvangen werd",
+  "message_details_hops": "Sprongen",
+  "message_details_path_hash": "Pad-hash",
+  "message_details_bytes": {
+    "one": "{count} byte",
+    "other": "{count} bytes"
+  },
+  "message_details_region": "Regio",
   "path_modal_no_echoes": "Nog geen echo's gehoord. Echo's verschijnen wanneer repeaters je bericht opnieuw uitzenden.",
   "path_modal_single_route_prefix": "Dit toont ",
   "path_modal_single_route_emphasis": "één route",
@@ -5600,7 +5613,7 @@
   "settings_host_repeater_filter_advert_hours": "Advertvenster per node (uren)",
   "settings_host_repeater_filter_advert_hours_desc": "Stuur de flood-advert van elke node hooguit eens per zoveel uur door (0-720, 0 = uit). Draait vóór de ADVERT-snelheidslimiet, zodat een spraakzame node het budget van anderen niet opmaakt.",
   "settings_host_repeater_filter_age": "Maximale berichtleeftijd (minuten)",
-  "settings_host_repeater_filter_age_desc": "Drop groepsberichten met een tijdstempel van meer dan zoveel minuten geleden (1-10080, 0 = uit). Alleen Public en gevolgde kanalen zijn leesbaar. Houd marge voor afzenders met een achterlopende klok.",
+  "settings_host_repeater_filter_age_desc": "Drop groepsberichten met een tijdstempel van meer dan zoveel minuten geleden of in de toekomst (1-10080, 0 = uit). Alleen Public en gevolgde kanalen zijn leesbaar. Houd marge voor afzenders met een achterlopende of voorlopende klok.",
   "settings_host_repeater_filter_paths_heading": "Geblokkeerde padprefixen",
   "settings_host_repeater_filter_paths_desc": "Drop floods die zijn doorgegeven door een repeater waarvan de ID met een van deze begint (2-8 hex-tekens, max 8). Een prefix matcht alleen hele padvermeldingen: A1B2 matcht nooit de 1-byte hops A1 en dan B2. Korte prefixen vangen ook andere repeaters met hetzelfde begin.",
   "settings_host_repeater_filter_path_placeholder": "Hex-prefix",

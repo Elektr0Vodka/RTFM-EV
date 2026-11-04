@@ -2937,6 +2937,7 @@ export function MessageList({
                 }
               : undefined
           }
+          message={messages.find((entry) => entry.id === selectedPath.messageId)}
         />
       )}
       {shareTarget && shareBuild && (
