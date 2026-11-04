@@ -33,6 +33,11 @@ import { useTraceShareBuild } from '../share/cards/useTraceShare';
 const TraceRouteMap = lazy(() =>
   import('./TraceRouteMap').then((m) => ({ default: m.TraceRouteMap }))
 );
+const AntennaTestPanel = lazy(() =>
+  import('./antennaTest/AntennaTestPanel').then((m) => ({ default: m.AntennaTestPanel }))
+);
+
+type TracePaneTab = 'path' | 'antenna';
 
 type TraceSortMode = 'alpha' | 'recent' | 'distance' | 'traced';
 type CustomHopBytes = 1 | 2 | 4;
@@ -248,6 +253,21 @@ function TraceNodeRow({
 
 export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) {
   const t = useT();
+  const [tab, setTab] = useState<TracePaneTab>('path');
+  // Mounted on first open, then kept (hidden) so a running antenna test
+  // survives a switch to the path tab.
+  const [antennaMounted, setAntennaMounted] = useState(false);
+  const selectTab = (next: TracePaneTab) => {
+    setTab(next);
+    if (next === 'antenna') setAntennaMounted(true);
+  };
+  const tabButtonClass = (active: boolean) =>
+    cn(
+      'border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+      active
+        ? 'border-primary text-foreground'
+        : 'border-transparent text-muted-foreground hover:text-foreground'
+    );
   const { distanceUnit } = useDistanceUnit();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<TraceSortMode>('alpha');
@@ -559,11 +579,48 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
       <div className="shrink-0 border-b border-border px-4 py-3">
         <h2 className="text-base font-semibold">{t('nav_trace')}</h2>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          {t('trace_intro_description')}
+          {tab === 'path' ? t('trace_intro_description') : t('antenna_test_intro')}
         </p>
+        <div className="-mb-3 mt-1.5 flex gap-1" role="tablist" aria-label={t('nav_trace')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'path'}
+            className={tabButtonClass(tab === 'path')}
+            onClick={() => selectTab('path')}
+          >
+            {t('antenna_test_tab_path')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'antenna'}
+            className={tabButtonClass(tab === 'antenna')}
+            onClick={() => selectTab('antenna')}
+          >
+            {t('antenna_test_tab_antenna')}
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:min-h-0 lg:flex-row lg:overflow-hidden">
+      {antennaMounted ? (
+        <div className={cn('flex flex-1 flex-col lg:min-h-0', tab !== 'antenna' && 'hidden')}>
+          <Suspense
+            fallback={
+              <div className="p-4 text-sm text-muted-foreground">{t('common_loading')}</div>
+            }
+          >
+            <AntennaTestPanel contacts={contacts} config={config} />
+          </Suspense>
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          'flex flex-1 flex-col gap-4 p-4 lg:min-h-0 lg:flex-row lg:overflow-hidden',
+          tab !== 'path' && 'hidden'
+        )}
+      >
         <section className="flex w-full flex-col rounded-lg border border-border bg-card lg:min-h-0 lg:max-w-[24rem]">
           <div className="shrink-0 border-b border-border p-4">
             <h3 className="text-sm font-semibold">{t('trace_repeater_hops_heading')}</h3>

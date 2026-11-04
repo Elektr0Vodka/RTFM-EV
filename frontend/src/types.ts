@@ -2910,6 +2910,77 @@ export interface TraceResponse {
   path_len: number;
 }
 
+/** One direct trace in an antenna test. `replied` false = no trace response heard. */
+export interface AntennaTestAttempt {
+  replied: boolean;
+  remote_snr: number | null;
+  local_snr: number | null;
+}
+
+/** One node's trace attempts, as the browser sends them to be saved. */
+export interface AntennaTestNodeResult {
+  public_key: string;
+  name: string | null;
+  distance_km: number | null;
+  attempts: AntennaTestAttempt[];
+}
+
+export interface AntennaTestRunCreate {
+  antenna: string;
+  notes: string;
+  radio_public_key: string | null;
+  radio_name: string | null;
+  traces_per_node: number;
+  started_at: number;
+  finished_at: number;
+  results: AntennaTestNodeResult[];
+}
+
+export interface AntennaTestSnrStats {
+  avg: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+export interface AntennaTestNodeStats {
+  public_key: string;
+  name: string | null;
+  distance_km: number | null;
+  attempts: number;
+  replies: number;
+  reply_rate: number;
+  /** How well the node heard us (our transmit side). */
+  remote_snr: AntennaTestSnrStats;
+  /** How well we heard the node (our receive side). */
+  local_snr: AntennaTestSnrStats;
+}
+
+export interface AntennaTestSummary {
+  nodes: number;
+  nodes_replied: number;
+  attempts: number;
+  replies: number;
+  reply_rate: number;
+  remote_snr_avg: number | null;
+  local_snr_avg: number | null;
+}
+
+export interface AntennaTestRunSummary {
+  id: number;
+  antenna: string;
+  notes: string;
+  radio_public_key: string | null;
+  radio_name: string | null;
+  traces_per_node: number;
+  started_at: number;
+  finished_at: number;
+  summary: AntennaTestSummary;
+}
+
+export interface AntennaTestRunDetail extends AntennaTestRunSummary {
+  nodes: AntennaTestNodeStats[];
+}
+
 export interface RadioTraceNode {
   role: 'repeater' | 'custom' | 'local';
   public_key: string | null;

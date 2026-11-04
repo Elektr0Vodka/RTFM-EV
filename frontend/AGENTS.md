@@ -178,7 +178,8 @@ frontend/src/
 │   ├── FleetTemplatesView.tsx  # Tools view "Fleet" > Config templates (#fleet/templates): list, JSON document editor, variables
 │   ├── FleetOnboardView.tsx    # Tools view "Fleet" > Onboard a device (#fleet/onboard): the USB onboarding wizard (plan 32 phase 6)
 │   ├── MapView.tsx
-│   ├── TracePane.tsx           # Multi-hop route trace builder/results view
+│   ├── TracePane.tsx           # Trace page: Path trace tab (multi-hop route trace builder/results) + Antenna test tab
+│   ├── antennaTest/            # Antenna test tab: AntennaTestPanel (setup, run, saved runs), AntennaTestReport (report + compare), antennaTestRunner (direct traces round by round; 422 = missed reply, other errors stop), antennaTestCandidates (repeaters/rooms, direct-heard pre-selected via latestAdvertHops)
 │   ├── VisualizerView.tsx
 │   ├── PacketVisualizer3D.tsx
 │   ├── PathModal.tsx

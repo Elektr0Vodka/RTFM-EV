@@ -66,6 +66,7 @@ from app.radio_sync import (
 )
 from app.routers import (
     antenna_register,
+    antenna_test,
     backup,
     bot_lists,
     channel_sets,
@@ -449,6 +450,7 @@ app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
 app.include_router(antenna_register.router, prefix="/api")
+app.include_router(antenna_test.router, prefix="/api")
 app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(spam.router, prefix="/api")
