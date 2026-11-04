@@ -3789,6 +3789,12 @@ export interface SpamGuardChannel {
    * means on, as the server defaults it.
    */
   drop_bots?: boolean;
+  /**
+   * Spam detection reads this channel. Off makes it a bots-only channel: no
+   * automatic blocks and no spam flag, only the bot list rule. Left out means
+   * on, as the server defaults it.
+   */
+  detect?: boolean;
 }
 
 /** Every detection tunable; the backend bounds are in `app/spam/settings.py`. */

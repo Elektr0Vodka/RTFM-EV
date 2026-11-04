@@ -150,6 +150,26 @@ class TestIngest:
         assert not feed.runtime.detector.events
 
     @pytest.mark.asyncio
+    async def test_a_bots_only_channel_is_not_read(self, feed):
+        config = SpamConfig(
+            channels=[
+                {"key": PUBLIC, "name": "Public"},
+                {"key": OTHER, "name": "#other", "detect": False},
+            ]
+        )
+        assert await feed.runtime.save_config(feed.runtime.version, config) is not None
+        for _ in range(3):
+            # Repeats and a campaign: nothing is made of them on this channel.
+            for name in GENERATED:
+                await feed.say(name, SPAM, channel=OTHER)
+        assert not any((await feed.spam_flags(OTHER)).values())
+        assert not feed.runtime.detector.events
+        assert not feed.runtime.detector.blocks
+        # The other protected channel is still read.
+        await feed.say("Dave", "evening all")
+        assert len(feed.runtime.detector.events) == 1
+
+    @pytest.mark.asyncio
     async def test_historical_decryption_is_not_analysed(self, feed):
         for name in GENERATED:
             await feed.say(name, SPAM, realtime=False)
@@ -441,6 +461,19 @@ class TestFreshStartSeed:
             await self.store("UD6DWREK", NOW - 500 + offset)
         runtime = await self.fresh_runtime(monkeypatch)
         assert runtime.detector.known == {"Dave": [NOW - 3600, NOW - 3597, 4]}
+        await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_a_bots_only_channel_teaches_no_regulars(self, test_db, monkeypatch):
+        await ChannelRepository.upsert(key=PUBLIC, name="Public")
+        await SpamGuardConfigRepository.save(
+            0,
+            SpamConfig(channels=[{"key": PUBLIC, "name": "Public", "detect": False}]).model_dump(),
+        )
+        for offset in range(4):
+            await self.store("Dave", NOW - 3600 + offset)
+        runtime = await self.fresh_runtime(monkeypatch)
+        assert runtime.detector.known == {}
         await runtime.stop()
 
     @pytest.mark.asyncio
@@ -830,6 +863,18 @@ class TestBotForward:
         # Only the channel with bot rules on counts.
         assert runtime.bot_forward() == {"state": "active", "channels": 1, "names": 2}
         assert self.managed(feed) == [f"spam:bots:{PUBLIC} (bot list)"]
+
+        bots_only = SpamConfig(
+            mode="protect",
+            channels=[
+                {"key": PUBLIC, "name": "P", "drop_bots": False},
+                {"key": OTHER, "name": "#o", "detect": False},
+            ],
+        )
+        assert await runtime.save_config(runtime.version, bots_only) is not None
+        # A channel spam detection does not read still gets the bot rule.
+        assert runtime.bot_forward() == {"state": "active", "channels": 1, "names": 2}
+        assert self.managed(feed) == [f"spam:bots:{OTHER} (bot list)"]
 
         none = SpamConfig(
             mode="protect", channels=[{"key": PUBLIC, "name": "P", "drop_bots": False}]

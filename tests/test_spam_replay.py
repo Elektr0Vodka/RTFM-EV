@@ -79,6 +79,16 @@ class TestOutcome:
         assert result["stopped"] == 0
         assert result["first_ts"] is None
 
+    def test_a_bots_only_channel_is_left_out(self):
+        bots_only = SpamConfig(
+            overrides=TEXT_ONLY,
+            channels=[{"key": PUBLIC, "name": "Public", "detect": False}],
+        )
+        result = replay(campaign(), bots_only)
+        assert result["messages"] == 0
+        assert result["stopped"] == 0
+        assert result["blocks"] == {}
+
     def test_a_block_that_ran_out_no_longer_stops_anything(self):
         records = [*campaign(), msg(4, "Dave", f"{SPAM} later")]
         records[-1]["ts"] = NOW + 10 * 86400  # long after the text block ended

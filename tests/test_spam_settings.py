@@ -126,6 +126,17 @@ def test_channel_key_normalised():
         SpamConfig(channels=[{"key": "nothex", "name": "x"}])
 
 
+def test_detection_is_on_per_channel_unless_turned_off():
+    cfg = SpamConfig(
+        channels=[
+            {"key": PUBLIC, "name": "Public"},
+            {"key": "AA" * 16, "name": "#test", "detect": False},
+        ]
+    )
+    assert [c.detect for c in cfg.channels] == [True, False]
+    assert cfg.detected_channels() == {PUBLIC}
+
+
 def test_short_allowed_text_rejected():
     with pytest.raises(ValidationError):
         SpamConfig(allow_texts=["ab"])
