@@ -209,6 +209,34 @@ class MessageRepository:
                 return cursor.rowcount
 
     @staticmethod
+    async def get_future_stamped_channel_rows() -> list[dict]:
+        """Incoming channel text rows stamped after they were received.
+
+        The only rows the malformed clock-ahead limit can change.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT id, text, sender_name, sender_timestamp, received_at, "
+                "malformed, malformed_reason FROM messages "
+                "WHERE type = 'CHAN' AND outgoing = 0 AND COALESCE(txt_type, 0) = 0 "
+                "AND sender_timestamp IS NOT NULL AND sender_timestamp > received_at"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    async def set_malformed(updates: list[tuple[int, bool, str | None]]) -> int:
+        """Write ``(id, malformed, malformed_reason)`` per row; returns rows written."""
+        if not updates:
+            return 0
+        async with db.tx() as conn:
+            await conn.executemany(
+                "UPDATE messages SET malformed = ?, malformed_reason = ? WHERE id = ?",
+                [(1 if flag else 0, reason, msg_id) for msg_id, flag, reason in updates],
+            )
+        return len(updates)
+
+    @staticmethod
     async def set_duplicate(message_ids: list[int], duplicate: bool = True) -> list[int]:
         """Set or clear the duplicate marker; returns the ids whose marker actually changed."""
         if not message_ids:

@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.channel_constants import is_public_channel_key
+from app.malformed import MAX_CLOCK_AHEAD_MINUTES
 from app.models import (
     BATTERY_CHEMISTRIES,
     CONTACT_TYPE_REPEATER,
@@ -29,6 +30,7 @@ from app.repository import (
     ContactRepository,
     MentionSoundRepository,
 )
+from app.services.malformed_clock import rescan_clock_ahead
 from app.services.name_filter import rescan_messages
 from app.services.ollama_summary import OllamaConfigError, normalize_ollama_base_url
 from app.telemetry_interval import (
@@ -528,6 +530,15 @@ class AppSettingsUpdate(BaseModel):
             "messages. An invalid pattern is refused with a 400."
         ),
     )
+    malformed_clock_ahead_minutes: int | None = Field(
+        default=None,
+        ge=0,
+        le=MAX_CLOCK_AHEAD_MINUTES,
+        description=(
+            "Flag incoming channel messages stamped more than this many minutes after they "
+            "were received as malformed (0 = off). Re-checks stored messages."
+        ),
+    )
     hide_name_filtered: bool | None = Field(
         default=None,
         description=(
@@ -959,6 +970,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.hide_name_filtered is not None:
         kwargs["hide_name_filtered"] = update.hide_name_filtered
 
+    if update.malformed_clock_ahead_minutes is not None:
+        kwargs["malformed_clock_ahead_minutes"] = update.malformed_clock_ahead_minutes
+
     if update.ollama_enabled is not None:
         logger.info("Updating ollama_enabled to %s", update.ollama_enabled)
         kwargs["ollama_enabled"] = update.ollama_enabled
@@ -1280,6 +1294,8 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         # Stored messages follow the new list before the answer goes out.
         if "name_filter_patterns" in kwargs:
             await rescan_messages()
+        if "malformed_clock_ahead_minutes" in kwargs:
+            await rescan_clock_ahead()
 
         return result
 

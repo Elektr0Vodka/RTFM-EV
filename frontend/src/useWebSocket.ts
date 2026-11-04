@@ -204,7 +204,10 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
               handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam, msg.data.duplicate);
             }
             break;
+          // Stored flags changed on the server (name patterns, or the malformed
+          // clock-ahead limit): the loaded messages are reloaded either way.
           case 'name_filter_applied':
+          case 'malformed_applied':
             handlers.onNameFilterApplied?.();
             break;
           case 'bot_lists':

@@ -2,7 +2,9 @@
 
 Flags channel spam that is generated rather than typed: random code points
 from mixed Unicode blocks, sent by a node whose clock still runs from the
-firmware default. The flag is stored on the message (``messages.malformed``,
+firmware default. A message stamped further ahead of its receive time than the
+operator's limit (``app_settings.malformed_clock_ahead_minutes``, migration
+_169) is flagged too: a sender clock running fast. The flag is stored on the message (``messages.malformed``,
 migration _129) at ingest; the chat 'Hide malformed messages' filter
 (``app_settings.hide_malformed``) hides flagged messages and keeps them out of
 unread counts, mentions and Web Push. Nothing is dropped.
@@ -19,6 +21,11 @@ DEFAULT_CLOCK_WINDOW_SECONDS = 30 * 86400
 # A message genuinely sent in that window and received back then is fine; the
 # signature is a default-epoch timestamp on a message that arrives much later.
 _DEFAULT_CLOCK_MIN_SKEW_SECONDS = 7 * 86400
+
+# A sender stamp more than this many minutes ahead of the receive time is a
+# clock running fast (operator setting, 0 = off). Default and upper bound.
+DEFAULT_CLOCK_AHEAD_MINUTES = 60
+MAX_CLOCK_AHEAD_MINUTES = 10080
 
 # Script family of a letter, keyed by the first word of its Unicode name.
 # Kana, Han and Hangul share one family because real East Asian text mixes
@@ -93,22 +100,44 @@ def has_default_clock(sender_timestamp: int | None, received_at: int) -> bool:
     return received_at - sender_timestamp > _DEFAULT_CLOCK_MIN_SKEW_SECONDS
 
 
-def is_malformed_channel_message(body: str, sender_timestamp: int | None, received_at: int) -> bool:
+def has_clock_ahead(
+    sender_timestamp: int | None, received_at: int, clock_ahead_minutes: int
+) -> bool:
+    """Whether the sender stamp is more than *clock_ahead_minutes* ahead (0 = off)."""
+    if sender_timestamp is None or clock_ahead_minutes <= 0:
+        return False
+    return sender_timestamp - received_at > clock_ahead_minutes * 60
+
+
+def _bad_clock(sender_timestamp: int | None, received_at: int, clock_ahead_minutes: int) -> bool:
+    return has_default_clock(sender_timestamp, received_at) or has_clock_ahead(
+        sender_timestamp, received_at, clock_ahead_minutes
+    )
+
+
+def is_malformed_channel_message(
+    body: str, sender_timestamp: int | None, received_at: int, clock_ahead_minutes: int = 0
+) -> bool:
     """Whether an incoming channel text message should be flagged as malformed.
 
-    *body* is the message text without the ``sender: `` prefix.
+    *body* is the message text without the ``sender: `` prefix. The clock-ahead
+    check is off unless *clock_ahead_minutes* is given, so the older migrations
+    that call this keep the rule they shipped with.
     """
-    return is_gibberish_text(body) or has_default_clock(sender_timestamp, received_at)
+    return is_gibberish_text(body) or _bad_clock(sender_timestamp, received_at, clock_ahead_minutes)
 
 
-def malformed_reason(body: str, sender_timestamp: int | None, received_at: int) -> str | None:
+def malformed_reason(
+    body: str, sender_timestamp: int | None, received_at: int, clock_ahead_minutes: int = 0
+) -> str | None:
     """Why a channel message is malformed: ``text``, ``clock``, ``both`` or None.
 
     Not None exactly when ``is_malformed_channel_message`` is true. Stored on
     the message (``messages.malformed_reason``, migration _148) for statistics.
+    A clock that is ahead counts as ``clock``, like one never set.
     """
     text = is_gibberish_text(body)
-    clock = has_default_clock(sender_timestamp, received_at)
+    clock = _bad_clock(sender_timestamp, received_at, clock_ahead_minutes)
     if text and clock:
         return "both"
     if text:

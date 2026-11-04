@@ -237,6 +237,15 @@ describe('useWebSocket dispatch', () => {
     expect(onNameFilterApplied).toHaveBeenCalledOnce();
   });
 
+  it('routes malformed_applied to the same reload as the name filter', () => {
+    const onNameFilterApplied = vi.fn();
+    renderHook(() => useWebSocket({ onNameFilterApplied }));
+
+    fireMessage({ type: 'malformed_applied', data: { changed: 2 } });
+
+    expect(onNameFilterApplied).toHaveBeenCalledOnce();
+  });
+
   it('routes message_spam to onMessageSpam', () => {
     const onMessageSpam = vi.fn();
     renderHook(() => useWebSocket({ onMessageSpam }));
