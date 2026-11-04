@@ -197,6 +197,10 @@ class ProtectedChannel(BaseModel):
     # leaves listed bots alone here, so a channel can be protected without one
     # more rule per channel on the backend.
     drop_bots: bool = True
+    # Spam detection reads this channel's messages. Off makes a bots-only
+    # channel: no duplicate, flood or other automatic blocks and no spam flag
+    # in chat, while ``drop_bots`` still gives it the bot list rule.
+    detect: bool = True
 
     @field_validator("key")
     @classmethod
@@ -261,6 +265,10 @@ class SpamConfig(BaseModel):
     def shareable_channels(self) -> set[str]:
         """Keys of the channels that may appear in rules written to an OpenHop node."""
         return {c.key for c in self.channels if c.key_is_public or c.share_key}
+
+    def detected_channels(self) -> set[str]:
+        """Keys of the channels whose messages spam detection reads."""
+        return {c.key for c in self.channels if c.detect}
 
 
 def effective(config: SpamConfig) -> SpamTunables:

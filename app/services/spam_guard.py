@@ -127,6 +127,7 @@ class SpamGuardRuntime:
         # Names the bot lists want kept off the air (``BotListService`` hands them over).
         self.bot_senders: tuple[str, ...] = ()
         self._channel_keys: frozenset[str] = frozenset()
+        self._detect_keys: frozenset[str] = frozenset()
         self._channel_names: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._dirty = False
@@ -138,6 +139,9 @@ class SpamGuardRuntime:
 
     def _index_channels(self) -> None:
         self._channel_keys = frozenset(channel.key for channel in self.config.channels)
+        # Bots-only channels (``detect`` off) stay protected for the bot rule
+        # but are not read by the detector.
+        self._detect_keys = frozenset(self.config.detected_channels())
         self._channel_names = {channel.key: channel.name for channel in self.config.channels}
 
     async def load(self) -> None:
@@ -180,7 +184,7 @@ class SpamGuardRuntime:
         since = int(self._clock()) - SEED_KNOWN_SECONDS
         try:
             rows = await MessageRepository.channel_sender_counts(
-                [channel.key for channel in self.config.channels], since
+                sorted(self.config.detected_channels()), since
             )
         except Exception:
             logger.warning("Could not read stored chat to learn known people", exc_info=True)
@@ -405,7 +409,7 @@ class SpamGuardRuntime:
         message, so a block it confirms does not count it as caught.
         ``malformed`` is the chat filter's verdict (``app/malformed.py``).
         """
-        if not (self.enabled and self.loaded) or channel_key.upper() not in self._channel_keys:
+        if not (self.enabled and self.loaded) or channel_key.upper() not in self._detect_keys:
             return MessageVerdict()
         try:
             async with self._lock:

@@ -22,7 +22,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from app.spam.detector import SpamDetector
-from app.spam.evidence import RECORD_LABEL, RECORD_MESSAGE
+from app.spam.evidence import RECORD_LABEL, RECORD_MESSAGE, channel_id
 from app.spam.settings import SpamConfig
 
 # The live runtime looks at expiry and settling at least this often.
@@ -73,8 +73,11 @@ def replay(
     ``scrambled``: the names are codes, so the recorded name signals are used
     instead of judging the codes.
     """
+    # A bots-only channel (``detect`` off) is not read live, so not here either.
+    skipped = {channel_id(c.key) for c in config.channels if not c.detect}
     messages = sorted(
-        (r for r in records if r.get("type") == RECORD_MESSAGE), key=lambda r: r["ts"]
+        (r for r in records if r.get("type") == RECORD_MESSAGE and r.get("channel") not in skipped),
+        key=lambda r: r["ts"],
     )
     verdicts = _labels(records)
     clock = _Clock()
