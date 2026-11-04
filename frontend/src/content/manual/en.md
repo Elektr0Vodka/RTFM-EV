@@ -467,6 +467,8 @@ A 3D graph of the mesh built from live packets. Nodes are spheres and packets ar
 
 Build a loop of repeaters and trace it back to your radio. Search repeaters by name or key and add them in the order to traverse, or add a custom hop as a 1, 2 or 4 byte prefix. Then **Send trace**. Results show the SNR per hop and a small map. This transmits over RF.
 
+The **Antenna test** tab compares antennas on your radio. Enter the antenna's name, pick the nodes (repeaters and room servers your radio heard directly are already ticked), and press **Start test**. Each node gets a few direct traces, one at a time. For each trace RTFM-EV notes how well the node heard you (TX) and how well you heard it back (RX); no answer counts as a missed reply. The finished run is saved with a report: nodes that replied, reply rate, average TX and RX SNR, and a table per node. Swap the antenna, run again with the same nodes, then tick two or more saved runs to compare them side by side. This transmits over RF, and leaving the Trace page stops a running test.
+
 ### Message Search
 
 Full-text search across direct and channel messages. Use `user:` or `channel:` to narrow results (put names with spaces in quotes). `region:` filters by the region a message was sent with: a region name, `region:none` for messages sent without a region, or `region:unknown` for a region this app cannot name. Click a result to jump to that message.

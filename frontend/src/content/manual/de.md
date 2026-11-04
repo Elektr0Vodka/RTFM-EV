@@ -467,6 +467,8 @@ Ein 3D-Graph des Mesh, aufgebaut aus Live-Paketen. Knoten sind Kugeln, Pakete si
 
 Baue eine Schleife aus Repeatern und verfolge sie zurück zu deinem Funkgerät. Suche Repeater nach Name oder Schlüssel und füge sie in der Reihenfolge hinzu, in der sie durchlaufen werden sollen, oder füge einen eigenen Hop als Präfix mit 1, 2 oder 4 Bytes hinzu. Wähle dann **Trace senden**. Die Ergebnisse zeigen das SNR pro Hop und eine kleine Karte. Dabei wird über Funk gesendet.
 
+Der Reiter **Antennentest** vergleicht Antennen an deinem Funkgerät. Gib den Namen der Antenne ein, wähle die Nodes (Repeater und Room-Server, die dein Funkgerät direkt gehört hat, sind schon angehakt) und wähle **Test starten**. Jeder Node bekommt ein paar direkte Traces, einen nach dem anderen. Für jeden Trace notiert RTFM-EV, wie gut der Node dich gehört hat (TX) und wie gut du die Antwort gehört hast (RX); keine Antwort zählt als verpasst. Der fertige Lauf wird mit einem Bericht gespeichert: Nodes mit Antwort, Antwortquote, durchschnittliche TX- und RX-SNR und eine Tabelle pro Node. Tausche die Antenne, starte erneut mit denselben Nodes und hake dann zwei oder mehr gespeicherte Läufe an, um sie nebeneinander zu vergleichen. Dabei wird über Funk gesendet, und wenn du die Trace-Seite verlässt, stoppt ein laufender Test.
+
 ### Nachrichtensuche
 
 Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenzt du die Ergebnisse ein (Namen mit Leerzeichen in Anführungszeichen setzen). `region:` filtert nach der Region, mit der eine Nachricht gesendet wurde: ein Regionsname, `region:none` für Nachrichten ohne Region oder `region:unknown` für eine Region, die diese App nicht benennen kann. Klicke auf ein Ergebnis, um zu dieser Nachricht zu springen.

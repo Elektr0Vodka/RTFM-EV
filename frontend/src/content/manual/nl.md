@@ -467,6 +467,8 @@ Een 3D-grafiek van de mesh, opgebouwd uit live pakketten. Nodes zijn bollen en p
 
 Bouw een lus van repeaters en trace die terug naar je radio. Zoek repeaters op naam of sleutel en voeg ze toe in de volgorde waarin ze doorlopen moeten worden, of voeg een eigen hop toe als prefix van 1, 2 of 4 bytes. Kies daarna **Trace versturen**. De resultaten tonen de SNR per hop en een kleine kaart. Dit verstuurt iets via RF.
 
+Het tabblad **Antennetest** vergelijkt antennes op je radio. Vul de naam van de antenne in, kies de nodes (repeaters en roomservers die je radio direct hoorde staan al aangevinkt) en kies **Test starten**. Elke node krijgt een paar directe traces, één tegelijk. Per trace noteert RTFM-EV hoe goed de node jou hoorde (TX) en hoe goed jij het antwoord hoorde (RX); geen antwoord telt als gemist. De afgeronde run wordt opgeslagen met een rapport: nodes die antwoordden, antwoordpercentage, gemiddelde TX- en RX-SNR en een tabel per node. Wissel de antenne, draai opnieuw met dezelfde nodes en vink daarna twee of meer opgeslagen runs aan om ze naast elkaar te vergelijken. Dit verstuurt iets via RF, en als je de Trace-pagina verlaat stopt een lopende test.
+
 ### Berichten zoeken
 
 Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `user:` of `channel:` om te verfijnen (zet namen met spaties tussen aanhalingstekens). `region:` filtert op de regio waarmee een bericht is verzonden: een regionaam, `region:none` voor berichten zonder regio, of `region:unknown` voor een regio die deze app niet kan benoemen. Klik op een resultaat om naar dat bericht te springen.

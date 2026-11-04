@@ -11,6 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-04 (antenna test, feat/antenna-test)
+
+Compare antennas on the connected radio by tracing nearby nodes. Migration
+`_168`, next free `_169`.
+
+### Trace
+- The Trace page has two tabs: **Path trace** (the existing loop trace) and
+  **Antenna test**. A test run sends direct (zero-hop) traces to the selected
+  repeaters and room servers, round by round, with a pause between traces
+  (default 3 traces per node, 2 s pause). Each trace records how well the node
+  heard you (TX, remote SNR) and how well you heard it (RX, local SNR); a trace
+  with no answer counts as a missed reply. Any other error, such as the radio
+  disconnecting, stops the run and offers to save what ran.
+- Nodes whose latest heard advert came in direct (0 hops) are selected by
+  default. Companions are not offered: firmware only answers a trace when the
+  node forwards packets.
+- Each run is saved under the antenna name you enter, with optional notes. The
+  report shows nodes that replied, reply rate and average TX/RX SNR, plus a
+  per-node table with min and max. Tick two or more saved runs to compare them
+  node by node; the best value per row is highlighted.
+- The browser sends the traces through the existing
+  `POST /api/contacts/{key}/trace`, so leaving the Trace page stops a run.
+  New `GET/POST /api/antenna-tests`, `GET/DELETE /api/antenna-tests/{id}`
+  store runs and compute reports (`antenna_test_runs`, `app/antenna_test_report.py`).
+
 ## Update 2026-11-01 (wardrive build font notices, fix/wardrive-font-notices)
 
 No change to the app.

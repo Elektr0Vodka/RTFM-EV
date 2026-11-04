@@ -173,6 +173,9 @@ import type {
   RadioRegionDiscoveryResponse,
   RadioTraceHopRequest,
   RadioTraceResponse,
+  AntennaTestRunCreate,
+  AntennaTestRunDetail,
+  AntennaTestRunSummary,
   RadioDiscoveryTarget,
   RadioIdentity,
   RadioIdentityList,
@@ -815,6 +818,17 @@ export const api = {
     fetchJson<TraceResponse>(`/contacts/${publicKey}/trace`, {
       method: 'POST',
     }),
+  // Antenna test runs (Trace page). The traces go out through requestTrace;
+  // these only store finished runs and read their reports.
+  listAntennaTests: () => fetchJson<AntennaTestRunSummary[]>('/antenna-tests'),
+  getAntennaTest: (runId: number) => fetchJson<AntennaTestRunDetail>(`/antenna-tests/${runId}`),
+  saveAntennaTest: (run: AntennaTestRunCreate) =>
+    fetchJson<AntennaTestRunDetail>('/antenna-tests', {
+      method: 'POST',
+      body: JSON.stringify(run),
+    }),
+  deleteAntennaTest: (runId: number) =>
+    fetchJson<{ deleted: boolean }>(`/antenna-tests/${runId}`, { method: 'DELETE' }),
   requestPathDiscovery: (publicKey: string) =>
     fetchJson<PathDiscoveryResponse>(`/contacts/${publicKey}/path-discovery`, {
       method: 'POST',
