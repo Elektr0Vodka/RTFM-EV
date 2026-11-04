@@ -28,6 +28,25 @@ the change. Upstream development is on hold; the fork is the active repository.
   malformed scan's one-week window, so a sender clock days ahead slipped past
   the limit. This is a deliberate deviation from the firmware.
 
+## Update 2026-11-04 (Spam Guard bots-only channels, feat/spam-guard-bots-only-channel)
+
+Block only listed bots on a channel, without spam detection there. No
+migration: the setting is stored in the Spam Guard settings document.
+
+### Spam Guard
+- Each protected channel has a **Detect spam here** checkbox
+  (`ProtectedChannel.detect`, on by default, so existing setups are
+  unchanged). Unticked, the channel is bots only: Spam Guard no longer reads
+  its messages, so it makes no duplicate, flood, repeat or other automatic
+  blocks for it and flags nothing there as spam. **Block listed bots here**
+  still gives it the bot list rule, and a block made by hand for all
+  protected channels still covers it.
+- Known people are no longer learnt from the stored chat of a bots-only
+  channel, and an evidence replay leaves its messages out, so a replay of the
+  unsaved settings shows the effect of unticking the box.
+- Requested on Discord: a bot channel such as #test kept getting duplicate
+  rules although it carries no spam traffic.
+
 ## Update 2026-11-04 (antenna test, feat/antenna-test)
 
 Compare antennas on the connected radio by tracing nearby nodes. Migration
