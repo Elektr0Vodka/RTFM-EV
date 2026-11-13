@@ -9,7 +9,7 @@ export type TunableSpec =
       type: 'int';
       min: number;
       max: number;
-      unit?: 'seconds' | 'days' | 'percent';
+      unit?: 'seconds' | 'hours' | 'days' | 'percent';
     }
   | { key: TunableKey; type: 'choice'; choices: string[] }
   | { key: TunableKey; type: 'patterns' };
@@ -95,7 +95,7 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
       { key: 'long_window_seconds', type: 'int', min: 600, max: 86400, unit: 'seconds' },
       { key: 'block_ttl_seconds', type: 'int', min: 300, max: 315360000, unit: 'seconds' },
       { key: 'hop_block_ttl_seconds', type: 'int', min: 600, max: 315360000, unit: 'seconds' },
-      { key: 'spam_text_days', type: 'int', min: 0, max: 7, unit: 'days' },
+      { key: 'spam_text_hours', type: 'int', min: 0, max: 168, unit: 'hours' },
       { key: 'max_total_rules', type: 'int', min: 20, max: 500 },
       { key: 'auto_protect', type: 'bool' },
     ],
@@ -109,8 +109,9 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
   },
 ];
 
-export const UNIT_KEYS: Record<'seconds' | 'days' | 'percent', string> = {
+export const UNIT_KEYS: Record<'seconds' | 'hours' | 'days' | 'percent', string> = {
   seconds: 'spam_unit_seconds',
+  hours: 'spam_unit_hours',
   days: 'spam_unit_days',
   percent: 'spam_unit_percent',
 };

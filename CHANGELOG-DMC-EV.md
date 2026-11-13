@@ -11,6 +11,41 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-13 (packet history channel, trusted name lists, feat/packet-feed-trusted-names)
+
+Migration `_170`, next free `_171`.
+
+### Packets
+- **Packet history** titles a decrypted channel message as the live feed does:
+  `GT from <sender> in <channel> via ...`. The history and recent endpoints
+  now fill `decrypted_info` from the linked message and its channel.
+
+### Chat
+- **Hide duplicates** in the chat filter menu hides the messages that carry
+  the Duplicate marker (caught by Spam Guard duplicate suppression). Your own
+  messages stay. Migration `_170` adds the saved setting
+  (`app_settings.hide_duplicates`). Unread counts and notifications do not
+  follow it.
+
+### Spam Guard
+- **Remember spam texts for** is set in hours (0 to 168) instead of days, so
+  half a day is possible. A saved days value is read as hours times 24
+  (`spam_text_days` became `spam_text_hours`), also in saved profiles.
+- **Trusted contacts**: the name of every stored client contact heard by
+  advert counts as a trusted name (the most recently heard 2000). The list
+  follows the contacts by itself, is shown in Settings > Exceptions, and can be
+  switched off (`trust_contacts`). Names can be faked and anyone can send an
+  advert, so the list has a warning. A contact name does not open a blocked
+  route by itself; only a name on your own Trusted names list does that.
+- **Never-trusted names**: a new exception list. A name on it is never learnt
+  as a known name and never trusted, also not as a contact, so it stays off
+  the Known people list and always counts as new. It is not blocked.
+- **Known people**: **Trust** became **Add to Trusted names**, and a trusted
+  name leaves the Known people list (it is on the Trusted names list in
+  Settings). **Never trust** is new on each row.
+- **Settings back to defaults** keeps the Trusted names and Never-trusted
+  names lists. Forget what was learnt already kept them.
+
 ## Update 2026-11-04 (malformed: sender clock ahead, feat/malformed-clock-ahead)
 
 Migration `_169`, next free `_170`.

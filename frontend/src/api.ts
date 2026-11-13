@@ -129,6 +129,7 @@ import type {
   SpamGuardMetrics,
   SpamGuardRules,
   SpamKnownList,
+  SpamContactList,
   SpamGuardSettings,
   SpamGuardState,
   OpenHopEnvelope,
@@ -551,6 +552,11 @@ export const api = {
   getSpamGuardKnown: (query: string, limit: number, offset = 0) =>
     fetchJson<SpamKnownList>(
       `/spam-guard/known?${new URLSearchParams({ q: query, limit: String(limit), offset: String(offset) })}`
+    ),
+  /** Names trusted as a stored contact, by name; `query` is part of a name. */
+  getSpamGuardContacts: (query: string, limit: number, offset = 0) =>
+    fetchJson<SpamContactList>(
+      `/spam-guard/contacts?${new URLSearchParams({ q: query, limit: String(limit), offset: String(offset) })}`
     ),
   getSpamGuardRules: (preview = false) =>
     fetchJson<SpamGuardRules>(`/spam-guard/rules${preview ? '?preview=true' : ''}`),

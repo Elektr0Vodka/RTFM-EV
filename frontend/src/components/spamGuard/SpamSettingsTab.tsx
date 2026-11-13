@@ -18,6 +18,7 @@ import { toast } from '../ui/sonner';
 import { BotForwardStatusLine } from './BotForwardStatusLine';
 import { SpamEvidenceSection } from './SpamEvidenceSection';
 import { SpamProfilesCard } from './SpamProfilesCard';
+import { SpamTrustedContactsCard } from './SpamTrustedContactsCard';
 import { TUNABLE_GROUPS, UNIT_KEYS, type TunableKey, type TunableSpec } from './spamGuardTunables';
 
 type TunableValue = SpamGuardTunables[TunableKey];
@@ -29,7 +30,7 @@ function sameValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** One exception list (trusted names, never-block repeaters, allowed texts). */
+/** One exception list (trusted or never-trusted names, never-block repeaters, allowed texts). */
 function ExceptionList({
   title,
   help,
@@ -130,6 +131,8 @@ export function SpamSettingsTab({
             allow_hops: state.settings.allow_hops,
             allow_senders: state.settings.allow_senders,
             allow_texts: state.settings.allow_texts,
+            deny_senders: state.settings.deny_senders,
+            trust_contacts: state.settings.trust_contacts,
           }
         : state.settings
     );
@@ -501,6 +504,17 @@ export function SpamSettingsTab({
           disabled={disabled}
           onAdd={(sender) => guard.action('allow_sender', { sender })}
           onRemove={(sender) => void guard.action('unallow_sender', { sender })}
+        />
+        <SpamTrustedContactsCard state={state} guard={guard} />
+        <ExceptionList
+          title={t('spam_exceptions_denied')}
+          help={t('spam_exceptions_denied_help')}
+          items={state.settings.deny_senders}
+          addLabel={t('spam_exceptions_add')}
+          removeLabel={(item) => t('spam_exceptions_remove', { item })}
+          disabled={disabled}
+          onAdd={(sender) => guard.action('deny_sender', { sender })}
+          onRemove={(sender) => void guard.action('undeny_sender', { sender })}
         />
         <ExceptionList
           title={t('spam_exceptions_hops')}

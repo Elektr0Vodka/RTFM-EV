@@ -1339,7 +1339,7 @@ class TestSpamNotOpinions:
         assert not det.blocks
 
     def test_text_blocks_last_at_most_a_week(self):
-        det, clock = make(overrides={"spam_text_days": 7, "block_ttl_seconds": 30 * 86400})
+        det, clock = make(overrides={"spam_text_hours": 168, "block_ttl_seconds": 30 * 86400})
         for name in GENERATED:
             say(det, clock, name, SPAM)
         det.decide()
@@ -1540,36 +1540,29 @@ class TestKnownList:
         det.action("allow_sender", sender="Carla")
         return det, clock
 
-    def test_most_recently_heard_first_with_trusted_names(self):
+    def test_most_recently_heard_first_without_trusted_names(self):
         det, clock = self.build()
+        det.set_contact_senders(["Anouk"])
         listed = det.known_list()
-        assert listed["total"] == 4
-        assert [p["name"] for p in listed["people"]] == ["Bram", "Carla", "Anouk", "Zeno"]
-        bram = listed["people"][0]
-        assert bram == {
+        # Carla and Zeno are on the trusted list, so they are not listed here.
+        assert listed["total"] == 2
+        assert [p["name"] for p in listed["people"]] == ["Bram", "Anouk"]
+        assert listed["people"][0] == {
             "name": "Bram",
             "genuine": 1,
             "first": clock.now - 900,
             "last": clock.now - 60,
             "known": False,
-            "trusted": False,
+            "contact": False,
         }
-        assert listed["people"][1]["trusted"] and listed["people"][1]["known"]
-        assert listed["people"][3] == {
-            "name": "Zeno",
-            "genuine": 0,
-            "first": None,
-            "last": None,
-            "known": True,
-            "trusted": True,
-        }
+        assert listed["people"][1]["contact"] and listed["people"][1]["known"]
 
     def test_search_and_pages(self):
         det, _ = self.build()
         assert [p["name"] for p in det.known_list(q="AN")["people"]] == ["Anouk"]
-        page = det.known_list(limit=2, offset=1)
-        assert page["total"] == 4
-        assert [p["name"] for p in page["people"]] == ["Carla", "Anouk"]
+        page = det.known_list(limit=1, offset=1)
+        assert page["total"] == 2
+        assert [p["name"] for p in page["people"]] == ["Anouk"]
 
     def test_forget_makes_someone_new_again(self):
         det, clock = self.build()
@@ -1581,6 +1574,90 @@ class TestKnownList:
         assert any(a["event"] == "known_forgotten" for a in det.activity)
         with pytest.raises(ValueError):
             det.action("forget_known", name="Nobody")
+
+
+class TestTrustLists:
+    def test_contact_name_counts_as_trusted(self):
+        det, clock = make()
+        assert det.set_contact_senders(["UD6DWREK", "Unknown", ""]) is True
+        assert det.set_contact_senders(["UD6DWREK"]) is False
+        assert det.trusts("UD6DWREK") and det.is_known("UD6DWREK")
+        assert say(det, clock, "UD6DWREK", "hello").random is False
+        assert "UD6DWREK" in det.known_names()
+        assert not det.trusts("Unknown")
+
+    def test_contact_trust_can_be_switched_off(self):
+        det, clock = make(trust_contacts=False)
+        det.set_contact_senders(["UD6DWREK"])
+        assert not det.trusts("UD6DWREK")
+        assert say(det, clock, "UD6DWREK", "hello").random is True
+        assert "UD6DWREK" not in det.known_names()
+        assert det.known_list()["total"] == 0
+
+    def test_contact_names_are_not_part_of_the_stored_lists(self):
+        det, _ = make()
+        det.set_contact_senders(["Sue"])
+        assert det.exceptions()["allow_senders"] == []
+
+    def test_never_trusted_beats_contact_and_trusted(self):
+        det, clock = make(allow_senders=["QK3ZP9XV"], deny_senders=["QK3ZP9XV", "UD6DWREK"])
+        det.set_contact_senders(["UD6DWREK"])
+        for name in ("QK3ZP9XV", "UD6DWREK"):
+            assert not det.trusts(name) and not det.is_known(name)
+            assert say(det, clock, name, "hello").random is True
+            assert name not in det.known_names()
+
+    def test_never_trusted_name_is_never_learnt(self):
+        det, clock = make(overrides={"known_min_msgs": 1})
+        say(det, clock, "Dave", "evening all")
+        settle(det, clock)
+        assert det.is_known("Dave")
+        det.homes["Dave"] = {"27": 4}
+        det.action("deny_sender", sender="Dave")
+        assert det.exceptions()["deny_senders"] == ["Dave"]
+        assert "Dave" not in det.known and "Dave" not in det.homes
+        for index in range(6):
+            say(det, clock, "Dave", f"another genuine message {index}", step=1300)
+            settle(det, clock)
+        assert "Dave" not in det.known
+        assert not det.is_known("Dave") and not det.established("Dave")
+        assert det.known_list()["total"] == 0
+        assert det.seed_known([("Dave", 9, clock.now - 900, clock.now)]) == 0
+        with pytest.raises(ValueError):
+            det.action("deny_sender", sender="  ")
+
+    def test_the_two_lists_exclude_each_other(self):
+        det, _ = make()
+        det.action("allow_sender", sender="Sue")
+        det.action("deny_sender", sender="Sue")
+        assert det.exceptions()["allow_senders"] == []
+        assert det.exceptions()["deny_senders"] == ["Sue"]
+        det.action("allow_sender", sender="Sue")
+        assert det.exceptions()["allow_senders"] == ["Sue"]
+        assert det.exceptions()["deny_senders"] == []
+        det.action("deny_sender", sender="Bob")
+        det.action("undeny_sender", sender="Bob")
+        assert det.exceptions()["deny_senders"] == []
+
+    def test_contact_list_leaves_out_the_users_own_lists(self):
+        det, _ = make(allow_senders=["Sue"], deny_senders=["Bob"])
+        det.set_contact_senders(["Sue", "Bob", "anna", "Carl", "Zed"])
+        listed = det.contact_list()
+        assert listed == {"total": 3, "names": ["anna", "Carl", "Zed"]}
+        assert det.contact_list(q="AN")["names"] == ["anna"]
+        assert det.contact_list(limit=1, offset=1) == {"total": 3, "names": ["Carl"]}
+
+
+class TestSpamTextHours:
+    def test_made_up_name_campaign_text_is_kept_for_the_set_hours(self):
+        det, clock = make(overrides={"spam_text_hours": 12})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        kept = [b for b in det.blocks.values() if b.source == "campaign"]
+        assert kept
+        for block in kept:
+            assert clock.now + 11 * 3600 < block.expires <= clock.now + 12 * 3600
 
 
 class TestMetricsPerChannel:

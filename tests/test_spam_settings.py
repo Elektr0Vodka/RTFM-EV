@@ -26,7 +26,7 @@ def test_defaults_are_the_balanced_preset():
     assert tun.long_window_seconds == 7200
     assert tun.block_ttl_seconds == 6 * 3600
     assert tun.hop_block_ttl_seconds == 2 * 3600
-    assert tun.spam_text_days == 7
+    assert tun.spam_text_hours == 168
     assert tun.min_rule_chars == 14
     assert tun.text_rule_chars == 40
     assert tun.known_min_msgs == 3
@@ -75,10 +75,30 @@ def test_rule_ceiling_stops_at_500():
         SpamConfig(overrides={"max_total_rules": 501})
 
 
-def test_spam_text_days_stop_at_a_week():
+def test_spam_text_hours_stop_at_a_week():
+    assert effective(SpamConfig(overrides={"spam_text_hours": 12})).spam_text_hours == 12
+    with pytest.raises(ValidationError):
+        SpamConfig(overrides={"spam_text_hours": 169})
+    assert clamp_overrides({"spam_text_hours": 500}) == {"spam_text_hours": 168}
+
+
+def test_spam_text_days_is_read_as_hours():
+    # Settings and profiles stored before the setting went to hours.
+    config = SpamConfig(overrides={"spam_text_days": 2, "similarity": 70})
+    assert config.overrides == {"spam_text_hours": 48, "similarity": 70}
+    assert effective(config).spam_text_hours == 48
     with pytest.raises(ValidationError):
         SpamConfig(overrides={"spam_text_days": 8})
-    assert clamp_overrides({"spam_text_days": 30}) == {"spam_text_days": 7}
+    assert clamp_overrides({"spam_text_days": 30}) == {"spam_text_hours": 168}
+    assert clamp_overrides({"spam_text_days": 1}) == {"spam_text_hours": 24}
+    # A value already in hours wins over a leftover days value.
+    assert clamp_overrides({"spam_text_days": 1, "spam_text_hours": 6}) == {"spam_text_hours": 6}
+
+
+def test_name_lists_default_to_empty_and_contacts_trusted():
+    config = SpamConfig()
+    assert config.deny_senders == []
+    assert config.trust_contacts is True
 
 
 def test_clamp_overrides_brings_an_old_ceiling_down():

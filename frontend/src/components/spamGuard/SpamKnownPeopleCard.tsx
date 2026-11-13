@@ -11,9 +11,10 @@ import { formatDuration } from './spamGuardText';
 const PAGE = 50;
 
 /**
- * Who Spam Guard knows: names learnt from genuine messages, names still being
- * learnt, and trusted names. Trust keeps a name for good; Forget makes someone
- * count as new again. Names only, never message text.
+ * Who Spam Guard knows: names learnt from genuine messages and names still
+ * being learnt. Add to Trusted names moves a name to that list (Settings),
+ * Never trust to the never-trusted list; either way it leaves this list.
+ * Forget makes someone count as new again. Names only, never message text.
  *
  * The list is read from the backend in pages (it can hold thousands of names)
  * and read again whenever the Spam Guard state changes.
@@ -91,26 +92,31 @@ export function SpamKnownPeopleCard({
               <div className="min-w-0">
                 <div className="wrap-break-word text-sm text-foreground">{person.name}</div>
                 <div className="text-[0.75rem] text-muted-foreground">
-                  {person.trusted
-                    ? t('spam_known_trusted')
-                    : person.known
-                      ? t('spam_known_known', { count: person.genuine })
-                      : t('spam_known_learning', { count: person.genuine, needed })}
+                  {person.known
+                    ? t('spam_known_known', { count: person.genuine })
+                    : t('spam_known_learning', { count: person.genuine, needed })}
+                  {person.contact && ` | ${t('spam_known_contact')}`}
                   {person.last !== null &&
                     ` | ${t('spam_known_last', { time: formatDuration(now - person.last, t) })}`}
                 </div>
               </div>
               <div className="flex gap-1">
-                {!person.trusted && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={disabled}
-                    onClick={() => void guard.action('allow_sender', { sender: person.name })}
-                  >
-                    {t('spam_known_trust')}
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => void guard.action('allow_sender', { sender: person.name })}
+                >
+                  {t('spam_known_trust')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled}
+                  onClick={() => void guard.action('deny_sender', { sender: person.name })}
+                >
+                  {t('spam_known_never')}
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"

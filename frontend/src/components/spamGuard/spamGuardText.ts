@@ -110,6 +110,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   known_seeded: 'spam_activity_known_seeded',
   campaign_corrected: 'spam_activity_campaign_corrected',
   known_forgotten: 'spam_activity_known_forgotten',
+  sender_denied: 'spam_activity_sender_denied',
   auto_protect: 'spam_activity_auto_protect',
   watch_again: 'spam_activity_watch_again',
 };

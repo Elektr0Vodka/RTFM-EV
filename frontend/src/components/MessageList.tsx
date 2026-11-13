@@ -146,6 +146,9 @@ interface MessageListProps {
   /** Whether "Hide spam" hides messages Spam Guard flagged (app setting `hide_spam`). */
   hideSpam?: boolean;
   onHideSpamChange?: (hide: boolean) => void;
+  /** Whether "Hide duplicates" hides messages Spam Guard caught as a duplicate (app setting `hide_duplicates`). */
+  hideDuplicates?: boolean;
+  onHideDuplicatesChange?: (hide: boolean) => void;
   /** The user's answer on one message: true = this is spam, false = not spam. */
   onSpamFeedback?: (message: Message, spam: boolean) => void;
   /** Whether "Hide bots" hides senders on enabled bot lists (app setting `hide_bots`). */
@@ -1054,6 +1057,8 @@ export function MessageList({
   spamGuardEnabled = false,
   hideSpam: hideSpamProp,
   onHideSpamChange,
+  hideDuplicates: hideDuplicatesProp,
+  onHideDuplicatesChange,
   onSpamFeedback,
   hideBots = false,
   onHideBotsChange,
@@ -1185,6 +1190,7 @@ export function MessageList({
   // Hide messages Spam Guard flagged. Only while the feature is on: with it
   // off there is no way to see or undo a flag, so nothing may stay hidden.
   const hideSpam = spamGuardEnabled && (hideSpamProp ?? false);
+  const hideDuplicates = spamGuardEnabled && (hideDuplicatesProp ?? false);
   const [hopFilterOpen, setHopFilterOpen] = useState(false);
   const hopFilterRef = useRef<HTMLDivElement>(null);
   const toggleHopWidth = useCallback(
@@ -1337,6 +1343,7 @@ export function MessageList({
       !hideMalformed &&
       !hideNameFiltered &&
       !hideSpam &&
+      !hideDuplicates &&
       !hideBots
     ) {
       return allSortedMessages;
@@ -1368,6 +1375,10 @@ export function MessageList({
       if (hideSpam && m.spam) {
         return false;
       }
+      // The same messages that carry the DUPLICATE badge.
+      if (hideDuplicates && m.duplicate && !m.spam) {
+        return false;
+      }
       // `botLists` is the store snapshot `isBotMessage` reads (null until
       // loaded), so a list change re-filters.
       if (hideBots && botLists !== null && isBotMessage(m)) {
@@ -1383,6 +1394,7 @@ export function MessageList({
     hideMalformed,
     hideNameFiltered,
     hideSpam,
+    hideDuplicates,
     hideBots,
     botLists,
     targetMessageId,
@@ -2067,6 +2079,7 @@ export function MessageList({
               hideMalformed ||
               hideNameFiltered ||
               hideSpam ||
+              hideDuplicates ||
               hideBots
               ? 'text-status-connected'
               : 'text-muted-foreground'
@@ -2181,6 +2194,23 @@ export function MessageList({
                 </label>
                 <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
                   {t('chat_filter_spam_hint')}
+                </div>
+              </>
+            )}
+            {spamGuardEnabled && onHideDuplicatesChange && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="accent-current"
+                    checked={hideDuplicates}
+                    onChange={() => onHideDuplicatesChange(!hideDuplicates)}
+                  />
+                  {t('chat_filter_hide_duplicates')}
+                </label>
+                <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+                  {t('chat_filter_duplicates_hint')}
                 </div>
               </>
             )}

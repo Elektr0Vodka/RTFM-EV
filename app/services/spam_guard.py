@@ -31,7 +31,7 @@ from pydantic import ValidationError
 
 from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.perf.recorders import loops as perf_loops
-from app.repository import AppSettingsRepository, MessageRepository
+from app.repository import AppSettingsRepository, ContactRepository, MessageRepository
 from app.repository.spam import (
     SpamEvidenceRepository,
     SpamGuardConfigRepository,
@@ -69,6 +69,9 @@ FRESH_FRAME_SECONDS = 3.0
 LAZY_FLUSH_SECONDS = 300.0
 # Chat stored in this window teaches a fresh start its first known people.
 SEED_KNOWN_SECONDS = 86400
+# Contact names counted as trusted: the most recently heard this many. The host
+# repeater carries the names inside its rules, so the list has to stay bounded.
+MAX_CONTACT_SENDERS = 2000
 # Why a settings document cannot be saved for the connected radio: code and
 # sentence. The settings route answers the sentence, the filter library the code.
 REFUSALS = {
@@ -174,6 +177,7 @@ class SpamGuardRuntime:
             self.detector.load(state)
         else:
             await self._seed_known()
+        await self._read_contacts()
         self._index_channels()
         self._saved_at = self._clock()
         self.loaded = True
@@ -190,6 +194,18 @@ class SpamGuardRuntime:
             logger.warning("Could not read stored chat to learn known people", exc_info=True)
             return
         self.detector.seed_known(rows)
+
+    async def _read_contacts(self) -> bool:
+        """Hand the detector the names of the stored contacts heard by advert.
+        True when the list changed. Skipped while ``trust_contacts`` is off."""
+        if not self.config.trust_contacts:
+            return self.detector.set_contact_senders(())
+        try:
+            names = await ContactRepository.advertised_client_names(MAX_CONTACT_SENDERS)
+        except Exception:
+            logger.warning("Could not read the contacts Spam Guard trusts", exc_info=True)
+            return False
+        return self.detector.set_contact_senders(names)
 
     async def ensure_loaded(self) -> None:
         if not self.loaded:
@@ -237,10 +253,14 @@ class SpamGuardRuntime:
         if not self.enabled:
             return
         async with self._lock:
+            # A contact heard for the first time, renamed or removed.
+            contacts_changed = await self._read_contacts()
             result = self._decide()
             await self._after_decide(result)
             # Cheap, and it picks up a radio swapped for (or from) an OpenHop node.
             self.apply_rules()
+            if contacts_changed:
+                self.broadcast()
             await self.flush()
             switched = await self._maybe_auto_protect()
         if switched:
@@ -511,6 +531,7 @@ class SpamGuardRuntime:
                 return None
             self.version, self.config = version, config
             self.detector.configure(config)
+            await self._read_contacts()
             self._index_channels()
             result = self._decide()
             await self._after_decide(result)
@@ -583,17 +604,24 @@ class SpamGuardRuntime:
         """Put the settings back to those of a fresh install. Caller holds the lock.
 
         That is Monitor mode reading the Public channel, the Balanced preset
-        and empty exception lists. What the detector learnt stays, and so does
-        the master switch.
+        and empty exception lists, except the two lists of names: trusted and
+        never-trusted names are kept, they are work to type in again. What the
+        detector learnt stays, and so does the master switch.
         """
         if body:
             raise ValueError("Bad arguments for reset_settings")
-        config = default_config()
+        config = default_config().model_copy(
+            update={
+                "allow_senders": list(self.config.allow_senders),
+                "deny_senders": list(self.config.deny_senders),
+            }
+        )
         version = await SpamGuardConfigRepository.save(self.version, config.model_dump(mode="json"))
         if version is None:
             raise ValueError("Spam Guard settings were changed elsewhere; reload and try again")
         self.version, self.config = version, config
         self.detector.configure(config)
+        await self._read_contacts()
         self._index_channels()
         result = self._decide()
         await self._after_decide(result)
@@ -811,6 +839,8 @@ class SpamGuardRuntime:
             "campaigns": campaigns,
             "activity": list(det.activity)[:RECENT_ACTIVITY],
             "known_names": det.known_names(),
+            # How many names are trusted as a stored contact (``/contacts`` lists them).
+            "contact_names": det.contact_list(limit=1)["total"],
             "suppressed": dict(det.suppressed),
             # Protected channels whose key is a secret: on OpenHop each needs the
             # user's agreement (``share_key``) before a rule may carry it.

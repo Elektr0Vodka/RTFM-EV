@@ -2709,6 +2709,13 @@ class AppSettings(BaseModel):
             "them from unread counts, mentions and Web Push ('Hide spam')."
         ),
     )
+    hide_duplicates: bool = Field(
+        default=False,
+        description=(
+            "Hide incoming messages Spam Guard suppressed as a duplicate in chat "
+            "('Hide duplicates'). Display only: unread counts are unchanged."
+        ),
+    )
     hide_bots: bool = Field(
         default=False,
         description=(

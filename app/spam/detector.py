@@ -340,6 +340,9 @@ class SpamDetector:
         self._important = False
         # The newest event when the user emptied the recent messages list.
         self._hidden_through: Event | None = None
+        # Names of stored contacts heard by advert (the runtime hands them over).
+        # Trusted while ``trust_contacts`` is on; never stored with the state.
+        self.contact_senders: set[str] = set()
         # Similarity cache: each distinct text is compared with the others once.
         self._sim_threshold = 0.0
         self._sim_shingles: dict[str, frozenset[str]] = {}
@@ -375,6 +378,9 @@ class SpamDetector:
             self._cap(block)  # the repeater matching mode may have changed
         self.allow_hops: set[str] = set(config.allow_hops)
         self.allow_senders: set[str] = set(config.allow_senders)
+        # Names that never count as known or trusted, whatever else says so.
+        self.deny_senders: set[str] = set(config.deny_senders)
+        self.trust_contacts: bool = config.trust_contacts
         self.allow_texts: set[str] = set(config.allow_texts)
 
     def exceptions(self) -> dict[str, list[str]]:
@@ -382,6 +388,7 @@ class SpamDetector:
         return {
             "allow_hops": sorted(self.allow_hops),
             "allow_senders": sorted(self.allow_senders),
+            "deny_senders": sorted(self.deny_senders),
             "allow_texts": sorted(self.allow_texts),
         }
 
@@ -401,8 +408,25 @@ class SpamDetector:
 
     # ── known people ─────────────────────────────────────────────────────
 
+    def trusts(self, name: str) -> bool:
+        """A trusted name: on the user's list, or (``trust_contacts``) a stored
+        contact heard by advert. A never-trusted name is neither."""
+        if name in self.deny_senders:
+            return False
+        return name in self.allow_senders or (self.trust_contacts and name in self.contact_senders)
+
+    def set_contact_senders(self, names: Iterable[str]) -> bool:
+        """Take the names of the stored contacts heard by advert. True on a change."""
+        wanted = {name for name in names if name and name not in ("?", UNKNOWN_SENDER)}
+        if wanted == self.contact_senders:
+            return False
+        self.contact_senders = wanted
+        return True
+
     def is_known(self, name: str) -> bool:
-        if name in self.allow_senders:
+        if name in self.deny_senders:
+            return False
+        if self.trusts(name):
             return True
         entry = self.known.get(name)
         return entry is not None and entry[2] >= self.tunables.known_min_msgs
@@ -420,6 +444,8 @@ class SpamDetector:
         for name, count, first, last in rows:
             if not name or name in ("?", UNKNOWN_SENDER) or name in self.known:
                 continue
+            if name in self.deny_senders:
+                continue
             score = max(_name_score(name, self._patterns), tagged_name_score(name))
             if score >= self.tunables.name_score_threshold or is_disguised(name, name=True):
                 continue
@@ -432,6 +458,8 @@ class SpamDetector:
 
     def established(self, name: str) -> bool:
         """Known, or chatting under this name for over an hour with a few messages."""
+        if name in self.deny_senders:
+            return False
         if self.is_known(name):
             return True
         history = self.senders.get(name)
@@ -454,8 +482,10 @@ class SpamDetector:
             del homes[min(homes, key=lambda hop: (homes[hop], hop == event.first_hop))]
 
     def known_list(self, q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
-        """Known people and names still being learnt, most recently heard first,
-        then trusted names with no history. Names only, never messages."""
+        """Known people and names still being learnt, most recently heard first.
+        Names on the trusted list are not here: they have their own list.
+        ``contact`` marks a name trusted as a stored contact. Names only, never
+        messages."""
         needle = q.strip().casefold()
         people = [
             {
@@ -464,32 +494,36 @@ class SpamDetector:
                 "first": entry[0],
                 "last": entry[1],
                 "known": self.is_known(name),
-                "trusted": name in self.allow_senders,
+                "contact": self.trust_contacts and name in self.contact_senders,
             }
             for name, entry in sorted(self.known.items(), key=lambda kv: -kv[1][1])
-        ]
-        people += [
-            {
-                "name": name,
-                "genuine": 0,
-                "first": None,
-                "last": None,
-                "known": True,
-                "trusted": True,
-            }
-            for name in sorted(self.allow_senders - self.known.keys())
+            if name not in self.allow_senders
         ]
         if needle:
             people = [p for p in people if needle in p["name"].casefold()]
         return {"total": len(people), "people": people[offset : offset + limit]}
 
+    def contact_list(self, q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """Stored contacts heard by advert whose name counts as trusted, by name.
+        Without the names on the user's own two lists."""
+        needle = q.strip().casefold()
+        names = sorted(
+            self.contact_senders - self.allow_senders - self.deny_senders, key=str.casefold
+        )
+        if needle:
+            names = [name for name in names if needle in name.casefold()]
+        return {"total": len(names), "names": names[offset : offset + limit]}
+
     def _familiar(self, name: str) -> bool:
         """Trusted, known or established: a name the newer-flood signals leave alone."""
-        return name in self.allow_senders or self.established(name)
+        return self.trusts(name) or self.established(name)
 
     def known_names(self) -> list[str]:
         """Names that pass the gated blocks, for the known-people rule."""
-        return sorted({n for n in self.known if self.is_known(n)} | self.allow_senders)
+        trusted = set(self.allow_senders)
+        if self.trust_contacts:
+            trusted |= self.contact_senders
+        return sorted(({n for n in self.known if self.is_known(n)} | trusted) - self.deny_senders)
 
     def _passing_through(self, event: Event) -> bool:
         """Held only because the route passes THROUGH a blocked repeater.
@@ -526,7 +560,7 @@ class SpamDetector:
         )
 
     def _learn_sender(self, event: Event) -> None:
-        if event.sender in ("", "?"):
+        if event.sender in ("", "?") or event.sender in self.deny_senders:
             return
         if not self._still_a_regular(event):
             if self._spammy(event):
@@ -716,7 +750,7 @@ class SpamDetector:
         sender = sender or "?"
         hops = tuple(hop.upper() for hop in path)
         norm = normalise(text)
-        trusted = sender in self.allow_senders
+        trusted = self.trusts(sender)
         familiar = self._familiar(sender)
         if name_score is None:
             score = _name_score(sender, self._patterns)
@@ -880,7 +914,7 @@ class SpamDetector:
     # ── detection ────────────────────────────────────────────────────────
 
     def _suspect(self, event: Event) -> bool:
-        if event.sender in self.allow_senders:
+        if self.trusts(event.sender):
             return False
         if event.random:
             return True
@@ -994,10 +1028,10 @@ class SpamDetector:
             channel = campaign.events[-1].channel
             last = campaign.events[-1].ts
             ttl: float | None = None
-            if campaign.strong and tun.spam_text_days:
+            if campaign.strong and tun.spam_text_hours:
                 # Made-up names: remember the text, so it is stopped from its
                 # first copy when the spammer brings it back days later.
-                ttl = max(tun.spam_text_days * 86400, tun.block_ttl_seconds)
+                ttl = max(tun.spam_text_hours * 3600, tun.block_ttl_seconds)
             detail = {"senders": len(campaign.senders)}
             common, words = self._shared(originals)
             if common:
@@ -1093,7 +1127,7 @@ class SpamDetector:
             for e in recent
             if not e.exempt
             and not e.released
-            and e.sender not in self.allow_senders
+            and not self.trusts(e.sender)
             and not self._stopped(e)
         ]
 
@@ -1174,7 +1208,7 @@ class SpamDetector:
         tun = self.tunables
         copies: dict[tuple[str, str, str], list[tuple[Event, str]]] = {}
         for event in recent:
-            if event.exempt or event.released or event.sender in self.allow_senders:
+            if event.exempt or event.released or self.trusts(event.sender):
                 continue
             if event.sender in ("", "?"):
                 continue
@@ -1422,14 +1456,12 @@ class SpamDetector:
             if event.message_id is None or event.message_id in self._flagged:
                 continue
             campaign = self.campaigns.get(event.campaign) if event.campaign is not None else None
-            in_campaign = bool(
-                campaign and campaign.confirmed and event.sender not in self.allow_senders
-            )
+            in_campaign = bool(campaign and campaign.confirmed and not self.trusts(event.sender))
             malformed = (
                 event.malformed
                 and self.tunables.malformed_signal
                 and not event.exempt
-                and event.sender not in self.allow_senders
+                and not self.trusts(event.sender)
             )
             if event.spam or in_campaign or malformed:
                 flag.add(event.message_id)
@@ -1923,7 +1955,7 @@ class SpamDetector:
     def _do_mark_spam(
         self, text: str, channel: str, ttl_seconds: int | None = None, sender: str = ""
     ) -> dict[str, Any]:
-        if sender and (sender in self.allow_senders or self.is_known(sender)):
+        if sender and self.is_known(sender):
             raise ValueError(
                 f"{sender} is someone Spam Guard knows, so it does not block what they say. "
                 "If they keep repeating it, the repeat guard already slows that down"
@@ -1937,6 +1969,7 @@ class SpamDetector:
     def _do_not_spam(self, sender: str = "", matched: str | None = None) -> dict[str, Any]:
         if sender:
             self.allow_senders.add(sender)
+            self.deny_senders.discard(sender)
         if matched:
             # It would have blocked a genuine message: auto_protect waits for the user.
             self.genuine_marks = [*self.genuine_marks, self._clock()][-MAX_GENUINE_MARKS:]
@@ -2027,9 +2060,25 @@ class SpamDetector:
         if not sender.strip():
             raise ValueError("Enter a name")
         self.allow_senders.add(sender)
+        self.deny_senders.discard(sender)
 
     def _do_unallow_sender(self, sender: str) -> None:
         self.allow_senders.discard(sender)
+
+    def _do_deny_sender(self, sender: str) -> None:
+        """Never trust this name: off the trusted and known lists, and never
+        learnt again while it is listed."""
+        if not sender.strip():
+            raise ValueError("Enter a name")
+        self.deny_senders.add(sender)
+        self.allow_senders.discard(sender)
+        self.known.pop(sender, None)
+        self.homes.pop(sender, None)
+        self._note("sender_denied", sender=sender)
+        self._mark()
+
+    def _do_undeny_sender(self, sender: str) -> None:
+        self.deny_senders.discard(sender)
 
     def _do_allow_text(self, text: str) -> None:
         text = text.strip()
