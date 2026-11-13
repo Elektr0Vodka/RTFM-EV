@@ -44,7 +44,7 @@ MIN_DUPLICATE_CHARS = 5
 # brought down to it by ``clamp_overrides``.
 MAX_RULES = 500
 # A text block lasts at most a week (spam, not opinions). It was 60 days.
-MAX_SPAM_TEXT_DAYS = 7
+MAX_SPAM_TEXT_HOURS = 7 * 24
 
 PRESETS: dict[str, dict[str, int]] = {
     "relaxed": {
@@ -158,7 +158,9 @@ class SpamTunables(BaseModel):
     long_window_seconds: int = Field(default=7200, ge=600, le=86400)
     block_ttl_seconds: int = Field(default=6 * 3600, ge=300, le=PERMANENT_SECONDS)
     hop_block_ttl_seconds: int = Field(default=2 * 3600, ge=600, le=PERMANENT_SECONDS)
-    spam_text_days: int = Field(default=7, ge=0, le=MAX_SPAM_TEXT_DAYS)
+    # In hours, so half a day can be set; it was ``spam_text_days``
+    # (``upgrade_overrides`` converts a stored value).
+    spam_text_hours: int = Field(default=MAX_SPAM_TEXT_HOURS, ge=0, le=MAX_SPAM_TEXT_HOURS)
     max_total_rules: int = Field(default=300, ge=20, le=MAX_RULES)
     # Switch from Monitor to Protect by itself once it has watched long enough
     # (``detector.auto_protect_status``). Off unless the user turns it on.
@@ -236,6 +238,21 @@ class SpamConfig(BaseModel):
     allow_hops: list[str] = Field(default_factory=list, max_length=MAX_EXCEPTIONS)
     allow_senders: list[str] = Field(default_factory=list, max_length=MAX_EXCEPTIONS)
     allow_texts: list[str] = Field(default_factory=list, max_length=MAX_EXCEPTIONS)
+    # Names that never count as known or trusted: never learnt, and not trusted
+    # as a contact either. A name on both lists is not trusted.
+    deny_senders: list[str] = Field(default_factory=list, max_length=MAX_EXCEPTIONS)
+    # The name of every stored contact heard by advert counts as trusted. Names
+    # can be faked, and anyone can send an advert, so it can be switched off.
+    trust_contacts: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("overrides"), dict):
+            upgraded = upgrade_overrides(data["overrides"])
+            if upgraded is not data["overrides"]:
+                return {**data, "overrides": upgraded}
+        return data
 
     @field_validator("allow_hops")
     @classmethod
@@ -276,15 +293,30 @@ def effective(config: SpamConfig) -> SpamTunables:
     return SpamTunables(**{**PRESETS[config.sensitivity], **config.overrides})
 
 
+def upgrade_overrides(overrides: Any) -> Any:
+    """Overrides stored under an older name, as they are read now:
+    ``spam_text_days`` became ``spam_text_hours``. Anything else as given."""
+    if not isinstance(overrides, dict) or "spam_text_days" not in overrides:
+        return overrides
+    out = dict(overrides)
+    days = out.pop("spam_text_days")
+    if "spam_text_hours" not in out:
+        whole = isinstance(days, int) and not isinstance(days, bool)
+        out["spam_text_hours"] = days * 24 if whole else days
+    return out
+
+
 def clamp_overrides(overrides: Any) -> Any:
     """Stored overrides with values beyond a bound that has since been lowered
     brought down to it, so older settings still load. Anything else as given."""
     if not isinstance(overrides, dict):
         return overrides
-    lowered = {"max_total_rules": MAX_RULES, "spam_text_days": MAX_SPAM_TEXT_DAYS}
+    given = overrides
+    overrides = upgrade_overrides(overrides)
+    lowered = {"max_total_rules": MAX_RULES, "spam_text_hours": MAX_SPAM_TEXT_HOURS}
     out = dict(overrides)
     for key, bound in lowered.items():
         value = out.get(key)
         if isinstance(value, int) and not isinstance(value, bool) and value > bound:
             out[key] = bound
-    return out if out != overrides else overrides
+    return out if out != given else given

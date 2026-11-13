@@ -1043,6 +1043,49 @@ describe('MessageList hop-size filter', () => {
     expect(row(container, 21)).toBeNull();
   });
 
+  it('hides duplicates from the saved setting, keeps spam and own messages, and reports toggles', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { container } = render(
+      <MessageList
+        messages={[
+          twoByte(20),
+          { ...twoByte(23), duplicate: true },
+          { ...spamIncoming(21), duplicate: true },
+          { ...spamOutgoing(22), spam: false, duplicate: true },
+        ]}
+        contacts={[]}
+        loading={false}
+        spamGuardEnabled
+        hideDuplicates
+        onHideDuplicatesChange={onChange}
+      />
+    );
+    expect(row(container, 20)).not.toBeNull();
+    expect(row(container, 23)).toBeNull(); // shows the DUPLICATE badge otherwise
+    expect(row(container, 21)).not.toBeNull(); // spam, not a duplicate badge
+    expect(row(container, 22)).not.toBeNull(); // your own message always stays
+
+    await openFilterAndCheck(user, /hide duplicates/i);
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  it('does not hide duplicates or offer the option while Spam Guard is off', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[{ ...twoByte(23), duplicate: true }]}
+        contacts={[]}
+        loading={false}
+        hideDuplicates
+        onHideDuplicatesChange={vi.fn()}
+      />
+    );
+    expect(row(container, 23)).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: /filter messages/i }));
+    expect(screen.queryByRole('checkbox', { name: /hide duplicates/i })).toBeNull();
+  });
+
   it('shows no duplicate marker while Spam Guard is off', () => {
     const { container } = render(
       <MessageList messages={[{ ...twoByte(23), duplicate: true }]} contacts={[]} loading={false} />

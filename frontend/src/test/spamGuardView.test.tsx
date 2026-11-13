@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   getOpenHopPolicy: vi.fn(),
   getFilterProfiles: vi.fn(),
   getSpamGuardKnown: vi.fn(),
+  getSpamGuardContacts: vi.fn(),
   getSpamGuardMetrics: vi.fn(),
 }));
 
@@ -86,7 +87,7 @@ const TUNABLES: SpamGuardTunables = {
   long_window_seconds: 7200,
   block_ttl_seconds: 21600,
   hop_block_ttl_seconds: 7200,
-  spam_text_days: 7,
+  spam_text_hours: 168,
   max_total_rules: 300,
   evidence_log: false,
   evidence_days: 7,
@@ -149,6 +150,8 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
       channels: [{ key: PUBLIC, name: 'Public' }],
       allow_hops: [],
       allow_senders: [],
+      deny_senders: [],
+      trust_contacts: true,
       allow_texts: [],
     },
     tunables: TUNABLES,
@@ -270,6 +273,7 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
     ],
     activity: [{ ts: NOW - 60, event: 'block_started', key: 'hop:27', kind: 'hop' }],
     known_names: ['Dave'],
+    contact_names: 2,
     suppressed: {},
     private_channels: [],
     bot_forward: { state: 'off', channels: 0, names: 0 },
@@ -329,6 +333,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.spamGuardAction.mockImplementation(async () => ({ result: {}, state: makeState() }));
   mocks.getSpamGuardKnown.mockResolvedValue({ total: 0, people: [] });
+  mocks.getSpamGuardContacts.mockResolvedValue({ total: 0, names: [] });
   mocks.saveSpamGuardSettings.mockImplementation(async () => makeState({ version: 5 }));
   mocks.getFilterProfiles.mockResolvedValue({
     kind: 'spam_guard',
@@ -726,7 +731,7 @@ describe('SpamGuardView protection', () => {
     );
   });
 
-  it('lists known people, searches and trusts or forgets one', async () => {
+  it('lists known people, searches and trusts, never trusts or forgets one', async () => {
     const now = Date.now() / 1000;
     mocks.getSpamGuardKnown.mockResolvedValue({
       total: 2,
@@ -737,7 +742,7 @@ describe('SpamGuardView protection', () => {
           first: now - 900,
           last: now - 120,
           known: true,
-          trusted: false,
+          contact: true,
         },
         {
           name: 'Bram',
@@ -745,7 +750,7 @@ describe('SpamGuardView protection', () => {
           first: now - 900,
           last: now - 60,
           known: false,
-          trusted: false,
+          contact: false,
         },
       ],
     });
@@ -754,14 +759,23 @@ describe('SpamGuardView protection', () => {
     const card = await screen.findByTestId('spam-known-people');
     await waitFor(() => expect(within(card).getAllByTestId('spam-known-person')).toHaveLength(2));
     expect(within(card).getByText(/Known, 5 genuine messages/)).toBeInTheDocument();
+    expect(within(card).getAllByText(/trusted as a contact/)).toHaveLength(1);
     expect(within(card).getByText(/Being learnt, 1 of 3/)).toBeInTheDocument();
     fireEvent.change(within(card).getByLabelText('Find a name'), { target: { value: 'ano' } });
     await waitFor(() => expect(mocks.getSpamGuardKnown).toHaveBeenCalledWith('ano', 50));
     const anouk = within(card).getAllByTestId('spam-known-person')[0];
-    fireEvent.click(within(anouk).getByRole('button', { name: 'Trust' }));
+    fireEvent.click(within(anouk).getByRole('button', { name: 'Add to Trusted names' }));
     await waitFor(() =>
       expect(mocks.spamGuardAction).toHaveBeenCalledWith(
         'allow_sender',
+        { sender: 'Anouk' },
+        undefined
+      )
+    );
+    fireEvent.click(within(anouk).getByRole('button', { name: 'Never trust' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'deny_sender',
         { sender: 'Anouk' },
         undefined
       )
@@ -1049,6 +1063,48 @@ describe('SpamGuardView settings', () => {
         undefined
       )
     );
+  });
+
+  it('keeps a never-trusted list and lists the trusted contacts', async () => {
+    mocks.getSpamGuardContacts.mockResolvedValue({ total: 2, names: ['Anna', 'Carl'] });
+    const state = makeState();
+    await renderView({ ...state, settings: { ...state.settings, deny_senders: ['Mallory'] } });
+    openTab('Settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Mallory' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'undeny_sender',
+        { sender: 'Mallory' },
+        undefined
+      )
+    );
+    fireEvent.change(screen.getByLabelText('Never-trusted names'), { target: { value: 'Eve' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[1]);
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'deny_sender',
+        { sender: 'Eve' },
+        undefined
+      )
+    );
+    const card = screen.getByTestId('spam-trusted-contacts');
+    expect(within(card).getByText(/counts as a trusted name, 2 now/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(card).getAllByTestId('spam-trusted-contact')).toHaveLength(2)
+    );
+    const anna = within(card).getAllByTestId('spam-trusted-contact')[0];
+    fireEvent.click(within(anna).getByRole('button', { name: 'Never trust' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'deny_sender',
+        { sender: 'Anna' },
+        undefined
+      )
+    );
+    // The switch saves at once, like the lists.
+    fireEvent.click(within(card).getByLabelText('Trust the names of stored contacts'));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1]).toMatchObject({ trust_contacts: false });
   });
 
   it('previews the forwarding rules', async () => {

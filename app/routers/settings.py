@@ -566,6 +566,10 @@ class AppSettingsUpdate(BaseModel):
             "from unread counts, mentions and Web Push."
         ),
     )
+    hide_duplicates: bool | None = Field(
+        default=None,
+        description="Hide incoming messages Spam Guard suppressed as a duplicate in chat.",
+    )
     hide_bots: bool | None = Field(
         default=None,
         description=(
@@ -993,6 +997,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
 
     if update.hide_spam is not None:
         kwargs["hide_spam"] = update.hide_spam
+
+    if update.hide_duplicates is not None:
+        kwargs["hide_duplicates"] = update.hide_duplicates
 
     if update.hide_bots is not None:
         kwargs["hide_bots"] = update.hide_bots

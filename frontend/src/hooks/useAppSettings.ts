@@ -124,6 +124,21 @@ export function useAppSettings() {
     }
   }, []);
 
+  // Chat "Hide duplicates" filter (Spam Guard's duplicate flag), same pattern.
+  const handleSetHideDuplicates = useCallback(async (hide: boolean) => {
+    setAppSettings((prev) => (prev ? { ...prev, hide_duplicates: hide } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hide_duplicates: hide }));
+    } catch (err) {
+      console.error('Failed to save duplicate filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
+
   // Chat "Hide bots" filter (senders on enabled bot lists), same pattern.
   const handleSetHideBots = useCallback(async (hide: boolean) => {
     setAppSettings((prev) => (prev ? { ...prev, hide_bots: hide } : prev));
@@ -350,6 +365,7 @@ export function useAppSettings() {
     handleSetHiddenRadioSfs,
     handleSetHideMalformed,
     handleSetHideSpam,
+    handleSetHideDuplicates,
     handleSetHideBots,
     handleSetHideNameFiltered,
     hiddenHopWidthsVersion,

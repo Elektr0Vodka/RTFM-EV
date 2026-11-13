@@ -186,6 +186,8 @@ interface ConversationPaneProps {
   spamGuardEnabled?: boolean;
   hideSpam?: boolean;
   onHideSpamChange?: (hide: boolean) => void;
+  hideDuplicates?: boolean;
+  onHideDuplicatesChange?: (hide: boolean) => void;
   hideBots?: boolean;
   onHideBotsChange?: (hide: boolean) => void;
   onSpamFeedback?: (message: Message, spam: boolean) => void;
@@ -344,6 +346,8 @@ export function ConversationPane({
   spamGuardEnabled,
   hideSpam,
   onHideSpamChange,
+  hideDuplicates,
+  onHideDuplicatesChange,
   hideBots,
   onHideBotsChange,
   onSpamFeedback,
@@ -997,6 +1001,8 @@ export function ConversationPane({
           spamGuardEnabled={spamGuardEnabled}
           hideSpam={hideSpam}
           onHideSpamChange={onHideSpamChange}
+          hideDuplicates={hideDuplicates}
+          onHideDuplicatesChange={onHideDuplicatesChange}
           hideBots={hideBots}
           onHideBotsChange={onHideBotsChange}
           onSpamFeedback={onSpamFeedback}

@@ -6,7 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.repository import AppSettingsRepository, ChannelRepository, MessageRepository
+from app.repository import (
+    AppSettingsRepository,
+    ChannelRepository,
+    ContactRepository,
+    MessageRepository,
+)
 from app.repository.spam import (
     SpamEvidenceRepository,
     SpamGuardConfigRepository,
@@ -538,16 +543,23 @@ class TestSettingsAndActions:
     async def test_reset_settings_goes_back_to_a_fresh_install(self, feed):
         await protect(feed, dedupe_enabled=False)
         await feed.runtime.action("allow_sender", {"sender": "Sue"})
+        await feed.runtime.action("deny_sender", {"sender": "Mallory"})
+        await feed.runtime.action("allow_text", {"text": "net check-in"})
         await feed.runtime.action("block_hop", {"hop": "27", "match": "contains"})
         assert feed.runtime.host.status()["rules_present"] == 1
         version = feed.runtime.version
         await feed.runtime.action("reset_settings", {})
-        assert feed.runtime.config == default_config()
+        # The two lists of names are kept; everything else is a fresh install.
+        assert feed.runtime.config == default_config().model_copy(
+            update={"allow_senders": ["Sue"], "deny_senders": ["Mallory"]}
+        )
         assert feed.runtime.version == version + 1
         stored = await SpamGuardConfigRepository.get()
         assert stored is not None
-        assert (stored[1]["mode"], stored[1]["allow_senders"]) == ("monitor", [])
-        assert feed.runtime.detector.exceptions()["allow_senders"] == []
+        assert (stored[1]["mode"], stored[1]["allow_senders"]) == ("monitor", ["Sue"])
+        assert stored[1]["deny_senders"] == ["Mallory"]
+        assert stored[1]["allow_texts"] == []
+        assert feed.runtime.detector.exceptions()["allow_senders"] == ["Sue"]
         # What was learnt stays, but Monitor mode applies no rules.
         assert "hop:27" in feed.runtime.detector.blocks
         assert feed.runtime.host.status()["rules_present"] == 0
@@ -607,6 +619,64 @@ class TestSettingsAndActions:
         assert result.spam_guard_enabled is True and result.hide_spam is True
         assert feed.runtime.enabled is True
         assert (await AppSettingsRepository.get()).spam_guard_enabled is True
+
+
+async def add_contact(name, *, key, contact_type=1, last_advert=1_700_000_000):
+    await ContactRepository.upsert(
+        {
+            "public_key": key * 32,
+            "name": name,
+            "type": contact_type,
+            "flags": 0,
+            "direct_path": None,
+            "direct_path_len": -1,
+            "direct_path_hash_mode": -1,
+            "last_advert": last_advert,
+            "lat": None,
+            "lon": None,
+            "last_seen": None,
+            "on_radio": False,
+            "last_contacted": None,
+            "first_seen": None,
+        }
+    )
+
+
+class TestTrustedContacts:
+    @pytest.mark.asyncio
+    async def test_clients_heard_by_advert_are_trusted_from_the_next_tick(self, feed):
+        await add_contact("Anna", key="a1")
+        await add_contact("Hilltop Repeater", key="b2", contact_type=2)
+        await add_contact("Never Heard", key="c3", last_advert=None)
+        detector = feed.runtime.detector
+        assert not detector.trusts("Anna")
+        await feed.runtime.tick()
+        assert detector.trusts("Anna")
+        assert not detector.trusts("Hilltop Repeater")
+        assert not detector.trusts("Never Heard")
+        assert feed.runtime.snapshot()["contact_names"] == 1
+        # Not written into the stored exception list.
+        assert feed.runtime.config.allow_senders == []
+
+    @pytest.mark.asyncio
+    async def test_read_on_load_and_dropped_when_switched_off(self, feed):
+        await add_contact("Anna", key="a1")
+        await feed.runtime.load()
+        assert feed.runtime.detector.trusts("Anna")
+        off = feed.runtime.config.model_copy(update={"trust_contacts": False})
+        assert await feed.runtime.save_config(feed.runtime.version, off) is not None
+        assert not feed.runtime.detector.trusts("Anna")
+        assert feed.runtime.snapshot()["contact_names"] == 0
+
+    @pytest.mark.asyncio
+    async def test_never_trusted_action_is_stored(self, feed):
+        await add_contact("Anna", key="a1")
+        await feed.runtime.tick()
+        await feed.runtime.action("deny_sender", {"sender": "Anna"})
+        assert feed.runtime.config.deny_senders == ["Anna"]
+        assert not feed.runtime.detector.trusts("Anna")
+        stored = await SpamGuardConfigRepository.get()
+        assert stored is not None and stored[1]["deny_senders"] == ["Anna"]
 
 
 class TestUnreadCountsSpamFilter:

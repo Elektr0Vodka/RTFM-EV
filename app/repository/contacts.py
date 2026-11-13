@@ -5,6 +5,7 @@ from typing import Any
 
 from app.database import db
 from app.models import (
+    CONTACT_TYPE_CLIENT,
     REMOTE_CLI_FLAG,
     TELEMETRY_PERM_MASK,
     Contact,
@@ -457,6 +458,25 @@ class ContactRepository:
             ) as cursor:
                 rows = await cursor.fetchall()
         return [ContactRepository._row_to_contact(row) for row in rows]
+
+    @staticmethod
+    async def advertised_client_names(limit: int = 2000) -> list[str]:
+        """Names of the stored client contacts heard by advert, most recently
+        heard first. Spam Guard counts these names as trusted."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT name, MAX(last_advert) AS heard FROM contacts
+                WHERE type = ? AND last_advert IS NOT NULL AND length(public_key) = 64
+                      AND name IS NOT NULL AND TRIM(name) != ''
+                GROUP BY name
+                ORDER BY heard DESC
+                LIMIT ?
+                """,
+                (CONTACT_TYPE_CLIENT, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [row["name"] for row in rows]
 
     @staticmethod
     async def update_direct_path(

@@ -1551,6 +1551,8 @@ export interface AppSettings {
    * as spam, and keep them out of unread counts, mentions and Web Push.
    */
   hide_spam?: boolean;
+  /** Chat "Hide duplicates" filter: hide messages Spam Guard suppressed as a duplicate (display only). */
+  hide_duplicates?: boolean;
   /** Hide senders on an enabled bot list in chat, unread counts, mentions and Web Push. */
   hide_bots?: boolean;
   sidebar_section_order: string[];
@@ -1972,6 +1974,7 @@ export interface AppSettingsUpdate {
   ollama_model?: string;
   spam_guard_enabled?: boolean;
   hide_spam?: boolean;
+  hide_duplicates?: boolean;
   hide_bots?: boolean;
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
@@ -3842,7 +3845,7 @@ export interface SpamGuardTunables {
   long_window_seconds: number;
   block_ttl_seconds: number;
   hop_block_ttl_seconds: number;
-  spam_text_days: number;
+  spam_text_hours: number;
   max_total_rules: number;
   evidence_log: boolean;
   evidence_days: number;
@@ -3858,6 +3861,10 @@ export interface SpamGuardSettings {
   allow_hops: string[];
   allow_senders: string[];
   allow_texts: string[];
+  /** Names that never count as known or trusted. */
+  deny_senders: string[];
+  /** Names of stored contacts heard by advert count as trusted. */
+  trust_contacts: boolean;
 }
 
 export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';
@@ -3877,12 +3884,19 @@ export interface SpamKnownPerson {
   first: number | null;
   last: number | null;
   known: boolean;
-  trusted: boolean;
+  /** Trusted as a stored contact heard by advert. */
+  contact: boolean;
 }
 
 export interface SpamKnownList {
   total: number;
   people: SpamKnownPerson[];
+}
+
+/** Names trusted as a stored contact, without those on the user's own lists. */
+export interface SpamContactList {
+  total: number;
+  names: string[];
 }
 
 export interface SpamBlock {
@@ -4058,6 +4072,8 @@ export interface SpamGuardState extends SpamGuardSummary {
   campaigns: SpamCampaign[];
   activity: SpamActivityEntry[];
   known_names: string[];
+  /** How many names are trusted as a stored contact. */
+  contact_names: number;
   suppressed: Record<string, number>;
   /** Keys of the protected channels whose key is not public knowledge. */
   private_channels: string[];

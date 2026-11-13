@@ -245,6 +245,45 @@ def _stored_radio_stamp(row) -> dict | None:
     }
 
 
+_DECRYPTED_INFO_COLUMNS = """
+               m.type AS msg_type, m.text AS msg_text, m.sender_name AS msg_sender_name,
+               m.conversation_key AS msg_conversation_key, m.sender_key AS msg_sender_key,
+               m.sender_timestamp AS msg_sender_timestamp, ch.name AS msg_channel_name"""
+
+# 1:1 joins (message_id and channels.key are unique), so no row multiplication.
+_DECRYPTED_INFO_JOINS = (
+    " LEFT JOIN messages m ON m.id = {p}.message_id"
+    " LEFT JOIN channels ch ON m.type = 'CHAN' AND ch.key = m.conversation_key"
+)
+
+
+def _stored_decrypted_info(row) -> dict | None:
+    """decrypted_info for a stored packet, in the live broadcast shape.
+
+    None when the packet has no linked message. Same fields as the single-packet
+    detail endpoint: channel messages carry the channel, direct messages do not.
+    """
+    if row["message_id"] is None or row["msg_type"] is None:
+        return None
+    if row["msg_type"] == "CHAN":
+        return {
+            "channel_name": row["msg_channel_name"],
+            "sender": row["msg_sender_name"],
+            "channel_key": row["msg_conversation_key"],
+            "contact_key": row["msg_sender_key"],
+            "sender_timestamp": row["msg_sender_timestamp"],
+            "message": row["msg_text"],
+        }
+    return {
+        "channel_name": None,
+        "sender": row["msg_sender_name"],
+        "channel_key": None,
+        "contact_key": row["msg_conversation_key"],
+        "sender_timestamp": row["msg_sender_timestamp"],
+        "message": row["msg_text"],
+    }
+
+
 def _stored_policy(row) -> dict | None:
     """The OpenHop policy verdict stored with a packet, in the broadcast shape."""
     if row["policy_action"] is None:
@@ -284,9 +323,8 @@ async def get_recent_packets(
         SELECT p.id, p.timestamp, p.data, p.message_id, p.rssi, p.snr, p.payload_type,
                p.policy_action, p.policy_rule,
                p.radio_freq, p.radio_bw, p.radio_sf, p.radio_cr,
-               COALESCE(m.malformed, 0) AS malformed
-        FROM raw_packets p
-        LEFT JOIN messages m ON m.id = p.message_id
+               COALESCE(m.malformed, 0) AS malformed,{_DECRYPTED_INFO_COLUMNS}
+        FROM raw_packets p{_DECRYPTED_INFO_JOINS.format(p="p")}
         {where}
         ORDER BY p.id DESC
         LIMIT ?
@@ -310,7 +348,7 @@ async def get_recent_packets(
                 "snr": row["snr"],
                 "rssi": row["rssi"],
                 "decrypted": row["message_id"] is not None,
-                "decrypted_info": None,
+                "decrypted_info": _stored_decrypted_info(row),
                 "malformed": bool(row["malformed"]),
                 "policy": _stored_policy(row),
                 "radio_stamp": _stored_radio_stamp(row),
@@ -384,9 +422,9 @@ async def get_packet_history(
 
     conditions: list[str] = []
     params: list = []
-    # Joins are added only when the message-content search is active, so the
-    # common paging path stays a plain single-table scan.
-    joins = ""
+    # The message and channel are always joined (1:1) so each packet carries its
+    # decrypted_info; the search below reuses the same aliases (m, ch).
+    joins = _DECRYPTED_INFO_JOINS.format(p="rp")
 
     if after_ts is not None:
         conditions.append("rp.timestamp >= ?")
@@ -476,10 +514,6 @@ async def get_packet_history(
     # and instr(NULL, ...) is NULL -> not > 0).
     if search is not None and search.strip() != "":
         needle = search.strip().lower()
-        joins = (
-            " LEFT JOIN messages m ON rp.message_id = m.id"
-            " LEFT JOIN channels ch ON m.conversation_key = ch.key"
-        )
         conditions.append(
             "(instr(lower(m.text), ?) > 0"
             " OR instr(lower(m.sender_name), ?) > 0"
@@ -492,7 +526,7 @@ async def get_packet_history(
     query = f"""
         SELECT rp.id, rp.timestamp, rp.data, rp.message_id, rp.rssi, rp.snr, rp.payload_type,
                rp.policy_action, rp.policy_rule,
-               rp.radio_freq, rp.radio_bw, rp.radio_sf, rp.radio_cr
+               rp.radio_freq, rp.radio_bw, rp.radio_sf, rp.radio_cr,{_DECRYPTED_INFO_COLUMNS}
         FROM raw_packets rp{joins}
         {where}
         ORDER BY rp.id DESC
@@ -513,7 +547,7 @@ async def get_packet_history(
             "snr": row["snr"],
             "rssi": row["rssi"],
             "decrypted": row["message_id"] is not None,
-            "decrypted_info": None,
+            "decrypted_info": _stored_decrypted_info(row),
             "policy": _stored_policy(row),
             "radio_stamp": _stored_radio_stamp(row),
         }

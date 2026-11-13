@@ -245,6 +245,7 @@ export function App() {
     handleSetHiddenRadioSfs,
     handleSetHideMalformed,
     handleSetHideSpam,
+    handleSetHideDuplicates,
     handleSetHideBots,
     handleSetHideNameFiltered,
     hiddenHopWidthsVersion,
@@ -368,6 +369,7 @@ export function App() {
   // actions exist at all; "Hide spam" works like "Hide malformed".
   const spamGuardEnabled = appSettings?.spam_guard_enabled ?? false;
   const hideSpam = appSettings?.hide_spam ?? false;
+  const hideDuplicates = appSettings?.hide_duplicates ?? false;
   const hideSpamRef = useRef(false);
   useEffect(() => {
     hideSpamRef.current = hideSpam;
@@ -1046,6 +1048,8 @@ export function App() {
     spamGuardEnabled,
     hideSpam,
     onHideSpamChange: handleSetHideSpam,
+    hideDuplicates,
+    onHideDuplicatesChange: handleSetHideDuplicates,
     hideBots,
     onHideBotsChange: handleSetHideBots,
     onSpamFeedback: handleSpamFeedback,

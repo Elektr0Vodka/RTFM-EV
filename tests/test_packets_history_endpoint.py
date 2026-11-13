@@ -151,6 +151,46 @@ async def _seed_linked_message(
     return packet_id
 
 
+class TestDecryptedInfo:
+    """History and recent rows carry the linked message's channel and sender."""
+
+    @pytest.mark.asyncio
+    async def test_history_and_recent_carry_channel_and_sender(self, test_db, client):
+        await ChannelRepository.upsert("CHANKEY", "Public")
+        linked = await _seed_linked_message(
+            bytes.fromhex("ee01"),
+            100,
+            text="hello",
+            conversation_key="CHANKEY",
+            sender_name="Alice",
+        )
+        plain, _ = await RawPacketRepository.create(bytes.fromhex("ee02"), 101)
+
+        for url, key in (("/api/packets/history", "packets"), ("/api/packets/recent", None)):
+            r = await client.get(url)
+            body = r.json()
+            rows = body[key] if key else body
+            by_id = {p["id"]: p for p in rows}
+            assert len(rows) == 2
+            info = by_id[linked]["decrypted_info"]
+            assert info["channel_name"] == "Public"
+            assert info["sender"] == "Alice"
+            assert info["channel_key"] == "CHANKEY"
+            assert info["message"] == "hello"
+            assert by_id[plain]["decrypted_info"] is None
+
+    @pytest.mark.asyncio
+    async def test_search_still_returns_decrypted_info(self, test_db, client):
+        await ChannelRepository.upsert("CHANKEY", "Public")
+        hit = await _seed_linked_message(
+            bytes.fromhex("ef01"), 100, text="findme", conversation_key="CHANKEY"
+        )
+        r = await client.get("/api/packets/history", params={"search": "findme"})
+        packets = r.json()["packets"]
+        assert [p["id"] for p in packets] == [hit]
+        assert packets[0]["decrypted_info"]["channel_name"] == "Public"
+
+
 class TestHistorySearch:
     @pytest.mark.asyncio
     async def test_matches_message_text(self, test_db, client):
