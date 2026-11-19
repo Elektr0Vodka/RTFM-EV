@@ -11,6 +11,42 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-19 (dependency updates, chore/dependency-upgrades-2026-11-19)
+
+Every dependency moved to its newest release that the rest of the toolchain
+supports. No migration, no feature change, no new dependency. Tested without a
+radio; `meshcore` 2.3.19 is not tried on hardware.
+
+### Backend (`pyproject.toml`, `uv.lock`)
+- `meshcore` pin 2.3.17 to 2.3.19. `get_contacts` now keeps waiting while
+  contacts are still arriving (we call it in `radio_sync.py`,
+  `channel_set_apply.py` and the debug router; no code change needed). Serial
+  connect no longer sets DTR/RTS by default: it tries the port as it is, then
+  DTR on, then DTR inverted, with a 1 s pause between tries. A radio that
+  needs DTR changed may now take longer than the 3 s serial auto-detect probe
+  (`test_serial_device`); not tried on hardware.
+- `uv lock --upgrade`, 19 packages: FastAPI 0.162 to 0.165 (new optional body
+  and form size limits, off unless configured), apprise 2.1 to 2.2, paho-mqtt
+  2.1 to 2.2, pycryptodome 4.2 to 4.5, pydantic 2.14.4, bleak 3.1, boto3 1.44,
+  pytest-asyncio 1.5, ruff 0.17.6. `uv.lock` written by uv 0.13.9.
+- ruff 0.17.6 flags a nested `if` in the ACK branch of
+  `app/packet_processor.py` (SIM102); merged into the `elif`, same behaviour
+  (it is the last branch).
+
+### Frontend (`frontend/package.json`, `tests/e2e/package.json`)
+- maplibre-gl 6.16 to 6.19, recharts 3.10 to 3.11, lucide-react 1.66 to 1.76,
+  Vite 8.3.8, Vitest 5.1.1, eslint 10.15, prettier 3.10.1, Tailwind 4.3.5,
+  typescript-eslint 8.73.0, `@testing-library/jest-dom` 7 to 8 (needs Vitest
+  5), jsdom 30 to 31, Playwright 1.65.1.
+- jsdom 31 writes `translate(Xpx, 0px)` back as `translate(Xpx)`. The
+  wardrive `MovablePanel` test read both numbers from that string; it now
+  treats a missing y as 0. The component is unchanged.
+- **TypeScript stays on 6.0.3.** `typescript-eslint` 8.73.0 still requires
+  `<6.1.0`.
+- `npm audit`: the `minimatch` advisory (eslint tooling) is gone. Still open:
+  `image-size`, `fflate` and `texture-compressor` through deck.gl and
+  loaders.gl; the only offered fix is a downgrade to deck.gl 9.1.0.
+
 ## Update 2026-11-19 (export for original Remote Terminal, feat/upstream-db-export)
 
 No migration.

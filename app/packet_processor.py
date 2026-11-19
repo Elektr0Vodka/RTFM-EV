@@ -597,22 +597,25 @@ async def process_raw_packet(
     elif payload_type == PayloadType.PATH:
         await _process_path_packet(raw_bytes, ts, packet_info)
 
-    elif payload_type == PayloadType.ACK:
-        # Standalone ACK packets carry the 4-byte ack code in cleartext (the
-        # firmware just memcpy's the uint32 into the payload). A contact answers
-        # a *direct*-routed DM with one of these, whereas a *flood*-routed DM is
-        # answered with a PATH-return that has the ACK embedded (handled above in
-        # _process_path_packet). We match directly from the raw RF packet so DM
-        # delivery confirmation does not depend on the radio also surfacing a
-        # separate EventType.ACK host control frame, which some companion
-        # firmwares (e.g. pyMC over TCP) do not reliably emit for direct ACKs.
-        if packet_info is not None and len(packet_info.payload) >= 4:
-            ack_code = packet_info.payload[:4].hex()
-            matched = await apply_dm_ack_code(ack_code, broadcast_fn=broadcast_event)
-            if matched:
-                logger.info("Applied standalone ACK %s from raw packet", ack_code)
-            else:
-                logger.debug("Buffered/ignored standalone ACK %s from raw packet", ack_code)
+    # Standalone ACK packets carry the 4-byte ack code in cleartext (the
+    # firmware just memcpy's the uint32 into the payload). A contact answers
+    # a *direct*-routed DM with one of these, whereas a *flood*-routed DM is
+    # answered with a PATH-return that has the ACK embedded (handled above in
+    # _process_path_packet). We match directly from the raw RF packet so DM
+    # delivery confirmation does not depend on the radio also surfacing a
+    # separate EventType.ACK host control frame, which some companion
+    # firmwares (e.g. pyMC over TCP) do not reliably emit for direct ACKs.
+    elif (
+        payload_type == PayloadType.ACK
+        and packet_info is not None
+        and len(packet_info.payload) >= 4
+    ):
+        ack_code = packet_info.payload[:4].hex()
+        matched = await apply_dm_ack_code(ack_code, broadcast_fn=broadcast_event)
+        if matched:
+            logger.info("Applied standalone ACK %s from raw packet", ack_code)
+        else:
+            logger.debug("Buffered/ignored standalone ACK %s from raw packet", ack_code)
 
     # Always broadcast raw packet for the packet feed UI (even duplicates)
     # This enables the frontend cracker to see all incoming packets in real-time
