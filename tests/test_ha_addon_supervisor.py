@@ -47,17 +47,42 @@ async def test_connect_error_raises_unavailable():
         raise httpx.ConnectError("down", request=request)
 
     with pytest.raises(SupervisorUnavailable):
-        await _client(handler).list_addons()
+        await _client(handler).addon_info("e8c7f026_mc_remoteterm")
 
 
-async def test_list_addons_returns_list():
+async def test_addon_info_uses_per_addon_info_path():
+    # The backup role may only call /.+/info and /backups.*, not GET /addons.
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/addons"
+        assert request.url.path == "/addons/e8c7f026_mc_remoteterm/info"
         return httpx.Response(
-            200, json={"result": "ok", "data": {"addons": [{"slug": "e8c7f026_mc_remoteterm"}]}}
+            200, json={"result": "ok", "data": {"slug": "e8c7f026_mc_remoteterm", "name": "RT"}}
         )
 
-    assert await _client(handler).list_addons() == [{"slug": "e8c7f026_mc_remoteterm"}]
+    info = await _client(handler).addon_info("e8c7f026_mc_remoteterm")
+    assert info == {"slug": "e8c7f026_mc_remoteterm", "name": "RT"}
+
+
+async def test_addon_info_unknown_addon_is_none():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"result": "error", "message": "App is not installed"})
+
+    assert await _client(handler).addon_info("e8c7f026_mc_remoteterm") is None
+
+
+async def test_addon_info_rejects_unsafe_slug():
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("no request for an unsafe slug")
+
+    assert await _client(handler).addon_info("../backups/new/full") is None
+
+
+def test_remoteterm_slug_candidates_include_known_repos():
+    from app.ha_addon.supervisor import remoteterm_slug_candidates
+
+    slugs = remoteterm_slug_candidates()
+    # sha1("https://github.com/rajeevan/hassio-meshcore-remote-term")[:8], as Supervisor does it
+    assert "e8c7f026_mc_remoteterm" in slugs
+    assert "local_mc_remoteterm" in slugs
 
 
 async def test_create_partial_backup_body_and_slug():

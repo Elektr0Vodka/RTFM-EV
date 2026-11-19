@@ -25,10 +25,10 @@ class FakeSupervisor:
         self.backups: list[tuple[str, str]] = []
         self.restarted = False
 
-    async def list_addons(self):
+    async def addon_info(self, slug):
         if self.fail:
             raise SupervisorUnavailable("down")
-        return self.addons
+        return next((a for a in self.addons if a["slug"] == slug), None)
 
     async def create_partial_backup(self, addon_slug, name):
         if self.fail:

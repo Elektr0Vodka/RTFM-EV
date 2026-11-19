@@ -29,7 +29,11 @@ from app.ha_addon.backup_import import (
     is_remoteterm_addon,
     list_candidates,
 )
-from app.ha_addon.supervisor import SupervisorUnavailable, supervisor_client
+from app.ha_addon.supervisor import (
+    SupervisorUnavailable,
+    remoteterm_slug_candidates,
+    supervisor_client,
+)
 from app.routers.backup import RestoreStatus, _restore_status
 from app.services import db_restore
 from app.services.db_restore import RestoreValidationError
@@ -98,15 +102,14 @@ async def import_status() -> HaImportStatus:
     """Installed RemoteTerm add-ons, HA backups that hold one, and whether our database is empty."""
     _require_addon_mode()
     installed: list[InstalledAddon] = []
+    client = supervisor_client()
     try:
-        for addon in await supervisor_client().list_addons():
-            slug = str(addon.get("slug") or "")
-            name = str(addon.get("name") or "")
-            url = addon.get("url")
-            if is_remoteterm_addon(slug, name, url if isinstance(url, str) else None):
-                installed.append(InstalledAddon(slug=slug, name=name))
+        for slug in remoteterm_slug_candidates():
+            info = await client.addon_info(slug)
+            if info is not None:
+                installed.append(InstalledAddon(slug=slug, name=str(info.get("name") or slug)))
     except SupervisorUnavailable as err:
-        logger.info("HA import: Supervisor not reachable for the add-on list (%s)", err)
+        logger.info("HA import: Supervisor not reachable for the add-on lookup (%s)", err)
     candidates = await asyncio.to_thread(list_candidates, HA_BACKUP_DIR)
     return HaImportStatus(
         installed=installed,
