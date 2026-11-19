@@ -7,6 +7,8 @@ manifest too, and it must not open either.
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.ha_addon.ingress import get_ingress_prefix
+
 # Default app name for the tab title, iOS home-screen title and PWA manifest
 # when no custom brand name is set.
 DEFAULT_APP_NAME = "RTFM-EV"
@@ -36,14 +38,22 @@ def _resolve_request_base(request: Request) -> str:
     else:
         origin = str(request.base_url).rstrip("/")
 
-    # Sub-path prefix (e.g. /meshcore) communicated by the reverse proxy
-    prefix = (
+    return f"{origin}{proxy_prefix(request)}/"
+
+
+def proxy_prefix(request: Request) -> str:
+    """The sub-path the browser sees (e.g. ``/meshcore``), without a trailing slash.
+
+    ``X-Forwarded-Prefix`` (or ``X-Forwarded-Path``) from a reverse proxy wins.
+    Without one, the Home Assistant Ingress path learned at startup is used
+    (empty outside add-on mode).
+    """
+    header = (
         (request.headers.get("x-forwarded-prefix") or request.headers.get("x-forwarded-path") or "")
         .strip()
         .rstrip("/")
     )
-
-    return f"{origin}{prefix}/"
+    return header or get_ingress_prefix()
 
 
 def web_manifest_response(request: Request, *, app_name: str, start_path: str = "") -> JSONResponse:
