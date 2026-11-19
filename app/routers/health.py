@@ -95,6 +95,7 @@ class HealthResponse(BaseModel):
     basic_auth_enabled: bool = False
     wardrive_enabled: bool = False
     wardrive_unprotected: bool = False
+    ha_addon: bool = False
     radio_identity: RadioIdentityHealth | None = None
 
 
@@ -241,6 +242,7 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
         "basic_auth_enabled": _read_optional_bool_setting("basic_auth_enabled"),
         "wardrive_enabled": _wardrive_flag(wardrive_active),
         "wardrive_unprotected": _wardrive_flag(wardrive_unprotected),
+        "ha_addon": _read_optional_bool_setting("ha_addon"),
         "radio_identity": radio_identity,
     }
 

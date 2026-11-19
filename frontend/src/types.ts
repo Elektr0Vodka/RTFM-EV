@@ -369,6 +369,8 @@ export interface HealthStatus {
   basic_auth_enabled?: boolean;
   wardrive_enabled?: boolean;
   wardrive_unprotected?: boolean;
+  /** Running as a Home Assistant add-on (MESHCORE_HA_ADDON). */
+  ha_addon?: boolean;
   /** The active radio (plan 18); status "pending" means the connect-time question is open. */
   radio_identity?: RadioIdentityHealth | null;
 }

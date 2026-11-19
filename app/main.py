@@ -165,6 +165,12 @@ async def lifespan(app: FastAPI):
     for warning in wardrive_startup_warnings(server_settings):
         logger.warning(warning)
 
+    if server_settings.ha_addon:
+        from app.ha_addon.startup import init_ha_addon
+        from app.ha_addon.supervisor import supervisor_client
+
+        await init_ha_addon(supervisor_client())
+
     # A restore staged from Settings is swapped in before the database opens
     # (the current database is snapshotted first); migrations then upgrade it.
     if db.db_path != ":memory:":
