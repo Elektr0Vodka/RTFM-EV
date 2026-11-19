@@ -4939,6 +4939,8 @@
   "settings_db_backup_heading": "Back-up",
   "settings_db_backup_desc": "Maak een consistente momentopname van de database. Download deze of sla deze op in een serverpad.",
   "settings_db_backup_download": "Back-up downloaden",
+  "settings_db_upstream_export_download": "Downloaden voor originele Remote Terminal",
+  "settings_db_upstream_export_desc": "Een kopie in het formaat van de originele Remote Terminal for MeshCore 3.17.1, om daar naar terug te stappen. Alleen gegevens die de originele app kent blijven behouden; gegevens en instellingen die alleen in RTFM-EV bestaan vallen weg. Berichten die hier verborgen zijn (misvormd, Spam Guard, dubbel) worden daar als gewone berichten getoond.",
   "settings_db_backup_server_toggle": "Back-ups ook opslaan in een serverpad",
   "settings_db_backup_path_label": "Bestemmingsmap op server",
   "settings_db_backup_path_placeholder": "/absoluut/pad/naar/backups",

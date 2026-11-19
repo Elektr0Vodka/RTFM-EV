@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-11-19 (dependency updates, claude/dependency-updates-e52f1f)
+## Update 2026-11-19 (dependency updates, chore/dependency-upgrades-2026-11-19)
 
 Every dependency moved to its newest release that the rest of the toolchain
 supports. No migration, no feature change, no new dependency. Tested without a
@@ -46,6 +46,19 @@ radio; `meshcore` 2.3.19 is not tried on hardware.
 - `npm audit`: the `minimatch` advisory (eslint tooling) is gone. Still open:
   `image-size`, `fflate` and `texture-compressor` through deck.gl and
   loaders.gl; the only offered fix is a downgrade to deck.gl 9.1.0.
+
+## Update 2026-11-19 (export for original Remote Terminal, feat/upstream-db-export)
+
+No migration.
+
+### Data and backup
+- **Download for original Remote Terminal** in Settings > Database
+  (`GET /api/backup/download/upstream`) builds a database in the exact schema of
+  original Remote Terminal for MeshCore 3.17.1 (schema version 63), for anyone
+  switching back. Only upstream's tables and columns are copied; every row is
+  kept, so messages hidden here show there as normal messages. The schema ships
+  as `app/services/upstream_schema_3_17_1.sql`, generated from a fresh database
+  made by upstream's own code.
 
 ## Update 2026-11-13 (packet history channel, trusted name lists, feat/packet-feed-trusted-names)
 
