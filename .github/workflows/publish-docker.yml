@@ -3,11 +3,15 @@ name: Publish Docker image
 # Builds the container for amd64 and arm64 and pushes it to GitHub Container
 # Registry (GHCR).
 #
-# - Every push to main: tags latest, sha-<short>, edge and <app version>-edge.<run>,
-#   then points the "RTFM-EV (edge)" Home Assistant add-on at that version.
-# - A release tag v<app version> (for example v3.18.0-EV.0.3): tags <app version>
-#   and stable, then points the "RTFM-EV" Home Assistant add-on at it. The tag
-#   must match the version the code reports, or the job fails.
+# - Every push to main: tags latest, sha-<short>, edge and the numeric add-on
+#   version <base>.<a>.<b>.<run> (3.18.0-EV.0.2 -> 3.18.0.0.2.412), then points
+#   the "RTFM-EV (edge)" Home Assistant add-on at it.
+# - A release tag v<app version> (for example v3.18.0-EV.0.3): tags 3.18.0-EV.0.3,
+#   the numeric 3.18.0.0.3 and stable, then points the "RTFM-EV" add-on at the
+#   numeric one. The tag must match the version the code reports.
+# - Any other ref (a dispatch from a feature branch) fails before building.
+# Add-on versions are numbers only because HA Core offers an update only when
+# AwesomeVersion orders latest > installed, which "-EV.x" strings never are.
 #
 # GHCR login uses the built-in GITHUB_TOKEN. The add-on bump needs the secret
 # HA_ADDON_REPO_TOKEN (write access to Elektr0Vodka/RTFM-EV-hassio); without
@@ -41,26 +45,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      # Refuses anything but main or a matching v* tag (scripts/addon_version.py).
       - name: Resolve app version
         id: version
         shell: bash
-        run: |
-          base=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
-          suffix=$(sed -n 's/^FORK_VERSION_SUFFIX = "\(.*\)"/\1/p' app/version_info.py)
-          version="${base}${suffix}"
-          if [ -z "$base" ]; then echo "::error::no version in pyproject.toml"; exit 1; fi
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
-              echo "::error::tag ${GITHUB_REF_NAME} does not match app version v${version}"
-              exit 1
-            fi
-            echo "channel=stable" >> "$GITHUB_OUTPUT"
-            echo "addon_version=${version}" >> "$GITHUB_OUTPUT"
-          else
-            echo "channel=edge" >> "$GITHUB_OUTPUT"
-            echo "addon_version=${version}-edge.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-          fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
+        run: python3 scripts/addon_version.py >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -86,6 +75,7 @@ jobs:
             type=sha,format=short,enable=${{ steps.version.outputs.channel == 'edge' }}
             type=raw,value=edge,enable=${{ steps.version.outputs.channel == 'edge' }}
             type=raw,value=${{ steps.version.outputs.addon_version }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.channel == 'stable' }}
             type=raw,value=stable,enable=${{ steps.version.outputs.channel == 'stable' }}
 
       - name: Build and push

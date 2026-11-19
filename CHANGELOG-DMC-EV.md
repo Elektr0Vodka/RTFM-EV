@@ -36,10 +36,13 @@ No migration.
 
 ### Build
 - The published image is built for amd64 and arm64. Main builds also get
-  `edge` and `<version>-edge.<run>` tags; a release tag `v<version>` builds
-  `<version>` and `stable`. CI then points the matching add-on at the new image
-  (needs secret `HA_ADDON_REPO_TOKEN`). The frontend stage builds on the
-  runner's own architecture.
+  `edge` and a numbers-only add-on version (`3.18.0.0.2.<run>`); a release tag
+  `v<version>` builds `<version>`, its numeric form (`3.18.0.0.3`) and `stable`.
+  Home Assistant only offers an update when it can order the versions, which
+  it cannot do with `-EV.x`. Publishing from any other branch is refused. CI
+  then points the matching add-on at the new image (needs secret
+  `HA_ADDON_REPO_TOKEN`). The frontend stage builds on the runner's own
+  architecture.
 
 ## Update 2026-11-13 (packet history channel, trusted name lists, feat/packet-feed-trusted-names)
 
