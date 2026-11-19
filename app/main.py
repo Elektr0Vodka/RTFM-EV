@@ -52,6 +52,7 @@ from app.frontend_static import (
     register_first_available_frontend_static_routes,
     register_frontend_missing_fallback,
 )
+from app.ha_addon.access import add_ha_addon_access_middleware
 from app.perf.loopwatch import loop_watch
 from app.perf.middleware import PerfRouteMiddleware
 from app.perf.recorders import log_tail
@@ -388,6 +389,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Added last so it runs first: in add-on mode only Ingress (and loopback) gets in.
+add_ha_addon_access_middleware(app, server_settings)
 
 
 install_validation_error_handler(app)

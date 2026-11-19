@@ -20,7 +20,7 @@ Notes:
 
 - A companion radio takes one TCP client at a time. Stop any other RTFM-EV or RemoteTerm that uses the same radio first.
 - The database lives in the add-on's own storage and is part of Home Assistant backups. The map tile cache is left out of backups.
-- Home Assistant handles sign-in; the add-on does not use RTFM-EV's Basic auth.
+- Home Assistant handles sign-in; the add-on does not use RTFM-EV's Basic auth. RTFM-EV only answers requests that come through Home Assistant (Ingress). The option `allow_direct_access` lets a mapped port and other add-ons in as well, without any login.
 - **Network scan** and other "my network" features see the add-on's own network, not your LAN. Addresses you type in work.
 
 ### Coming from the RemoteTerm add-on

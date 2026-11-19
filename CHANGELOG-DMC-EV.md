@@ -23,6 +23,9 @@ No migration.
   New add-on mode (`MESHCORE_HA_ADDON=true`, `app/ha_addon/`) reads
   `/data/options.json` and asks the HA Supervisor for the Ingress path, since
   Ingress sends no prefix header; the web manifest and the wardrive cookie use it.
+  In add-on mode only Home Assistant Ingress may use the app (other add-ons
+  could otherwise reach the unauthenticated API); option `allow_direct_access`
+  lifts that.
 - **Import from the RemoteTerm add-on.** Settings > Database > Import from
   RemoteTerm lists HA backups that hold the RemoteTerm add-on, can make one,
   and stages the import through the normal restore (applied on add-on restart,

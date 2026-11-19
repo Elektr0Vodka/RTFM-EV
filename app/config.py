@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # Home Assistant add-on mode: options come from /data/options.json, the
     # database lives in /data, and the Ingress prefix comes from the Supervisor.
     ha_addon: bool = False
+    # Add-on mode only: let requests in that do not come through Ingress
+    # (a mapped port). Off = Ingress and loopback only (app/ha_addon/access.py).
+    ha_allow_direct: bool = False
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":

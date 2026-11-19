@@ -60,6 +60,10 @@ def addon_overrides(options: Mapping[str, object], environ: Mapping[str, str]) -
     if level in _LOG_LEVELS and "MESHCORE_LOG_LEVEL" not in environ:
         out["log_level"] = level
 
+    direct = options.get("allow_direct_access")
+    if isinstance(direct, bool) and "MESHCORE_HA_ALLOW_DIRECT" not in environ:
+        out["ha_allow_direct"] = direct
+
     if "MESHCORE_DATABASE_PATH" not in environ:
         out["database_path"] = ADDON_DATABASE_PATH
 
