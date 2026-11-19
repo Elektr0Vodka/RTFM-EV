@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { TempRadioBanner } from './TempRadioBanner';
+import { HaImportBanner } from './HaImportBanner';
 
 import { StatusBar } from './StatusBar';
 import { Sidebar } from './Sidebar';
@@ -283,6 +284,10 @@ export function AppShell({
         onOpenThemeSettings={openThemeSettings}
       />
       <TempRadioBanner />
+      <HaImportBanner
+        haAddon={statusProps.health?.ha_addon === true}
+        onOpen={() => handleOpenSettings('database')}
+      />
       <div data-toast-anchor="statusbar" aria-hidden="true" />
     </>
   );

@@ -3429,6 +3429,28 @@ export interface RestoreStatus {
   pending: PendingRestore | null;
   last_result: RestoreResult | null;
 }
+
+/* ── Home Assistant add-on: import from the RemoteTerm add-on ── */
+
+export interface HaInstalledAddon {
+  slug: string;
+  name: string;
+}
+
+export interface HaBackup {
+  backup_slug: string;
+  backup_name: string;
+  created: string;
+  addon_slug: string;
+  addon_name: string;
+  protected: boolean;
+}
+
+export interface HaImportStatus {
+  installed: HaInstalledAddon[];
+  backups: HaBackup[];
+  database_empty: boolean;
+}
 /* ── Host repeater (plan 29): RTFM-EV as the repeater, shadow mode only ── */
 
 export type HostRepeaterLoopDetect = 'off' | 'minimal' | 'moderate' | 'strict';
