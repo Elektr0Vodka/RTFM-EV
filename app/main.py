@@ -85,6 +85,7 @@ from app.routers import (
     fleet_device,
     fleet_vault,
     fleet_webconfig,
+    ha_import,
     health,
     host_repeater,
     lan_discovery,
@@ -420,6 +421,7 @@ async def log_server_errors(request: Request, call_next):
 # API routes - all prefixed with /api for production compatibility
 app.include_router(health.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
+app.include_router(ha_import.router, prefix="/api")
 app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(perf.router, prefix="/api")
