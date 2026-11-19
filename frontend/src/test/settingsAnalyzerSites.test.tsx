@@ -10,6 +10,7 @@ vi.mock('../api', () => ({
   api: {
     runMaintenance: vi.fn(),
     downloadBackupUrl: () => './api/backup/download',
+    downloadUpstreamExportUrl: () => './api/backup/download/upstream',
     saveBackup: vi.fn(),
   },
 }));
