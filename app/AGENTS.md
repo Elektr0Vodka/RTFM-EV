@@ -469,6 +469,16 @@ With `MESHCORE_MULTI_RADIO=true`, `app.asgi:app` serves the gateway instead of t
 
 `install_validation_error_handler(app)` (in `main.py`) keeps FastAPI's 422 answer. Python's JSON reader accepts `Infinity`/`NaN`; when a validation error echoes such a value the usual answer cannot be written and the client got a 500, so only then the numbers are echoed as text. Test apps that should behave like the main app call it too (`tests/wardrive_helpers.wardrive_app`).
 
+### Home Assistant add-on mode (`app/ha_addon/`, `MESHCORE_HA_ADDON=true`)
+
+Set by the add-on's `config.yaml` (`environment:`); the add-on definitions live in `Elektr0Vodka/RTFM-EV-hassio` (alpha).
+
+- **Options.** `config._build_settings()` reads `/data/options.json` (`options.load_addon_options`, `{}` plus a warning when missing or invalid) and passes `addon_overrides(options, os.environ)` to `Settings` as init arguments: `tcp_host` (empty = no transport), `tcp_port` (only with a host), `log_level`, and `database_path=/data/meshcore.db`. A `MESHCORE_*` variable set in the environment wins, so its option is dropped (init arguments would beat it). Wordlists and the tile cache follow the database into `/data`.
+- **Ingress prefix.** HA Supervisor Ingress forwards without any prefix header. `startup.init_ha_addon` (in `lifespan`) reads `ingress_entry` from `GET http://supervisor/addons/self/info` and stores it (`ingress.set_ingress_prefix`, plain absolute paths only). `web_manifest.proxy_prefix(request)` uses `X-Forwarded-Prefix`/`X-Forwarded-Path` first, then that prefix; the manifest and the wardrive cookie path both call it. Supervisor unreachable = warning, no prefix, the app still starts.
+- **Supervisor client** (`supervisor.py`): Bearer `SUPERVISOR_TOKEN`; `SupervisorUnavailable` for no token, connection errors and `result != "ok"`. Partial backups get a 600 s timeout (they include the add-on image).
+- **RemoteTerm import** (`backup_import.py`, `routers/ha_import.py`). Real backup layout: `docs/plans/2026-11-19-ha-addon/ha-backup-layout.md` (local plans folder). Outer tar `./backup.json` + `<slug>.tar.gz`; inner gzip tar `./addon.json` (tokens, never read), `./image.tar` (skipped), `data/meshcore.db` with `-wal`/`-shm`. A running add-on's rows sit in the WAL, so the three files are taken together and written out with `VACUUM INTO`. Only those three names are ever written, under names chosen in code. `protected: true` = refused (encrypted). `check_upstream_schema` refuses `user_version > 63` (upstream's `_064`+ differ from ours). The file then goes through `db_restore.stage_restore(source="ha-backup")`, so the normal checks and pre-restore snapshot apply. `from-backup` finds the file by backup slug via `list_candidates` (HA file names are not always `<slug>.tar`). `make-backup` only accepts RemoteTerm slugs (`*mc_remoteterm`).
+- **Frontend.** `HealthStatus.ha_addon`; `HaImportSection` under Settings > Database; `HaImportBanner` (once, while our database is empty and RemoteTerm is found; dismiss in `localStorage` `rtfm.haImportBannerDismissed`).
+
 ### Wardrive plugin (`app/wardrive/`, opt-in)
 
 `MESHCORE_WARDRIVE=true` (`Settings.wardrive`). `module.wardrive_active()` is that flag and not multi-radio mode; when it is false neither router is registered (`main.py`) and the Basic auth middleware exempts nothing. `startup_warnings()` is logged in lifespan: main login off (`wardrive_unprotected`), or the flag set in multi-radio mode. Health exposes `wardrive_enabled` and `wardrive_unprotected`.
@@ -1034,6 +1044,7 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 - `GET /backup/restore` - `{pending, last_result}`: a staged restore and the outcome of the last applied one
 - `POST /backup/restore/upload` (multipart `file`) and `POST /backup/restore/server` (`{filename}`, bare name inside the backup directory) - validate a backup (SQLite header, `quick_check`, RemoteTerm tables, schema not newer than this build) and stage it as `<db>.restore-pending`
 - `DELETE /backup/restore` - cancel the staged restore; `DELETE /backup/restore/result` - forget the last outcome
+- `GET /ha-import/status`, `POST /ha-import/from-backup` (`{backup_slug, addon_slug}`), `POST /ha-import/make-backup` (`{addon_slug}`), `POST /ha-import/restart`: Home Assistant add-on only (404 otherwise), see "Home Assistant add-on mode" above
 - A staged restore is applied by `app/services/db_restore.py:apply_pending_restore` at the top of `lifespan`, before `db.connect()`: it snapshots the current DB to `meshcore-pre-restore-<stamp>.db` next to it, removes the old `-wal`/`-shm`, swaps the file in, and the normal migrations then upgrade it. Scheduled snapshots (`meshcore-auto-<stamp>.db`, keep-N rotation of those files only) run from `app/services/backup_scheduler.py`
 
 ### Retention

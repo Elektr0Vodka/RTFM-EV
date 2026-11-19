@@ -1,5 +1,39 @@
 # Home Assistant Integration
 
+Two separate things live here:
+
+- **The RTFM-EV add-on (alpha):** run RTFM-EV itself inside Home Assistant. See [Home Assistant add-on (alpha)](#home-assistant-add-on-alpha) below.
+- **MQTT Discovery:** RTFM-EV, wherever it runs, publishes mesh data to Home Assistant. That is the rest of this page.
+
+## Home Assistant add-on (alpha)
+
+> **Alpha.** Expect breakage. Keep Home Assistant backups, and report problems on [Elektr0Vodka/RTFM-EV](https://github.com/Elektr0Vodka/RTFM-EV/issues).
+
+Needs Home Assistant OS or Supervised (installs with **Settings > Add-ons**), on amd64 or aarch64. aarch64 is built by CI but not yet tested on hardware.
+
+1. **Settings > Add-ons > Add-on Store**, three-dot menu, **Repositories**, add `https://github.com/Elektr0Vodka/RTFM-EV-hassio`.
+2. Install **RTFM-EV** (follows releases) or **RTFM-EV (edge)** (follows every change on `main`). Run one at a time.
+3. On the **Configuration** tab set `tcp_host` (and `tcp_port`, default 5000) to your MeshCore companion radio over TCP. Serial and Bluetooth are not supported in the add-on yet.
+4. Start it and open **RTFM-EV** in the sidebar (Home Assistant Ingress).
+
+Notes:
+
+- A companion radio takes one TCP client at a time. Stop any other RTFM-EV or RemoteTerm that uses the same radio first.
+- The database lives in the add-on's own storage and is part of Home Assistant backups. The map tile cache is left out of backups.
+- Home Assistant handles sign-in; the add-on does not use RTFM-EV's Basic auth.
+- **Network scan** and other "my network" features see the add-on's own network, not your LAN. Addresses you type in work.
+
+### Coming from the RemoteTerm add-on
+
+RTFM-EV can take over the contacts, channels and messages of the RemoteTerm add-on. Home Assistant keeps each add-on's data private, so the import goes through a Home Assistant backup:
+
+- **Let RTFM-EV make the backup:** **Settings > Database > Import from RemoteTerm**, **Make a backup now**, then **Import** on the new backup.
+- **Make it yourself:** in Home Assistant, **Settings > System > Backups**, make a partial backup of only the RemoteTerm add-on, **without a password**. It then shows up under **Import from RemoteTerm**.
+
+The import replaces RTFM-EV's database when the add-on restarts (**Restart the add-on now**); the current database is saved first. Encrypted backups cannot be imported. A RemoteTerm database newer than RTFM-EV understands (schema above 63) is refused.
+
+## MQTT Discovery
+
 RemoteTerm can publish mesh network data to Home Assistant via MQTT Discovery. Devices and entities appear automatically in HA -- no custom component or HACS install needed.
 
 ## Prerequisites

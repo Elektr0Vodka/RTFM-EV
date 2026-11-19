@@ -293,7 +293,11 @@ sudo docker compose down
 Notes:
 
 - To build from your checkout instead, replace `image: ghcr.io/elektr0vodka/rtfm-ev:latest` with `build: .` and run `sudo docker compose up -d --build` (`pull` only fetches remote images).
-- Local builds are architecture-native: on Apple Silicon and ARM64 Linux (for example a Raspberry Pi) they produce an ARM64 image.
+- Local builds are architecture-native: on Apple Silicon and ARM64 Linux (for example a Raspberry Pi) they produce an ARM64 image. The published image is built for amd64 and arm64.
+
+### Home Assistant add-on (alpha)
+
+RTFM-EV also runs as a Home Assistant add-on, opened from the HA sidebar, with an import from the RemoteTerm add-on. Add the repository `https://github.com/Elektr0Vodka/RTFM-EV-hassio` in the Add-on Store. Setup and limits: [README_HA.md](README_HA.md#home-assistant-add-on-alpha).
 - Rootless Docker has been observed to fail on serial-device mappings even with a correct compose file.
 - The container runs as root for serial compatibility. On Linux, switching between native and Docker runs can leave `./data` root-owned; the optional `user: "${UID:-1000}:${GID:-1000}"` line in the compose file keeps ownership aligned with your host user.
 
