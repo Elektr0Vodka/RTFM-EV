@@ -4939,6 +4939,8 @@
   "settings_db_backup_heading": "Sicherung",
   "settings_db_backup_desc": "Erstellt eine konsistente Momentaufnahme der Datenbank. Herunterladen oder in einem Serverpfad speichern.",
   "settings_db_backup_download": "Sicherung herunterladen",
+  "settings_db_upstream_export_download": "Für originales Remote Terminal herunterladen",
+  "settings_db_upstream_export_desc": "Eine Kopie im Format des originalen Remote Terminal for MeshCore 3.17.1, um dorthin zurückzuwechseln. Nur Daten, die die originale App kennt, bleiben erhalten; Daten und Einstellungen, die es nur in RTFM-EV gibt, entfallen. Hier ausgeblendete Nachrichten (fehlerhaft, Spam Guard, Duplikate) erscheinen dort als normale Nachrichten.",
   "settings_db_backup_server_toggle": "Sicherungen auch in einem Serverpfad speichern",
   "settings_db_backup_path_label": "Zielverzeichnis auf dem Server",
   "settings_db_backup_path_placeholder": "/absoluter/pfad/zu/sicherungen",

@@ -132,6 +132,16 @@ snapshot of it:
   `meshcore-backup-YYYYMMDD-HHMMSS.db`. The directory must exist and be writable; a
   local-network target works when it is an OS-mounted share. Backing endpoints:
   `GET /api/backup/download` and `POST /api/backup/save`.
+- **Download for original Remote Terminal** gives a database for switching back to
+  the original Remote Terminal for MeshCore (jkingsman), release 3.17.1. The file
+  (`remoteterm-upstream-3.17.1-YYYYMMDD-HHMMSS.db`) uses that release's exact schema
+  at schema version 63, so its own later updates migrate it normally. Only the tables
+  and columns the original app has are copied; data and settings that exist only in
+  RTFM-EV are left out. Every row is kept: messages hidden here (malformed, Spam
+  Guard, duplicates) show there as normal messages. Like a normal backup it holds
+  channel keys and integration credentials. To use it, stop the original app, put
+  the file at its database path (`data/meshcore.db` by default) and start it.
+  Endpoint: `GET /api/backup/download/upstream`.
 
 - **Back up automatically** (shown once the server path is on) writes a snapshot
   named `meshcore-auto-YYYYMMDD-HHMMSS.db` every N hours (default 24) and keeps the

@@ -402,6 +402,17 @@ export function SettingsDatabaseSection({
           </Button>
         </a>
 
+        <div className="space-y-1.5">
+          <a href={api.downloadUpstreamExportUrl()} download className="inline-block">
+            <Button type="button" variant="secondary">
+              {t('settings_db_upstream_export_download')}
+            </Button>
+          </a>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_db_upstream_export_desc')}
+          </p>
+        </div>
+
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"

@@ -120,6 +120,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 
 - One SQLite database (`data/meshcore.db` by default) holds packets with signal metadata, messages and history.
 - Backup to the browser or a server path, on demand or on a schedule with rotation; restore is staged and applied at the next restart.
+- Download a copy for the original Remote Terminal 3.17.1, for switching back to it.
 - Per-class data retention with **Prune now** and a **Keep everything (analyzer)** preset.
 
 ### Interface

@@ -1238,6 +1238,7 @@ export const api = {
 
   // Backup
   downloadBackupUrl: () => `${API_BASE}/backup/download`,
+  downloadUpstreamExportUrl: () => `${API_BASE}/backup/download/upstream`,
   saveBackup: () =>
     fetchJson<BackupSaveResult>('/backup/save', {
       method: 'POST',

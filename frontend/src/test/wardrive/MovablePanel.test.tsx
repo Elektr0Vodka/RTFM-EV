@@ -19,9 +19,16 @@ function renderPanel() {
   );
 }
 
+// jsdom 31+ serialises `translate(Xpx, 0px)` in its short form `translate(Xpx)`,
+// so read the numbers and print them back in the long form.
+const readTranslate = (transform: string): [number, number] => {
+  const [x = 0, y = 0] = (transform.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+  return [x, y];
+};
+
 const offset = () => {
-  const el = screen.getByTestId('movable-panel');
-  return el.style.transform;
+  const [x, y] = readTranslate(screen.getByTestId('movable-panel').style.transform);
+  return `translate(${x}px, ${y}px)`;
 };
 
 describe('movable panel', () => {
@@ -103,7 +110,7 @@ describe('movable panel', () => {
       const origRect = HTMLElement.prototype.getBoundingClientRect;
       HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
         if (this.dataset.testid !== 'movable-panel') return origRect.call(this);
-        const [x, y] = (this.style.transform.match(/-?\d+(\.\d+)?/g) ?? ['0', '0']).map(Number);
+        const [x, y] = readTranslate(this.style.transform);
         const left = HOME.left + x;
         const bottom = HOME.bottom + y;
         return {

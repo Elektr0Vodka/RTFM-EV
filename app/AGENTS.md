@@ -1040,6 +1040,7 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 
 ### Backup and restore
 - `GET /backup/download` - stream a `VACUUM INTO` snapshot of the database
+- `GET /backup/download/upstream` - database in original Remote Terminal 3.17.1 format (`services/upstream_export.py`): fresh DB from `services/upstream_schema_3_17_1.sql` (generated from upstream's own code at tag 3.17.1, never hand-edited), upstream tables only, shared columns copied, `user_version` 63. `tests/test_upstream_export.py` fails if a fork migration changes an upstream column. A new upstream release needs a regenerated schema file.
 - `POST /backup/save` - write a snapshot (`meshcore-backup-<stamp>.db`) to `backup_destination_path` (requires `backup_to_path_enabled`)
 - `GET /backup/files` - list `*.db` files in the backup directory, newest first, each tagged `auto` / `manual` / `pre-restore` / `other`
 - `GET /backup/restore` - `{pending, last_result}`: a staged restore and the outcome of the last applied one

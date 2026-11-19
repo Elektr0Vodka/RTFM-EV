@@ -25,3 +25,9 @@ describe('api.downloadBackupUrl', () => {
     expect(api.downloadBackupUrl()).toBe('./api/backup/download');
   });
 });
+
+describe('api.downloadUpstreamExportUrl', () => {
+  it('returns the original Remote Terminal export URL', () => {
+    expect(api.downloadUpstreamExportUrl()).toBe('./api/backup/download/upstream');
+  });
+});
