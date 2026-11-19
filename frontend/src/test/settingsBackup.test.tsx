@@ -50,6 +50,19 @@ describe('SettingsDatabaseSection backup', () => {
     expect(link.getAttribute('href')).toBe(api.downloadBackupUrl());
   });
 
+  it('renders a download link for the original Remote Terminal export', () => {
+    render(
+      <SettingsDatabaseSection
+        appSettings={baseSettings()}
+        health={null}
+        onSaveAppSettings={vi.fn().mockResolvedValue(undefined)}
+        onHealthRefresh={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    const link = screen.getByRole('link', { name: /download for original remote terminal/i });
+    expect(link.getAttribute('href')).toBe(api.downloadUpstreamExportUrl());
+  });
+
   it('calls saveBackup when the server button is clicked (toggle on + path set)', () => {
     const saveSpy = vi.spyOn(api, 'saveBackup').mockResolvedValue({
       path: '/mnt/b/x.db',

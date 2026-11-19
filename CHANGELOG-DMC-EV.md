@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-19 (export for original Remote Terminal, feat/upstream-db-export)
+
+No migration.
+
+### Data and backup
+- **Download for original Remote Terminal** in Settings > Database
+  (`GET /api/backup/download/upstream`) builds a database in the exact schema of
+  original Remote Terminal for MeshCore 3.17.1 (schema version 63), for anyone
+  switching back. Only upstream's tables and columns are copied; every row is
+  kept, so messages hidden here show there as normal messages. The schema ships
+  as `app/services/upstream_schema_3_17_1.sql`, generated from a fresh database
+  made by upstream's own code.
+
 ## Update 2026-11-13 (packet history channel, trusted name lists, feat/packet-feed-trusted-names)
 
 Migration `_170`, next free `_171`.

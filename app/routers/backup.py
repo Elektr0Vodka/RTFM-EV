@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import shutil
@@ -21,6 +22,7 @@ from app.services.backup_store import (
     resolve_backup_file,
 )
 from app.services.db_restore import RestoreValidationError
+from app.services.upstream_export import build_upstream_db, upstream_export_filename
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/backup", tags=["backup"])
@@ -102,6 +104,38 @@ async def download_backup() -> FileResponse:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         logger.exception("Backup snapshot failed")
         raise HTTPException(status_code=500, detail="Failed to create database backup") from err
+
+    def _cleanup() -> None:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return FileResponse(
+        path=target,
+        media_type="application/octet-stream",
+        filename=filename,
+        background=BackgroundTask(_cleanup),
+    )
+
+
+@router.get("/download/upstream")
+async def download_upstream_export() -> FileResponse:
+    """Download the database in original Remote Terminal 3.17.1 format.
+
+    Only upstream's tables and columns are kept, schema version 63.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="meshcore-upstream-export-")
+    snapshot = os.path.join(tmp_dir, "snapshot.db")
+    filename = upstream_export_filename()
+    target = os.path.join(tmp_dir, filename)
+    try:
+        await db.backup_to(snapshot)
+        await asyncio.to_thread(build_upstream_db, snapshot, target)
+    except Exception as err:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        logger.exception("Upstream export failed")
+        raise HTTPException(status_code=500, detail="Failed to build upstream export") from err
+    finally:
+        if os.path.exists(snapshot):
+            os.remove(snapshot)
 
     def _cleanup() -> None:
         shutil.rmtree(tmp_dir, ignore_errors=True)
