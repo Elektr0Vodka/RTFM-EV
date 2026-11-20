@@ -52,6 +52,7 @@ from app.frontend_static import (
     register_first_available_frontend_static_routes,
     register_frontend_missing_fallback,
 )
+from app.ha_addon.access import add_ha_addon_access_middleware
 from app.perf.loopwatch import loop_watch
 from app.perf.middleware import PerfRouteMiddleware
 from app.perf.recorders import log_tail
@@ -85,6 +86,7 @@ from app.routers import (
     fleet_device,
     fleet_vault,
     fleet_webconfig,
+    ha_import,
     health,
     host_repeater,
     lan_discovery,
@@ -164,6 +166,12 @@ async def lifespan(app: FastAPI):
     """Manage database and radio connection lifecycle."""
     for warning in wardrive_startup_warnings(server_settings):
         logger.warning(warning)
+
+    if server_settings.ha_addon:
+        from app.ha_addon.startup import init_ha_addon
+        from app.ha_addon.supervisor import supervisor_client
+
+        await init_ha_addon(supervisor_client())
 
     # A restore staged from Settings is swapped in before the database opens
     # (the current database is snapshotted first); migrations then upgrade it.
@@ -381,6 +389,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Added last so it runs first: in add-on mode only Ingress (and loopback) gets in.
+add_ha_addon_access_middleware(app, server_settings)
 
 
 install_validation_error_handler(app)
@@ -414,6 +424,7 @@ async def log_server_errors(request: Request, call_next):
 # API routes - all prefixed with /api for production compatibility
 app.include_router(health.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
+app.include_router(ha_import.router, prefix="/api")
 app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(perf.router, prefix="/api")

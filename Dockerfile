@@ -1,5 +1,7 @@
 # Stage 1: Build frontend
-FROM node:24-slim AS frontend-builder
+# The built files are plain JS/CSS, so this stage runs on the build machine's own
+# architecture even when the image is built for another (arm64 under QEMU).
+FROM --platform=$BUILDPLATFORM node:24-slim AS frontend-builder
 
 ARG COMMIT_HASH=unknown
 

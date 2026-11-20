@@ -369,6 +369,8 @@ export interface HealthStatus {
   basic_auth_enabled?: boolean;
   wardrive_enabled?: boolean;
   wardrive_unprotected?: boolean;
+  /** Running as a Home Assistant add-on (MESHCORE_HA_ADDON). */
+  ha_addon?: boolean;
   /** The active radio (plan 18); status "pending" means the connect-time question is open. */
   radio_identity?: RadioIdentityHealth | null;
 }
@@ -3426,6 +3428,28 @@ export interface RestoreResult {
 export interface RestoreStatus {
   pending: PendingRestore | null;
   last_result: RestoreResult | null;
+}
+
+/* ── Home Assistant add-on: import from the RemoteTerm add-on ── */
+
+export interface HaInstalledAddon {
+  slug: string;
+  name: string;
+}
+
+export interface HaBackup {
+  backup_slug: string;
+  backup_name: string;
+  created: string;
+  addon_slug: string;
+  addon_name: string;
+  protected: boolean;
+}
+
+export interface HaImportStatus {
+  installed: HaInstalledAddon[];
+  backups: HaBackup[];
+  database_empty: boolean;
 }
 /* ── Host repeater (plan 29): RTFM-EV as the repeater, shadow mode only ── */
 

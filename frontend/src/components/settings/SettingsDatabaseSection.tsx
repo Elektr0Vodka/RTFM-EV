@@ -9,6 +9,7 @@ import { formatTime } from '../../utils/messageParser';
 import { loadSyncedWordlist, saveSyncedWordlist } from '../../lib/wordlistSync';
 import { useT } from '../../i18n';
 import { SettingsBackupRestore } from './SettingsBackupRestore';
+import { HaImportSection } from './HaImportSection';
 import { SettingsRetentionSection } from './SettingsRetentionSection';
 import type { AnalyzerSite, AppSettings, AppSettingsUpdate, HealthStatus } from '../../types';
 
@@ -49,6 +50,8 @@ export function SettingsDatabaseSection({
   const [backupPath, setBackupPath] = useState('');
   const [savingBackup, setSavingBackup] = useState(false);
   const [backupListVersion, setBackupListVersion] = useState(0);
+  // Remounts the restore panel after a Home Assistant import, so it shows the staged restore.
+  const [haImportVersion, setHaImportVersion] = useState(0);
   const [syncUrl, setSyncUrl] = useState('');
   const [wordlistSyncUrl, setWordlistSyncUrl] = useState('');
   const [wordlistSyncing, setWordlistSyncing] = useState(false);
@@ -460,10 +463,15 @@ export function SettingsDatabaseSection({
         )}
 
         <SettingsBackupRestore
+          key={haImportVersion}
           appSettings={appSettings}
           persist={persistAppSettings}
           refreshToken={backupListVersion}
         />
+
+        {health?.ha_addon === true && (
+          <HaImportSection onStaged={() => setHaImportVersion((v) => v + 1)} />
+        )}
       </div>
 
       <Separator />

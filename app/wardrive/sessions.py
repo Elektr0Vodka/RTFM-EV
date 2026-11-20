@@ -11,6 +11,7 @@ from fastapi import HTTPException, Request, Response
 
 from app.repository.wardrive import WardriveSessionRepository, WardriveUserRepository
 from app.wardrive.module import API_PREFIX
+from app.web_manifest import proxy_prefix
 
 COOKIE_NAME = "rtfm_wardrive"
 SESSION_TTL_S = 30 * 86400
@@ -38,11 +39,7 @@ def cookie_path(request: Request) -> str:
     """The API path as the browser sees it: behind a sub-path reverse proxy
     (X-Forwarded-Prefix, as the web manifest reads it) the cookie must carry
     that prefix or the browser never sends it back."""
-    prefix = (
-        (request.headers.get("x-forwarded-prefix") or request.headers.get("x-forwarded-path") or "")
-        .strip()
-        .rstrip("/")
-    )
+    prefix = proxy_prefix(request)
     if prefix and not _SAFE_PREFIX.match(prefix):
         prefix = ""
     return f"{prefix}{API_PREFIX}"

@@ -24,6 +24,7 @@ import type {
   FilterProfileKind,
   FilterProfilesState,
   RestoreStatus,
+  HaImportStatus,
   AppSettingsUpdate,
   PacketHistoryResponse,
   PacketWhoHeard,
@@ -1268,6 +1269,19 @@ export const api = {
     return res.json() as Promise<RestoreStatus>;
   },
   cancelRestore: () => fetchJson<RestoreStatus>('/backup/restore', { method: 'DELETE' }),
+  // Home Assistant add-on: import from the RemoteTerm add-on (404 outside add-on mode)
+  getHaImportStatus: () => fetchJson<HaImportStatus>('/ha-import/status'),
+  haImportFromBackup: (backupSlug: string, addonSlug: string) =>
+    fetchJson<RestoreStatus>('/ha-import/from-backup', {
+      method: 'POST',
+      body: JSON.stringify({ backup_slug: backupSlug, addon_slug: addonSlug }),
+    }),
+  haMakeBackup: (addonSlug: string) =>
+    fetchJson<{ backup_slug: string }>('/ha-import/make-backup', {
+      method: 'POST',
+      body: JSON.stringify({ addon_slug: addonSlug }),
+    }),
+  haRestart: () => fetchJson<{ status: string }>('/ha-import/restart', { method: 'POST' }),
   dismissRestoreResult: () =>
     fetchJson<RestoreStatus>('/backup/restore/result', { method: 'DELETE' }),
 

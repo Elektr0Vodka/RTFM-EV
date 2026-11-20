@@ -1,5 +1,6 @@
 import logging
 import logging.config
+import os
 from collections import deque
 from threading import Lock
 from typing import Literal
@@ -7,6 +8,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.ha_addon.options import ADDON_OPTIONS_PATH, addon_overrides, load_addon_options
 from app.log_redaction import CliSecretRedactFilter
 
 
@@ -60,6 +62,12 @@ class Settings(BaseSettings):
     companion_bridge_port: int = 5000
     companion_bridge_allow_send: bool = True
     companion_bridge_max_contacts: int = 500
+    # Home Assistant add-on mode: options come from /data/options.json, the
+    # database lives in /data, and the Ingress prefix comes from the Supervisor.
+    ha_addon: bool = False
+    # Add-on mode only: let requests in that do not come through Ingress
+    # (a mapped port). Off = Ingress and loopback only (app/ha_addon/access.py).
+    ha_allow_direct: bool = False
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":
@@ -102,7 +110,15 @@ class Settings(BaseSettings):
         return any_credentials_set and not self.basic_auth_enabled
 
 
-settings = Settings()
+def _build_settings() -> Settings:
+    """Settings from the environment, plus add-on options in add-on mode."""
+    if os.environ.get("MESHCORE_HA_ADDON", "").strip().lower() == "true":
+        options = load_addon_options(ADDON_OPTIONS_PATH)
+        return Settings(**addon_overrides(options, os.environ))  # type: ignore[arg-type]
+    return Settings()
+
+
+settings = _build_settings()
 
 
 class _RingBufferLogHandler(logging.Handler):

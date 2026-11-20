@@ -11,6 +11,42 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-19 (Home Assistant add-on, alpha, feat/ha-addon)
+
+No migration.
+
+### Home Assistant add-on
+- **RTFM-EV as a Home Assistant add-on (alpha).** Add-on repository
+  `Elektr0Vodka/RTFM-EV-hassio` with **RTFM-EV** (releases) and
+  **RTFM-EV (edge)** (every merge to `main`). Opened through HA Ingress, TCP
+  radio set on the add-on's Configuration tab, data in the add-on's own storage.
+  New add-on mode (`MESHCORE_HA_ADDON=true`, `app/ha_addon/`) reads
+  `/data/options.json` and asks the HA Supervisor for the Ingress path, since
+  Ingress sends no prefix header; the web manifest and the wardrive cookie use it.
+  In add-on mode only Home Assistant Ingress may use the app (other add-ons
+  could otherwise reach the unauthenticated API); option `allow_direct_access`
+  lifts that.
+- **Import from the RemoteTerm add-on.** Settings > Database > Import from
+  RemoteTerm lists HA backups that hold the RemoteTerm add-on, can make one,
+  and stages the import through the normal restore (applied on add-on restart,
+  current database saved first). The database is read together with its WAL,
+  as a running add-on keeps most rows there. Encrypted backups and RemoteTerm
+  schemas above 63 are refused. A banner offers the import once while the
+  database is empty.
+
+### Fixes
+- The wardrive page address in Settings stays under a sub-path proxy.
+
+### Build
+- The published image is built for amd64 and arm64. Main builds also get
+  `edge` and a numbers-only add-on version (`3.18.0.0.2.<run>`); a release tag
+  `v<version>` builds `<version>`, its numeric form (`3.18.0.0.3`) and `stable`.
+  Home Assistant only offers an update when it can order the versions, which
+  it cannot do with `-EV.x`. Publishing from any other branch is refused. CI
+  then points the matching add-on at the new image (needs secret
+  `HA_ADDON_REPO_TOKEN`). The frontend stage builds on the runner's own
+  architecture.
+
 ## Update 2026-11-19 (dependency updates, chore/dependency-upgrades-2026-11-19)
 
 Every dependency moved to its newest release that the rest of the toolchain
