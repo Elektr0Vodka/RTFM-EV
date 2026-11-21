@@ -1552,6 +1552,23 @@ describe('SpamGuardView round 2', () => {
     });
   });
 
+  it('offers and saves the everyone-except-known duplicate scope', async () => {
+    await renderView();
+    openTab('Settings');
+    const scope = within(screen.getByTestId('spam-setting-dedupe_scope')).getByRole('combobox');
+    expect(
+      within(scope).getByRole('option', {
+        name: 'Everyone except known people and trusted names',
+      })
+    ).toBeInTheDocument();
+    fireEvent.change(scope, { target: { value: 'except_known' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalled());
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1].overrides).toEqual({
+      dedupe_scope: 'except_known',
+    });
+  });
+
   it('offers the malformed signal as a setting', async () => {
     await renderView();
     openTab('Settings');

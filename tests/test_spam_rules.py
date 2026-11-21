@@ -151,10 +151,24 @@ class TestHostDocuments:
             "channel_message_body",
         ]
 
-    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
-    @pytest.mark.parametrize("sender", ["Dave", "Sarah"])
+    def test_duplicate_block_except_known_lets_known_people_through(self):
+        det, clock = make(overrides={"dedupe_scope": "except_known"})
+        say(det, clock, "UD6DWREK", LONG)
+        det.decide()
+        rules = render(det, "host")
+        assert rules.before == []
+        assert names(rules.after)[0] == f"spam:known-people:{PUBLIC}"
+        assert [c["field"] for c in rules.after[1]["if"]["all"]] == [
+            "payload_type",
+            "channel_hash",
+            "channel_message_body",
+        ]
+
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone", "except_known"])
+    @pytest.mark.parametrize("sender", ["Dave", "Sarah", "Known"])
     def test_duplicate_rules_agree_with_the_detector(self, scope, sender):
         det, clock = make(overrides={"dedupe_scope": scope})
+        det.seed_known([("Known", 5, clock.now - 7200, clock.now - 600)])
         say(det, clock, "Dave", LONG)
         det.decide()
         event = say(det, clock, sender, LONG)

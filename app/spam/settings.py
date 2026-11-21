@@ -27,8 +27,9 @@ Mode = Literal["monitor", "protect"]
 HopMatch = Literal["contains_known", "exact_paths", "contains", "starts_at"]
 HoldLinks = Literal["campaign", "always", "off"]
 # Whose repeats duplicate suppression holds back: copies under other names (the
-# first sender may re-send), the same name repeating itself, or everyone.
-DedupeScope = Literal["others", "same", "everyone"]
+# first sender may re-send), the same name repeating itself, everyone, or
+# everyone except known people and trusted names.
+DedupeScope = Literal["others", "same", "everyone", "except_known"]
 
 # "Stays until removed".
 PERMANENT_SECONDS = 10 * 365 * 86400

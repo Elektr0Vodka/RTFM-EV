@@ -165,6 +165,24 @@ describe('Mesh Health Spam & bots tab', () => {
     expect(within(table).getByText('Mine')).toBeInTheDocument();
   });
 
+  it('draws the trend chart with My Node style axes and a hover tooltip', async () => {
+    await openTab();
+    const chart = screen.getByRole('img', { name: 'Over time' });
+    const ticks = within(chart as unknown as HTMLElement).getAllByTestId('chart-y-tick');
+    // Busiest bucket: 9 spam.
+    expect(ticks.map((g) => g.textContent)).toEqual(['0', '5', '9']);
+    expect(within(chart as unknown as HTMLElement).getAllByTestId('chart-time-label')).toHaveLength(
+      2
+    );
+    expect(screen.queryByTestId('trend-tooltip')).not.toBeInTheDocument();
+    fireEvent.mouseEnter(
+      within(chart as unknown as HTMLElement).getAllByTestId('trend-hover-target')[0]
+    );
+    const tip = screen.getByTestId('trend-tooltip');
+    expect(within(tip as unknown as HTMLElement).getByText('Spam: 9')).toBeInTheDocument();
+    expect(within(tip as unknown as HTMLElement).getByText('Bots: 0')).toBeInTheDocument();
+  });
+
   it('opens a node when a sender with a known key is clicked', async () => {
     const onOpenNode = vi.fn();
     await openTab({ onOpenNode });

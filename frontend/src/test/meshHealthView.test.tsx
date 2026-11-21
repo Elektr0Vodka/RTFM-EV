@@ -300,6 +300,19 @@ describe('MeshHealthView Requests tab', () => {
     // The Adverts contacts table is no longer mounted.
     expect(screen.queryByText('Node A')).not.toBeInTheDocument();
   });
+
+  it('draws the volume chart with My Node style axes: 0 / half / max and times', async () => {
+    render(<MeshHealthView config={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Requests' }));
+    const chart = await screen.findByRole('img', { name: 'Request volume over time' });
+    // Busiest bucket: 3 requests.
+    const ticks = within(chart as unknown as HTMLElement).getAllByTestId('chart-y-tick');
+    expect(ticks.map((g) => g.textContent)).toEqual(['0', '2', '3']);
+    // Two buckets: a start and an end time under the chart.
+    expect(within(chart as unknown as HTMLElement).getAllByTestId('chart-time-label')).toHaveLength(
+      2
+    );
+  });
 });
 
 describe('MeshHealthView Firmware updates tab', () => {
