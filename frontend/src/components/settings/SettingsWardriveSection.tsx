@@ -38,7 +38,10 @@ export function SettingsWardriveSection({ className }: { className?: string }) {
     };
   }, []);
 
-  const pageUrl = status ? `${window.location.origin}${status.page_path}` : null;
+  // Relative to the page, so it stays under a sub-path proxy (Home Assistant Ingress).
+  const pageUrl = status
+    ? new URL(status.page_path.replace(/^\//, ''), document.baseURI).href
+    : null;
 
   return (
     <div className={className}>

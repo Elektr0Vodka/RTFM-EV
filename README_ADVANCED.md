@@ -256,6 +256,7 @@ RemoteTerm works behind a reverse proxy that serves it under a sub-path (e.g. `/
 
 - The proxy must ensure the sub-path URL has a **trailing slash**. If a user visits `/meshcore` (no slash), relative paths break. Most proxies handle this automatically; for Nginx, a `location /meshcore/ { ... }` block (note the trailing slash) does the right thing.
 - For correct PWA install behavior, the proxy should forward `X-Forwarded-Prefix` (set to the sub-path, e.g. `/meshcore`) so the web manifest generates correct `start_url` and `scope` values. `X-Forwarded-Proto` and `X-Forwarded-Host` are also respected for origin resolution.
+- Home Assistant Ingress sends no prefix header. The RTFM-EV add-on asks the HA Supervisor for its Ingress path at startup and uses that when no `X-Forwarded-Prefix` arrives. Running RTFM-EV behind Ingress some other way (not as the add-on) gets no prefix: the app works, but the PWA manifest and the wardrive cookie use `/`.
 
 ## Sign-In Behind a Reverse Proxy
 

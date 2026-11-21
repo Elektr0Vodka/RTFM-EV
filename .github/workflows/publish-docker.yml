@@ -1,22 +1,33 @@
 name: Publish Docker image
 
-# Builds the container and pushes it to GitHub Container Registry (GHCR) on
-# every push to main, so ghcr.io/<owner>/rtfm-ev:latest always tracks main.
-# Each build is also tagged sha-<short> for pinning and rollback.
+# Builds the container for amd64 and arm64 and pushes it to GitHub Container
+# Registry (GHCR).
 #
-# No external secrets are required: GHCR login uses the built-in GITHUB_TOKEN.
-# The package inherits the repository's visibility (public repo -> public image).
+# - Every push to main: tags latest, sha-<short>, edge and the numeric add-on
+#   version <base>.<a>.<b>.<run> (3.18.0-EV.0.2 -> 3.18.0.0.2.412), then points
+#   the "RTFM-EV (edge)" Home Assistant add-on at it.
+# - A release tag v<app version> (for example v3.18.0-EV.0.3): tags 3.18.0-EV.0.3,
+#   the numeric 3.18.0.0.3 and stable, then points the "RTFM-EV" add-on at the
+#   numeric one. The tag must match the version the code reports.
+# - Any other ref (a dispatch from a feature branch) fails before building.
+# Add-on versions are numbers only because HA Core offers an update only when
+# AwesomeVersion orders latest > installed, which "-EV.x" strings never are.
+#
+# GHCR login uses the built-in GITHUB_TOKEN. The add-on bump needs the secret
+# HA_ADDON_REPO_TOKEN (write access to Elektr0Vodka/RTFM-EV-hassio); without
+# it the bump is skipped with a notice and the images are still published.
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
-  # Only the newest main build matters for a rolling :latest, so cancel an
-  # in-progress build when a newer commit lands.
-  group: publish-docker
-  cancel-in-progress: true
+  # Only the newest main build matters for the rolling tags; release tags each
+  # get their own group so one never cancels another.
+  group: publish-docker-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -25,10 +36,23 @@ permissions:
 jobs:
   publish-docker:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      addon_version: ${{ steps.version.outputs.addon_version }}
+      channel: ${{ steps.version.outputs.channel }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      # Refuses anything but main or a matching v* tag (scripts/addon_version.py).
+      - name: Resolve app version
+        id: version
+        shell: bash
+        run: python3 scripts/addon_version.py >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -47,14 +71,18 @@ jobs:
           # metadata-action lowercases the repository name, which GHCR requires.
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=short
+            type=raw,value=latest,enable=${{ steps.version.outputs.channel == 'edge' }}
+            type=sha,format=short,enable=${{ steps.version.outputs.channel == 'edge' }}
+            type=raw,value=edge,enable=${{ steps.version.outputs.channel == 'edge' }}
+            type=raw,value=${{ steps.version.outputs.addon_version }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.channel == 'stable' }}
+            type=raw,value=stable,enable=${{ steps.version.outputs.channel == 'stable' }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -62,3 +90,45 @@ jobs:
             COMMIT_HASH=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  bump-ha-addon:
+    needs: publish-docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HAS_TOKEN: ${{ secrets.HA_ADDON_REPO_TOKEN != '' }}
+      ADDON_DIR: ${{ needs.publish-docker.outputs.channel == 'stable' && 'rtfm-ev' || 'rtfm-ev-edge' }}
+      ADDON_VERSION: ${{ needs.publish-docker.outputs.addon_version }}
+    steps:
+      - name: Skip without token
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::HA_ADDON_REPO_TOKEN not set; add-on version not bumped"
+
+      - name: Check out repository
+        if: env.HAS_TOKEN == 'true'
+        uses: actions/checkout@v7
+        with:
+          path: rtfm-ev
+
+      - name: Check out add-on repository
+        if: env.HAS_TOKEN == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: Elektr0Vodka/RTFM-EV-hassio
+          token: ${{ secrets.HA_ADDON_REPO_TOKEN }}
+          path: hassio
+
+      - name: Point the add-on at the new image
+        if: env.HAS_TOKEN == 'true'
+        shell: bash
+        run: |
+          python3 rtfm-ev/scripts/set_addon_version.py "hassio/${ADDON_DIR}/config.yaml" "${ADDON_VERSION}"
+          cd hassio
+          if git diff --quiet; then
+            echo "::notice::${ADDON_DIR} already at ${ADDON_VERSION}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: ${ADDON_DIR} ${ADDON_VERSION}"
+          git push

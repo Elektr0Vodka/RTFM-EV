@@ -132,6 +132,21 @@ describe('Settings: wardrive admin', () => {
     expect(await screen.findByText(`${window.location.origin}/wardrive/`)).toBeTruthy();
   });
 
+  it('keeps the page address under a sub-path (Home Assistant Ingress)', async () => {
+    const base = document.createElement('base');
+    base.href = `${window.location.origin}/api/hassio_ingress/tok/`;
+    document.head.appendChild(base);
+    try {
+      mockApi();
+      render(<SettingsWardriveSection />);
+      expect(
+        await screen.findByText(`${window.location.origin}/api/hassio_ingress/tok/wardrive/`)
+      ).toBeTruthy();
+    } finally {
+      base.remove();
+    }
+  });
+
   it('lists users with their radios and reception count', async () => {
     mockApi();
     render(<WardriveDriversPanel />);
