@@ -190,7 +190,7 @@ class TestDuplicateSuppression:
 class TestDuplicateRestart:
     """A duplicate block that is gone starts again with the next message."""
 
-    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone", "except_known"])
     def test_a_block_removed_by_hand_is_made_again_by_the_next_message(self, scope):
         det, clock = make(overrides={"dedupe_scope": scope})
         say(det, clock, "Dave", LONG)
@@ -207,7 +207,7 @@ class TestDuplicateRestart:
         repeat = say(det, clock, "Sarah" if scope == "others" else "Dave", LONG)
         assert repeat.duplicate
 
-    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone", "except_known"])
     def test_a_block_removed_by_hand_does_not_come_straight_back(self, scope):
         det, clock = make(overrides={"dedupe_scope": scope})
         say(det, clock, "Dave", LONG)
@@ -244,7 +244,7 @@ class TestDuplicateRestart:
         det.decide()
         assert say(det, clock, "Dave", LONG).duplicate
 
-    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone", "except_known"])
     def test_an_expired_block_is_made_again_by_the_next_message(self, scope):
         det, clock = make(overrides={"dedupe_scope": scope})
         say(det, clock, "Dave", LONG)
@@ -329,7 +329,7 @@ class TestDuplicateScope:
         assert say(det, clock, "Sarah", LONG).matched == block.key
         assert say(det, clock, "Dave", LONG).matched == block.key
 
-    @pytest.mark.parametrize("scope", ["same", "everyone"])
+    @pytest.mark.parametrize("scope", ["same", "everyone", "except_known"])
     def test_the_message_being_judged_does_not_block_itself(self, scope):
         """Host repeater: the rules made by this call judge this very message."""
         det, clock = make(overrides={"dedupe_scope": scope})
@@ -341,7 +341,7 @@ class TestDuplicateScope:
         assert repeat.matched is not None and repeat.duplicate
         assert first.matched is None
 
-    @pytest.mark.parametrize("scope", ["same", "everyone"])
+    @pytest.mark.parametrize("scope", ["same", "everyone", "except_known"])
     def test_a_message_too_young_to_have_been_judged_does_not_block_itself(self, scope):
         """Host repeater: a tick right after ingest must not get ahead of the engine."""
         det, clock = make(overrides={"dedupe_scope": scope})
@@ -368,6 +368,43 @@ class TestDuplicateScope:
         assert all(b.sender == "Dave" and b.sender_only for b in det.blocks.values())
         assert say(det, clock, "Sarah", LONG + " 3").matched is None
         assert say(det, clock, "Dave", LONG + " 3").matched is not None
+
+    def test_except_known_holds_back_unknown_names_but_lets_known_people_through(self):
+        det, clock = make(overrides={"dedupe_scope": "except_known"})
+        det.seed_known([("Sarah", 5, clock.now - 7200, clock.now - 600)])
+        say(det, clock, "UD6DWREK", LONG)
+        det.decide()
+        (block,) = det.blocks.values()
+        assert block.sender is None and not block.sender_only
+        assert det.gated(block)
+        assert say(det, clock, "UD6DWREK", LONG).matched == block.key
+        assert say(det, clock, "QK3ZP9XV", LONG).matched == block.key
+        assert say(det, clock, "Sarah", LONG).matched is None
+
+    @pytest.mark.parametrize("who", ["known", "trusted", "contact"])
+    def test_except_known_copies_from_known_or_trusted_names_make_no_block(self, who):
+        det, clock = make(
+            overrides={"dedupe_scope": "except_known"},
+            allow_senders=["Dave"] if who == "trusted" else [],
+            trust_contacts=who == "contact",
+        )
+        if who == "known":
+            det.seed_known([("Dave", 5, clock.now - 7200, clock.now - 600)])
+        if who == "contact":
+            det.set_contact_senders(["Dave"])
+        say(det, clock, "Dave", LONG)
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        assert not det.blocks
+
+    def test_everyone_does_not_let_known_people_through(self):
+        det, clock = make(overrides={"dedupe_scope": "everyone"})
+        det.seed_known([("Sarah", 5, clock.now - 7200, clock.now - 600)])
+        say(det, clock, "UD6DWREK", LONG)
+        det.decide()
+        (block,) = det.blocks.values()
+        assert not det.gated(block)
+        assert say(det, clock, "Sarah", LONG).matched == block.key
 
     def test_changing_the_scope_drops_the_old_duplicate_blocks(self):
         det, clock = make()

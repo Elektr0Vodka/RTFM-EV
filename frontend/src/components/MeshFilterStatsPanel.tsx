@@ -21,7 +21,13 @@ import { useSeriesColor } from '../hooks/useCvdColors';
 import { AddToBotListDialog, type BotListTarget } from './AddToBotListDialog';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { MeshFilterStatsTables } from './MeshFilterStatsTables';
-import { type TimeWindow, StatTile, fmtBucketTime } from './meshHealthShared';
+import {
+  type TimeWindow,
+  StatTile,
+  fmtBucketTime,
+  ChartYGrid,
+  ChartTimeAxis,
+} from './meshHealthShared';
 import { toast } from './ui/sonner';
 import { ShareCardDialog } from '../share/ShareCardDialog';
 import { useRtfmFilterBuild } from '../share/cards/useFilterShare';
@@ -105,6 +111,8 @@ function TrendChart({
   mode: TrendMode;
   label: string;
 }) {
+  const t = useT();
+  const [hov, setHov] = useState<number | null>(null);
   const W = 360;
   const H = 140;
   const pad = { top: 8, right: 8, bottom: 18, left: 28 };
@@ -122,33 +130,26 @@ function TrendChart({
   const maxVal = Math.max(1, ...series.flatMap((b) => SERIES.map((s) => valueOf(b, s.key))));
   const xOf = (i: number) => pad.left + (n > 1 ? (i / (n - 1)) * pw : pw / 2);
   const yOf = (v: number) => pad.top + ph - (v / maxVal) * ph;
-  const ticks = [0, maxVal / 2, maxVal];
   const spanSeconds = n > 1 ? series[n - 1].bucket_ts - series[0].bucket_ts : 0;
-  const tickText = (v: number) => (mode === 'share' ? `${Math.round(v)}%` : `${Math.round(v)}`);
+  const valueText = (v: number) => (mode === 'share' ? `${Math.round(v)}%` : `${Math.round(v)}`);
+  // Each point owns the strip halfway to its neighbours.
+  const slot = n > 1 ? pw / (n - 1) : pw;
+
+  // Guard the hovered point: after a zoom/pan the sliced `series` shrinks while
+  // `hov` can still point past the new end.
+  const hb = hov !== null && hov < n ? series[hov] : null;
+  const TIP_W = 104;
+  const TIP_H = 14 + SERIES.length * 11;
+  let tipX = 0;
+  if (hb !== null) {
+    tipX = xOf(hov as number);
+    if (tipX < pad.left + TIP_W / 2) tipX = pad.left + TIP_W / 2;
+    if (tipX > W - pad.right - TIP_W / 2) tipX = W - pad.right - TIP_W / 2;
+  }
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={label}>
-      {ticks.map((v) => (
-        <g key={v}>
-          <line
-            x1={pad.left}
-            x2={W - pad.right}
-            y1={yOf(v)}
-            y2={yOf(v)}
-            stroke="hsl(var(--border))"
-            strokeWidth={0.5}
-          />
-          <text
-            x={pad.left - 3}
-            y={yOf(v) + 3}
-            textAnchor="end"
-            fontSize={8}
-            fill="hsl(var(--muted-foreground))"
-          >
-            {tickText(v)}
-          </text>
-        </g>
-      ))}
+      <ChartYGrid max={maxVal} left={pad.left} right={W - pad.right} yOf={yOf} format={valueText} />
       {SERIES.map((s, index) => (
         <polyline
           key={s.key}
@@ -159,22 +160,78 @@ function TrendChart({
           strokeLinejoin="round"
         />
       ))}
-      {n > 0 && (
+      <ChartTimeAxis times={series.map((b) => b.bucket_ts)} xOf={xOf} y={H - 4} />
+      {hb !== null && (
         <>
-          <text x={pad.left} y={H - 5} fontSize={8} fill="hsl(var(--muted-foreground))">
-            {fmtBucketTime(series[0].bucket_ts * 1000, spanSeconds)}
-          </text>
-          <text
-            x={W - pad.right}
-            y={H - 5}
-            textAnchor="end"
-            fontSize={8}
-            fill="hsl(var(--muted-foreground))"
-          >
-            {fmtBucketTime(series[n - 1].bucket_ts * 1000, spanSeconds)}
-          </text>
+          <line
+            x1={xOf(hov as number)}
+            x2={xOf(hov as number)}
+            y1={pad.top}
+            y2={pad.top + ph}
+            stroke="hsl(var(--muted-foreground))"
+            strokeWidth={0.5}
+            strokeDasharray="2,2"
+          />
+          {SERIES.map((s, index) => (
+            <circle
+              key={s.key}
+              cx={xOf(hov as number)}
+              cy={yOf(valueOf(hb, s.key))}
+              r={2.5}
+              fill={seriesColor(index, s.color)}
+              stroke="hsl(var(--background))"
+              strokeWidth={1}
+            />
+          ))}
+          <g transform={`translate(${tipX},${pad.top + 2})`} data-testid="trend-tooltip">
+            <rect
+              x={-TIP_W / 2}
+              y={0}
+              width={TIP_W}
+              height={TIP_H}
+              rx={2}
+              fill="hsl(var(--popover))"
+              stroke="hsl(var(--border))"
+              strokeWidth={0.5}
+              style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}
+            />
+            <text
+              x={0}
+              y={11}
+              textAnchor="middle"
+              fontSize={7}
+              fontWeight={600}
+              fill="hsl(var(--popover-foreground))"
+            >
+              {fmtBucketTime(hb.bucket_ts * 1000, spanSeconds)}
+            </text>
+            {SERIES.map((s, index) => (
+              <text
+                key={s.key}
+                x={-TIP_W / 2 + 6}
+                y={23 + index * 11}
+                fontSize={7.5}
+                fill={seriesColor(index, s.color)}
+              >
+                {`${t(s.labelKey)}: ${valueText(valueOf(hb, s.key))}`}
+              </text>
+            ))}
+          </g>
         </>
       )}
+      {series.map((_, i) => (
+        <rect
+          key={i}
+          data-testid="trend-hover-target"
+          x={Math.max(pad.left, xOf(i) - slot / 2)}
+          y={pad.top}
+          width={n > 1 ? slot : pw}
+          height={ph}
+          fill="transparent"
+          onMouseEnter={() => setHov(i)}
+          onMouseLeave={() => setHov(null)}
+        />
+      ))}
     </svg>
   );
 }

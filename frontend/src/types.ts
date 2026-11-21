@@ -3783,7 +3783,7 @@ export type SpamGuardSensitivity = 'relaxed' | 'balanced' | 'strict';
 export type SpamGuardHopMatch = 'contains_known' | 'exact_paths' | 'contains' | 'starts_at';
 export type SpamGuardHoldLinks = 'campaign' | 'always' | 'off';
 /** Whose repeats duplicate suppression holds back. */
-export type SpamGuardDedupeScope = 'others' | 'same' | 'everyone';
+export type SpamGuardDedupeScope = 'others' | 'same' | 'everyone' | 'except_known';
 
 export interface SpamGuardChannel {
   key: string;

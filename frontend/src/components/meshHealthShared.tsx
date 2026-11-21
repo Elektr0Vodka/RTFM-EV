@@ -98,3 +98,87 @@ export function DistBars({ items }: { items: { label: string; count: number; col
     </div>
   );
 }
+
+// ─── Chart axes (My Node style) ──────────────────────────────────────────────
+
+/**
+ * Dashed grid lines with 0 / half / max labels on the left, the same look as
+ * the My Node charts. `yOf` maps a value to its SVG y.
+ */
+export function ChartYGrid({
+  max,
+  left,
+  right,
+  yOf,
+  format = (v) => String(Math.round(v)),
+}: {
+  max: number;
+  left: number;
+  right: number;
+  yOf: (v: number) => number;
+  format?: (v: number) => string;
+}) {
+  return (
+    <>
+      {[0, Math.round(max / 2), max].map((v, i) => (
+        <g key={i} data-testid="chart-y-tick">
+          <line
+            x1={left}
+            x2={right}
+            y1={yOf(v)}
+            y2={yOf(v)}
+            stroke="hsl(var(--border))"
+            strokeWidth={0.5}
+            strokeDasharray={i === 0 ? undefined : '2,2'}
+          />
+          <text
+            x={left - 3}
+            y={yOf(v)}
+            textAnchor="end"
+            dominantBaseline="middle"
+            fontSize={8}
+            fill="hsl(var(--muted-foreground))"
+          >
+            {format(v)}
+          </text>
+        </g>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Start, middle and end time under a chart, the same look as the My Node
+ * charts. `xOf` maps an index to its SVG x; `times` are unix seconds.
+ */
+export function ChartTimeAxis({
+  times,
+  xOf,
+  y,
+}: {
+  times: number[];
+  xOf: (i: number) => number;
+  y: number;
+}) {
+  const n = times.length;
+  if (n === 0) return null;
+  const span = n > 1 ? times[n - 1] - times[0] : 0;
+  const idx = n === 1 ? [0] : n === 2 ? [0, 1] : [0, Math.floor((n - 1) / 2), n - 1];
+  return (
+    <>
+      {idx.map((i) => (
+        <text
+          key={i}
+          data-testid="chart-time-label"
+          x={xOf(i)}
+          y={y}
+          textAnchor={i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle'}
+          fontSize={8}
+          fill="hsl(var(--muted-foreground))"
+        >
+          {fmtBucketTime(times[i] * 1000, span)}
+        </text>
+      ))}
+    </>
+  );
+}

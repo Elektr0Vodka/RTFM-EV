@@ -18,7 +18,15 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
-import { type TimeWindow, relTime, StatTile, DistBars, fmtBucketTime } from './meshHealthShared';
+import {
+  type TimeWindow,
+  relTime,
+  StatTile,
+  DistBars,
+  fmtBucketTime,
+  ChartYGrid,
+  ChartTimeAxis,
+} from './meshHealthShared';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -87,8 +95,6 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
 
   const respPoints = series.map((b, i) => `${centerX(i)},${yOf(b.responses)}`).join(' ');
 
-  const yTicks = [0, Math.round(maxVal / 2), maxVal];
-
   const spanSeconds = n > 1 ? series[n - 1].bucket_ts - series[0].bucket_ts : 0;
 
   // Guard the hovered bucket: after a zoom/pan the sliced `series` shrinks while
@@ -112,27 +118,8 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
       role="img"
       aria-label={t('mesh_health_req_volume_heading')}
     >
-      {yTicks.map((v) => (
-        <g key={v}>
-          <line
-            x1={pad.left}
-            x2={W - pad.right}
-            y1={yOf(v)}
-            y2={yOf(v)}
-            stroke="hsl(var(--border))"
-            strokeWidth={0.5}
-          />
-          <text
-            x={pad.left - 3}
-            y={yOf(v) + 3}
-            textAnchor="end"
-            fontSize={8}
-            fill="hsl(var(--muted-foreground))"
-          >
-            {v}
-          </text>
-        </g>
-      ))}
+      <ChartYGrid max={maxVal} left={pad.left} right={W - pad.right} yOf={yOf} />
+      <ChartTimeAxis times={series.map((b) => b.bucket_ts)} xOf={centerX} y={H - 4} />
       {series.map((b, i) => {
         const x = pad.left + i * slot + (slot - barW) / 2;
         const floodH = (b.flood / maxVal) * ph;

@@ -11,6 +11,27 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-21 (Mesh Health charts, duplicate scope; feat/mesh-health-charts-dedupe-known)
+
+Two requests from Richard. No migration, no new dependency.
+
+### Mesh Health (`MeshRequestsPanel.tsx`, `MeshFilterStatsPanel.tsx`, `meshHealthShared.tsx`)
+- The Requests volume chart and the Spam & bots trend chart use the My Node
+  chart axes: dashed grid lines with 0 / half / max on the left, and a start,
+  middle and end time under the chart (`ChartYGrid`, `ChartTimeAxis`). The
+  Requests chart had no times; the Spam & bots chart had only start and end.
+- The Spam & bots trend chart gets a hover tooltip like the Requests chart:
+  the bucket time and the Spam / Malformed / Duplicates / Bots values (counts,
+  or percentages in Share mode).
+
+### Spam Guard (`app/spam/detector.py`, `app/spam/settings.py`)
+- **Block repeats from** has a fourth choice: **Everyone except known people
+  and trusted names** (`dedupe_scope: except_known`). Copies sent by known
+  people, trusted names and trusted contacts make no duplicate rule, and the
+  duplicate rules it makes let known people through (`gated()` is true for
+  them, so the rendered rules carry the known-people allow rule). Fewer wrong
+  holds, fewer rules. Changing the scope still drops the old duplicate blocks.
+
 ## Update 2026-11-19 (dependency updates, chore/dependency-upgrades-2026-11-19)
 
 Every dependency moved to its newest release that the rest of the toolchain

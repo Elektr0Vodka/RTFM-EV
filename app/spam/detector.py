@@ -617,7 +617,12 @@ class SpamDetector:
         if block.kind in ("text", "words"):
             # Spam, not opinions: a text you block stops names it does not know,
             # never what people it knows say.
-            return block.reason in _USER_TEXT_REASONS
+            if block.reason in _USER_TEXT_REASONS:
+                return True
+            # ``except_known``: duplicates hold back everyone but known people.
+            # Changing the scope drops the duplicate blocks (``configure``), so
+            # the scope set now is the one each of them was made under.
+            return block.source == "dedupe" and self.tunables.dedupe_scope == "except_known"
         return block.kind in ("links", "lockdown", "suffix") or (
             block.kind == "hop" and self.hop_mode(block) == "contains_known"
         )
@@ -1112,8 +1117,10 @@ class SpamDetector:
         """The first copy of a message gets through; its repeats do not.
 
         Whose repeats is the ``dedupe_scope`` setting: copies under other names
-        (the first sender may re-send), the same name repeating itself, or
-        everyone. ``judged`` is the message a backend is about to judge with the
+        (the first sender may re-send), the same name repeating itself,
+        everyone, or everyone except known people (``except_known``: their
+        copies do not count, and the block lets them through, see ``gated``).
+        ``judged`` is the message a backend is about to judge with the
         rules this call makes, and a copy younger than ``fresh_seconds`` may
         still be waiting for that (see ``decide``): a block that holds back its
         own sender must not start with such a message as its only copy, or the
@@ -1128,6 +1135,7 @@ class SpamDetector:
             if not e.exempt
             and not e.released
             and not self.trusts(e.sender)
+            and not (scope == "except_known" and self.is_known(e.sender))
             and not self._stopped(e)
         ]
 
@@ -1139,7 +1147,7 @@ class SpamDetector:
             only = scope == "same"
             if only and sender is None:
                 return
-            if scope == "everyone":
+            if scope in ("everyone", "except_known"):
                 sender = None
             if kind == "words":
                 key = words_key([sender, *value] if only and sender else value)
