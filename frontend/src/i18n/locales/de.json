@@ -4747,6 +4747,10 @@
     "one": "(und {count} weitere)",
     "other": "(und {count} weitere)"
   },
+  "path_modal_ignored_far_matches": {
+    "one": "{count} weiterer Treffer ignoriert: zu weit entfernt für diesen Hop",
+    "other": "{count} weitere Treffer ignoriert: zu weit entfernt für diesen Hop"
+  },
   "path_map_no_gps": "Kein Knoten in dieser Route hat GPS-Koordinaten",
   "path_map_aria_label": "Karte mit Nachrichtenroute zwischen Knoten",
   "path_map_receiver_fallback": "Empfänger",

@@ -4745,6 +4745,10 @@
     "one": "(and {count} more)",
     "other": "(and {count} more)"
   },
+  "path_modal_ignored_far_matches": {
+    "one": "{count} other match ignored: too far away for this hop",
+    "other": "{count} other matches ignored: too far away for this hop"
+  },
   "path_map_no_gps": "No nodes in this route have GPS coordinates",
   "path_map_aria_label": "Map showing message route between nodes",
   "path_map_receiver_fallback": "Receiver",

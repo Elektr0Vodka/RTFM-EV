@@ -8,6 +8,9 @@ export interface PathHop {
   prefix: string; // Hex hop identifier (e.g., "1A" for 1-byte, "1A2B" for 2-byte)
   matches: Contact[]; // Matched repeaters (empty=unknown, multiple=ambiguous)
   distanceFromPrev: number | null; // km from previous hop
+  /** Prefix matches dropped as physically impossible (too far from a located
+   *  neighbour for the number of hops in between). See pruneImpossibleHopMatches. */
+  ignored?: Contact[];
 }
 
 export interface ResolvedPath {
@@ -524,6 +527,103 @@ function sortContactsByDistance(
 }
 
 /**
+ * Longest plausible single LoRa hop, in km. Generous on purpose (long
+ * line-of-sight links exist) so it only rules out prefix collisions with
+ * repeaters in another region or country.
+ */
+export const MAX_SINGLE_HOP_KM = 250;
+
+type LatLon = { lat: number; lon: number };
+
+export interface PrunedHopMatches {
+  matches: Contact[];
+  ignored: Contact[];
+}
+
+function locatedPoint(c: { lat: number | null; lon: number | null }): LatLon | null {
+  return isValidLocation(c.lat, c.lon) ? { lat: c.lat!, lon: c.lon! } : null;
+}
+
+/**
+ * Drop prefix matches that cannot be the hop because they are too far from a
+ * located neighbour. Only hops with several matches are pruned.
+ *
+ * Anchors are `start` (before hop 0), `end` (after the last hop) and every hop
+ * that resolves to exactly one located match. For each ambiguous hop the
+ * nearest anchor on each side is found; a located match farther from it than
+ * `links x maxHopKm` is dropped, where `links` counts the RF links between the
+ * two (so unknown or unlocated hops in between widen the budget). Matches
+ * without a location are never dropped. If every match would be dropped, the
+ * hop keeps its original matches. A hop narrowed to one located match becomes
+ * an anchor for its neighbours, so the pass repeats until nothing changes.
+ * `maxHopKm <= 0` disables pruning.
+ */
+export function pruneImpossibleHopMatches(
+  hopMatches: Contact[][],
+  start: LatLon | null,
+  end: LatLon | null,
+  maxHopKm: number = MAX_SINGLE_HOP_KM
+): PrunedHopMatches[] {
+  const current = hopMatches.map((m) => [...m]);
+  const ignored: Contact[][] = hopMatches.map(() => []);
+  if (!(maxHopKm > 0)) {
+    return current.map((matches) => ({ matches, ignored: [] }));
+  }
+
+  const anchorAt = (i: number): LatLon | null => {
+    if (i < 0) return start;
+    if (i >= current.length) return end;
+    return current[i].length === 1 ? locatedPoint(current[i][0]) : null;
+  };
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < current.length; i++) {
+      if (current[i].length < 2) continue;
+
+      let prev: LatLon | null = null;
+      let prevLinks = 0;
+      for (let j = i - 1; j >= -1; j--) {
+        prev = anchorAt(j);
+        if (prev) {
+          prevLinks = i - j;
+          break;
+        }
+      }
+      let next: LatLon | null = null;
+      let nextLinks = 0;
+      for (let j = i + 1; j <= current.length; j++) {
+        next = anchorAt(j);
+        if (next) {
+          nextLinks = j - i;
+          break;
+        }
+      }
+      if (!prev && !next) continue;
+
+      const tooFar = (p: LatLon, anchor: LatLon | null, links: number) =>
+        anchor !== null &&
+        (calculateDistance(anchor.lat, anchor.lon, p.lat, p.lon) ?? 0) > links * maxHopKm;
+
+      const keep: Contact[] = [];
+      const drop: Contact[] = [];
+      for (const c of current[i]) {
+        const p = locatedPoint(c);
+        if (p && (tooFar(p, prev, prevLinks) || tooFar(p, next, nextLinks))) drop.push(c);
+        else keep.push(c);
+      }
+      if (drop.length === 0 || keep.length === 0) continue;
+      current[i] = keep;
+      ignored[i].push(...drop);
+      changed = true;
+    }
+  }
+
+  return current.map((matches, i) => ({ matches, ignored: ignored[i] }));
+}
+
+/**
  * Get hop count from path, using explicit metadata when available.
  */
 function getHopCount(path: string | null | undefined, hopCount?: number | null): number {
@@ -677,12 +777,21 @@ export function resolvePath(
   // Start uncertain if sender has no valid location
   let prevHopUncertain = !isValidLocation(sender.lat, sender.lon);
 
-  for (const prefix of hopPrefixes) {
-    // Project each match's effective location (advertised-wins, manual-fallback)
-    // onto lat/lon on a shallow clone, so downstream distance calc, the path
-    // list and the route map place a node that only has a manual override
-    // instead of dropping it. The shared contact objects are never mutated.
-    const matches = findContactsByPrefix(prefix, contacts, true).map(withEffectiveContactCoords);
+  // Project each match's effective location (advertised-wins, manual-fallback)
+  // onto lat/lon on a shallow clone, so downstream distance calc, the path
+  // list and the route map place a node that only has a manual override
+  // instead of dropping it. The shared contact objects are never mutated.
+  // Then drop matches too far from their located neighbours to be the hop.
+  const pruned = pruneImpossibleHopMatches(
+    hopPrefixes.map((prefix) =>
+      findContactsByPrefix(prefix, contacts, true).map(withEffectiveContactCoords)
+    ),
+    locatedPoint(sender),
+    locatedPoint(resolvedReceiver)
+  );
+
+  for (const [hopIndex, prefix] of hopPrefixes.entries()) {
+    const { matches, ignored } = pruned[hopIndex];
     const sortedMatches = sortContactsByDistance(matches, prevLat, prevLon);
 
     // Calculate distance from previous hop
@@ -703,6 +812,7 @@ export function resolvePath(
       prefix,
       matches: sortedMatches,
       distanceFromPrev,
+      ignored,
     });
 
     // Update previous location for next hop
