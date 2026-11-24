@@ -669,6 +669,23 @@ class TestTrustedContacts:
         assert feed.runtime.snapshot()["contact_names"] == 0
 
     @pytest.mark.asyncio
+    async def test_trusted_names_switch_is_stored_and_keeps_the_list(self, feed):
+        await feed.runtime.load()
+        await feed.runtime.action("allow_sender", {"sender": "Sue"})
+        assert feed.runtime.detector.trusts("Sue")
+        off = feed.runtime.config.model_copy(update={"trust_allow_senders": False})
+        assert await feed.runtime.save_config(feed.runtime.version, off) is not None
+        assert not feed.runtime.detector.trusts("Sue")
+        assert feed.runtime.config.allow_senders == ["Sue"]
+        stored = await SpamGuardConfigRepository.get()
+        assert stored is not None
+        assert stored[1]["trust_allow_senders"] is False
+        assert stored[1]["allow_senders"] == ["Sue"]
+        on = feed.runtime.config.model_copy(update={"trust_allow_senders": True})
+        assert await feed.runtime.save_config(feed.runtime.version, on) is not None
+        assert feed.runtime.detector.trusts("Sue")
+
+    @pytest.mark.asyncio
     async def test_never_trusted_action_is_stored(self, feed):
         await add_contact("Anna", key="a1")
         await feed.runtime.tick()

@@ -6352,6 +6352,8 @@
   "spam_exceptions_title": "Exceptions",
   "spam_exceptions_senders": "Trusted names",
   "spam_exceptions_senders_help": "Never counted as random, and always let through the blocks that hold people. Names can be faked. This list is yours: it is kept when you reset the settings or what was learnt.",
+  "spam_senders_switch": "Use the Trusted names list",
+  "spam_senders_off": "Off: the names on this list are not trusted, so a spammer echoing one of them is not let through. The list is kept: switch it back on and the names are trusted again.",
   "spam_contacts_title": "Trusted contacts",
   "spam_contacts_switch": "Trust the names of stored contacts",
   "spam_contacts_help": "Every client contact heard by advert counts as a trusted name, {count} now. The list follows your contacts by itself and survives every reset.",

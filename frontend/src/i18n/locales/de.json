@@ -6354,6 +6354,8 @@
   "spam_exceptions_title": "Ausnahmen",
   "spam_exceptions_senders": "Vertrauenswürdige Namen",
   "spam_exceptions_senders_help": "Gelten nie als zufällig und kommen immer durch die Sperren, die Personen zurückhalten. Namen lassen sich fälschen. Diese Liste gehört dir: Sie bleibt, wenn du die Einstellungen oder das Gelernte zurücksetzt.",
+  "spam_senders_switch": "Die Liste Vertrauenswürdige Namen verwenden",
+  "spam_senders_off": "Aus: Den Namen auf dieser Liste wird nicht vertraut, ein Spammer, der einen davon nachahmt, kommt also nicht durch. Die Liste bleibt: Schalte sie wieder ein, und den Namen wird wieder vertraut.",
   "spam_contacts_title": "Vertraute Kontakte",
   "spam_contacts_switch": "Namen gespeicherter Kontakte vertrauen",
   "spam_contacts_help": "Jeder Client-Kontakt, der per Advert gehört wurde, gilt als vertrauter Name, derzeit {count}. Die Liste folgt deinen Kontakten von selbst und übersteht jeden Reset.",

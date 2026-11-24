@@ -3889,6 +3889,8 @@ export interface SpamGuardSettings {
   deny_senders: string[];
   /** Names of stored contacts heard by advert count as trusted. */
   trust_contacts: boolean;
+  /** The names on allow_senders count as trusted. Off keeps the list. */
+  trust_allow_senders: boolean;
 }
 
 export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';

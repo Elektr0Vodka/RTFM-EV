@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (Spam Guard Trusted names switch; feat/spam-trusted-names-switch)
+
+Request from Richard. No migration (the switch is a field in the stored Spam
+Guard settings document), no new dependency.
+
+### Spam Guard (`app/spam/settings.py`, `app/spam/detector.py`, `SpamSettingsTab.tsx`)
+- **Use the Trusted names list** switch (`trust_allow_senders`, default on),
+  next to the existing **Trust the names of stored contacts** switch, against
+  spam that echoes a trusted name. Off: the names on the list are not trusted
+  (`trusts()`), are left out of the known-people rule (`known_names()`) and do
+  not open a blocked route (`user_allowed`). The list is kept and stays
+  editable, so switching back on restores it. Names Spam Guard learnt as known
+  by itself stay known. Stored settings without the field load with it on.
+
 ## Update 2026-11-21 (Mesh Health charts, duplicate scope; feat/mesh-health-charts-dedupe-known)
 
 Two requests from Richard. No migration, no new dependency.

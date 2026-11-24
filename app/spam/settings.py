@@ -245,6 +245,9 @@ class SpamConfig(BaseModel):
     # The name of every stored contact heard by advert counts as trusted. Names
     # can be faked, and anyone can send an advert, so it can be switched off.
     trust_contacts: bool = True
+    # The names on ``allow_senders`` count as trusted. Off keeps the list but
+    # gives those names no exemption, against spam that echoes a trusted name.
+    trust_allow_senders: bool = True
 
     @model_validator(mode="before")
     @classmethod

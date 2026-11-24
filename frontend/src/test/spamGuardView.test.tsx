@@ -152,6 +152,7 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
       allow_senders: [],
       deny_senders: [],
       trust_contacts: true,
+      trust_allow_senders: true,
       allow_texts: [],
     },
     tunables: TUNABLES,
@@ -1060,6 +1061,38 @@ describe('SpamGuardView settings', () => {
       expect(mocks.spamGuardAction).toHaveBeenCalledWith(
         'allow_sender',
         { sender: 'Dave' },
+        undefined
+      )
+    );
+  });
+
+  it('switches the Trusted names list off and keeps the names', async () => {
+    const state = makeState();
+    await renderView({ ...state, settings: { ...state.settings, allow_senders: ['Sue'] } });
+    openTab('Settings');
+    expect(screen.queryByTestId('spam-senders-off')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Use the Trusted names list'));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1]).toMatchObject({
+      trust_allow_senders: false,
+      allow_senders: ['Sue'],
+    });
+  });
+
+  it('shows the Trusted names list as off, still editable', async () => {
+    const state = makeState();
+    await renderView({
+      ...state,
+      settings: { ...state.settings, allow_senders: ['Sue'], trust_allow_senders: false },
+    });
+    openTab('Settings');
+    expect(screen.getByLabelText('Use the Trusted names list')).not.toBeChecked();
+    expect(screen.getByTestId('spam-senders-off')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Sue' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'unallow_sender',
+        { sender: 'Sue' },
         undefined
       )
     );
