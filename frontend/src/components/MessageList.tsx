@@ -21,6 +21,7 @@ import type {
 } from '../types';
 import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
 import { CONTACT_TYPE_ROOM, TXT_TYPE_CLI_COMMAND, TXT_TYPE_GROUP_DATA } from '../types';
+import type { MessageImage } from '../types';
 import { RemoteCliCommandRow } from './RemoteCliCommandRow';
 import { api } from '../api';
 import {
@@ -577,6 +578,43 @@ function renderGroupDataPlaceholder(content: string, t: TFn): ReactNode | null {
     );
   }
   return null;
+}
+
+// Largest side of a drawn MCOimg picture, in CSS pixels. Pictures are at most
+// 256x256 but usually tiny, so they are scaled up by a whole number.
+const MCOIMG_TARGET_PX = 160;
+
+// MCOimg v3 picture (issue #391). The backend decodes the payload and sends a
+// PNG at native size; a payload that does not decode arrives with ok=false and
+// shows a placeholder instead of the raw bytes.
+function renderMcoImg(image: MessageImage, t: TFn): ReactNode {
+  if (!image.ok || !image.png_base64 || !image.width || !image.height) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/40 px-2 py-1 text-muted-foreground italic"
+        data-testid="mcoimg-undecodable"
+        title={t('chat_mcoimg_undecodable_detail', { bytes: image.byte_length })}
+      >
+        <ImageOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {t('chat_mcoimg_undecodable')}
+      </span>
+    );
+  }
+  const scale = Math.max(1, Math.floor(MCOIMG_TARGET_PX / Math.max(image.width, image.height)));
+  const size = { width: image.width, height: image.height };
+  return (
+    <img
+      src={`data:image/png;base64,${image.png_base64}`}
+      width={image.width * scale}
+      height={image.height * scale}
+      alt={t('chat_mcoimg_alt', size)}
+      title={t('chat_mcoimg_detail', { ...size, bytes: image.byte_length })}
+      data-testid="mcoimg-picture"
+      className="block max-w-full h-auto rounded-sm"
+      style={{ imageRendering: 'pixelated' }}
+      draggable={false}
+    />
+  );
 }
 
 // Recognize a MeshCore Open payload and render it. Handles both a whole-message
@@ -2298,8 +2336,9 @@ export function MessageList({
             // Computed once so the URL preview card below can be skipped when the
             // rich-payload renderer already turned this message into a GIF (a
             // Giphy URL form) or another card - it must not render twice.
-            const richPayload =
-              msg.txt_type === TXT_TYPE_GROUP_DATA
+            const richPayload = msg.mcoimg
+              ? renderMcoImg(msg.mcoimg, t)
+              : msg.txt_type === TXT_TYPE_GROUP_DATA
                 ? renderGroupDataPlaceholder(content, t)
                 : (renderTeamPayload(
                     content,

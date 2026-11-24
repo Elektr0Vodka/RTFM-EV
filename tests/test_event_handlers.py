@@ -395,6 +395,7 @@ class TestContactMessageCLIFiltering:
             "duplicate",
             "cli_permitted",
             "radio_stamp",
+            "mcoimg",
         }
 
         with patch("app.event_handlers.broadcast_event") as mock_broadcast:

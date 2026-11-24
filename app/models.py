@@ -2,8 +2,16 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    computed_field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
+from app import mcoimg_v3
 from app.path_utils import normalize_contact_route, normalize_route_override
 from app.snmp.address import normalize_host
 
@@ -878,6 +886,26 @@ class MessagePath(BaseModel):
     snr: float | None = Field(default=None, description="Last-hop SNR in dB")
 
 
+class MessageImage(BaseModel):
+    """A picture carried by a chat message (MCOimg v3, issue #391)."""
+
+    format: Literal["mcoimg_v3"] = "mcoimg_v3"
+    source: Literal["datagram", "text"] = Field(
+        description="datagram: GRP_DATA 0x0120 subtype 0x13; text: an im3: channel message"
+    )
+    ok: bool = Field(description="False when the payload did not decode")
+    width: int | None = None
+    height: int | None = None
+    profile: str | None = Field(default=None, description="MCOimg palette profile name")
+    algorithm: str | None = None
+    container: str | None = None
+    byte_length: int = Field(default=0, description="v3 body length in bytes")
+    image_id: str | None = Field(
+        default=None, description="MD5 of 0x13|body with the nonce zeroed (same picture, same id)"
+    )
+    png_base64: str | None = Field(default=None, description="Rendered RGBA PNG, native size")
+
+
 class Message(BaseModel):
     id: int
     type: str = Field(description="PRIV or CHAN")
@@ -979,6 +1007,26 @@ class Message(BaseModel):
             "(migration _160). None for older rows or when the radio was not connected."
         ),
     )
+    app_payload: bytes | None = Field(
+        default=None,
+        exclude=True,
+        description="Stored MCOimg v3 app payload (0x13|body, migration _172); input only",
+    )
+    mcoimg: MessageImage | None = Field(
+        default=None,
+        description=(
+            "MCOimg v3 picture decoded from the stored datagram payload or from im3: text; "
+            "None when the message is not a picture"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _attach_mcoimg(self) -> Message:
+        if self.mcoimg is None:
+            info = mcoimg_v3.describe_for_message(self.text, self.app_payload)
+            if info is not None:
+                self.mcoimg = MessageImage(**info)
+        return self
 
 
 class MessagesAroundResponse(BaseModel):

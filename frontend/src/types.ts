@@ -954,6 +954,30 @@ export interface Message {
    * it ignored it. Null/absent for every other message.
    */
   cli_permitted?: boolean | null;
+  /**
+   * MCOimg v3 picture (issue #391): decoded by the backend from a GRP_DATA
+   * 0x0120 datagram or from `im3:` channel text. Null/absent otherwise.
+   */
+  mcoimg?: MessageImage | null;
+}
+
+/** A picture carried by a chat message, rendered to PNG by the backend. */
+export interface MessageImage {
+  format: 'mcoimg_v3';
+  source: 'datagram' | 'text';
+  /** False when the payload did not decode: show a placeholder, never the bytes. */
+  ok: boolean;
+  width?: number | null;
+  height?: number | null;
+  profile?: string | null;
+  algorithm?: string | null;
+  container?: string | null;
+  /** v3 body length in bytes. */
+  byte_length: number;
+  /** MD5 of `0x13|body` with the nonce zeroed: the same picture keeps its id across resends. */
+  image_id?: string | null;
+  /** RGBA PNG at native size, base64. */
+  png_base64?: string | null;
 }
 
 /** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
