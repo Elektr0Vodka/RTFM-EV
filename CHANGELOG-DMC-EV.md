@@ -85,6 +85,9 @@ migration, no new dependency.
 - Disabled, with the reason as a tooltip, for a direct (0-hop) path and when
   the hop size cannot be derived (legacy entries without a hop count), instead
   of guessing 1-byte hops. Not shown on echoes of your own channel messages.
+- Copying also works on a plain-http address such as `http://192.168.x.x:8000`
+  (reported by Richard in Firefox): the browser has no clipboard API there, so
+  `utils/clipboard.ts` falls back to a hidden textarea and `execCommand('copy')`.
 
 ## Update 2026-11-24 (Spam Guard Trusted names switch; feat/spam-trusted-names-switch)
 
