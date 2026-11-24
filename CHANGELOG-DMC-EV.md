@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (Copy reverse path; feat/copy-reverse-path)
+
+Like the "copy reverse path" button in MeshCore Companion App 1.52.0. No
+migration, no new dependency.
+
+### Message path view (`PathModal.tsx`, `utils/pathUtils.ts`)
+- Each received path has a **Copy reverse path** action next to **Map route**.
+  It copies the hops in reverse order (the route back to the sender) as
+  comma-separated hop IDs, e.g. `f13e,ae92`, the format the contact's
+  **Routing Override** field accepts. 1, 2 and 3 byte hop IDs stay whole.
+- Disabled, with the reason as a tooltip, for a direct (0-hop) path and when
+  the hop size cannot be derived (legacy entries without a hop count), instead
+  of guessing 1-byte hops. Not shown on echoes of your own channel messages.
+
 ## Update 2026-11-24 (Spam Guard Trusted names switch; feat/spam-trusted-names-switch)
 
 Request from Richard. No migration (the switch is a field in the stored Spam

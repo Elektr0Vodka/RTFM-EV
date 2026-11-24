@@ -14,6 +14,7 @@ import {
   formatPathHopWidths,
   pathHopWidths,
   isMessageHiddenByHopWidth,
+  reversePathForOverride,
 } from '../utils/pathUtils';
 import type { Contact, RadioConfig } from '../types';
 import { CONTACT_TYPE_REPEATER } from '../types';
@@ -988,5 +989,46 @@ describe('isMessageHiddenByHopWidth', () => {
   it('respects two-byte hide independently', () => {
     expect(isMessageHiddenByHopWidth(twoByte, new Set([2]))).toBe(true);
     expect(isMessageHiddenByHopWidth(twoByte, new Set([1, 3]))).toBe(false);
+  });
+});
+
+describe('reversePathForOverride', () => {
+  it('reverses 1-byte hops into the routing override format', () => {
+    expect(reversePathForOverride('AA11BB', 3)).toEqual({ ok: true, route: 'bb,11,aa' });
+  });
+
+  it('keeps 2- and 3-byte hops whole while reversing', () => {
+    expect(reversePathForOverride('AE92F13E', 2)).toEqual({ ok: true, route: 'f13e,ae92' });
+    expect(reversePathForOverride('112233445566', 2)).toEqual({
+      ok: true,
+      route: '445566,112233',
+    });
+  });
+
+  it('returns a single hop unchanged', () => {
+    expect(reversePathForOverride('ab', 1)).toEqual({ ok: true, route: 'ab' });
+  });
+
+  it('reports a direct (0-hop) path as nothing to reverse', () => {
+    expect(reversePathForOverride('', 0)).toEqual({ ok: false, reason: 'direct' });
+    expect(reversePathForOverride(null, 0)).toEqual({ ok: false, reason: 'direct' });
+  });
+
+  it('refuses to guess when the hop width cannot be derived', () => {
+    // No hop count: 1x4-byte, 2x2-byte or 4x1-byte are all possible.
+    expect(reversePathForOverride('aabbccdd', null)).toEqual({
+      ok: false,
+      reason: 'unknown_width',
+    });
+    expect(reversePathForOverride('aabbccdd', undefined)).toEqual({
+      ok: false,
+      reason: 'unknown_width',
+    });
+    // Does not divide evenly.
+    expect(reversePathForOverride('aabbcc', 2)).toEqual({ ok: false, reason: 'unknown_width' });
+    // 4 bytes per hop is not a valid MeshCore hash size.
+    expect(reversePathForOverride('aabbccdd', 1)).toEqual({ ok: false, reason: 'unknown_width' });
+    // Not hex.
+    expect(reversePathForOverride('zz11', 2)).toEqual({ ok: false, reason: 'unknown_width' });
   });
 });

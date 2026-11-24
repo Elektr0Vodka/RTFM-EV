@@ -13,6 +13,7 @@ import {
   type ResolvedPath,
   type PathHop,
   pathHopWidths,
+  reversePathForOverride,
 } from '../utils/pathUtils';
 import { formatTime } from '../utils/messageParser';
 import { formatDateTime } from '../utils/dateTimeFormat';
@@ -29,6 +30,7 @@ import type { DistanceUnit } from '../utils/distanceUnits';
 import { useT, type TFn } from '../i18n';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { useSoftResolutions, type SoftResolutionMap } from '../hooks/useSoftResolutions';
+import { toast } from './ui/sonner';
 
 const PathRouteMap = lazy(() =>
   import('./PathRouteMap').then((m) => ({ default: m.PathRouteMap }))
@@ -82,6 +84,16 @@ export function PathModal({
   const hasResendActions = isOutgoingChan && messageId !== undefined && onResend;
   const hasPaths = paths.length > 0;
   const showAnalyzePacket = hasPaths && packetId != null && onAnalyzePacket;
+  // Echoes of our own message describe a loop out and back, not a route to a
+  // sender, so there is nothing to reverse for outgoing messages.
+  const showCopyReverse = !isOutgoingChan && !message?.outgoing;
+
+  const copyReversePath = (route: string) => {
+    void navigator.clipboard.writeText(route).then(
+      () => toast.success(t('path_modal_copy_reverse_copied', { route })),
+      () => toast.error(t('path_modal_copy_reverse_failed'))
+    );
+  };
 
   // Resolve all paths
   const resolvedPaths = hasPaths
@@ -223,12 +235,22 @@ export function PathModal({
                   ) : (
                     <div />
                   )}
-                  <button
-                    onClick={() => setMapModalIndex(index)}
-                    className="text-xs text-primary hover:underline cursor-pointer shrink-0 ml-2"
-                  >
-                    {t('path_modal_map_route_button')}
-                  </button>
+                  <div className="flex items-center gap-3 shrink-0 ml-2">
+                    {showCopyReverse && (
+                      <CopyReversePathButton
+                        path={pathData.path}
+                        pathLen={pathData.path_len}
+                        onCopy={copyReversePath}
+                        t={t}
+                      />
+                    )}
+                    <button
+                      onClick={() => setMapModalIndex(index)}
+                      className="text-xs text-primary hover:underline cursor-pointer"
+                    >
+                      {t('path_modal_map_route_button')}
+                    </button>
+                  </div>
                 </div>
                 <PathVisualization
                   resolved={pathData.resolved}
@@ -801,4 +823,43 @@ function calculateReceiverDistance(resolved: ResolvedPath): number | null {
   }
 
   return calculateDistance(prevLat, prevLon, resolved.receiver.lat, resolved.receiver.lon);
+}
+
+/**
+ * Copies a received path in reverse hop order (the route back to the sender)
+ * in the routing override input format. Disabled, with the reason as a
+ * tooltip, when the path is direct or its hop width cannot be derived.
+ */
+function CopyReversePathButton({
+  path,
+  pathLen,
+  onCopy,
+  t,
+}: {
+  path: string | null | undefined;
+  pathLen: number | null | undefined;
+  onCopy: (route: string) => void;
+  t: TFn;
+}) {
+  const result = reversePathForOverride(path, pathLen);
+  const title = result.ok
+    ? t('path_modal_copy_reverse_title', { route: result.route })
+    : result.reason === 'direct'
+      ? t('path_modal_copy_reverse_disabled_direct')
+      : t('path_modal_copy_reverse_disabled_width');
+  return (
+    // The tooltip sits on a wrapper: some browsers show no title on a disabled button.
+    <span title={title}>
+      <button
+        type="button"
+        disabled={!result.ok}
+        aria-label={t('path_modal_copy_reverse_button')}
+        aria-description={title}
+        onClick={() => result.ok && onCopy(result.route)}
+        className="text-xs text-primary hover:underline cursor-pointer disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+      >
+        {t('path_modal_copy_reverse_button')}
+      </button>
+    </span>
+  );
 }
