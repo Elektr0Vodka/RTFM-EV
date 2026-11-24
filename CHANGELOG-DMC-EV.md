@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (MCOimg v3 pictures in channel chat, #391; feat/mcoimg-v3)
+
+Receive only. Migration `_172`. No new dependency (PNG via stdlib `zlib`).
+
+### Channel chat (`app/mcoimg_v3.py`, `app/mcoimg_palettes.py`, `MessageList.tsx`)
+- Pictures from MCO Advanced (HDDen's meshcore-open fork) show in the channel
+  chat. Two forms: a GRP_DATA datagram with `data_type 0x0120` and
+  `subtypeVersion 0x13`, and channel text that is exactly one `im3:<Base91>`
+  token. They are drawn pixelated, scaled up to about 160 px, with size and
+  byte count in the tooltip. A payload that does not decode shows "Image
+  (could not decode)" and never breaks the message list. `im3:` quoted
+  mid-sentence stays text.
+- The decoder is a Python port of the upstream JS decoder (MIT, HDDen/
+  meshcore-open `b04a0273`). Palette tables are generated unchanged from the
+  Dart sources. The 39 upstream decoder fixtures run in
+  `tests/test_mcoimg_v3.py`. The backend renders a PNG and sends it as
+  `Message.mcoimg` (REST and WebSocket).
+- A datagram row uses the sender name from the envelope (not the contact-prefix
+  guess) and keeps `0x13 | body` in the new `messages.app_payload` column, so
+  pictures also draw from history. Each send is its own row (the body starts
+  with a per-send nonce) and repeats of one send collapse. `image_id` is the
+  spec identity (MD5 with the nonce zeroed). Other `0x0120` subtypes and the
+  legacy `0xFFF0`/`0xFFF1` keep the generic placeholder.
+
 ## Update 2026-11-24 (SMAZ compression indicator, feat/smaz-indicator)
 
 Mirrors the optional compression indicator of meshcore-open BETA-99.0.4

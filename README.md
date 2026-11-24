@@ -38,6 +38,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Direct messages with no acknowledgement after all retries show **Failed**, with a **Retry** action.
 - Mark a conversation unread from any message (stored server-side) and delete a message from your local history (nothing is sent over RF).
 - SMAZ-compressed messages from other clients are shown decoded (optional compression icon in Settings > Local Configuration); meshcore-open image chunks show as an "Image (not supported)" placeholder.
+- Small pictures from MCO Advanced (MCOimg v3), sent as a channel datagram or as `im3:` channel text, are drawn in the channel chat. Receive only; RTFM-EV cannot send them.
 - Share and import contacts as `meshcore://` links; inline `<pubkey:type:Name>` contact tags render as chips with **Add contact**.
 - Join meshcore-open communities by code or QR code, and share them again as JSON or QR.
 - Mention ticker, a mention and DM sound, browser and Web Push notifications, and optional notifications for newly heard nodes.

@@ -89,8 +89,12 @@ class MessageRepository:
         cli_permitted: bool | None = None,
         radio_stamp: RadioStamp | None = None,
         smaz: bool = False,
+        app_payload: bytes | None = None,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
+
+        ``app_payload`` keeps an MCOimg v3 picture (``0x13 | body``) with the row
+        (migration _172).
 
         ``radio_stamp`` defaults to the radio's current settings (migration _160).
 
@@ -129,8 +133,9 @@ class MessageRepository:
                                                 transport_code, region, malformed,
                                                 malformed_reason, name_filtered, bot,
                                                 cli_permitted,
-                                                radio_freq, radio_bw, radio_sf, radio_cr, smaz)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                radio_freq, radio_bw, radio_sf, radio_cr, smaz,
+                                                app_payload)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -157,6 +162,7 @@ class MessageRepository:
                     radio_stamp.sf if radio_stamp else None,
                     radio_stamp.cr if radio_stamp else None,
                     1 if smaz else 0,
+                    app_payload,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -706,6 +712,7 @@ class MessageRepository:
         duplicate = False
         cli_permitted = None
         radio_stamp = None
+        app_payload = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -730,6 +737,8 @@ class MessageRepository:
                 duplicate = bool(row["duplicate"])
             if "cli_permitted" in row_keys and row["cli_permitted"] is not None:
                 cli_permitted = bool(row["cli_permitted"])
+            if "app_payload" in row_keys and row["app_payload"] is not None:
+                app_payload = bytes(row["app_payload"])
             if "radio_sf" in row_keys and row["radio_sf"] is not None:
                 radio_stamp = RadioStamp(
                     freq=row["radio_freq"],
@@ -764,6 +773,7 @@ class MessageRepository:
             duplicate=duplicate,
             cli_permitted=cli_permitted,
             radio_stamp=radio_stamp,
+            app_payload=app_payload,
         )
 
     @staticmethod

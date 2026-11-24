@@ -344,6 +344,16 @@ machine this was authored on and may differ elsewhere.
 - GRP_DATA data type owners for the chat placeholder (`frontend/src/utils/groupDataTypes.ts`):
   MeshCore `docs/number_allocations.md` plus the types projects use on their own,
   listed in the 2026-10-19 third-party traffic research report (section 3).
+- MCOimg v3 channel pictures (GRP_DATA `0x0120` subtype `0x13`, `im3:` text; issue #391):
+  HDDen/meshcore-open at `b04a027397aba45823e8e21725c419a905280f11`,
+  `docs/mcoimg_v3_reference.md`, `docs/CHANNEL_APP_DATA.md` and the JS decoder in
+  `docs/mcoimg-js/mcoimg-v3-codec.global.js` (MIT, copyright zjs81). Ported to
+  `app/mcoimg_v3.py` (decoder only). Palette tables in `app/mcoimg_palettes.py` are
+  generated unchanged from `lib/helpers/mcoimg_palette.dart` and
+  `lib/helpers/mcoimg_dynamic_palettes.dart`. The upstream decoder fixtures
+  (`docs/mcoimg-js/tests/v3-js-decoder-fixtures.json`) are vendored unchanged as
+  `tests/fixtures/mcoimg_v3_decoder_fixtures.json`. When upstream bumps the format,
+  re-fetch these at the new commit and rerun `tests/test_mcoimg_v3.py`.
 - TAK Stream CoT events (`app/tak_stream/events.py`) follow the public Cursor-on-Target
   event schema (`event` / `point` / `detail` with `contact`, `__group`, `track`,
   `remarks`); the type codes per node role are RTFM-EV's choice.
