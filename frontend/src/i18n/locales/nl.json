@@ -6354,6 +6354,8 @@
   "spam_exceptions_title": "Uitzonderingen",
   "spam_exceptions_senders": "Vertrouwde namen",
   "spam_exceptions_senders_help": "Tellen nooit als willekeurig en komen altijd door de blokkades die mensen tegenhouden. Namen kunnen worden nagemaakt. Deze lijst is van jou: hij blijft staan als je de instellingen of het geleerde reset.",
+  "spam_senders_switch": "De lijst Vertrouwde namen gebruiken",
+  "spam_senders_off": "Uit: de namen op deze lijst worden niet vertrouwd, dus een spammer die een van die namen nadoet komt er niet door. De lijst blijft staan: zet hem weer aan en de namen worden weer vertrouwd.",
   "spam_contacts_title": "Vertrouwde contacten",
   "spam_contacts_switch": "Namen van opgeslagen contacten vertrouwen",
   "spam_contacts_help": "Elk client-contact dat via een advert is gehoord telt als vertrouwde naam, nu {count}. De lijst volgt je contacten vanzelf en overleeft elke reset.",
