@@ -643,6 +643,18 @@ It falls back to a 12-char prefix when `name` is missing.
 
 Distance/validation helpers used by path + map UI.
 
+`resolvePath` turns a message path into sender, hops and receiver for
+`PathModal`, `PathRouteMap` and the route share card. Each hop's prefix matches
+(repeaters only) go through `pruneImpossibleHopMatches` first: a match farther
+than `links x MAX_SINGLE_HOP_KM` (250 km) from the nearest located anchor on
+either side (sender, own radio, or a hop resolved to one located match) is
+moved to `PathHop.ignored`. Only hops with several matches are pruned, matches
+without a location are always kept, and a hop that would lose every match
+keeps them all. `PathModal` shows a note under a hop with ignored matches. The
+packet feed's hop names (`pathHopNames.ts`) and the map's packet reveal
+(`resolvePacketContacts`) only use unique matches and are not pruned; the map
+link layer has its own opt-in cap (`max_km`, `app/services/advert_links.py`).
+
 ### `utils/traceMapUtils.ts`
 
 Pure helpers for `TraceRouteMap.tsx`: `resolveTraceNodeLocations` places each

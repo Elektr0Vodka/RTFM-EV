@@ -4747,6 +4747,10 @@
     "one": "(en {count} meer)",
     "other": "(en {count} meer)"
   },
+  "path_modal_ignored_far_matches": {
+    "one": "{count} andere match genegeerd: te ver weg voor deze hop",
+    "other": "{count} andere matches genegeerd: te ver weg voor deze hop"
+  },
   "path_map_no_gps": "Geen enkele node in deze route heeft gps-coördinaten",
   "path_map_aria_label": "Kaart met berichtroute tussen nodes",
   "path_map_receiver_fallback": "Ontvanger",

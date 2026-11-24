@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (Ignore impossible hops in message paths; feat/prune-impossible-hops)
+
+Frontend only. No migration, no new setting, no new dependency.
+
+### Message path (`utils/pathUtils.ts`, `PathModal.tsx`)
+- A hop whose prefix matches several repeaters drops the matches that are too
+  far away to be that hop: farther than 250 km per RF link from the nearest
+  located point on either side (the sender, our own radio, or a hop that
+  resolved to one located repeater). Unknown or unlocated hops in between add
+  250 km each. A hop narrowed to one repeater helps narrow its neighbours.
+  Repeaters without a location are never dropped, and a hop that would lose
+  every match keeps them all.
+- The path dialog, its route map and the route share card use the narrowed
+  list, so a prefix twin in another country no longer makes a hop ambiguous
+  or stretches the map. The dialog shows "N other matches ignored: too far
+  away for this hop" under such a hop (names on hover).
+- Same idea as meshcore-open's path map change (zjs81/meshcore-open#687),
+  built separately for RTFM-EV.
+
 ## Update 2026-11-24 (Copy reverse path; feat/copy-reverse-path)
 
 Like the "copy reverse path" button in MeshCore Companion App 1.52.0. No

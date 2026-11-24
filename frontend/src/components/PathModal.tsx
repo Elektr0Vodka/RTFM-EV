@@ -743,6 +743,15 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit, softLink, t }: Ho
             )}
           </div>
         )}
+        {hop.ignored && hop.ignored.length > 0 && (
+          <div
+            className="text-xs text-muted-foreground"
+            data-testid="hop-ignored-matches"
+            title={hop.ignored.map((c) => c.name || c.public_key.slice(0, 12)).join(', ')}
+          >
+            {t('path_modal_ignored_far_matches', { count: hop.ignored.length })}
+          </div>
+        )}
       </div>
     </div>
   );
