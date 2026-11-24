@@ -20,7 +20,7 @@ from app.repository import (
     RawPacketRepository,
 )
 from app.services import send_pacer
-from app.smaz import decode_message_text
+from app.smaz import decode_message_body
 
 if TYPE_CHECKING:
     from app.decoder import DecryptedDirectMessage, DecryptedGroupData
@@ -95,6 +95,7 @@ def build_message_model(
     duplicate: bool = False,
     cli_permitted: bool | None = None,
     radio_stamp: RadioStamp | None = None,
+    smaz: bool = False,
 ) -> Message:
     """Build a Message model with the canonical backend payload shape.
 
@@ -130,6 +131,7 @@ def build_message_model(
         duplicate=duplicate,
         cli_permitted=cli_permitted,
         radio_stamp=radio_stamp,
+        smaz=smaz,
     )
 
 
@@ -400,7 +402,7 @@ async def create_message_from_decrypted(
     # Spam Guard reads the text as it was sent: that is what a forwarding
     # rule on the host repeater or an OpenHop node matches on.
     wire_text = message_text
-    message_text = decode_message_text(message_text)
+    message_text, was_smaz = decode_message_body(message_text)
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
     ahead = await clock_ahead_minutes()
@@ -431,6 +433,7 @@ async def create_message_from_decrypted(
         malformed=malformed,
         malformed_reason=reason,
         name_filtered=name_filtered,
+        smaz=was_smaz,
         bot=await _is_listed_bot(sender, resolved_sender_key),
     )
 
@@ -500,6 +503,7 @@ async def create_message_from_decrypted(
             region=region,
             malformed=malformed,
             name_filtered=name_filtered,
+            smaz=was_smaz,
             spam=bool(verdict and verdict.spam),
             duplicate=bool(verdict and verdict.duplicate),
         ),
@@ -759,7 +763,7 @@ async def create_fallback_channel_message(
         if await handle_tracker_text(envelope, ctx):
             return None
     wire_text = message_text  # what Spam Guard reads, as in create_message_from_decrypted
-    message_text = decode_message_text(message_text)
+    message_text, was_smaz = decode_message_body(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
     ahead = await clock_ahead_minutes()
     malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at, ahead)
@@ -788,6 +792,7 @@ async def create_fallback_channel_message(
         malformed=malformed,
         malformed_reason=reason,
         name_filtered=name_filtered,
+        smaz=was_smaz,
         bot=await _is_listed_bot(sender_name, resolved_sender_key),
     )
     if msg_id is None:
@@ -835,6 +840,7 @@ async def create_fallback_channel_message(
         channel_name=channel_name,
         malformed=malformed,
         name_filtered=name_filtered,
+        smaz=was_smaz,
         spam=verdict.spam,
         duplicate=verdict.duplicate,
     )

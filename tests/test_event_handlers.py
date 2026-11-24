@@ -390,6 +390,7 @@ class TestContactMessageCLIFiltering:
             "failed_at",
             "malformed",
             "name_filtered",
+            "smaz",
             "spam",
             "duplicate",
             "cli_permitted",
