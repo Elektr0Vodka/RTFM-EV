@@ -256,6 +256,32 @@ export function formatRoutingOverrideInput(contact: Contact): string {
     .join(',');
 }
 
+export type ReversePathResult =
+  { ok: true; route: string } | { ok: false; reason: 'direct' | 'unknown_width' };
+
+/**
+ * Reverse a received message path into the route back to the sender, in the
+ * routing override input format (comma-separated lowercase hop IDs, e.g.
+ * "f13e,ae92"; see the backend's `parse_explicit_hop_route`).
+ *
+ * The hop width (1, 2 or 3 bytes) must be derivable from `hopCount`; without
+ * it the split is ambiguous, so this refuses rather than guessing 1-byte hops
+ * the way {@link parsePathHops} does for display.
+ */
+export function reversePathForOverride(
+  path: string | null | undefined,
+  hopCount: number | null | undefined
+): ReversePathResult {
+  if (!path || hopCount === 0) {
+    return { ok: false, reason: 'direct' };
+  }
+  if (!/^[0-9a-fA-F]+$/.test(path) || inferPathHashMode(path, hopCount) == null) {
+    return { ok: false, reason: 'unknown_width' };
+  }
+  const hops = parsePathHops(path, hopCount).map((hop) => hop.toLowerCase());
+  return { ok: true, route: hops.reverse().join(',') };
+}
+
 /**
  * Extract the payload portion from a raw packet hex string using firmware-equivalent
  * path-byte validation. Returns null for malformed or payload-less packets.
