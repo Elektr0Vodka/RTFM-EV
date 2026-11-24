@@ -281,7 +281,7 @@ describe('Mesh Health Spam & bots tab', () => {
       'href',
       '#spam-guard'
     );
-    expect(screen.getByText('No bot list is on (Settings, Bot lists)')).toBeInTheDocument();
+    expect(screen.getByText('No bot list is on (Spam Guard, Bot lists)')).toBeInTheDocument();
   });
 
   it('shows the empty state for a window without channel messages', async () => {

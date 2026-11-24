@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { I18nProvider } from '../i18n/I18nProvider';
@@ -15,7 +15,9 @@ import type {
   SpamGuardTunables,
   SpamTotals,
 } from '../types';
+import { setBotListsState } from '../utils/botLists';
 import { emitSpamGuardEvent } from '../utils/spamGuardEvents';
+import { requestSpamGuardTab } from '../utils/spamGuardNavigation';
 
 const mocks = vi.hoisted(() => ({
   getSpamGuard: vi.fn(),
@@ -29,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   getSpamGuardKnown: vi.fn(),
   getSpamGuardContacts: vi.fn(),
   getSpamGuardMetrics: vi.fn(),
+  getBotLists: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -331,6 +334,14 @@ function protectedChannels() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setBotListsState(null);
+  mocks.getBotLists.mockResolvedValue({
+    lists: [],
+    exceptions: [],
+    effective: { names: [], keys: [] },
+    limits: { entries_per_list: 1000, effective: 5000 },
+    forward: { state: 'off', channels: 0, names: 0 },
+  });
   mocks.spamGuardAction.mockImplementation(async () => ({ result: {}, state: makeState() }));
   mocks.getSpamGuardKnown.mockResolvedValue({ total: 0, people: [] });
   mocks.getSpamGuardContacts.mockResolvedValue({ total: 0, names: [] });
@@ -463,15 +474,55 @@ describe('SpamGuardView overview', () => {
     expect(screen.getByText(/host repeater is not armed/)).toBeInTheDocument();
   });
 
-  it('says so when Spam Guard is switched off, and locks the controls', async () => {
+  it('shows only Bot lists while Spam Guard is switched off', async () => {
     const state = makeState();
-    await renderView({
+    mocks.getSpamGuard.mockResolvedValue({
       ...state,
       enabled: false,
       health: { ...state.health, state: 'off', running: false },
     });
-    expect(screen.getByText(/Spam Guard is switched off/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Protect' })).toBeDisabled();
+    render(
+      <I18nProvider>
+        <SpamGuardView contacts={CONTACTS} channels={CHANNELS} />
+      </I18nProvider>
+    );
+    expect(await screen.findByText(/Spam Guard is switched off/)).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Bot lists']);
+    expect(screen.getByRole('tab', { name: 'Bot lists' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText('No bot lists yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Protect' })).toBeNull();
+  });
+
+  it('has a Bot lists tab that saves Hide bots through the app settings', async () => {
+    const onSave = vi.fn();
+    mocks.getSpamGuard.mockResolvedValue(makeState());
+    render(
+      <I18nProvider>
+        <SpamGuardView
+          contacts={CONTACTS}
+          channels={CHANNELS}
+          hideBots
+          onSaveAppSettings={onSave}
+        />
+      </I18nProvider>
+    );
+    await screen.findByRole('tab', { name: 'Overview' });
+    openTab('Bot lists');
+    const hide = await screen.findByLabelText('Hide bots in chat');
+    expect(hide).toBeChecked();
+    fireEvent.click(hide);
+    expect(onSave).toHaveBeenCalledWith({ hide_bots: false });
+  });
+
+  it('opens at the tab another page asked for, also while it is open', async () => {
+    requestSpamGuardTab('bot-lists');
+    await renderView();
+    expect(screen.getByRole('tab', { name: 'Bot lists' })).toHaveAttribute('aria-selected', 'true');
+    act(() => requestSpamGuardTab('sources'));
+    expect(screen.getByRole('tab', { name: 'Spam sources' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
   });
 
   it('refetches when a spam_guard event arrives', async () => {

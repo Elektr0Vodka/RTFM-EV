@@ -43,6 +43,7 @@ import type { CrackerPanelProps } from './CrackerPanel';
 import type { SearchViewProps } from './SearchView';
 import type { SettingsModalProps } from './SettingsModal';
 import type { Conversation } from '../types';
+import { requestSpamGuardTab } from '../utils/spamGuardNavigation';
 import { cn } from '@/lib/utils';
 import { PaneSkeleton } from './ui/skeleton';
 
@@ -219,6 +220,12 @@ export function AppShell({
     },
     [onCloseSettingsView, onNavigateMentionToMessage, showSettings]
   );
+
+  // Settings links to the Bot lists tab of the Spam Guard page.
+  const openBotLists = useCallback(() => {
+    requestSpamGuardTab('bot-lists');
+    selectLeavingSettings({ type: 'spam-guard', id: 'spam-guard', name: 'Spam Guard' });
+  }, [selectLeavingSettings]);
 
   const searchMounted = useRef(false);
   if (conversationPaneProps.activeConversation?.type === 'search') {
@@ -516,6 +523,7 @@ export function AppShell({
                     desktopSection={settingsSection}
                     onClose={onCloseSettingsView}
                     onLocalLabelChange={onLocalLabelChange}
+                    onOpenBotLists={openBotLists}
                   />
                 </Suspense>
               </div>

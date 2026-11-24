@@ -8,7 +8,7 @@ describe('BotForwardStatusLine', () => {
     render(<BotForwardStatusLine forward={{ state: 'active', channels: 2, names: 6 }} />);
     const line = screen.getByTestId('spam-bot-forward-line');
     expect(line).toHaveTextContent('Bot lists: Active on 2 channels, 6 names.');
-    expect(line).toHaveTextContent('Manage them in Settings > Local Configuration > Bot lists.');
+    expect(line).toHaveTextContent('Manage them on the Bot lists tab.');
   });
 
   it('says why it waits', () => {

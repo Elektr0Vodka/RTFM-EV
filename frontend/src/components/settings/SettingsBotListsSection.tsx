@@ -39,15 +39,15 @@ function readText(file: File): Promise<string> {
 }
 
 /**
- * Bot lists in Settings: the Hide bots switch, the lists with their Enabled
- * and Block forwards switches, file import and export, and the names that
- * are never a bot.
+ * Bot lists, the Bot lists tab of the Spam Guard page: the Hide bots switch,
+ * the lists with their Enabled and Block forwards switches, file import and
+ * export, and the names that are never a bot.
  */
 export function SettingsBotListsSection({
   appSettings,
   onSaveAppSettings,
 }: {
-  appSettings?: AppSettings | null;
+  appSettings?: Pick<AppSettings, 'hide_bots'> | null;
   onSaveAppSettings?: (update: AppSettingsUpdate) => void;
 }) {
   const t = useT();

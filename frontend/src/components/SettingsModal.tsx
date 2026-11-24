@@ -67,6 +67,8 @@ interface SettingsModalBaseProps {
   newNodeNotificationTypes?: number[];
   onSetNewNodeNotificationsEnabled?: (enabled: boolean) => Promise<void>;
   onSetNewNodeNotificationType?: (type: number, checked: boolean) => void;
+  /** Leaves Settings for the Bot lists tab of the Spam Guard page. */
+  onOpenBotLists?: () => void;
 }
 
 export type SettingsModalProps = SettingsModalBaseProps &
@@ -112,6 +114,7 @@ export function SettingsModal(props: SettingsModalProps) {
     newNodeNotificationTypes,
     onSetNewNodeNotificationsEnabled,
     onSetNewNodeNotificationType,
+    onOpenBotLists,
   } = props;
   const externalSidebarNav = props.externalSidebarNav === true;
   const desktopSection = props.externalSidebarNav ? props.desktopSection : undefined;
@@ -293,6 +296,7 @@ export function SettingsModal(props: SettingsModalProps) {
               newNodeNotificationTypes={newNodeNotificationTypes}
               onSetNewNodeNotificationsEnabled={onSetNewNodeNotificationsEnabled}
               onSetNewNodeNotificationType={onSetNewNodeNotificationType}
+              onOpenBotLists={onOpenBotLists}
             />
           )}
         </section>
