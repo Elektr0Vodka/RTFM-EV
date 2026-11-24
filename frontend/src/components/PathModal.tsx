@@ -31,6 +31,7 @@ import { useT, type TFn } from '../i18n';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { useSoftResolutions, type SoftResolutionMap } from '../hooks/useSoftResolutions';
 import { toast } from './ui/sonner';
+import { copyText } from '../utils/clipboard';
 
 const PathRouteMap = lazy(() =>
   import('./PathRouteMap').then((m) => ({ default: m.PathRouteMap }))
@@ -89,7 +90,7 @@ export function PathModal({
   const showCopyReverse = !isOutgoingChan && !message?.outgoing;
 
   const copyReversePath = (route: string) => {
-    void navigator.clipboard.writeText(route).then(
+    void copyText(route).then(
       () => toast.success(t('path_modal_copy_reverse_copied', { route })),
       () => toast.error(t('path_modal_copy_reverse_failed'))
     );
