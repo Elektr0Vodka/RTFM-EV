@@ -41,7 +41,7 @@ function legacyCopy(text: string): boolean {
   const previous = document.activeElement as HTMLElement | null;
   textarea.focus();
   textarea.select();
-  let ok = false;
+  let ok: boolean;
   try {
     ok = document.execCommand('copy');
   } catch {
