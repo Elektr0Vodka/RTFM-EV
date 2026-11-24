@@ -713,6 +713,8 @@ class MessageRepository:
         cli_permitted = None
         radio_stamp = None
         app_payload = None
+        bookmarked = False
+        bookmark_note = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -739,6 +741,10 @@ class MessageRepository:
                 cli_permitted = bool(row["cli_permitted"])
             if "app_payload" in row_keys and row["app_payload"] is not None:
                 app_payload = bytes(row["app_payload"])
+            if "bookmarked" in row_keys:
+                bookmarked = bool(row["bookmarked"])
+            if "bookmark_note" in row_keys:
+                bookmark_note = row["bookmark_note"]
             if "radio_sf" in row_keys and row["radio_sf"] is not None:
                 radio_stamp = RadioStamp(
                     freq=row["radio_freq"],
@@ -774,13 +780,19 @@ class MessageRepository:
             cli_permitted=cli_permitted,
             radio_stamp=radio_stamp,
             app_payload=app_payload,
+            bookmarked=bookmarked,
+            bookmark_note=bookmark_note,
         )
 
     @staticmethod
     def _message_select(message_alias: str = "messages") -> str:
         return (
             f"{message_alias}.*, "
-            f"(SELECT MIN(id) FROM raw_packets WHERE message_id = {message_alias}.id) AS packet_id"
+            f"(SELECT MIN(id) FROM raw_packets WHERE message_id = {message_alias}.id) AS packet_id, "
+            f"EXISTS(SELECT 1 FROM message_bookmarks WHERE message_id = {message_alias}.id) "
+            "AS bookmarked, "
+            f"(SELECT note FROM message_bookmarks WHERE message_id = {message_alias}.id) "
+            "AS bookmark_note"
         )
 
     @staticmethod

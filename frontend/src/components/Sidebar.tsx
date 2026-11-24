@@ -32,6 +32,7 @@ import {
   Cpu,
   Search as SearchIcon,
   AtSign,
+  Bookmark,
   Settings2,
   SquarePen,
   Trash2,
@@ -601,6 +602,7 @@ export function Sidebar({
       | 'snmp'
       | 'lan-scan'
       | 'mentions'
+      | 'bookmarks'
       | 'fleet'
       | 'spam-guard'
       | 'wardrive'
@@ -1670,6 +1672,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'bookmarks':
+        return renderSidebarActionRow({
+          key: 'tool-bookmarks',
+          active: isActive('bookmarks', 'bookmarks'),
+          icon: <Bookmark className="h-4 w-4" />,
+          label: t('nav_bookmarks'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'bookmarks',
+              id: 'bookmarks',
+              name: t('nav_bookmarks'),
+            }),
+          iconOnly,
+        });
       case 'channel-registry':
         return renderSidebarActionRow({
           key: 'tool-channel-registry',
@@ -2160,6 +2176,7 @@ export function Sidebar({
     trace: t('nav_trace'),
     search: t('nav_message_search'),
     mentions: t('nav_mentions'),
+    bookmarks: t('nav_bookmarks'),
     'channel-registry': 'Channel Registry',
     cracker: t('nav_show_channel_finder'),
     'knowledge-base': t('nav_knowledge_base'),

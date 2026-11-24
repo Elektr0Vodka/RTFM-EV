@@ -69,6 +69,7 @@ from app.routers import (
     antenna_register,
     antenna_test,
     backup,
+    bookmarks,
     bot_lists,
     channel_sets,
     channels,
@@ -466,6 +467,7 @@ app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(spam.router, prefix="/api")
 app.include_router(bot_lists.router, prefix="/api")
+app.include_router(bookmarks.router, prefix="/api")
 app.include_router(filter_stats.router, prefix="/api")
 app.include_router(filter_profiles.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")

@@ -1019,6 +1019,13 @@ class Message(BaseModel):
             "None when the message is not a picture"
         ),
     )
+    bookmarked: bool = Field(
+        default=False,
+        description="True when the operator bookmarked this message (migration _173)",
+    )
+    bookmark_note: str | None = Field(
+        default=None, description="Optional note on the bookmark; None when unset"
+    )
 
     @model_validator(mode="after")
     def _attach_mcoimg(self) -> Message:
@@ -1027,6 +1034,30 @@ class Message(BaseModel):
             if info is not None:
                 self.mcoimg = MessageImage(**info)
         return self
+
+
+BOOKMARK_NOTE_MAX_LENGTH = 500
+
+
+class BookmarkRequest(BaseModel):
+    """Create or update a message bookmark."""
+
+    note: str | None = Field(
+        default=None,
+        max_length=BOOKMARK_NOTE_MAX_LENGTH,
+        description="Optional note; empty or whitespace-only clears it",
+    )
+
+
+class BookmarkEntry(BaseModel):
+    """A bookmarked message with its note and the conversation it belongs to."""
+
+    message: Message
+    note: str | None = None
+    created_at: int = Field(description="Unix time the bookmark was made")
+    conversation_name: str | None = Field(
+        default=None, description="Channel name or contact name, when known"
+    )
 
 
 class MessagesAroundResponse(BaseModel):

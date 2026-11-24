@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '../components/ui/sonner';
 import { api, isAbortError } from '../api';
 import type { Conversation, Message, MessagePath } from '../types';
+import { subscribeBookmarkEvents } from '../utils/bookmarkEvents';
 import { getMessageContentKey } from '../utils/messageIdentity';
 
 const MAX_PENDING_ACKS = 500;
@@ -125,6 +126,22 @@ export class ConversationMessageCache {
       entry.messages = entry.messages.map((message) =>
         messageIds.has(message.id) ? { ...message, ...marks } : message
       );
+    }
+  }
+
+  /** Set or clear the bookmark (and its note) on a cached message. */
+  updateBookmark(messageId: number, bookmarked: boolean, note: string | null): void {
+    for (const entry of this.cache.values()) {
+      const index = entry.messages.findIndex((message) => message.id === messageId);
+      if (index < 0) continue;
+      const updated = [...entry.messages];
+      updated[index] = {
+        ...entry.messages[index],
+        bookmarked,
+        bookmark_note: bookmarked ? note : null,
+      };
+      entry.messages = updated;
+      return;
     }
   }
 
@@ -1021,6 +1038,26 @@ export function useConversationMessages(
       );
       conversationMessageCache.updateSpam(ids, spam, duplicate);
     },
+    [setMessages]
+  );
+
+  // Bookmark changes (this tab, another tab, or a deleted message) patch the
+  // loaded messages and the cache in place.
+  useEffect(
+    () =>
+      subscribeBookmarkEvents(({ message_id, bookmarked, note }) => {
+        const marks = { bookmarked, bookmark_note: bookmarked ? note : null };
+        setMessages((prev) =>
+          prev.some(
+            (m) =>
+              m.id === message_id &&
+              (!!m.bookmarked !== bookmarked || (m.bookmark_note ?? null) !== marks.bookmark_note)
+          )
+            ? prev.map((m) => (m.id === message_id ? { ...m, ...marks } : m))
+            : prev
+        );
+        conversationMessageCache.updateBookmark(message_id, bookmarked, note);
+      }),
     [setMessages]
   );
 

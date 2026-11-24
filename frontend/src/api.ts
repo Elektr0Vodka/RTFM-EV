@@ -119,6 +119,7 @@ import type {
   GpsConfig,
   GpsConfigUpdate,
   Message,
+  BookmarkEntry,
   OpenHopStatus,
   HostRepeaterSettings,
   HostRepeaterState,
@@ -1073,6 +1074,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ emoji }),
     }),
+  /** Bookmarks, newest bookmark first; `conversation_key` limits to one chat. */
+  getBookmarks: (
+    params?: { limit?: number; before?: number; before_id?: number; conversation_key?: string },
+    signal?: AbortSignal
+  ) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', params.limit.toString());
+    if (params?.before !== undefined) searchParams.set('before', params.before.toString());
+    if (params?.before_id !== undefined) searchParams.set('before_id', params.before_id.toString());
+    if (params?.conversation_key) searchParams.set('conversation_key', params.conversation_key);
+    const query = searchParams.toString();
+    return fetchJson<BookmarkEntry[]>(`/bookmarks${query ? `?${query}` : ''}`, { signal });
+  },
+  /** Bookmark a message or update its note. Local only. */
+  setBookmark: (messageId: number, note: string | null) =>
+    fetchJson<BookmarkEntry>(`/messages/${messageId}/bookmark`, {
+      method: 'PUT',
+      body: JSON.stringify({ note }),
+    }),
+  removeBookmark: (messageId: number) =>
+    fetchJson<{ status: string; removed: boolean }>(`/messages/${messageId}/bookmark`, {
+      method: 'DELETE',
+    }),
+  bookmarkExportUrl: (format: 'md' | 'csv') => `${API_BASE}/bookmarks/export?format=${format}`,
   deleteMessage: (messageId: number) =>
     fetchJson<{ status: string; deleted: number }>(`/messages/${messageId}`, {
       method: 'DELETE',

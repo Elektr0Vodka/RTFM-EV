@@ -151,6 +151,7 @@ frontend/src/
 │   ├── CommunitiesPanel.tsx    # meshcore-open communities: join (paste JSON / camera / QR image), add hashtag, export JSON/QR
 │   ├── SearchView.tsx          # Full-text message search pane
 │   ├── MentionsView.tsx        # Tools > Mentions: every message that mentions you (#mentions)
+│   ├── BookmarksView.tsx       # Tools > Bookmarks (#bookmarks) and a chat's "Bookmarked only" list
 │   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
 │   ├── RawPacketList.tsx
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
@@ -876,6 +877,10 @@ The `SearchView` component (`components/SearchView.tsx`) provides full-text sear
 - **Jump-to-message**: `useConversationMessages` handles optional `targetMessageId` by calling `api.getMessagesAround()` instead of the normal latest-page fetch, loading context around the target message. `MessageList` resolves the target to an index and calls `virtualizer.scrollToIndex(...)`, then applies a `message-highlight` CSS animation. A pending target suppresses the bottom-pin (see Virtualization below), since the around-load clears the list first and would otherwise be yanked to the newest message.
 - **Bidirectional pagination**: After jumping mid-history, `hasNewerMessages` enables forward pagination via `fetchNewerMessages`. The scroll-to-bottom button calls `jumpToBottom` (re-fetches latest page) instead of just scrolling.
 - **WS message suppression**: When `hasNewerMessages` is true, incoming WS messages for the active conversation are not added to the message list (the user is viewing historical context, not the latest page).
+
+## Bookmarks
+
+Bookmarks are stored server-side (`message_bookmarks`, see `app/AGENTS.md`); `Message.bookmarked` / `bookmark_note` come with every message. `MessageRowActions` offers **Bookmark** / **Remove bookmark** and, while bookmarked, a note editor; `MessageList` shows a filled bookmark icon (note as tooltip) next to the other badges. `utils/bookmarkActions.ts` (`toggleMessageBookmark`, `saveMessageBookmarkNote`) calls the API and emits a browser event from `utils/bookmarkEvents.ts`; `useWebSocket` emits the same event for WS `message_bookmark` and for `message_deleted` (the bookmark goes with the message). `useConversationMessages` patches loaded messages and its cache from that event, and `BookmarksView` drops, updates or reloads its rows, so no handler is threaded through App. `BookmarksView` (Tools > Bookmarks, `#bookmarks`, conversation type and sidebar tool key `bookmarks`) lists `GET /bookmarks` 50 per page with note edit, remove and Markdown / CSV export links; a click goes through `onNavigateToMessage`. In a chat, the filter menu's **Bookmarked only** (not persisted, reset on conversation change) lays the same view, scoped with `conversationKey`, over the message list; a click closes it and calls `jumpToMessage`, so a message outside the loaded window loads around it.
 
 ## Mentions page
 

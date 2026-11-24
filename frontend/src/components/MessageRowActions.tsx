@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import {
+  Bookmark,
+  BookmarkMinus,
   Bot,
   Mail,
+  NotebookPen,
   Reply,
   RotateCcw,
   ShieldAlert,
@@ -17,15 +20,22 @@ import { useT } from '../i18n';
 // Same quick set other MeshCore clients lead with; one tap sends the reaction.
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '👏', '🔥'];
 
+/** Longest bookmark note the server accepts (BOOKMARK_NOTE_MAX_LENGTH). */
+export const BOOKMARK_NOTE_MAX_LENGTH = 500;
+
 /**
  * Hover actions for a chat message: react, reply, retry a failed DM, mark unread,
- * tell Spam Guard it is (not) spam, or delete.
+ * bookmark (with a note), tell Spam Guard it is (not) spam, or delete.
  */
 export function MessageRowActions({
   onReact,
   onReply,
   onRetry,
   onMarkUnread,
+  bookmarked = false,
+  bookmarkNote = null,
+  onToggleBookmark,
+  onSaveBookmarkNote,
   onMarkSpam,
   onNotSpam,
   onAddToBotList,
@@ -38,6 +48,13 @@ export function MessageRowActions({
   /** Only passed for a failed outgoing DM. Sends a new copy, so it transmits. */
   onRetry?: () => void | Promise<void>;
   onMarkUnread?: () => void;
+  /** Whether the message is bookmarked; picks the bookmark button's action. */
+  bookmarked?: boolean;
+  bookmarkNote?: string | null;
+  /** Bookmark the message, or remove its bookmark. Local only. */
+  onToggleBookmark?: () => void;
+  /** Save the bookmark note (null clears it). Only offered while bookmarked. */
+  onSaveBookmarkNote?: (note: string | null) => void;
   /** Spam Guard feedback: blocks this text and flags the message. */
   onMarkSpam?: () => void;
   /** Spam Guard feedback: trusts the sender and clears the flag. */
@@ -53,12 +70,15 @@ export function MessageRowActions({
   const t = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
 
   if (
     !onReact &&
     !onReply &&
     !onRetry &&
     !onMarkUnread &&
+    !onToggleBookmark &&
     !onMarkSpam &&
     !onNotSpam &&
     !onAddToBotList &&
@@ -126,6 +146,36 @@ export function MessageRowActions({
           <Mail className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
+      {onToggleBookmark && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t(bookmarked ? 'chat_remove_bookmark_action' : 'chat_bookmark_action')}
+          title={t(bookmarked ? 'chat_remove_bookmark_action' : 'chat_bookmark_action')}
+          onClick={onToggleBookmark}
+        >
+          {bookmarked ? (
+            <BookmarkMinus className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <Bookmark className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+        </button>
+      )}
+      {bookmarked && onSaveBookmarkNote && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('chat_bookmark_note_action')}
+          title={t('chat_bookmark_note_action')}
+          aria-expanded={noteOpen}
+          onClick={() => {
+            setNoteDraft(bookmarkNote ?? '');
+            setNoteOpen((open) => !open);
+          }}
+        >
+          <NotebookPen className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
       {onMarkSpam && (
         <button
           type="button"
@@ -191,6 +241,44 @@ export function MessageRowActions({
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
+      )}
+      {noteOpen && bookmarked && onSaveBookmarkNote && (
+        <form
+          className="absolute bottom-full right-0 z-20 mb-1 flex w-64 flex-col gap-1.5 rounded-md border border-border bg-popover p-2 shadow-md"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNoteOpen(false);
+            onSaveBookmarkNote(noteDraft.trim() || null);
+          }}
+        >
+          <textarea
+            className="min-h-16 w-full resize-y rounded border border-input bg-background px-2 py-1 text-[0.8125rem]"
+            aria-label={t('chat_bookmark_note_label')}
+            placeholder={t('chat_bookmark_note_placeholder')}
+            maxLength={BOOKMARK_NOTE_MAX_LENGTH}
+            value={noteDraft}
+            autoFocus
+            onChange={(event) => setNoteDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setNoteOpen(false);
+            }}
+          />
+          <div className="flex justify-end gap-1">
+            <button
+              type="button"
+              className="rounded px-2 py-0.5 text-xs hover:bg-accent"
+              onClick={() => setNoteOpen(false)}
+            >
+              {t('common_cancel')}
+            </button>
+            <button
+              type="submit"
+              className="rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground hover:bg-primary/90"
+            >
+              {t('chat_bookmark_note_save')}
+            </button>
+          </div>
+        </form>
       )}
       {pickerOpen && onReact && (
         <div className="absolute bottom-full z-20 mb-1 flex gap-0.5 rounded-full border border-border bg-card px-1.5 py-1 shadow-md">
