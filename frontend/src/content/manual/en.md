@@ -477,6 +477,10 @@ Full-text search across direct and channel messages. Use `user:` or `channel:` t
 
 Every stored message that mentions you as `@[your radio name]`, in channels and DMs, newest first. It hides what the chat hides (blocked senders, bots when hidden, hidden hop widths and SFs, malformed and spam messages when hidden). Click a mention to jump to it; **Load more results** goes further back and the refresh button reads the list again.
 
+### Bookmarks
+
+Every message you bookmarked, newest first. Bookmark a message with the bookmark button when you hover it; once bookmarked, it shows a bookmark icon and the note button lets you add a short note (up to 500 characters). Here you can click a bookmark to jump to it, edit its note, remove it, or download all bookmarks as **Markdown** or **CSV**. In a chat, **Bookmarked only** in the filter menu shows that chat's bookmarks, also ones far back in history. Data retention never deletes a bookmarked message; deleting the message yourself removes its bookmark. Nothing is sent over the radio.
+
 ### Channel Registry
 
 A local catalog of known channels. It is a reference list, not the channels the app monitors. You can add, edit, filter, import and export entries, sync from a remote list, and use **Add to Channels** to start monitoring one. Private entries are never exported. In a channel, the registry icon in the header (or **Edit in Channel Registry** in the channel info panel) opens that channel's entry straight in edit mode, adding it first if it is missing.

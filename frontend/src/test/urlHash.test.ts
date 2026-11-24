@@ -611,3 +611,26 @@ describe('mentions (Tools > Mentions) route', () => {
     );
   });
 });
+
+describe('bookmarks (Tools > Bookmarks) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #bookmarks', () => {
+    window.location.hash = '#bookmarks';
+    expect(parseHashConversation()).toEqual({ type: 'bookmarks', name: 'bookmarks' });
+  });
+
+  it('builds #bookmarks', () => {
+    expect(getConversationHash({ type: 'bookmarks', id: 'bookmarks', name: 'Bookmarks' })).toBe(
+      '#bookmarks'
+    );
+  });
+});

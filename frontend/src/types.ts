@@ -918,6 +918,10 @@ export interface Message {
   region?: string | null;
   /** LoRa settings this message was heard or sent on; null for older rows. */
   radio_stamp?: RadioStamp | null;
+  /** True when the operator bookmarked this message. */
+  bookmarked?: boolean;
+  /** Optional note on the bookmark. */
+  bookmark_note?: string | null;
   /** Unix time an outgoing DM was marked failed (retries ran out, no ACK). Null when not failed. */
   failed_at?: number | null;
   /**
@@ -1219,6 +1223,7 @@ type ConversationType =
   | 'visualizer'
   | 'search'
   | 'mentions'
+  | 'bookmarks'
   | 'trace'
   | 'channel-registry'
   | 'node'
@@ -4247,6 +4252,25 @@ export interface SpamGuardRule {
 }
 
 /** The WS `message_spam` event: the flag changed on messages already in chat. */
+/** A bookmarked message with its note (GET /api/bookmarks). */
+export interface BookmarkEntry {
+  message: Message;
+  note: string | null;
+  /** Unix time the bookmark was made. */
+  created_at: number;
+  /** Channel or contact name, when known. */
+  conversation_name: string | null;
+}
+
+/** WS `message_bookmark`: a bookmark was added, changed or removed. */
+export interface MessageBookmarkPayload {
+  message_id: number;
+  type: string;
+  conversation_key: string;
+  bookmarked: boolean;
+  note: string | null;
+}
+
 export interface MessageSpamPayload {
   message_ids: number[];
   spam: boolean;

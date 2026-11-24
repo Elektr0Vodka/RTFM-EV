@@ -44,6 +44,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Mention ticker, a mention and DM sound, browser and Web Push notifications, and optional notifications for newly heard nodes.
 - Optional chat parsing: clickable links with previews, public key detection, and GPS or MGRS coordinates as map cards.
 - Full-text message search with `user:`, `channel:` and `region:` filters.
+- Message bookmarks with an optional note: a bookmark icon in chat, **Bookmarked only** in a chat's filter menu, and Tools > **Bookmarks** listing all of them (click to jump, export as Markdown or CSV). Bookmarked messages are kept by data retention; nothing is sent over RF.
 - Message details (the hop count or tick on a message): the sender's own send time next to the time it was received, with a note when the sender's clock is a minute or more off, hop count, path hash size and region, above the routes it came in on.
 - Share cards for Discord and other chats: an image (PNG) and, where there is something to play, an animation (GIF) of how a message reached your radio, a trace route result, who your node hears directly, a summary of the mesh around you, and filter results (a repeater's or companion's filter, RTFM-EV's Spam & bots filtering, the host repeater totals). Message, trace and reach cards have a **Hide my position** option. Made in the browser; nothing is sent over the radio.
 

@@ -477,6 +477,10 @@ Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenz
 
 Jede gespeicherte Nachricht, die dich als `@[Name deines Funkgeräts]` erwähnt, in Kanälen und DMs, neueste zuerst. Was der Chat ausblendet, fehlt auch hier (blockierte Absender, Bots wenn ausgeblendet, ausgeblendete Hop-Breiten und SFs, fehlerhafte und Spam-Nachrichten wenn ausgeblendet). Klicke auf eine Erwähnung, um dorthin zu springen; **Weitere Ergebnisse laden** geht weiter zurück, die Aktualisieren-Schaltfläche liest die Liste neu.
 
+### Lesezeichen
+
+Jede Nachricht mit Lesezeichen, neueste zuerst. Setze ein Lesezeichen mit der Lesezeichen-Schaltfläche, wenn du über eine Nachricht fährst; danach zeigt sie ein Lesezeichen-Symbol und über die Notiz-Schaltfläche kannst du eine kurze Notiz hinzufügen (bis zu 500 Zeichen). Hier klickst du auf ein Lesezeichen, um dorthin zu springen, änderst die Notiz, entfernst das Lesezeichen oder lädst alle Lesezeichen als **Markdown** oder **CSV** herunter. In einem Chat zeigt **Nur Lesezeichen** im Filtermenü die Lesezeichen dieses Chats, auch weit zurückliegende. Die Datenaufbewahrung löscht nie eine Nachricht mit Lesezeichen; löschst du die Nachricht selbst, verschwindet auch ihr Lesezeichen. Es wird nichts über Funk gesendet.
+
 ### Channel Registry (Kanalregister)
 
 Ein lokaler Katalog bekannter Kanäle. Es ist eine Nachschlageliste, nicht die Liste der Kanäle, die die App beobachtet. Du kannst Einträge hinzufügen, bearbeiten, filtern, importieren und exportieren, von einer externen Liste synchronisieren und mit **Zu Kanälen hinzufügen** einen Kanal beobachten. Private Einträge werden nie exportiert. In einem Kanal öffnet das Register-Symbol in der Kopfzeile (oder **Im Kanalregister bearbeiten** im Kanal-Infobereich) den Eintrag dieses Kanals direkt im Bearbeitungsmodus; fehlt er, wird er zuerst hinzugefügt.

@@ -477,6 +477,10 @@ Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `
 
 Elk opgeslagen bericht waarin je wordt vermeld als `@[naam van je radio]`, in kanalen en DM's, nieuwste eerst. Wat de chat verbergt, blijft hier ook weg (geblokkeerde afzenders, bots als die verborgen zijn, verborgen hopbreedtes en SF's, misvormde en spamberichten als die verborgen zijn). Klik op een vermelding om ernaartoe te springen; **Meer resultaten laden** gaat verder terug en de vernieuwknop leest de lijst opnieuw.
 
+### Bladwijzers
+
+Elk bericht met een bladwijzer, nieuwste eerst. Geef een bericht een bladwijzer met de bladwijzerknop als je erover beweegt; daarna toont het een bladwijzericoon en kun je met de notitieknop een korte notitie toevoegen (tot 500 tekens). Hier klik je op een bladwijzer om ernaartoe te springen, pas je de notitie aan, verwijder je de bladwijzer of download je alle bladwijzers als **Markdown** of **CSV**. In een chat toont **Alleen bladwijzers** in het filtermenu de bladwijzers van die chat, ook die ver terug in de geschiedenis. Gegevensbewaring verwijdert nooit een bericht met een bladwijzer; verwijder je het bericht zelf, dan verdwijnt de bladwijzer ook. Er wordt niets via de radio verzonden.
+
 ### Channel Registry (Kanaalregister)
 
 Een lokale catalogus van bekende kanalen. Het is een naslaglijst, niet de lijst met kanalen die de app volgt. Je kunt items toevoegen, bewerken, filteren, importeren en exporteren, synchroniseren vanaf een externe lijst, en met **Aan kanalen toevoegen** een kanaal gaan volgen. Privé-items worden nooit geëxporteerd. In een kanaal opent het registerpictogram in de kop (of **Bewerken in Kanaalregister** in het kanaalinfopaneel) het item van dat kanaal direct in bewerkmodus; ontbreekt het, dan wordt het eerst toegevoegd.

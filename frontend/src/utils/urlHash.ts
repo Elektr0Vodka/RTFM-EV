@@ -14,6 +14,7 @@ interface ParsedHashConversation {
     | 'search'
     | 'trace'
     | 'mentions'
+    | 'bookmarks'
     | 'channel-registry'
     | 'node'
     | 'mesh-health'
@@ -131,6 +132,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'mentions') {
     return { type: 'mentions', name: 'mentions' };
+  }
+
+  if (hash === 'bookmarks') {
+    return { type: 'bookmarks', name: 'bookmarks' };
   }
 
   // SNMP page of one node: #snmp/<public key>
@@ -315,6 +320,7 @@ export function getConversationHash(conv: Conversation | null): string {
     return '#wardrive';
   }
   if (conv.type === 'mentions') return '#mentions';
+  if (conv.type === 'bookmarks') return '#bookmarks';
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;

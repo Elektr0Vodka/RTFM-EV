@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (Message bookmarks; feat/message-bookmarks)
+
+Idea from meshcore-open (zjs81/meshcore-open#662), built fresh for RTFM-EV.
+Migration `_173`. No new dependency. Nothing is sent over RF.
+
+### Messaging (`app/routers/bookmarks.py`, `app/repository/bookmarks.py`, `BookmarksView.tsx`, `MessageRowActions.tsx`, `MessageList.tsx`)
+- **Message bookmarks.** Bookmark any stored message from its row actions and
+  add an optional note (up to 500 characters). Bookmarked messages show a
+  bookmark icon in chat, with the note as tooltip.
+- **Tools > Bookmarks** (`#bookmarks`) lists every bookmark, newest first: click
+  one to jump to it in its chat, edit the note, remove it, or export all
+  bookmarks as Markdown or CSV.
+- **Bookmarked only** in a chat's filter menu shows that chat's bookmarks,
+  including ones far back in history.
+- Changes show in every open tab (WS `message_bookmark`).
+- Stored in a new `message_bookmarks` table (migration `_173`). Message
+  retention keeps bookmarked messages and their raw packets; the retention
+  confirmation says so. Deleting a message removes its bookmark.
+
 ## Update 2026-11-24 (MCOimg v3 pictures in channel chat, #391; feat/mcoimg-v3)
 
 Receive only. Migration `_172`. No new dependency (PNG via stdlib `zlib`).

@@ -396,6 +396,8 @@ class TestContactMessageCLIFiltering:
             "cli_permitted",
             "radio_stamp",
             "mcoimg",
+            "bookmarked",
+            "bookmark_note",
         }
 
         with patch("app.event_handlers.broadcast_event") as mock_broadcast:

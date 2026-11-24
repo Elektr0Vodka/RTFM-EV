@@ -207,6 +207,8 @@ How it runs:
   interval of data beyond its limit.
 - Setting a message retention above 0, or lowering it, asks for confirmation and
   shows how many messages the next run will delete.
+- Bookmarked messages are never pruned by message retention; their raw packets
+  are kept too. Deleting a message by hand removes its bookmark.
 - **Keep everything (analyzer)** sets every limit to 0. **Restore defaults** puts the
   table above back; that re-enables the 30-day limits and deletes older rows on the
   next run.

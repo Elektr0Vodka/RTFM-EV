@@ -63,6 +63,9 @@ const SpamGuardView = lazy(() =>
 const MentionsView = lazy(() =>
   import('./MentionsView').then((m) => ({ default: m.MentionsView }))
 );
+const BookmarksView = lazy(() =>
+  import('./BookmarksView').then((m) => ({ default: m.BookmarksView }))
+);
 const LanScanView = lazy(() => import('./LanScanView').then((m) => ({ default: m.LanScanView })));
 const WardrivePage = lazy(() =>
   import('./WardrivePage').then((m) => ({ default: m.WardrivePage }))
@@ -702,6 +705,25 @@ export function ConversationPane({
           channels={channels}
           radioName={config?.name ?? null}
           onNavigateToMessage={(target) => onNavigateToMessage?.(target)}
+        />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'bookmarks') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading')} />}>
+        <BookmarksView
+          contacts={contacts}
+          channels={channels}
+          onSelect={(message, conversationName) =>
+            onNavigateToMessage?.({
+              id: message.id,
+              type: message.type === 'CHAN' ? 'CHAN' : 'PRIV',
+              conversation_key: message.conversation_key,
+              conversation_name: conversationName,
+            })
+          }
         />
       </Suspense>
     );

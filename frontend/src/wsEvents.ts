@@ -10,6 +10,7 @@ import type {
   HostRepeaterEventPayload,
   Message,
   MessagePath,
+  MessageBookmarkPayload,
   MessageSpamPayload,
   RawPacket,
   SpamGuardSummary,
@@ -87,6 +88,7 @@ export type KnownWsEvent =
   | { type: 'host_repeater'; data: HostRepeaterEventPayload }
   | { type: 'spam_guard'; data: SpamGuardSummary }
   | { type: 'message_spam'; data: MessageSpamPayload }
+  | { type: 'message_bookmark'; data: MessageBookmarkPayload }
   | { type: 'name_filter_applied'; data: { changed: number } }
   | { type: 'malformed_applied'; data: { changed: number } }
   | { type: 'bot_lists'; data: BotListsState }
@@ -142,6 +144,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'host_repeater':
     case 'spam_guard':
     case 'message_spam':
+    case 'message_bookmark':
     case 'name_filter_applied':
     case 'malformed_applied':
     case 'bot_lists':

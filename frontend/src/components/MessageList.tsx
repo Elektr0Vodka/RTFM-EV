@@ -51,6 +51,7 @@ import {
 } from '../utils/teamPayloads';
 import { teamBeaconDetails, teamWaypointTypeName } from '../utils/teamPayloadText';
 import {
+  Bookmark,
   FileQuestion,
   ImageOff,
   ListFilter,
@@ -83,6 +84,8 @@ import { useMessageRouteBuild, type MessageShareTarget } from '../share/cards/us
 import { MessageListSkeleton } from './ui/skeleton';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { MessageRowActions } from './MessageRowActions';
+import { BookmarksView } from './BookmarksView';
+import { saveMessageBookmarkNote, toggleMessageBookmark } from '../utils/bookmarkActions';
 import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
 import { toast } from './ui/sonner';
 import { AddToBotListDialog } from './AddToBotListDialog';
@@ -1234,6 +1237,14 @@ export function MessageList({
   const hideDuplicates = spamGuardEnabled && (hideDuplicatesProp ?? false);
   const [hopFilterOpen, setHopFilterOpen] = useState(false);
   const hopFilterRef = useRef<HTMLDivElement>(null);
+  // "Bookmarked only": shows this chat's bookmark list (server-side, so it is
+  // not limited to the loaded window) over the message list. Not persisted,
+  // and switched off when the conversation changes.
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const bookmarkConversationKey = messages[0]?.conversation_key ?? null;
+  useEffect(() => {
+    setBookmarkedOnly(false);
+  }, [bookmarkConversationKey]);
   const toggleHopWidth = useCallback(
     (width: number) => {
       const next = new Set(hiddenHopWidths);
@@ -2121,7 +2132,8 @@ export function MessageList({
               hideNameFiltered ||
               hideSpam ||
               hideDuplicates ||
-              hideBots
+              hideBots ||
+              bookmarkedOnly
               ? 'text-status-connected'
               : 'text-muted-foreground'
           )}
@@ -2272,9 +2284,40 @@ export function MessageList({
                 </div>
               </>
             )}
+            {bookmarkConversationKey && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="accent-current"
+                    checked={bookmarkedOnly}
+                    onChange={() => setBookmarkedOnly((on) => !on)}
+                  />
+                  {t('chat_filter_bookmarked_only')}
+                </label>
+                <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+                  {t('chat_filter_bookmarked_only_hint')}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
+      {bookmarkedOnly && bookmarkConversationKey && (
+        <div className="absolute inset-0 z-10 bg-background pt-12" data-testid="chat-bookmarks">
+          <BookmarksView
+            embedded
+            contacts={contacts}
+            channels={channels}
+            conversationKey={bookmarkConversationKey}
+            onSelect={(message) => {
+              setBookmarkedOnly(false);
+              jumpToMessage(message.id);
+            }}
+          />
+        </div>
+      )}
       <div
         className="h-full overflow-y-auto p-4 flex flex-col"
         ref={listRef}
@@ -2484,6 +2527,16 @@ export function MessageList({
                     <Shrink className="h-3 w-3" aria-hidden="true" />
                   </span>
                 )}
+                {msg.bookmarked && (
+                  <span
+                    className="ml-1.5 inline-flex align-middle text-primary"
+                    title={msg.bookmark_note || t('chat_bookmarked_title')}
+                    aria-label={t('chat_bookmarked_title')}
+                    role="img"
+                  >
+                    <Bookmark className="h-3 w-3 fill-current" aria-hidden="true" />
+                  </span>
+                )}
                 {spamGuardEnabled && !msg.outgoing && msg.spam && (
                   <span
                     className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning"
@@ -2642,6 +2695,21 @@ export function MessageList({
                   onMarkUnreadFromMessage
                     ? () => onMarkUnreadFromMessage(msg)
                     : undefined
+                }
+                bookmarked={!!msg.bookmarked}
+                bookmarkNote={msg.bookmark_note ?? null}
+                onToggleBookmark={
+                  !isReactionPayload(content)
+                    ? () =>
+                        void toggleMessageBookmark(msg).catch((err: unknown) =>
+                          toast.error(err instanceof Error ? err.message : String(err))
+                        )
+                    : undefined
+                }
+                onSaveBookmarkNote={(note) =>
+                  void saveMessageBookmarkNote(msg, note).catch((err: unknown) =>
+                    toast.error(err instanceof Error ? err.message : String(err))
+                  )
                 }
                 onMarkSpam={
                   spamFeedbackFor(msg) && !msg.spam ? () => onSpamFeedback?.(msg, true) : undefined

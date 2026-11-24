@@ -42,6 +42,9 @@ TELEMETRY_TABLES: frozenset[str] = frozenset(
 # Stats-only entry: advert paths are trimmed by count, not age.
 _ADVERT_PATHS = ("contact_advert_paths", "first_seen")
 
+# Message retention keeps bookmarked messages (migration _173).
+_NOT_BOOKMARKED = "id NOT IN (SELECT message_id FROM message_bookmarks)"
+
 
 def _table_for(key: str) -> tuple[str, str]:
     if key not in AGE_TABLES:
@@ -112,17 +115,19 @@ class RetentionRepository:
 
         The linked raw packets go first, in the same transaction, so historical
         decryption cannot recreate a pruned message from its stored packet.
+        Bookmarked messages (``message_bookmarks``) are kept, with their packets.
         Returns ``(messages_deleted, raw_packets_deleted)``.
         """
         async with db.tx() as conn:
             async with conn.execute(
                 "DELETE FROM raw_packets WHERE message_id IN "
-                "(SELECT id FROM messages WHERE received_at < ?)",
+                f"(SELECT id FROM messages WHERE received_at < ? AND {_NOT_BOOKMARKED})",
                 (cutoff_ts,),
             ) as cursor:
                 raw_deleted = cursor.rowcount
             async with conn.execute(
-                "DELETE FROM messages WHERE received_at < ?", (cutoff_ts,)
+                f"DELETE FROM messages WHERE received_at < ? AND {_NOT_BOOKMARKED}",
+                (cutoff_ts,),
             ) as cursor:
                 return cursor.rowcount, raw_deleted
 
@@ -130,7 +135,8 @@ class RetentionRepository:
     async def count_messages_older_than(cutoff_ts: int) -> int:
         async with db.readonly() as conn:
             async with conn.execute(
-                "SELECT COUNT(*) AS n FROM messages WHERE received_at < ?", (cutoff_ts,)
+                f"SELECT COUNT(*) AS n FROM messages WHERE received_at < ? AND {_NOT_BOOKMARKED}",
+                (cutoff_ts,),
             ) as cursor:
                 row = await cursor.fetchone()
         return int(row["n"]) if row else 0
