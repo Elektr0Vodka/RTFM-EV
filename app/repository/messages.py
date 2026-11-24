@@ -88,6 +88,7 @@ class MessageRepository:
         bot: bool = False,
         cli_permitted: bool | None = None,
         radio_stamp: RadioStamp | None = None,
+        smaz: bool = False,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
 
@@ -128,8 +129,8 @@ class MessageRepository:
                                                 transport_code, region, malformed,
                                                 malformed_reason, name_filtered, bot,
                                                 cli_permitted,
-                                                radio_freq, radio_bw, radio_sf, radio_cr)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                radio_freq, radio_bw, radio_sf, radio_cr, smaz)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -155,6 +156,7 @@ class MessageRepository:
                     radio_stamp.bw if radio_stamp else None,
                     radio_stamp.sf if radio_stamp else None,
                     radio_stamp.cr if radio_stamp else None,
+                    1 if smaz else 0,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -698,6 +700,7 @@ class MessageRepository:
         failed_at = None
         malformed = False
         name_filtered = False
+        smaz = False
         send_status = "confirmed"
         spam = False
         duplicate = False
@@ -717,6 +720,8 @@ class MessageRepository:
                 malformed = bool(row["malformed"])
             if "name_filtered" in row_keys:
                 name_filtered = bool(row["name_filtered"])
+            if "smaz" in row_keys:
+                smaz = bool(row["smaz"])
             if "send_status" in row_keys:
                 send_status = row["send_status"]
             if "spam" in row_keys:
@@ -754,6 +759,7 @@ class MessageRepository:
             failed_at=failed_at,
             malformed=malformed,
             name_filtered=name_filtered,
+            smaz=smaz,
             spam=spam,
             duplicate=duplicate,
             cli_permitted=cli_permitted,

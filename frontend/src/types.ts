@@ -932,6 +932,12 @@ export interface Message {
    */
   name_filtered?: boolean;
   /**
+   * True when this incoming message body arrived SMAZ-compressed (`s:<base64>`)
+   * and the server decoded it at ingest. Rows stored before migration 171 are
+   * never flagged.
+   */
+  smaz?: boolean;
+  /**
    * True when Spam Guard flagged this incoming channel message as spam, at
    * ingest or afterwards (earlier copies of a campaign arrive in a
    * `message_spam` event). Hidden by the chat "Hide spam" filter.

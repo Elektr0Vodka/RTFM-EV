@@ -58,6 +58,7 @@ import {
   Megaphone,
   Radio,
   Route,
+  Shrink,
 } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
 import { useMessageLayout } from '../contexts/MessageLayoutContext';
@@ -101,6 +102,7 @@ import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 import { sfBucket } from '../utils/radioSf';
 import { MessageSfPill } from './RadioSfPill';
+import { useSmazIndicator } from '../utils/smazIndicatorPreference';
 
 interface MessageListProps {
   messages: Message[];
@@ -1099,6 +1101,7 @@ export function MessageList({
   const CORRUPT_SENDER_LABEL = t('chat_corrupt_sender_label');
   const ANALYZE_PACKET_NOTICE = t('chat_analyze_packet_notice');
   const { renderRichPayloads } = useRichPayloads();
+  const showSmazIndicator = useSmazIndicator();
   const layout = useMessageLayout();
   const estimatedRowHeight =
     layout === 'lines'
@@ -2431,6 +2434,17 @@ export function MessageList({
                   <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
                 )}
                 <MessageSfPill stamp={msg.radio_stamp} />
+                {showSmazIndicator && msg.smaz && (
+                  <span
+                    className="ml-1.5 inline-flex align-middle text-muted-foreground"
+                    title={t('chat_smaz_indicator_title')}
+                    aria-label={t('chat_smaz_indicator_title')}
+                    role="img"
+                    data-testid="smaz-indicator"
+                  >
+                    <Shrink className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                )}
                 {spamGuardEnabled && !msg.outgoing && msg.spam && (
                   <span
                     className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning"

@@ -940,6 +940,14 @@ class Message(BaseModel):
             "('name_filter_patterns'). Hidden by the chat 'Hide by name pattern' filter."
         ),
     )
+    smaz: bool = Field(
+        default=False,
+        description=(
+            "True when an incoming message body arrived SMAZ-compressed ('s:<base64>') and "
+            "was decoded at ingest. False for plain text, outgoing messages and rows "
+            "stored before migration 171."
+        ),
+    )
     spam: bool = Field(
         default=False,
         description=(

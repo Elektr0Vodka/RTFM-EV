@@ -160,5 +160,12 @@ def try_decode_prefixed(text: str) -> str | None:
 
 def decode_message_text(text: str) -> str:
     """Decoded text for an ``s:`` SMAZ body; any other text is returned unchanged."""
+    return decode_message_body(text)[0]
+
+
+def decode_message_body(text: str) -> tuple[str, bool]:
+    """``(text, was_smaz)``: the decoded text and True for an ``s:`` SMAZ body,
+    else the text unchanged and False. Ingest stores the flag as ``messages.smaz``.
+    """
     decoded = try_decode_prefixed(text)
-    return text if decoded is None else decoded
+    return (text, False) if decoded is None else (decoded, True)

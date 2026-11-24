@@ -32,7 +32,7 @@ from app.services.messages import (
     truncate_for_log,
 )
 from app.services.radio_sightings import record_contact_sighting
-from app.smaz import decode_message_text
+from app.smaz import decode_message_body
 
 if TYPE_CHECKING:
     from app.decoder import DecryptedDirectMessage
@@ -184,6 +184,7 @@ async def _store_direct_message(
     contact_repository=ContactRepository,
     raw_packet_repository=RawPacketRepository,
 ) -> Message | None:
+    was_smaz = False
     if not outgoing and txt_type == TXT_TYPE_CLI_COMMAND:
         # A command another companion sent to our radio can carry a secret
         # (`set wifi.pwd`, `set pin`): store and log it masked, never in clear.
@@ -191,7 +192,7 @@ async def _store_direct_message(
     elif not outgoing and txt_type != 1:
         # Incoming SMAZ bodies ("s:<base64>") are stored decoded. Our own sends
         # are never SMAZ, so outgoing echoes keep matching the stored row.
-        text = decode_message_text(text)
+        text, was_smaz = decode_message_body(text)
 
     async def store() -> Message | None:
         if linked_packet_dedup and packet_id is not None:
@@ -250,6 +251,7 @@ async def _store_direct_message(
             transport_code=transport_code,
             region=region,
             cli_permitted=cli_permitted,
+            smaz=was_smaz,
         )
         if msg_id is None:
             await handle_duplicate_message(
@@ -288,6 +290,7 @@ async def _store_direct_message(
             transport_code=transport_code,
             region=region,
             cli_permitted=cli_permitted,
+            smaz=was_smaz,
         )
         broadcast_message(
             message=message, broadcast_fn=broadcast_fn, realtime=realtime, packet_hash=packet_hash

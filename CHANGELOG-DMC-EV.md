@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (SMAZ compression indicator, feat/smaz-indicator)
+
+Mirrors the optional compression indicator of meshcore-open BETA-99.0.4
+(zjs81/meshcore-open#684). Migration `_171`, no new dependency.
+
+### Messages (`app/smaz.py`, `app/services/messages.py`, `app/services/dm_ingest.py`)
+- New column `messages.smaz` (migration `_171`): set at ingest when an
+  incoming body arrived SMAZ-compressed (`s:<base64>`) and was decoded. Covers
+  DMs (packet and fallback path), channel text from raw packets, and fallback
+  and queued channel frames. Returned as `smaz` by the message API and the WS
+  `message` event. Outgoing messages are never flagged. No backfill: stored
+  rows already hold the decoded text, so messages from before this version
+  stay unflagged.
+
+### Chat (`MessageList.tsx`, `SettingsLocalSection.tsx`, `utils/smazIndicatorPreference.ts`)
+- **Show compression indicator** (Settings > Local Configuration, off by default, stored in
+  this browser): a small icon with a tooltip next to the message details of a
+  message that arrived SMAZ-compressed. EN/NL/DE strings.
 ## Update 2026-11-24 (Ignore impossible hops in message paths; feat/prune-impossible-hops)
 
 Frontend only. No migration, no new setting, no new dependency.
