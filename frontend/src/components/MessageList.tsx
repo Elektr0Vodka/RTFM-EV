@@ -7,6 +7,7 @@ import {
   useState,
   lazy,
   Suspense,
+  type ComponentProps,
   type ReactNode,
 } from 'react';
 import type {
@@ -107,6 +108,11 @@ import { useT, type TFn } from '../i18n';
 import { sfBucket } from '../utils/radioSf';
 import { MessageSfPill } from './RadioSfPill';
 import { useSmazIndicator } from '../utils/smazIndicatorPreference';
+import { useIsNarrowTouch } from '../map/controls/breakpoints';
+
+// Narrow touch screens (#390): time and badges kept together as one unit; the
+// gap before it lives on the preceding element so a wrapped unit has no indent.
+const META_UNIT_CLASS = 'inline-flex flex-wrap items-baseline [&>*:first-child]:ml-0';
 
 interface MessageListProps {
   messages: Message[];
@@ -1144,6 +1150,8 @@ export function MessageList({
   const { renderRichPayloads } = useRichPayloads();
   const showSmazIndicator = useSmazIndicator();
   const layout = useMessageLayout();
+  // Phone in portrait: actions go under the message, only Reply stays beside it (#390).
+  const narrowTouch = useIsNarrowTouch();
   const estimatedRowHeight =
     layout === 'lines'
       ? ESTIMATED_LINE_HEIGHT
@@ -2671,65 +2679,127 @@ export function MessageList({
                 <UrlPreviewCard url={previewUrl} />
               </Suspense>
             );
-            const rowActions = (
+            const rowActionProps: ComponentProps<typeof MessageRowActions> = {
+              onReact:
+                msg.sender_timestamp != null && !isReactionPayload(content) && onReactToMessage
+                  ? (emoji) => onReactToMessage(msg.id, emoji)
+                  : undefined,
+              onReply:
+                msg.sender_timestamp != null && !isReactionPayload(content) && onReplyToMessage
+                  ? () => onReplyToMessage(msg)
+                  : undefined,
+              onRetry:
+                isRetryable(msg) && onRetryDirectMessage
+                  ? () => onRetryDirectMessage(msg.id)
+                  : undefined,
+              onMarkUnread:
+                msg.sender_timestamp != null &&
+                !isReactionPayload(content) &&
+                !msg.outgoing &&
+                onMarkUnreadFromMessage
+                  ? () => onMarkUnreadFromMessage(msg)
+                  : undefined,
+              bookmarked: !!msg.bookmarked,
+              bookmarkNote: msg.bookmark_note ?? null,
+              onToggleBookmark: !isReactionPayload(content)
+                ? () =>
+                    void toggleMessageBookmark(msg).catch((err: unknown) =>
+                      toast.error(err instanceof Error ? err.message : String(err))
+                    )
+                : undefined,
+              onSaveBookmarkNote: (note) =>
+                void saveMessageBookmarkNote(msg, note).catch((err: unknown) =>
+                  toast.error(err instanceof Error ? err.message : String(err))
+                ),
+              onMarkSpam:
+                spamFeedbackFor(msg) && !msg.spam ? () => onSpamFeedback?.(msg, true) : undefined,
+              onNotSpam:
+                spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined,
+              onAddToBotList:
+                !msg.outgoing && !!botSenderName(msg) && !isBotMessage(msg)
+                  ? () => setBotDialogFor(msg)
+                  : undefined,
+              onNotABot:
+                !msg.outgoing && isBotName(botSenderName(msg))
+                  ? () => void markNotABot(msg)
+                  : undefined,
+              onShare: openShare,
+              onDelete: onDeleteMessage ? () => onDeleteMessage(msg) : undefined,
+            };
+            const rowActions = <MessageRowActions {...rowActionProps} />;
+            // Narrow touch screens: Reply beside the message, the rest under it.
+            const replyAction = <MessageRowActions touch onReply={rowActionProps.onReply} />;
+            const actionsBelow = (
               <MessageRowActions
-                onReact={
-                  msg.sender_timestamp != null && !isReactionPayload(content) && onReactToMessage
-                    ? (emoji) => onReactToMessage(msg.id, emoji)
-                    : undefined
-                }
-                onReply={
-                  msg.sender_timestamp != null && !isReactionPayload(content) && onReplyToMessage
-                    ? () => onReplyToMessage(msg)
-                    : undefined
-                }
-                onRetry={
-                  isRetryable(msg) && onRetryDirectMessage
-                    ? () => onRetryDirectMessage(msg.id)
-                    : undefined
-                }
-                onMarkUnread={
-                  msg.sender_timestamp != null &&
-                  !isReactionPayload(content) &&
-                  !msg.outgoing &&
-                  onMarkUnreadFromMessage
-                    ? () => onMarkUnreadFromMessage(msg)
-                    : undefined
-                }
-                bookmarked={!!msg.bookmarked}
-                bookmarkNote={msg.bookmark_note ?? null}
-                onToggleBookmark={
-                  !isReactionPayload(content)
-                    ? () =>
-                        void toggleMessageBookmark(msg).catch((err: unknown) =>
-                          toast.error(err instanceof Error ? err.message : String(err))
-                        )
-                    : undefined
-                }
-                onSaveBookmarkNote={(note) =>
-                  void saveMessageBookmarkNote(msg, note).catch((err: unknown) =>
-                    toast.error(err instanceof Error ? err.message : String(err))
-                  )
-                }
-                onMarkSpam={
-                  spamFeedbackFor(msg) && !msg.spam ? () => onSpamFeedback?.(msg, true) : undefined
-                }
-                onNotSpam={
-                  spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined
-                }
-                onAddToBotList={
-                  !msg.outgoing && !!botSenderName(msg) && !isBotMessage(msg)
-                    ? () => setBotDialogFor(msg)
-                    : undefined
-                }
-                onNotABot={
-                  !msg.outgoing && isBotName(botSenderName(msg))
-                    ? () => void markNotABot(msg)
-                    : undefined
-                }
-                onShare={openShare}
-                onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+                {...rowActionProps}
+                onReply={undefined}
+                touch
+                alignEnd={msg.outgoing}
               />
+            );
+
+            const headerMeta = (
+              <>
+                <span className="font-normal text-muted-foreground ml-2 text-[0.6875rem]">
+                  {formatTime(msg.received_at)}
+                </span>
+                {renderMeta('header')}
+              </>
+            );
+            const inlineMeta = (
+              <>
+                <span className="text-[0.625rem] text-muted-foreground ml-2">
+                  {formatTime(msg.received_at)}
+                </span>
+                {renderMeta('inline')}
+              </>
+            );
+            const bubbleBox = (
+              <div
+                className={cn(
+                  'py-1.5 px-3 rounded-lg min-w-0',
+                  msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
+                  highlightedMessageId === msg.id && 'message-highlight'
+                )}
+              >
+                {showAvatar && (
+                  <div
+                    className={cn(
+                      'text-[0.8125rem] font-semibold text-foreground mb-0.5',
+                      narrowTouch && 'wrap-break-word'
+                    )}
+                  >
+                    {narrowTouch ? (
+                      <>
+                        {/* The gap sits on the name, so a wrapped unit starts flush left. */}
+                        <span className="mr-2">{renderSender(displaySender)}</span>
+                        {/* Time and badges move to the next line as one unit
+                            instead of breaking inside "07:52" or a badge. */}
+                        <span className={META_UNIT_CLASS}>{headerMeta}</span>
+                      </>
+                    ) : (
+                      <>
+                        {renderSender(displaySender)}
+                        {headerMeta}
+                      </>
+                    )}
+                  </div>
+                )}
+                <div className="wrap-break-word whitespace-pre-wrap">
+                  {body}
+                  {!showAvatar &&
+                    (narrowTouch ? (
+                      <>
+                        <span className="mr-2" />
+                        <span className={META_UNIT_CLASS}>{inlineMeta}</span>
+                      </>
+                    ) : (
+                      inlineMeta
+                    ))}
+                  {outgoingStatus}
+                </div>
+                {preview}
+              </div>
             );
 
             return (
@@ -2878,13 +2948,25 @@ export function MessageList({
                       <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
                         {formatTime(msg.received_at)}
                       </span>
-                      <div className="ml-auto shrink-0">{rowActions}</div>
+                      <div className="ml-auto shrink-0">
+                        {narrowTouch ? replyAction : rowActions}
+                      </div>
                     </div>
                     <div className="mt-0.5 wrap-break-word whitespace-pre-wrap">{body}</div>
                     {/* The badges carry their own left margin for the other layouts. */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 empty:hidden [&>*]:ml-0">
                       {renderMeta('chip')}
                       {outgoingStatus}
+                      {/* Phone in portrait: the actions close the chip row on the right. */}
+                      {narrowTouch && (
+                        <MessageRowActions
+                          {...rowActionProps}
+                          onReply={undefined}
+                          touch
+                          alignEnd
+                          className="ml-auto!"
+                        />
+                      )}
                     </div>
                     {preview}
                   </div>
@@ -2892,7 +2974,8 @@ export function MessageList({
                   <div
                     data-message-id={msg.id}
                     className={cn(
-                      'group flex items-start max-w-[85%]',
+                      'group flex items-start',
+                      narrowTouch ? 'max-w-[95%]' : 'max-w-[85%]',
                       msg.outgoing && 'flex-row-reverse self-end',
                       isFirstInGroup && !isFirstMessage && 'mt-3'
                     )}
@@ -2933,38 +3016,27 @@ export function MessageList({
                           ))}
                       </div>
                     )}
-                    <div
-                      className={cn(
-                        'py-1.5 px-3 rounded-lg min-w-0',
-                        msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
-                        highlightedMessageId === msg.id && 'message-highlight'
-                      )}
-                    >
-                      {showAvatar && (
-                        <div className="text-[0.8125rem] font-semibold text-foreground mb-0.5">
-                          {renderSender(displaySender)}
-                          <span className="font-normal text-muted-foreground ml-2 text-[0.6875rem]">
-                            {formatTime(msg.received_at)}
-                          </span>
-                          {renderMeta('header')}
+                    {narrowTouch ? (
+                      <>
+                        {/* Under the bubble, lined up with its edge. */}
+                        <div
+                          className={cn(
+                            'flex min-w-0 flex-col gap-0.5',
+                            msg.outgoing ? 'items-end' : 'items-start'
+                          )}
+                        >
+                          {bubbleBox}
+                          {actionsBelow}
                         </div>
-                      )}
-                      <div className="wrap-break-word whitespace-pre-wrap">
-                        {body}
-                        {!showAvatar && (
-                          <>
-                            <span className="text-[0.625rem] text-muted-foreground ml-2">
-                              {formatTime(msg.received_at)}
-                            </span>
-                            {renderMeta('inline')}
-                          </>
-                        )}
-                        {outgoingStatus}
-                      </div>
-                      {preview}
-                    </div>
-                    {/* Renders nothing when no action applies to this row. */}
-                    {rowActions}
+                        <div className="shrink-0 self-start">{replyAction}</div>
+                      </>
+                    ) : (
+                      <>
+                        {bubbleBox}
+                        {/* Renders nothing when no action applies to this row. */}
+                        {rowActions}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

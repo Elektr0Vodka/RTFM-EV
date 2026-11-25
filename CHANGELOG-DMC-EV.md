@@ -11,6 +11,27 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (chat on a phone in portrait, #390; fix/mobile-message-layout)
+
+Reported by Recte in #390. No migration, no new dependency, no new strings.
+
+### Chat (`MessageList.tsx`, `MessageRowActions.tsx`, `map/controls/breakpoints.ts`)
+- On a touch screen narrower than 640 px (a phone in portrait) the message
+  actions no longer sit in a column beside the message. They took about half
+  the width, so the text wrapped every few words, the time broke over two
+  lines ("07" / ":52") and badges ran under the icons. Now only **Reply**
+  stays beside the message; React, Mark unread, Spam, Bot list, Share and
+  Delete sit in a row under it, lined up with its edge (left for received,
+  right for sent), with bigger tap targets (32 px) that wrap onto a second
+  line when there are many.
+- A long sender name wraps, and the time with its hop count and badges moves
+  to the next line as one unit instead of breaking inside it.
+- MCEU (cards) layout: Reply stays in the card header, the other actions close
+  the chip row on the right, so a sender name no longer shrinks to a few
+  letters.
+- Landscape phones, tablets and desktop keep the old layout (checked against
+  screenshots taken before the change: identical).
+
 ## Update 2026-11-24 (Message bookmarks; feat/message-bookmarks)
 
 Idea from meshcore-open (zjs81/meshcore-open#662), built fresh for RTFM-EV.
