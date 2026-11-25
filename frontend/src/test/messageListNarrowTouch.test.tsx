@@ -95,6 +95,16 @@ describe('MessageList on a narrow touch screen (#390)', () => {
       expect(row).toHaveClass('max-w-[95%]');
     });
 
+    it('puts the bookmark actions in the strip under the message', () => {
+      renderList([createMessage({ bookmarked: true })]);
+      expect(strip('React')).toContainElement(
+        screen.getByRole('button', { name: 'Remove bookmark' })
+      );
+      expect(strip('Reply')).not.toContainElement(
+        screen.getByRole('button', { name: 'Remove bookmark' })
+      );
+    });
+
     it('lines the actions up with the right edge for a sent message', () => {
       renderList([createMessage({ outgoing: true, text: 'on my way' })]);
       expect(strip('React').parentElement).toHaveClass('items-end');

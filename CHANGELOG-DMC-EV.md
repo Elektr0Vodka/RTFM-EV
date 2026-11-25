@@ -20,12 +20,14 @@ Reported by Recte in #390. No migration, no new dependency, no new strings.
   actions no longer sit in a column beside the message. They took about half
   the width, so the text wrapped every few words, the time broke over two
   lines ("07" / ":52") and badges ran under the icons. Now only **Reply**
-  stays beside the message; React, Mark unread, Spam, Bot list, Share and
-  Delete sit in a row under it, lined up with its edge (left for received,
+  stays beside the message; React, Mark unread, Bookmark, Spam, Bot list,
+  Share and Delete sit in a row under it, lined up with its edge (left for received,
   right for sent), with bigger tap targets (32 px) that wrap onto a second
   line when there are many.
 - A long sender name wraps, and the time with its hop count and badges moves
   to the next line as one unit instead of breaking inside it.
+  The SMAZ and bookmark icons are part of that unit. The bookmark note box
+  opens from the left edge under a received message, so it stays on screen.
 - MCEU (cards) layout: Reply stays in the card header, the other actions close
   the chip row on the right, so a sender name no longer shrinks to a few
   letters.
