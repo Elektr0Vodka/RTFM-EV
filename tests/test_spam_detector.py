@@ -761,6 +761,13 @@ class TestRotation:
         det.decide()
         assert "D4" in det.blocks["suffix:B1>7E"].user_allowed
 
+    def test_trusted_sender_does_not_open_their_repeater_with_the_list_off(self):
+        det, clock = make(allow_senders=["Sue"], trust_allow_senders=False, overrides=self.quiet)
+        self.spam_via(det, clock)
+        say(det, clock, "Sue", "it is really me", path=("D4", "B1", "7E"))
+        det.decide()
+        assert "D4" not in det.blocks["suffix:B1>7E"].user_allowed
+
     def test_disabled(self):
         det, clock = make(overrides={**self.quiet, "enable_rotation_guard": False})
         self.spam_via(det, clock)
@@ -1630,6 +1637,44 @@ class TestTrustLists:
         assert say(det, clock, "UD6DWREK", "hello").random is True
         assert "UD6DWREK" not in det.known_names()
         assert det.known_list()["total"] == 0
+
+    def test_trusted_names_are_trusted_by_default(self):
+        det, clock = make(allow_senders=["UD6DWREK"])
+        assert det.trust_allow_senders is True
+        assert det.trusts("UD6DWREK") and det.is_known("UD6DWREK")
+        assert say(det, clock, "UD6DWREK", "hello").random is False
+        assert "UD6DWREK" in det.known_names()
+
+    def test_trusted_names_can_be_switched_off_and_the_list_is_kept(self):
+        det, clock = make(allow_senders=["UD6DWREK"], trust_allow_senders=False)
+        assert not det.trusts("UD6DWREK") and not det.is_known("UD6DWREK")
+        assert not det.established("UD6DWREK")
+        assert say(det, clock, "UD6DWREK", "hello").random is True
+        assert "UD6DWREK" not in det.known_names()
+        # The list stays as it was, and can still be changed.
+        assert det.exceptions()["allow_senders"] == ["UD6DWREK"]
+        det.action("allow_sender", sender="Sue")
+        assert det.exceptions()["allow_senders"] == ["Sue", "UD6DWREK"]
+        assert not det.trusts("Sue")
+        # Switched back on, the names are trusted again.
+        det.configure(
+            SpamConfig(
+                channels=[{"key": PUBLIC, "name": "Public"}],
+                allow_senders=det.exceptions()["allow_senders"],
+            )
+        )
+        assert det.trusts("UD6DWREK") and det.trusts("Sue")
+
+    def test_trusted_names_off_leaves_contact_trust_alone(self):
+        det, _ = make(allow_senders=["Anna"], trust_allow_senders=False)
+        det.set_contact_senders(["Anna"])
+        assert det.trusts("Anna")
+        # Trusted as a contact now, so it shows on the contact list.
+        assert det.contact_list()["names"] == ["Anna"]
+        det.configure(
+            SpamConfig(channels=[{"key": PUBLIC, "name": "Public"}], allow_senders=["Anna"])
+        )
+        assert det.contact_list()["names"] == []
 
     def test_contact_names_are_not_part_of_the_stored_lists(self):
         det, _ = make()

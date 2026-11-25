@@ -7,6 +7,7 @@ import {
   useState,
   lazy,
   Suspense,
+  type ComponentProps,
   type ReactNode,
 } from 'react';
 import type {
@@ -21,6 +22,7 @@ import type {
 } from '../types';
 import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
 import { CONTACT_TYPE_ROOM, TXT_TYPE_CLI_COMMAND, TXT_TYPE_GROUP_DATA } from '../types';
+import type { MessageImage } from '../types';
 import { RemoteCliCommandRow } from './RemoteCliCommandRow';
 import { api } from '../api';
 import {
@@ -50,6 +52,7 @@ import {
 } from '../utils/teamPayloads';
 import { teamBeaconDetails, teamWaypointTypeName } from '../utils/teamPayloadText';
 import {
+  Bookmark,
   FileQuestion,
   ImageOff,
   ListFilter,
@@ -58,6 +61,7 @@ import {
   Megaphone,
   Radio,
   Route,
+  Shrink,
 } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
 import { useMessageLayout } from '../contexts/MessageLayoutContext';
@@ -81,6 +85,8 @@ import { useMessageRouteBuild, type MessageShareTarget } from '../share/cards/us
 import { MessageListSkeleton } from './ui/skeleton';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { MessageRowActions } from './MessageRowActions';
+import { BookmarksView } from './BookmarksView';
+import { saveMessageBookmarkNote, toggleMessageBookmark } from '../utils/bookmarkActions';
 import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
 import { toast } from './ui/sonner';
 import { AddToBotListDialog } from './AddToBotListDialog';
@@ -101,6 +107,12 @@ import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 import { sfBucket } from '../utils/radioSf';
 import { MessageSfPill } from './RadioSfPill';
+import { useSmazIndicator } from '../utils/smazIndicatorPreference';
+import { useIsNarrowTouch } from '../map/controls/breakpoints';
+
+// Narrow touch screens (#390): time and badges kept together as one unit; the
+// gap before it lives on the preceding element so a wrapped unit has no indent.
+const META_UNIT_CLASS = 'inline-flex flex-wrap items-baseline [&>*:first-child]:ml-0';
 
 interface MessageListProps {
   messages: Message[];
@@ -575,6 +587,43 @@ function renderGroupDataPlaceholder(content: string, t: TFn): ReactNode | null {
     );
   }
   return null;
+}
+
+// Largest side of a drawn MCOimg picture, in CSS pixels. Pictures are at most
+// 256x256 but usually tiny, so they are scaled up by a whole number.
+const MCOIMG_TARGET_PX = 160;
+
+// MCOimg v3 picture (issue #391). The backend decodes the payload and sends a
+// PNG at native size; a payload that does not decode arrives with ok=false and
+// shows a placeholder instead of the raw bytes.
+function renderMcoImg(image: MessageImage, t: TFn): ReactNode {
+  if (!image.ok || !image.png_base64 || !image.width || !image.height) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/40 px-2 py-1 text-muted-foreground italic"
+        data-testid="mcoimg-undecodable"
+        title={t('chat_mcoimg_undecodable_detail', { bytes: image.byte_length })}
+      >
+        <ImageOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {t('chat_mcoimg_undecodable')}
+      </span>
+    );
+  }
+  const scale = Math.max(1, Math.floor(MCOIMG_TARGET_PX / Math.max(image.width, image.height)));
+  const size = { width: image.width, height: image.height };
+  return (
+    <img
+      src={`data:image/png;base64,${image.png_base64}`}
+      width={image.width * scale}
+      height={image.height * scale}
+      alt={t('chat_mcoimg_alt', size)}
+      title={t('chat_mcoimg_detail', { ...size, bytes: image.byte_length })}
+      data-testid="mcoimg-picture"
+      className="block max-w-full h-auto rounded-sm"
+      style={{ imageRendering: 'pixelated' }}
+      draggable={false}
+    />
+  );
 }
 
 // Recognize a MeshCore Open payload and render it. Handles both a whole-message
@@ -1099,7 +1148,10 @@ export function MessageList({
   const CORRUPT_SENDER_LABEL = t('chat_corrupt_sender_label');
   const ANALYZE_PACKET_NOTICE = t('chat_analyze_packet_notice');
   const { renderRichPayloads } = useRichPayloads();
+  const showSmazIndicator = useSmazIndicator();
   const layout = useMessageLayout();
+  // Phone in portrait: actions go under the message, only Reply stays beside it (#390).
+  const narrowTouch = useIsNarrowTouch();
   const estimatedRowHeight =
     layout === 'lines'
       ? ESTIMATED_LINE_HEIGHT
@@ -1193,6 +1245,14 @@ export function MessageList({
   const hideDuplicates = spamGuardEnabled && (hideDuplicatesProp ?? false);
   const [hopFilterOpen, setHopFilterOpen] = useState(false);
   const hopFilterRef = useRef<HTMLDivElement>(null);
+  // "Bookmarked only": shows this chat's bookmark list (server-side, so it is
+  // not limited to the loaded window) over the message list. Not persisted,
+  // and switched off when the conversation changes.
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const bookmarkConversationKey = messages[0]?.conversation_key ?? null;
+  useEffect(() => {
+    setBookmarkedOnly(false);
+  }, [bookmarkConversationKey]);
   const toggleHopWidth = useCallback(
     (width: number) => {
       const next = new Set(hiddenHopWidths);
@@ -2080,7 +2140,8 @@ export function MessageList({
               hideNameFiltered ||
               hideSpam ||
               hideDuplicates ||
-              hideBots
+              hideBots ||
+              bookmarkedOnly
               ? 'text-status-connected'
               : 'text-muted-foreground'
           )}
@@ -2231,9 +2292,40 @@ export function MessageList({
                 </div>
               </>
             )}
+            {bookmarkConversationKey && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="accent-current"
+                    checked={bookmarkedOnly}
+                    onChange={() => setBookmarkedOnly((on) => !on)}
+                  />
+                  {t('chat_filter_bookmarked_only')}
+                </label>
+                <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+                  {t('chat_filter_bookmarked_only_hint')}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
+      {bookmarkedOnly && bookmarkConversationKey && (
+        <div className="absolute inset-0 z-10 bg-background pt-12" data-testid="chat-bookmarks">
+          <BookmarksView
+            embedded
+            contacts={contacts}
+            channels={channels}
+            conversationKey={bookmarkConversationKey}
+            onSelect={(message) => {
+              setBookmarkedOnly(false);
+              jumpToMessage(message.id);
+            }}
+          />
+        </div>
+      )}
       <div
         className="h-full overflow-y-auto p-4 flex flex-col"
         ref={listRef}
@@ -2295,8 +2387,9 @@ export function MessageList({
             // Computed once so the URL preview card below can be skipped when the
             // rich-payload renderer already turned this message into a GIF (a
             // Giphy URL form) or another card - it must not render twice.
-            const richPayload =
-              msg.txt_type === TXT_TYPE_GROUP_DATA
+            const richPayload = msg.mcoimg
+              ? renderMcoImg(msg.mcoimg, t)
+              : msg.txt_type === TXT_TYPE_GROUP_DATA
                 ? renderGroupDataPlaceholder(content, t)
                 : (renderTeamPayload(
                     content,
@@ -2431,6 +2524,27 @@ export function MessageList({
                   <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
                 )}
                 <MessageSfPill stamp={msg.radio_stamp} />
+                {showSmazIndicator && msg.smaz && (
+                  <span
+                    className="ml-1.5 inline-flex align-middle text-muted-foreground"
+                    title={t('chat_smaz_indicator_title')}
+                    aria-label={t('chat_smaz_indicator_title')}
+                    role="img"
+                    data-testid="smaz-indicator"
+                  >
+                    <Shrink className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                )}
+                {msg.bookmarked && (
+                  <span
+                    className="ml-1.5 inline-flex align-middle text-primary"
+                    title={msg.bookmark_note || t('chat_bookmarked_title')}
+                    aria-label={t('chat_bookmarked_title')}
+                    role="img"
+                  >
+                    <Bookmark className="h-3 w-3 fill-current" aria-hidden="true" />
+                  </span>
+                )}
                 {spamGuardEnabled && !msg.outgoing && msg.spam && (
                   <span
                     className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning"
@@ -2565,50 +2679,127 @@ export function MessageList({
                 <UrlPreviewCard url={previewUrl} />
               </Suspense>
             );
-            const rowActions = (
+            const rowActionProps: ComponentProps<typeof MessageRowActions> = {
+              onReact:
+                msg.sender_timestamp != null && !isReactionPayload(content) && onReactToMessage
+                  ? (emoji) => onReactToMessage(msg.id, emoji)
+                  : undefined,
+              onReply:
+                msg.sender_timestamp != null && !isReactionPayload(content) && onReplyToMessage
+                  ? () => onReplyToMessage(msg)
+                  : undefined,
+              onRetry:
+                isRetryable(msg) && onRetryDirectMessage
+                  ? () => onRetryDirectMessage(msg.id)
+                  : undefined,
+              onMarkUnread:
+                msg.sender_timestamp != null &&
+                !isReactionPayload(content) &&
+                !msg.outgoing &&
+                onMarkUnreadFromMessage
+                  ? () => onMarkUnreadFromMessage(msg)
+                  : undefined,
+              bookmarked: !!msg.bookmarked,
+              bookmarkNote: msg.bookmark_note ?? null,
+              onToggleBookmark: !isReactionPayload(content)
+                ? () =>
+                    void toggleMessageBookmark(msg).catch((err: unknown) =>
+                      toast.error(err instanceof Error ? err.message : String(err))
+                    )
+                : undefined,
+              onSaveBookmarkNote: (note) =>
+                void saveMessageBookmarkNote(msg, note).catch((err: unknown) =>
+                  toast.error(err instanceof Error ? err.message : String(err))
+                ),
+              onMarkSpam:
+                spamFeedbackFor(msg) && !msg.spam ? () => onSpamFeedback?.(msg, true) : undefined,
+              onNotSpam:
+                spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined,
+              onAddToBotList:
+                !msg.outgoing && !!botSenderName(msg) && !isBotMessage(msg)
+                  ? () => setBotDialogFor(msg)
+                  : undefined,
+              onNotABot:
+                !msg.outgoing && isBotName(botSenderName(msg))
+                  ? () => void markNotABot(msg)
+                  : undefined,
+              onShare: openShare,
+              onDelete: onDeleteMessage ? () => onDeleteMessage(msg) : undefined,
+            };
+            const rowActions = <MessageRowActions {...rowActionProps} />;
+            // Narrow touch screens: Reply beside the message, the rest under it.
+            const replyAction = <MessageRowActions touch onReply={rowActionProps.onReply} />;
+            const actionsBelow = (
               <MessageRowActions
-                onReact={
-                  msg.sender_timestamp != null && !isReactionPayload(content) && onReactToMessage
-                    ? (emoji) => onReactToMessage(msg.id, emoji)
-                    : undefined
-                }
-                onReply={
-                  msg.sender_timestamp != null && !isReactionPayload(content) && onReplyToMessage
-                    ? () => onReplyToMessage(msg)
-                    : undefined
-                }
-                onRetry={
-                  isRetryable(msg) && onRetryDirectMessage
-                    ? () => onRetryDirectMessage(msg.id)
-                    : undefined
-                }
-                onMarkUnread={
-                  msg.sender_timestamp != null &&
-                  !isReactionPayload(content) &&
-                  !msg.outgoing &&
-                  onMarkUnreadFromMessage
-                    ? () => onMarkUnreadFromMessage(msg)
-                    : undefined
-                }
-                onMarkSpam={
-                  spamFeedbackFor(msg) && !msg.spam ? () => onSpamFeedback?.(msg, true) : undefined
-                }
-                onNotSpam={
-                  spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined
-                }
-                onAddToBotList={
-                  !msg.outgoing && !!botSenderName(msg) && !isBotMessage(msg)
-                    ? () => setBotDialogFor(msg)
-                    : undefined
-                }
-                onNotABot={
-                  !msg.outgoing && isBotName(botSenderName(msg))
-                    ? () => void markNotABot(msg)
-                    : undefined
-                }
-                onShare={openShare}
-                onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+                {...rowActionProps}
+                onReply={undefined}
+                touch
+                alignEnd={msg.outgoing}
               />
+            );
+
+            const headerMeta = (
+              <>
+                <span className="font-normal text-muted-foreground ml-2 text-[0.6875rem]">
+                  {formatTime(msg.received_at)}
+                </span>
+                {renderMeta('header')}
+              </>
+            );
+            const inlineMeta = (
+              <>
+                <span className="text-[0.625rem] text-muted-foreground ml-2">
+                  {formatTime(msg.received_at)}
+                </span>
+                {renderMeta('inline')}
+              </>
+            );
+            const bubbleBox = (
+              <div
+                className={cn(
+                  'py-1.5 px-3 rounded-lg min-w-0',
+                  msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
+                  highlightedMessageId === msg.id && 'message-highlight'
+                )}
+              >
+                {showAvatar && (
+                  <div
+                    className={cn(
+                      'text-[0.8125rem] font-semibold text-foreground mb-0.5',
+                      narrowTouch && 'wrap-break-word'
+                    )}
+                  >
+                    {narrowTouch ? (
+                      <>
+                        {/* The gap sits on the name, so a wrapped unit starts flush left. */}
+                        <span className="mr-2">{renderSender(displaySender)}</span>
+                        {/* Time and badges move to the next line as one unit
+                            instead of breaking inside "07:52" or a badge. */}
+                        <span className={META_UNIT_CLASS}>{headerMeta}</span>
+                      </>
+                    ) : (
+                      <>
+                        {renderSender(displaySender)}
+                        {headerMeta}
+                      </>
+                    )}
+                  </div>
+                )}
+                <div className="wrap-break-word whitespace-pre-wrap">
+                  {body}
+                  {!showAvatar &&
+                    (narrowTouch ? (
+                      <>
+                        <span className="mr-2" />
+                        <span className={META_UNIT_CLASS}>{inlineMeta}</span>
+                      </>
+                    ) : (
+                      inlineMeta
+                    ))}
+                  {outgoingStatus}
+                </div>
+                {preview}
+              </div>
             );
 
             return (
@@ -2757,13 +2948,25 @@ export function MessageList({
                       <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
                         {formatTime(msg.received_at)}
                       </span>
-                      <div className="ml-auto shrink-0">{rowActions}</div>
+                      <div className="ml-auto shrink-0">
+                        {narrowTouch ? replyAction : rowActions}
+                      </div>
                     </div>
                     <div className="mt-0.5 wrap-break-word whitespace-pre-wrap">{body}</div>
                     {/* The badges carry their own left margin for the other layouts. */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 empty:hidden [&>*]:ml-0">
                       {renderMeta('chip')}
                       {outgoingStatus}
+                      {/* Phone in portrait: the actions close the chip row on the right. */}
+                      {narrowTouch && (
+                        <MessageRowActions
+                          {...rowActionProps}
+                          onReply={undefined}
+                          touch
+                          alignEnd
+                          className="ml-auto!"
+                        />
+                      )}
                     </div>
                     {preview}
                   </div>
@@ -2771,7 +2974,8 @@ export function MessageList({
                   <div
                     data-message-id={msg.id}
                     className={cn(
-                      'group flex items-start max-w-[85%]',
+                      'group flex items-start',
+                      narrowTouch ? 'max-w-[95%]' : 'max-w-[85%]',
                       msg.outgoing && 'flex-row-reverse self-end',
                       isFirstInGroup && !isFirstMessage && 'mt-3'
                     )}
@@ -2812,38 +3016,27 @@ export function MessageList({
                           ))}
                       </div>
                     )}
-                    <div
-                      className={cn(
-                        'py-1.5 px-3 rounded-lg min-w-0',
-                        msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
-                        highlightedMessageId === msg.id && 'message-highlight'
-                      )}
-                    >
-                      {showAvatar && (
-                        <div className="text-[0.8125rem] font-semibold text-foreground mb-0.5">
-                          {renderSender(displaySender)}
-                          <span className="font-normal text-muted-foreground ml-2 text-[0.6875rem]">
-                            {formatTime(msg.received_at)}
-                          </span>
-                          {renderMeta('header')}
+                    {narrowTouch ? (
+                      <>
+                        {/* Under the bubble, lined up with its edge. */}
+                        <div
+                          className={cn(
+                            'flex min-w-0 flex-col gap-0.5',
+                            msg.outgoing ? 'items-end' : 'items-start'
+                          )}
+                        >
+                          {bubbleBox}
+                          {actionsBelow}
                         </div>
-                      )}
-                      <div className="wrap-break-word whitespace-pre-wrap">
-                        {body}
-                        {!showAvatar && (
-                          <>
-                            <span className="text-[0.625rem] text-muted-foreground ml-2">
-                              {formatTime(msg.received_at)}
-                            </span>
-                            {renderMeta('inline')}
-                          </>
-                        )}
-                        {outgoingStatus}
-                      </div>
-                      {preview}
-                    </div>
-                    {/* Renders nothing when no action applies to this row. */}
-                    {rowActions}
+                        <div className="shrink-0 self-start">{replyAction}</div>
+                      </>
+                    ) : (
+                      <>
+                        {bubbleBox}
+                        {/* Renders nothing when no action applies to this row. */}
+                        {rowActions}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -99,6 +99,14 @@ def test_name_lists_default_to_empty_and_contacts_trusted():
     config = SpamConfig()
     assert config.deny_senders == []
     assert config.trust_contacts is True
+    assert config.trust_allow_senders is True
+
+
+def test_stored_config_without_the_trusted_names_switch_loads_with_it_on():
+    stored = SpamConfig(allow_senders=["Sue"]).model_dump(mode="json")
+    del stored["trust_allow_senders"]
+    config = SpamConfig.model_validate(stored)
+    assert config.trust_allow_senders is True and config.allow_senders == ["Sue"]
 
 
 def test_clamp_overrides_brings_an_old_ceiling_down():

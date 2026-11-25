@@ -14,6 +14,8 @@ import {
   formatPathHopWidths,
   pathHopWidths,
   isMessageHiddenByHopWidth,
+  reversePathForOverride,
+  pruneImpossibleHopMatches,
 } from '../utils/pathUtils';
 import type { Contact, RadioConfig } from '../types';
 import { CONTACT_TYPE_REPEATER } from '../types';
@@ -707,6 +709,143 @@ describe('resolvePath', () => {
     expect(result.hops[0].matches[0].lat).toBe(40.75);
     expect(result.hops[0].matches[0].lon).toBe(-74.0);
   });
+
+  describe('impossible hop candidates', () => {
+    // Local repeater near New York and a prefix twin in Los Angeles (~3900 km away).
+    const local1A = createContact({
+      public_key: '1A' + 'A'.repeat(62),
+      name: 'Local1A',
+      lat: 40.75,
+      lon: -74.0,
+    });
+    const farAway1A = createContact({
+      public_key: '1A' + 'B'.repeat(62),
+      name: 'FarAway1A',
+      lat: 34.05,
+      lon: -118.24,
+    });
+
+    it('drops a candidate too far from the sender and resolves the hop', () => {
+      const result = resolvePath('1A', sender, [farAway1A, local1A], config);
+
+      expect(result.hops[0].matches.map((c) => c.name)).toEqual(['Local1A']);
+      expect(result.hops[0].ignored?.map((c) => c.name)).toEqual(['FarAway1A']);
+      expect(result.hops[0].distanceFromPrev).not.toBeNull();
+    });
+
+    it('uses our own radio as the anchor when the sender has no location', () => {
+      const senderNoLocation = { ...sender, lat: null, lon: null };
+      const result = resolvePath('1A', senderNoLocation, [farAway1A, local1A], config);
+
+      expect(result.hops[0].matches.map((c) => c.name)).toEqual(['Local1A']);
+    });
+
+    it('uses a resolved neighbouring hop as the anchor', () => {
+      const senderNoLocation = { ...sender, lat: null, lon: null };
+      const noLocConfig = createConfig({ public_key: 'FF' + 'F'.repeat(62), lat: 0, lon: 0 });
+      const result = resolvePath(
+        '1A2B',
+        senderNoLocation,
+        [farAway1A, local1A, repeater2],
+        noLocConfig
+      );
+
+      expect(result.hops[0].matches.map((c) => c.name)).toEqual(['Local1A']);
+      expect(result.hops[1].matches.map((c) => c.name)).toEqual(['Repeater2']);
+    });
+
+    it('keeps candidates without a location', () => {
+      const noLoc1A = createContact({ public_key: '1A' + 'C'.repeat(62), name: 'NoLoc1A' });
+      const result = resolvePath('1A', sender, [farAway1A, local1A, noLoc1A], config);
+
+      expect(result.hops[0].matches.map((c) => c.name).sort()).toEqual(['Local1A', 'NoLoc1A']);
+      expect(result.hops[0].ignored?.map((c) => c.name)).toEqual(['FarAway1A']);
+    });
+
+    it('keeps the original candidates when every one would be dropped', () => {
+      const farAway1A2 = createContact({
+        public_key: '1A' + 'D'.repeat(62),
+        name: 'FarAway1A2',
+        lat: 47.6,
+        lon: -122.33,
+      });
+      const result = resolvePath('1A', sender, [farAway1A, farAway1A2], config);
+
+      expect(result.hops[0].matches).toHaveLength(2);
+      expect(result.hops[0].ignored).toEqual([]);
+    });
+
+    it('does not drop anything without a located anchor', () => {
+      const senderNoLocation = { ...sender, lat: null, lon: null };
+      const noLocConfig = createConfig({ public_key: 'FF' + 'F'.repeat(62), lat: 0, lon: 0 });
+      const result = resolvePath('1A', senderNoLocation, [farAway1A, local1A], noLocConfig);
+
+      expect(result.hops[0].matches).toHaveLength(2);
+    });
+  });
+});
+
+describe('pruneImpossibleHopMatches', () => {
+  const at = (name: string, lat: number | null, lon: number | null) =>
+    createContact({ public_key: name.padEnd(64, '0'), name, lat, lon });
+  // Points along a line roughly 100 km apart (0.9 degrees of latitude).
+  const start = { lat: 50.0, lon: 5.0 };
+  const near = at('NEAR', 50.9, 5.0);
+  const far = at('FAR', 59.0, 5.0); // ~1000 km from start
+
+  it('scales the range by the number of hops to the anchor', () => {
+    // Hop 2 is 3 links from the start; FAR (~1000 km) exceeds 3 x 250 km.
+    const unknown: Contact[] = [];
+    const result = pruneImpossibleHopMatches([unknown, unknown, [near, far]], start, null);
+    expect(result[2].matches.map((c) => c.name)).toEqual(['NEAR']);
+
+    // Hop 4 is 5 links away; 5 x 250 km covers FAR, so nothing is dropped.
+    const result5 = pruneImpossibleHopMatches(
+      [unknown, unknown, unknown, unknown, [near, far]],
+      start,
+      null
+    );
+    expect(result5[4].matches).toHaveLength(2);
+  });
+
+  it('cascades: a hop resolved by pruning anchors the next hop', () => {
+    const near2 = at('NEAR2', 51.8, 5.0);
+    // FAR2 is within 2 x 250 km of the start, but ~545 km from NEAR, so only
+    // the hop-0 resolution can rule it out.
+    const far2 = at('FAR2', 46.0, 5.0);
+    const result = pruneImpossibleHopMatches(
+      [
+        [near, far],
+        [near2, far2],
+      ],
+      start,
+      null
+    );
+    expect(result[0].matches.map((c) => c.name)).toEqual(['NEAR']);
+    expect(result[1].matches.map((c) => c.name)).toEqual(['NEAR2']);
+  });
+
+  it('checks both the previous and the next anchor', () => {
+    const end = { lat: 52.5, lon: 5.0 }; // ~278 km from the start
+    // EARLY is ~167 km from the start but ~445 km from the end.
+    const early = at('EARLY', 48.5, 5.0);
+    // LATE is ~167 km from the end but ~445 km from the start.
+    const late = at('LATE', 54.0, 5.0);
+    const result = pruneImpossibleHopMatches([[near, early, late]], start, end);
+    expect(result[0].matches.map((c) => c.name)).toEqual(['NEAR']);
+    expect(result[0].ignored.map((c) => c.name)).toEqual(['EARLY', 'LATE']);
+  });
+
+  it('leaves single matches alone, even when far away', () => {
+    const result = pruneImpossibleHopMatches([[far]], start, null);
+    expect(result[0].matches).toEqual([far]);
+    expect(result[0].ignored).toEqual([]);
+  });
+
+  it('is disabled by a non-positive range', () => {
+    const result = pruneImpossibleHopMatches([[near, far]], start, null, 0);
+    expect(result[0].matches).toHaveLength(2);
+  });
 });
 
 describe('isValidLocation', () => {
@@ -988,5 +1127,46 @@ describe('isMessageHiddenByHopWidth', () => {
   it('respects two-byte hide independently', () => {
     expect(isMessageHiddenByHopWidth(twoByte, new Set([2]))).toBe(true);
     expect(isMessageHiddenByHopWidth(twoByte, new Set([1, 3]))).toBe(false);
+  });
+});
+
+describe('reversePathForOverride', () => {
+  it('reverses 1-byte hops into the routing override format', () => {
+    expect(reversePathForOverride('AA11BB', 3)).toEqual({ ok: true, route: 'bb,11,aa' });
+  });
+
+  it('keeps 2- and 3-byte hops whole while reversing', () => {
+    expect(reversePathForOverride('AE92F13E', 2)).toEqual({ ok: true, route: 'f13e,ae92' });
+    expect(reversePathForOverride('112233445566', 2)).toEqual({
+      ok: true,
+      route: '445566,112233',
+    });
+  });
+
+  it('returns a single hop unchanged', () => {
+    expect(reversePathForOverride('ab', 1)).toEqual({ ok: true, route: 'ab' });
+  });
+
+  it('reports a direct (0-hop) path as nothing to reverse', () => {
+    expect(reversePathForOverride('', 0)).toEqual({ ok: false, reason: 'direct' });
+    expect(reversePathForOverride(null, 0)).toEqual({ ok: false, reason: 'direct' });
+  });
+
+  it('refuses to guess when the hop width cannot be derived', () => {
+    // No hop count: 1x4-byte, 2x2-byte or 4x1-byte are all possible.
+    expect(reversePathForOverride('aabbccdd', null)).toEqual({
+      ok: false,
+      reason: 'unknown_width',
+    });
+    expect(reversePathForOverride('aabbccdd', undefined)).toEqual({
+      ok: false,
+      reason: 'unknown_width',
+    });
+    // Does not divide evenly.
+    expect(reversePathForOverride('aabbcc', 2)).toEqual({ ok: false, reason: 'unknown_width' });
+    // 4 bytes per hop is not a valid MeshCore hash size.
+    expect(reversePathForOverride('aabbccdd', 1)).toEqual({ ok: false, reason: 'unknown_width' });
+    // Not hex.
+    expect(reversePathForOverride('zz11', 2)).toEqual({ ok: false, reason: 'unknown_width' });
   });
 });

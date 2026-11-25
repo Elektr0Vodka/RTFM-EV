@@ -75,6 +75,9 @@ Setting `realtime=False` (used during historical decryption) skips fanout dispat
 `Message.model_dump()` - the full Pydantic message model. Key fields:
 - `type` (`"PRIV"` | `"CHAN"`), `conversation_key`, `text`, `sender_name`, `sender_key`
 - `outgoing`, `acked`, `paths`, `sender_timestamp`, `received_at`
+- `mcoimg` (MCOimg v3 picture, issue #391): null, or `ok`, `width`, `height`,
+  `byte_length`, `image_id` and `png_base64` (a small RGBA PNG). Webhook, private
+  MQTT and SQS forward it with the rest of the dict. `app_payload` is never included.
 
 ### on_raw(data)
 Raw packet dict from `packet_processor.py`. Key fields:

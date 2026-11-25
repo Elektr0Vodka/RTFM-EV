@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 // touch laptop with a trackpad stays on the floating desktop panels.
 export const MOBILE_QUERY = '(max-width: 768px)';
 export const COMPACT_MAP_QUERY = '(max-width: 1024px), (pointer: coarse)';
+// A touch screen narrower than Tailwind's `sm`: in practice a phone in portrait.
+// Landscape phones are wider and keep the desktop arrangement.
+export const NARROW_TOUCH_QUERY = '(hover: none) and (max-width: 639px)';
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => {
@@ -34,6 +37,11 @@ function useMediaQuery(query: string): boolean {
 
 export function useIsMobile(): boolean {
   return useMediaQuery(MOBILE_QUERY);
+}
+
+/** Chat rows move their actions under the message on these screens (#390). */
+export function useIsNarrowTouch(): boolean {
+  return useMediaQuery(NARROW_TOUCH_QUERY);
 }
 
 export function useIsCompactMap(): boolean {

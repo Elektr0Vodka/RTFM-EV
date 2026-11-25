@@ -29,7 +29,7 @@ describe('CompanionBridgeStatus', () => {
     renderStatus();
     expect(await screen.findByText(/0\.0\.0\.0:5000, 1 app/)).toBeInTheDocument();
     expect(screen.getByText('MeshCore from 192.168.1.20:51234')).toBeInTheDocument();
-    expect(screen.getByText(/they can read, not send/)).toBeInTheDocument();
+    expect(screen.getByText(/they can read, but not send or change anything/)).toBeInTheDocument();
   });
 
   it('explains the env var when the bridge is off', async () => {

@@ -37,12 +37,14 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Emoji picker with search, recent emoji, skin tones and per-emoji byte cost.
 - Direct messages with no acknowledgement after all retries show **Failed**, with a **Retry** action.
 - Mark a conversation unread from any message (stored server-side) and delete a message from your local history (nothing is sent over RF).
-- SMAZ-compressed messages from other clients are shown decoded; meshcore-open image chunks show as an "Image (not supported)" placeholder.
+- SMAZ-compressed messages from other clients are shown decoded (optional compression icon in Settings > Local Configuration); meshcore-open image chunks show as an "Image (not supported)" placeholder.
+- Small pictures from MCO Advanced (MCOimg v3), sent as a channel datagram or as `im3:` channel text, are drawn in the channel chat. Receive only; RTFM-EV cannot send them.
 - Share and import contacts as `meshcore://` links; inline `<pubkey:type:Name>` contact tags render as chips with **Add contact**.
 - Join meshcore-open communities by code or QR code, and share them again as JSON or QR.
 - Mention ticker, a mention and DM sound, browser and Web Push notifications, and optional notifications for newly heard nodes.
 - Optional chat parsing: clickable links with previews, public key detection, and GPS or MGRS coordinates as map cards.
 - Full-text message search with `user:`, `channel:` and `region:` filters.
+- Message bookmarks with an optional note: a bookmark icon in chat, **Bookmarked only** in a chat's filter menu, and Tools > **Bookmarks** listing all of them (click to jump, export as Markdown or CSV). Bookmarked messages are kept by data retention; nothing is sent over RF.
 - Message details (the hop count or tick on a message): the sender's own send time next to the time it was received, with a note when the sender's clock is a minute or more off, hop count, path hash size and region, above the routes it came in on.
 - Share cards for Discord and other chats: an image (PNG) and, where there is something to play, an animation (GIF) of how a message reached your radio, a trace route result, who your node hears directly, a summary of the mesh around you, and filter results (a repeater's or companion's filter, RTFM-EV's Spam & bots filtering, the host repeater totals). Message, trace and reach cards have a **Hide my position** option. Made in the browser; nothing is sent over the radio.
 
@@ -62,7 +64,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Optional SNMP agent: let LibreNMS, Zabbix or another monitoring system poll this node with the 22 OIDs of the first observer firmware release (read-only, off by default).
 - Scheduled telemetry tracking for repeaters and up to 8 other contacts.
 - Node clocks: each contact shows how far its clock is off, read from the time in its adverts (nothing is sent). A tracked repeater can have its clock set automatically when it runs behind (opt-in, checked against the rest of the mesh first).
-- Routing override, Path Discovery and Direct Trace per contact.
+- Routing override, Path Discovery and Direct Trace per contact; copy a received message path in reverse to use as a routing override.
 - Suggested DM routes for companions, built from the paths they were heard on, with an optional analyzer check. Suggest only: you pick one to set it as the routing override.
 - Name resolution for contacts known only by public key, from the synced analyzer map or opt-in analyzer lookups.
 - Triangulate link-out to the DMC triangulator.
@@ -132,7 +134,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - English, Dutch and German; date/time format, distance units and coordinate format (decimal, DMS or MGRS) are configurable.
 - Installable as a PWA; app name and icon can be rebranded server-side. The installed app shows the unread count on its icon (Windows, macOS, iOS), has a Reload app button under Settings > About, and offers a reload when the server was updated while it stayed open.
 - Command palette (Ctrl+K / Cmd+K) and bookmarkable views.
-- Touch screens: tap a badge, icon or shortened value to read the explanation a mouse gets on hover.
+- Touch screens: tap a badge, icon or shortened value to read the explanation a mouse gets on hover. On a phone in portrait the message actions sit under the message (Reply stays beside it), so the text keeps the width.
 - Chat window: a separate, lighter window with only messaging, laid out like a classic IRC client (conversation list, chat, recent senders). Classic lines or the regular bubbles, a mIRC, dark mIRC or app-theme skin, and a detached window per conversation. Each list section can be sorted (newest, oldest, A-Z, Z-A, most unread, distance) and folded, with favorites-only, unread-only and hide-muted toggles. It does not load the map or packet views and skips the raw packet stream.
 - In-app update indicator that checks GitHub for a newer fork build (can be disabled).
 

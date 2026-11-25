@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } from './types';
 import { parseWsEvent, type NewNodePayload } from './wsEvents';
 import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
+import { emitBookmarkEvent } from './utils/bookmarkEvents';
 import { emitSpamGuardEvent } from './utils/spamGuardEvents';
 import { emitTrackerEvent } from './utils/trackerEvents';
 import { recordDamagedFrame } from './stores/damagedFrameStore';
@@ -186,6 +187,17 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             break;
           case 'message_deleted':
             handlers.onMessageDeleted?.(msg.data.message_id);
+            // A deleted message takes its bookmark with it (FK cascade).
+            emitBookmarkEvent({
+              message_id: msg.data.message_id,
+              type: msg.data.type,
+              conversation_key: msg.data.conversation_key,
+              bookmarked: false,
+              note: null,
+            });
+            break;
+          case 'message_bookmark':
+            emitBookmarkEvent(msg.data);
             break;
           case 'new_node':
             handlers.onNewNode?.(msg.data as NewNodePayload);

@@ -24,6 +24,175 @@ Request from Richard. No migration, no new dependency, frontend only.
   with **Open bot lists**, which opens that tab (`utils/spamGuardNavigation.ts`).
 - Texts that pointed to Settings for bot lists now point to the tab.
 
+## Update 2026-11-24 (companion bridge: every companion command, #388; feat/companion-bridge-full)
+
+For EV-Mesh (Elektr0Vodka/EV-Sentinel#102) and other companion apps sharing
+RTFM-EV's radio. No migration, no new dependency. On-air behaviour not checked
+on hardware yet.
+
+### Companion bridge (`app/companion_bridge/commands.py`, `server.py`, `frames.py`)
+- **Every companion command is carried out by RTFM-EV** instead of answered
+  "unsupported": adverts, login and logout, status, telemetry, binary and
+  anonymous requests, remote and own CLI, trace, path discovery, contact and
+  channel changes, radio settings, tuning, custom vars, flood scopes, stats,
+  battery, device time, contact export/import/share, signing, channel/control/
+  raw data, raw packets, key export and import, reboot and factory reset.
+  RTFM-EV stays the only program on the radio: state changes go through the
+  same code as the web UI (so contacts, channels and radio settings stay in
+  step), radio-only commands run under RTFM-EV's radio lock and the radio's
+  answer is handed back unchanged.
+- **Radio pushes reach the apps** as the radio sends them (adverts, path
+  updates, login results, status/telemetry/binary/path responses, trace, RX
+  log, control and raw data). Contact deleted is sent when RTFM-EV deletes a
+  contact; the radio's own contact-cache pushes are not passed on.
+- **`DEVICE_INFO` reports the radio's real protocol version** (14 only while
+  it is unknown) and 40 channel slots; a free slot reads as a blank channel,
+  like the firmware, so an app can add a channel.
+- Requests answered by a push keep the radio lock until the answer arrives,
+  because the firmware keeps one pending request at a time.
+- `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND=false` refuses everything that changes
+  or transmits, plus signing and key export. Key export also needs
+  `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT`.
+
+### Docs
+- README_ADVANCED: what the bridge carries out, with the warning next to key
+  export/import, reboot and factory reset (no password: trusted network or
+  VPN only). Settings help text and manual (EN/NL/DE) updated.
+
+## Update 2026-11-24 (chat on a phone in portrait, #390; fix/mobile-message-layout)
+
+Reported by Recte in #390. No migration, no new dependency, no new strings.
+
+### Chat (`MessageList.tsx`, `MessageRowActions.tsx`, `map/controls/breakpoints.ts`)
+- On a touch screen narrower than 640 px (a phone in portrait) the message
+  actions no longer sit in a column beside the message. They took about half
+  the width, so the text wrapped every few words, the time broke over two
+  lines ("07" / ":52") and badges ran under the icons. Now only **Reply**
+  stays beside the message; React, Mark unread, Bookmark, Spam, Bot list,
+  Share and Delete sit in a row under it, lined up with its edge (left for received,
+  right for sent), with bigger tap targets (32 px) that wrap onto a second
+  line when there are many.
+- A long sender name wraps, and the time with its hop count and badges moves
+  to the next line as one unit instead of breaking inside it.
+  The SMAZ and bookmark icons are part of that unit. The bookmark note box
+  opens from the left edge under a received message, so it stays on screen.
+- MCEU (cards) layout: Reply stays in the card header, the other actions close
+  the chip row on the right, so a sender name no longer shrinks to a few
+  letters.
+- Landscape phones, tablets and desktop keep the old layout (checked against
+  screenshots taken before the change: identical).
+
+## Update 2026-11-24 (Message bookmarks; feat/message-bookmarks)
+
+Idea from meshcore-open (zjs81/meshcore-open#662), built fresh for RTFM-EV.
+Migration `_173`. No new dependency. Nothing is sent over RF.
+
+### Messaging (`app/routers/bookmarks.py`, `app/repository/bookmarks.py`, `BookmarksView.tsx`, `MessageRowActions.tsx`, `MessageList.tsx`)
+- **Message bookmarks.** Bookmark any stored message from its row actions and
+  add an optional note (up to 500 characters). Bookmarked messages show a
+  bookmark icon in chat, with the note as tooltip.
+- **Tools > Bookmarks** (`#bookmarks`) lists every bookmark, newest first: click
+  one to jump to it in its chat, edit the note, remove it, or export all
+  bookmarks as Markdown or CSV.
+- **Bookmarked only** in a chat's filter menu shows that chat's bookmarks,
+  including ones far back in history.
+- Changes show in every open tab (WS `message_bookmark`).
+- Stored in a new `message_bookmarks` table (migration `_173`). Message
+  retention keeps bookmarked messages and their raw packets; the retention
+  confirmation says so. Deleting a message removes its bookmark.
+
+## Update 2026-11-24 (MCOimg v3 pictures in channel chat, #391; feat/mcoimg-v3)
+
+Receive only. Migration `_172`. No new dependency (PNG via stdlib `zlib`).
+
+### Channel chat (`app/mcoimg_v3.py`, `app/mcoimg_palettes.py`, `MessageList.tsx`)
+- Pictures from MCO Advanced (HDDen's meshcore-open fork) show in the channel
+  chat. Two forms: a GRP_DATA datagram with `data_type 0x0120` and
+  `subtypeVersion 0x13`, and channel text that is exactly one `im3:<Base91>`
+  token. They are drawn pixelated, scaled up to about 160 px, with size and
+  byte count in the tooltip. A payload that does not decode shows "Image
+  (could not decode)" and never breaks the message list. `im3:` quoted
+  mid-sentence stays text.
+- The decoder is a Python port of the upstream JS decoder (MIT, HDDen/
+  meshcore-open `b04a0273`). Palette tables are generated unchanged from the
+  Dart sources. The 39 upstream decoder fixtures run in
+  `tests/test_mcoimg_v3.py`. The backend renders a PNG and sends it as
+  `Message.mcoimg` (REST and WebSocket).
+- A datagram row uses the sender name from the envelope (not the contact-prefix
+  guess) and keeps `0x13 | body` in the new `messages.app_payload` column, so
+  pictures also draw from history. Each send is its own row (the body starts
+  with a per-send nonce) and repeats of one send collapse. `image_id` is the
+  spec identity (MD5 with the nonce zeroed). Other `0x0120` subtypes and the
+  legacy `0xFFF0`/`0xFFF1` keep the generic placeholder.
+
+## Update 2026-11-24 (SMAZ compression indicator, feat/smaz-indicator)
+
+Mirrors the optional compression indicator of meshcore-open BETA-99.0.4
+(zjs81/meshcore-open#684). Migration `_171`, no new dependency.
+
+### Messages (`app/smaz.py`, `app/services/messages.py`, `app/services/dm_ingest.py`)
+- New column `messages.smaz` (migration `_171`): set at ingest when an
+  incoming body arrived SMAZ-compressed (`s:<base64>`) and was decoded. Covers
+  DMs (packet and fallback path), channel text from raw packets, and fallback
+  and queued channel frames. Returned as `smaz` by the message API and the WS
+  `message` event. Outgoing messages are never flagged. No backfill: stored
+  rows already hold the decoded text, so messages from before this version
+  stay unflagged.
+
+### Chat (`MessageList.tsx`, `SettingsLocalSection.tsx`, `utils/smazIndicatorPreference.ts`)
+- **Show compression indicator** (Settings > Local Configuration, off by default, stored in
+  this browser): a small icon with a tooltip next to the message details of a
+  message that arrived SMAZ-compressed. EN/NL/DE strings.
+## Update 2026-11-24 (Ignore impossible hops in message paths; feat/prune-impossible-hops)
+
+Frontend only. No migration, no new setting, no new dependency.
+
+### Message path (`utils/pathUtils.ts`, `PathModal.tsx`)
+- A hop whose prefix matches several repeaters drops the matches that are too
+  far away to be that hop: farther than 250 km per RF link from the nearest
+  located point on either side (the sender, our own radio, or a hop that
+  resolved to one located repeater). Unknown or unlocated hops in between add
+  250 km each. A hop narrowed to one repeater helps narrow its neighbours.
+  Repeaters without a location are never dropped, and a hop that would lose
+  every match keeps them all.
+- The path dialog, its route map and the route share card use the narrowed
+  list, so a prefix twin in another country no longer makes a hop ambiguous
+  or stretches the map. The dialog shows "N other matches ignored: too far
+  away for this hop" under such a hop (names on hover).
+- Same idea as meshcore-open's path map change (zjs81/meshcore-open#687),
+  built separately for RTFM-EV.
+
+## Update 2026-11-24 (Copy reverse path; feat/copy-reverse-path)
+
+Like the "copy reverse path" button in MeshCore Companion App 1.52.0. No
+migration, no new dependency.
+
+### Message path view (`PathModal.tsx`, `utils/pathUtils.ts`)
+- Each received path has a **Copy reverse path** action next to **Map route**.
+  It copies the hops in reverse order (the route back to the sender) as
+  comma-separated hop IDs, e.g. `f13e,ae92`, the format the contact's
+  **Routing Override** field accepts. 1, 2 and 3 byte hop IDs stay whole.
+- Disabled, with the reason as a tooltip, for a direct (0-hop) path and when
+  the hop size cannot be derived (legacy entries without a hop count), instead
+  of guessing 1-byte hops. Not shown on echoes of your own channel messages.
+- Copying also works on a plain-http address such as `http://192.168.x.x:8000`
+  (reported by Richard in Firefox): the browser has no clipboard API there, so
+  `utils/clipboard.ts` falls back to a hidden textarea and `execCommand('copy')`.
+
+## Update 2026-11-24 (Spam Guard Trusted names switch; feat/spam-trusted-names-switch)
+
+Request from Richard. No migration (the switch is a field in the stored Spam
+Guard settings document), no new dependency.
+
+### Spam Guard (`app/spam/settings.py`, `app/spam/detector.py`, `SpamSettingsTab.tsx`)
+- **Use the Trusted names list** switch (`trust_allow_senders`, default on),
+  next to the existing **Trust the names of stored contacts** switch, against
+  spam that echoes a trusted name. Off: the names on the list are not trusted
+  (`trusts()`), are left out of the known-people rule (`known_names()`) and do
+  not open a blocked route (`user_allowed`). The list is kept and stays
+  editable, so switching back on restores it. Names Spam Guard learnt as known
+  by itself stay known. Stored settings without the field load with it on.
+
 ## Update 2026-11-21 (Mesh Health charts, duplicate scope; feat/mesh-health-charts-dedupe-known)
 
 Two requests from Richard. No migration, no new dependency.

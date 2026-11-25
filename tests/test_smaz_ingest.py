@@ -46,8 +46,10 @@ class TestChannelIngest:
         assert msg_id is not None
         [stored] = await _all("CHAN", CHANNEL_KEY)
         assert stored.text == f"Alice: {PLAIN}"
+        assert stored.smaz is True
         [sent] = [b for b in broadcasts if b["type"] == "message"]
         assert sent["data"]["text"] == f"Alice: {PLAIN}"
+        assert sent["data"]["smaz"] is True
 
     @pytest.mark.asyncio
     async def test_decoded_mention_flags_unread(self, test_db, captured_broadcasts):
@@ -89,8 +91,10 @@ class TestChannelIngest:
 
         assert message is not None
         assert message.text == f"Alice: {PLAIN}"
+        assert message.smaz is True
         [stored] = await _all("CHAN", CHANNEL_KEY)
         assert stored.text == f"Alice: {PLAIN}"
+        assert stored.smaz is True
 
     @pytest.mark.asyncio
     async def test_plain_s_prefix_text_is_kept(self, test_db, captured_broadcasts):
@@ -110,6 +114,7 @@ class TestChannelIngest:
 
         [stored] = await _all("CHAN", CHANNEL_KEY)
         assert stored.text == "Alice: s:test"
+        assert stored.smaz is False
 
 
 class TestDirectMessageIngest:
@@ -135,6 +140,7 @@ class TestDirectMessageIngest:
         assert msg_id is not None
         [stored] = await _all("PRIV", CONTACT_PUB.lower())
         assert stored.text == PLAIN
+        assert stored.smaz is True
 
     @pytest.mark.asyncio
     async def test_fallback_path_decodes_and_dedups_against_packet_path(
@@ -169,7 +175,7 @@ class TestDirectMessageIngest:
             await on_contact_message(event)
 
         stored = await _all("PRIV", CONTACT_PUB.lower())
-        assert [m.text for m in stored] == [PLAIN]
+        assert [(m.text, m.smaz) for m in stored] == [(PLAIN, True)]
 
     @pytest.mark.asyncio
     async def test_fallback_only_path_stores_decoded_text(self, test_db, captured_broadcasts):
@@ -188,6 +194,7 @@ class TestDirectMessageIngest:
 
         [stored] = await _all("PRIV", CONTACT_PUB.lower())
         assert stored.text == PLAIN
+        assert stored.smaz is True
 
     @pytest.mark.asyncio
     async def test_outgoing_echo_is_not_decoded(self, test_db, captured_broadcasts):
@@ -220,4 +227,59 @@ class TestDirectMessageIngest:
 
         assert result is None
         stored = await _all("PRIV", CONTACT_PUB.lower())
-        assert [(m.id, m.text) for m in stored] == [(msg_id, SMAZ_BODY)]
+        assert [(m.id, m.text, m.smaz) for m in stored] == [(msg_id, SMAZ_BODY, False)]
+
+
+class TestSmazFlag:
+    def test_decode_message_body_reports_smaz(self):
+        assert smaz.decode_message_body(SMAZ_BODY) == (PLAIN, True)
+        assert smaz.decode_message_body("s:test") == ("s:test", False)
+        assert smaz.decode_message_body("hello") == ("hello", False)
+
+    @pytest.mark.asyncio
+    async def test_queued_channel_frame_is_flagged(self, test_db):
+        from app.services import queued_channel_ingest
+
+        await ChannelRepository.upsert(key=CHANNEL_KEY, name="Test")
+        with patch("app.services.queued_channel_ingest.broadcast_event"):
+            await queued_channel_ingest.store_channel_message(
+                CHANNEL_KEY, {"text": f"Alice: {SMAZ_BODY}", "sender_timestamp": TS}
+            )
+
+        [stored] = await _all("CHAN", CHANNEL_KEY)
+        assert (stored.text, stored.smaz) == (f"Alice: {PLAIN}", True)
+
+    @pytest.mark.asyncio
+    async def test_plain_dm_is_not_flagged(self, test_db, captured_broadcasts):
+        from app.event_handlers import on_contact_message
+
+        _, mock_broadcast = captured_broadcasts
+        event = MagicMock()
+        event.payload = {
+            "public_key": CONTACT_PUB,
+            "text": PLAIN,
+            "txt_type": 0,
+            "sender_timestamp": TS,
+        }
+        with patch("app.event_handlers.broadcast_event", mock_broadcast):
+            await on_contact_message(event)
+
+        [stored] = await _all("PRIV", CONTACT_PUB.lower())
+        assert (stored.text, stored.smaz) == (PLAIN, False)
+
+    @pytest.mark.asyncio
+    async def test_flag_is_returned_by_the_messages_api(self, test_db, client):
+        await MessageRepository.create(
+            msg_type="PRIV",
+            text=PLAIN,
+            conversation_key=CONTACT_PUB.lower(),
+            sender_timestamp=TS,
+            received_at=TS,
+            smaz=True,
+        )
+        response = await client.get(
+            "/api/messages", params={"type": "PRIV", "conversation_key": CONTACT_PUB.lower()}
+        )
+        assert response.status_code == 200
+        [row] = response.json()
+        assert row["smaz"] is True

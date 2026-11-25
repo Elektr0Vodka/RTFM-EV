@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import { api } from '../../api';
 import type { SpamGuardController } from '../../hooks/useSpamGuard';
@@ -41,6 +41,7 @@ function ExceptionList({
   disabled,
   onAdd,
   onRemove,
+  children,
 }: {
   title: string;
   help: string;
@@ -51,6 +52,8 @@ function ExceptionList({
   disabled: boolean;
   onAdd: (value: string) => Promise<boolean>;
   onRemove: (value: string) => void;
+  /** Shown under the help text, above the list: a switch for the whole list. */
+  children?: ReactNode;
 }) {
   const t = useT();
   const [value, setValue] = useState('');
@@ -58,6 +61,7 @@ function ExceptionList({
     <div className="space-y-1.5">
       <div className="text-sm font-medium text-foreground">{title}</div>
       <p className="text-[0.8125rem] text-muted-foreground">{help}</p>
+      {children}
       {items.length === 0 ? (
         <p className="text-[0.8125rem] text-muted-foreground">{t('spam_exceptions_none')}</p>
       ) : (
@@ -133,6 +137,7 @@ export function SpamSettingsTab({
             allow_texts: state.settings.allow_texts,
             deny_senders: state.settings.deny_senders,
             trust_contacts: state.settings.trust_contacts,
+            trust_allow_senders: state.settings.trust_allow_senders,
           }
         : state.settings
     );
@@ -504,7 +509,24 @@ export function SpamSettingsTab({
           disabled={disabled}
           onAdd={(sender) => guard.action('allow_sender', { sender })}
           onRemove={(sender) => void guard.action('unallow_sender', { sender })}
-        />
+        >
+          <label className="flex items-center gap-2 text-[0.8125rem] text-foreground">
+            <input
+              type="checkbox"
+              checked={state.settings.trust_allow_senders}
+              disabled={disabled}
+              onChange={(e) =>
+                void guard.save({ ...state.settings, trust_allow_senders: e.target.checked })
+              }
+            />
+            {t('spam_senders_switch')}
+          </label>
+          {!state.settings.trust_allow_senders && (
+            <p className="text-[0.8125rem] text-warning" data-testid="spam-senders-off">
+              {t('spam_senders_off')}
+            </p>
+          )}
+        </ExceptionList>
         <SpamTrustedContactsCard state={state} guard={guard} />
         <ExceptionList
           title={t('spam_exceptions_denied')}

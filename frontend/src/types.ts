@@ -918,6 +918,10 @@ export interface Message {
   region?: string | null;
   /** LoRa settings this message was heard or sent on; null for older rows. */
   radio_stamp?: RadioStamp | null;
+  /** True when the operator bookmarked this message. */
+  bookmarked?: boolean;
+  /** Optional note on the bookmark. */
+  bookmark_note?: string | null;
   /** Unix time an outgoing DM was marked failed (retries ran out, no ACK). Null when not failed. */
   failed_at?: number | null;
   /**
@@ -931,6 +935,12 @@ export interface Message {
    * pattern. Hidden by the chat "Hide by name pattern" filter.
    */
   name_filtered?: boolean;
+  /**
+   * True when this incoming message body arrived SMAZ-compressed (`s:<base64>`)
+   * and the server decoded it at ingest. Rows stored before migration 171 are
+   * never flagged.
+   */
+  smaz?: boolean;
   /**
    * True when Spam Guard flagged this incoming channel message as spam, at
    * ingest or afterwards (earlier copies of a campaign arrive in a
@@ -948,6 +958,30 @@ export interface Message {
    * it ignored it. Null/absent for every other message.
    */
   cli_permitted?: boolean | null;
+  /**
+   * MCOimg v3 picture (issue #391): decoded by the backend from a GRP_DATA
+   * 0x0120 datagram or from `im3:` channel text. Null/absent otherwise.
+   */
+  mcoimg?: MessageImage | null;
+}
+
+/** A picture carried by a chat message, rendered to PNG by the backend. */
+export interface MessageImage {
+  format: 'mcoimg_v3';
+  source: 'datagram' | 'text';
+  /** False when the payload did not decode: show a placeholder, never the bytes. */
+  ok: boolean;
+  width?: number | null;
+  height?: number | null;
+  profile?: string | null;
+  algorithm?: string | null;
+  container?: string | null;
+  /** v3 body length in bytes. */
+  byte_length: number;
+  /** MD5 of `0x13|body` with the nonce zeroed: the same picture keeps its id across resends. */
+  image_id?: string | null;
+  /** RGBA PNG at native size, base64. */
+  png_base64?: string | null;
 }
 
 /** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
@@ -1189,6 +1223,7 @@ type ConversationType =
   | 'visualizer'
   | 'search'
   | 'mentions'
+  | 'bookmarks'
   | 'trace'
   | 'channel-registry'
   | 'node'
@@ -3889,6 +3924,8 @@ export interface SpamGuardSettings {
   deny_senders: string[];
   /** Names of stored contacts heard by advert count as trusted. */
   trust_contacts: boolean;
+  /** The names on allow_senders count as trusted. Off keeps the list. */
+  trust_allow_senders: boolean;
 }
 
 export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';
@@ -4215,6 +4252,25 @@ export interface SpamGuardRule {
 }
 
 /** The WS `message_spam` event: the flag changed on messages already in chat. */
+/** A bookmarked message with its note (GET /api/bookmarks). */
+export interface BookmarkEntry {
+  message: Message;
+  note: string | null;
+  /** Unix time the bookmark was made. */
+  created_at: number;
+  /** Channel or contact name, when known. */
+  conversation_name: string | null;
+}
+
+/** WS `message_bookmark`: a bookmark was added, changed or removed. */
+export interface MessageBookmarkPayload {
+  message_id: number;
+  type: string;
+  conversation_key: string;
+  bookmarked: boolean;
+  note: string | null;
+}
+
 export interface MessageSpamPayload {
   message_ids: number[];
   spam: boolean;

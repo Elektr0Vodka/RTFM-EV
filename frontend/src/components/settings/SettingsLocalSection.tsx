@@ -54,6 +54,7 @@ import { usePathHopWidth } from '../../contexts/PathHopWidthContext';
 import { setSavedShowPathHopWidth } from '../../utils/pathHopWidthPreference';
 import { useLocationPreview } from '../../contexts/LocationPreviewContext';
 import { setSavedLocationMapPreview } from '../../utils/locationPreviewPreference';
+import { setSavedSmazIndicator, useSmazIndicator } from '../../utils/smazIndicatorPreference';
 import {
   DEFAULT_FONT_SCALE,
   FONT_SCALE_SLIDER_STEP,
@@ -292,6 +293,7 @@ export function SettingsLocalSection({
   const coordinateFormat = useCoordinateFormat();
   const { renderRichPayloads, setRenderRichPayloads } = useRichPayloads();
   const { showPathHopWidth, setShowPathHopWidth } = usePathHopWidth();
+  const showSmazIndicator = useSmazIndicator();
   const { showLocationPreview, setShowLocationPreview } = useLocationPreview();
   const [reopenLastConversation, setReopenLastConversation] = useState(
     getReopenLastConversationEnabled
@@ -722,6 +724,21 @@ export function SettingsLocalSection({
             </div>
           </div>
           {/* eslint-enable i18next/no-literal-string */}
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="smaz-indicator"
+              checked={showSmazIndicator}
+              onCheckedChange={(checked) => setSavedSmazIndicator(checked === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="smaz-indicator">{t('settings_smaz_indicator_label')}</Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_smaz_indicator_desc')}
+              </p>
+            </div>
+          </div>
 
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
             <Checkbox

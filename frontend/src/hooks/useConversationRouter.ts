@@ -64,6 +64,8 @@ function resolveConversationFromHash(
       return { type: 'wardrive', id: hashConv.name, name: 'Wardrive' };
     case 'mentions':
       return { type: 'mentions', id: 'mentions', name: 'Mentions' };
+    case 'bookmarks':
+      return { type: 'bookmarks', id: 'bookmarks', name: 'Bookmarks' };
     case 'fleet':
       return { type: 'fleet', id: hashConv.name, name: 'Fleet' };
     case 'spam-guard':
@@ -252,6 +254,11 @@ export function useConversationRouter({
     }
     if (hashConv?.type === 'mentions') {
       setActiveConversationState({ type: 'mentions', id: 'mentions', name: 'Mentions' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'bookmarks') {
+      setActiveConversationState({ type: 'bookmarks', id: 'bookmarks', name: 'Bookmarks' });
       hasSetDefaultConversation.current = true;
       return;
     }

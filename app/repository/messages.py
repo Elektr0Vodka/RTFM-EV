@@ -88,8 +88,13 @@ class MessageRepository:
         bot: bool = False,
         cli_permitted: bool | None = None,
         radio_stamp: RadioStamp | None = None,
+        smaz: bool = False,
+        app_payload: bytes | None = None,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
+
+        ``app_payload`` keeps an MCOimg v3 picture (``0x13 | body``) with the row
+        (migration _172).
 
         ``radio_stamp`` defaults to the radio's current settings (migration _160).
 
@@ -128,8 +133,9 @@ class MessageRepository:
                                                 transport_code, region, malformed,
                                                 malformed_reason, name_filtered, bot,
                                                 cli_permitted,
-                                                radio_freq, radio_bw, radio_sf, radio_cr)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                radio_freq, radio_bw, radio_sf, radio_cr, smaz,
+                                                app_payload)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -155,6 +161,8 @@ class MessageRepository:
                     radio_stamp.bw if radio_stamp else None,
                     radio_stamp.sf if radio_stamp else None,
                     radio_stamp.cr if radio_stamp else None,
+                    1 if smaz else 0,
+                    app_payload,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -698,11 +706,15 @@ class MessageRepository:
         failed_at = None
         malformed = False
         name_filtered = False
+        smaz = False
         send_status = "confirmed"
         spam = False
         duplicate = False
         cli_permitted = None
         radio_stamp = None
+        app_payload = None
+        bookmarked = False
+        bookmark_note = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -717,6 +729,8 @@ class MessageRepository:
                 malformed = bool(row["malformed"])
             if "name_filtered" in row_keys:
                 name_filtered = bool(row["name_filtered"])
+            if "smaz" in row_keys:
+                smaz = bool(row["smaz"])
             if "send_status" in row_keys:
                 send_status = row["send_status"]
             if "spam" in row_keys:
@@ -725,6 +739,12 @@ class MessageRepository:
                 duplicate = bool(row["duplicate"])
             if "cli_permitted" in row_keys and row["cli_permitted"] is not None:
                 cli_permitted = bool(row["cli_permitted"])
+            if "app_payload" in row_keys and row["app_payload"] is not None:
+                app_payload = bytes(row["app_payload"])
+            if "bookmarked" in row_keys:
+                bookmarked = bool(row["bookmarked"])
+            if "bookmark_note" in row_keys:
+                bookmark_note = row["bookmark_note"]
             if "radio_sf" in row_keys and row["radio_sf"] is not None:
                 radio_stamp = RadioStamp(
                     freq=row["radio_freq"],
@@ -754,17 +774,25 @@ class MessageRepository:
             failed_at=failed_at,
             malformed=malformed,
             name_filtered=name_filtered,
+            smaz=smaz,
             spam=spam,
             duplicate=duplicate,
             cli_permitted=cli_permitted,
             radio_stamp=radio_stamp,
+            app_payload=app_payload,
+            bookmarked=bookmarked,
+            bookmark_note=bookmark_note,
         )
 
     @staticmethod
     def _message_select(message_alias: str = "messages") -> str:
         return (
             f"{message_alias}.*, "
-            f"(SELECT MIN(id) FROM raw_packets WHERE message_id = {message_alias}.id) AS packet_id"
+            f"(SELECT MIN(id) FROM raw_packets WHERE message_id = {message_alias}.id) AS packet_id, "
+            f"EXISTS(SELECT 1 FROM message_bookmarks WHERE message_id = {message_alias}.id) "
+            "AS bookmarked, "
+            f"(SELECT note FROM message_bookmarks WHERE message_id = {message_alias}.id) "
+            "AS bookmark_note"
         )
 
     @staticmethod

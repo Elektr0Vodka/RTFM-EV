@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
+from app import mcoimg_v3
 from app.atak_payloads import envelope_body
 from app.decoder import TXT_TYPE_GROUP_DATA
 from app.malformed import (
@@ -20,7 +21,7 @@ from app.repository import (
     RawPacketRepository,
 )
 from app.services import send_pacer
-from app.smaz import decode_message_text
+from app.smaz import decode_message_body
 
 if TYPE_CHECKING:
     from app.decoder import DecryptedDirectMessage, DecryptedGroupData
@@ -95,6 +96,8 @@ def build_message_model(
     duplicate: bool = False,
     cli_permitted: bool | None = None,
     radio_stamp: RadioStamp | None = None,
+    smaz: bool = False,
+    app_payload: bytes | None = None,
 ) -> Message:
     """Build a Message model with the canonical backend payload shape.
 
@@ -130,6 +133,8 @@ def build_message_model(
         duplicate=duplicate,
         cli_permitted=cli_permitted,
         radio_stamp=radio_stamp,
+        smaz=smaz,
+        app_payload=app_payload,
     )
 
 
@@ -400,7 +405,7 @@ async def create_message_from_decrypted(
     # Spam Guard reads the text as it was sent: that is what a forwarding
     # rule on the host repeater or an OpenHop node matches on.
     wire_text = message_text
-    message_text = decode_message_text(message_text)
+    message_text, was_smaz = decode_message_body(message_text)
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
     ahead = await clock_ahead_minutes()
@@ -431,6 +436,7 @@ async def create_message_from_decrypted(
         malformed=malformed,
         malformed_reason=reason,
         name_filtered=name_filtered,
+        smaz=was_smaz,
         bot=await _is_listed_bot(sender, resolved_sender_key),
     )
 
@@ -500,6 +506,7 @@ async def create_message_from_decrypted(
             region=region,
             malformed=malformed,
             name_filtered=name_filtered,
+            smaz=was_smaz,
             spam=bool(verdict and verdict.spam),
             duplicate=bool(verdict and verdict.duplicate),
         ),
@@ -511,7 +518,11 @@ async def create_message_from_decrypted(
     return msg_id
 
 
-def format_group_data_placeholder(decrypted: "DecryptedGroupData", sender_label: str | None) -> str:
+def format_group_data_placeholder(
+    decrypted: "DecryptedGroupData",
+    sender_label: str | None,
+    app_payload: bytes | None = None,
+) -> str:
     """Build the stored text for a GRP_DATA placeholder row.
 
     The text is deliberately stable across the chunks of one image (it omits the
@@ -519,7 +530,14 @@ def format_group_data_placeholder(decrypted: "DecryptedGroupData", sender_label:
     chunk count)`` reconciles onto one row via the messages dedup index and shows
     up as one placeholder with one path per received chunk. Non-image datagrams
     get a per-blob digest instead so distinct blobs stay distinct rows.
+
+    An MCOimg v3 picture (``app_payload`` set) gets a digest of the whole app
+    payload. Its first body byte is a per-send nonce, so a resend is a new row
+    while repeats of one send collapse onto one row.
     """
+    if app_payload is not None:
+        body = f"[image] MCOimg v3 sha={hashlib.sha256(app_payload).hexdigest()[:8]}"
+        return f"{sender_label}: {body}" if sender_label else body
     chunk = decrypted.image_chunk
     if chunk is not None:
         body = f"[image] id={chunk.img_id:02x} chunks={chunk.total}"
@@ -549,7 +567,9 @@ async def create_group_data_message(
 
     Only chunk metadata is stored (sender prefix, image id, chunk count, or the
     data type, length and a short digest); the blob itself is not persisted and
-    is never decoded. Returns ``(message_id, text, sender_label)``;
+    is never decoded. Exception: an MCO Advanced ``0x0120`` envelope carrying
+    MCOimg v3 (``subtypeVersion 0x13``) keeps ``0x13 | body`` in
+    ``messages.app_payload`` and uses the envelope's sender name. Returns ``(message_id, text, sender_label)``;
     ``message_id`` is None when the row already existed (a further chunk or a
     repeat), in which case the arrival is added as a path on the existing row.
     """
@@ -567,8 +587,22 @@ async def create_group_data_message(
         else:
             sender_label = chunk.sender_prefix.upper()
 
-    text = format_group_data_placeholder(decrypted, sender_label)
-    sender_name = sender_label if resolved_sender_key else None
+    app_payload: bytes | None = None
+    if chunk is None and decrypted.data_type == mcoimg_v3.APP_DATA_TYPE:
+        envelope = mcoimg_v3.parse_app_envelope(decrypted.data)
+        if envelope is not None and envelope.subtype_version == mcoimg_v3.SUBTYPE_VERSION:
+            app_payload = envelope.app_payload
+            sender_label = envelope.sender_name or None
+            if sender_label:
+                candidates = await ContactRepository.get_by_name(sender_label)
+                if len(candidates) == 1:
+                    resolved_sender_key = candidates[0].public_key
+
+    text = format_group_data_placeholder(decrypted, sender_label, app_payload)
+    if app_payload is not None:
+        sender_name = sender_label
+    else:
+        sender_name = sender_label if resolved_sender_key else None
     name_filtered = await is_name_filtered(sender_name, text)
 
     msg_id = await MessageRepository.create(
@@ -587,6 +621,7 @@ async def create_group_data_message(
         transport_code=transport_code,
         region=region,
         name_filtered=name_filtered,
+        app_payload=app_payload,
     )
 
     if msg_id is None:
@@ -642,6 +677,7 @@ async def create_group_data_message(
             transport_code=transport_code,
             region=region,
             name_filtered=name_filtered,
+            app_payload=app_payload,
         ),
         broadcast_fn=broadcast_fn,
         realtime=realtime,
@@ -759,7 +795,7 @@ async def create_fallback_channel_message(
         if await handle_tracker_text(envelope, ctx):
             return None
     wire_text = message_text  # what Spam Guard reads, as in create_message_from_decrypted
-    message_text = decode_message_text(message_text)
+    message_text, was_smaz = decode_message_body(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
     ahead = await clock_ahead_minutes()
     malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at, ahead)
@@ -788,6 +824,7 @@ async def create_fallback_channel_message(
         malformed=malformed,
         malformed_reason=reason,
         name_filtered=name_filtered,
+        smaz=was_smaz,
         bot=await _is_listed_bot(sender_name, resolved_sender_key),
     )
     if msg_id is None:
@@ -835,6 +872,7 @@ async def create_fallback_channel_message(
         channel_name=channel_name,
         malformed=malformed,
         name_filtered=name_filtered,
+        smaz=was_smaz,
         spam=verdict.spam,
         duplicate=verdict.duplicate,
     )

@@ -18,7 +18,7 @@ These are intended for diagnosing or working around radios that behave oddly, or
 | `MESHCORE_COMPANION_BRIDGE_ENABLED` | false | Let a MeshCore companion app connect to RTFM-EV over TCP ([docs](#companion-bridge-meshcore-apps)) |
 | `MESHCORE_COMPANION_BRIDGE_HOST` | 127.0.0.1 | Address the companion bridge listens on (`0.0.0.0` for the LAN) |
 | `MESHCORE_COMPANION_BRIDGE_PORT` | 5000 | TCP port of the companion bridge |
-| `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND` | true | `false`: apps can read but not send through the bridge |
+| `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND` | true | `false`: apps can read but not send or change anything through the bridge |
 | `MESHCORE_COMPANION_BRIDGE_MAX_CONTACTS` | 500 | Most contacts handed to an app (favorites first, then the most recently heard) |
 | `MESHCORE_TAK_STREAM_ENABLED` | false | Serve a plaintext CoT feed for ATAK / WinTAK ([docs](#tak-stream-atak--wintak)) |
 | `MESHCORE_TAK_STREAM_HOST` | 0.0.0.0 | Address the TAK Stream listens on |
@@ -207,6 +207,8 @@ How it runs:
   interval of data beyond its limit.
 - Setting a message retention above 0, or lowering it, asks for confirmation and
   shows how many messages the next run will delete.
+- Bookmarked messages are never pruned by message retention; their raw packets
+  are kept too. Deleting a message by hand removes its bookmark.
 - **Keep everything (analyzer)** sets every limit to 0. **Restore defaults** puts the
   table above back; that re-enables the 30-day limits and deletes older rows on the
   next run.
@@ -518,8 +520,18 @@ What the app gets:
 - RTFM-EV's contacts (favorites first, then the most recently heard, up to `MESHCORE_COMPANION_BRIDGE_MAX_CONTACTS`) and channels (Public first, then favorites, then by name, up to 40). The channel numbers are fixed while the app stays connected.
 - The direct and channel messages RTFM-EV receives while the app is connected (up to 256 waiting per app).
 - Sending: direct and channel messages go out through RTFM-EV's normal send path, so they show in RTFM-EV too; a delivered DM is confirmed back to the app.
+- The radio's real protocol version (in `DEVICE_INFO`), so an app enables the same features it would on a direct connection.
+- The radio's pushes as the radio sends them: adverts, path updates, login results, status, telemetry and binary responses, path discovery, trace data, RX log, control data and raw data.
+- Every other companion command, carried out by RTFM-EV itself (RTFM-EV stays the only program that talks to the radio, one command at a time):
+  - Reads: statistics, battery and storage, device time, tuning, custom vars, auto-add config, advert paths, allowed repeat frequencies, default flood scope, contact export and lookup.
+  - Mesh actions: self advert (zero hop or flood), login and logout, status and telemetry requests (remote and own), binary and anonymous requests (neighbours, ACL, owner info, regions, sensor min/max/avg), remote CLI and the radio's own CLI, trace and path discovery, share contact, channel data (flood only), control data, raw data and raw packets, signing.
+  - Contact and channel changes: add, update, remove and import a contact, reset its path, set or clear a channel. These change RTFM-EV's own lists, so RTFM-EV and the app show the same contacts and channels. Clearing or overwriting a channel slot deletes that channel from RTFM-EV; the Public channel cannot be deleted. A `#channel` must use the key RTFM-EV derives from its name.
+  - Radio settings: name, position, frequency/bandwidth/SF/CR, TX power, path hash mode, other params, tuning, custom vars, auto-add config, default flood scope. They go through the same code as RTFM-EV's own radio settings page. An app cannot switch client repeat on or off. A flood scope an app sets applies to that app's own requests only; RTFM-EV's own scope is put back right after.
+  - **Dangerous commands: private key export and import, reboot and factory reset.** Anyone who can reach the bridge port can run them, with no password: a factory reset wipes the radio (contacts, channels, identity), a key import replaces the radio's identity, and a key export hands out the key that signs everything your node sends. Key export also needs `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true` (the same switch as the web API); without it the app gets a "disabled" answer.
 
-What it does not get: changing radio settings, channels or contacts, exporting or importing keys, reboot or factory reset, adverts, logins, telemetry and CLI commands are all refused (the app gets an "unsupported" answer). Set `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND=false` to make it read-only.
+Not handled: the BLE PIN (`SET_DEVICE_PIN`). Setting the device time is accepted and ignored, because RTFM-EV keeps the radio clock itself.
+
+Set `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND=false` to make the bridge read-only: every command that changes or transmits anything is refused (the app gets an "unsupported" answer), and so are key export and signing. Apps can still read, receive messages and see pushes.
 
 The bridge listens on `127.0.0.1:5000` by default, so only the same machine can connect. For a phone on your network, set `MESHCORE_COMPANION_BRIDGE_HOST=0.0.0.0` and publish the port:
 
@@ -534,7 +546,7 @@ environment:
 
 Then, in the MeshCore app, connect over TCP / WiFi to the RTFM-EV host and port 5000. **Settings > Radio-App Management > Companion bridge** shows whether it runs and which apps are connected.
 
-Like the firmware's own TCP interface, the bridge has no password and no encryption, and whoever connects can send messages through your radio. Keep it on a trusted network and never expose the port to the internet. At most 4 apps can connect at once. With `MESHCORE_MULTI_RADIO`, `MESHCORE_COMPANION_BRIDGE_ENABLED`, `_HOST` and `_PORT` are not passed on to the radios; set them in a radio's `env` in `data/radios.json`, with its own port.
+Like the firmware's own TCP interface, the bridge has no password and no encryption, and whoever connects can send through your radio, change its settings, export or replace its key, reboot it or factory reset it. Keep it on a trusted local network or a closed virtual network (VPN or tailnet) and never expose the port to the internet. Use `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND=false` when apps only need to read. At most 4 apps can connect at once. With `MESHCORE_MULTI_RADIO`, `MESHCORE_COMPANION_BRIDGE_ENABLED`, `_HOST` and `_PORT` are not passed on to the radios; set them in a radio's `env` in `data/radios.json`, with its own port.
 
 ## TAK Stream (ATAK / WinTAK)
 

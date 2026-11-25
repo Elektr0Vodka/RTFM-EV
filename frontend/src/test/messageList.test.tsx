@@ -132,6 +132,116 @@ describe('MessageList channel sender rendering', () => {
     expect(placeholder).toHaveAttribute('title', expect.stringContaining('0x0120, 40 bytes'));
   });
 
+  // 2x2 PNG the backend renders for the upstream "quadtree" MCOimg v3 fixture.
+  const MCOIMG_PNG =
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP4DwQMDAwgzABi/wcAVrsJ9+BMTXQAAAAASUVORK5CYII=';
+
+  it('draws an MCOimg v3 datagram as a pixelated picture with the envelope sender', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            text: 'Zoë: [image] MCOimg v3 sha=0a1b2c3d',
+            txt_type: TXT_TYPE_GROUP_DATA,
+            sender_timestamp: null,
+            sender_name: 'Zoë',
+            mcoimg: {
+              format: 'mcoimg_v3',
+              source: 'datagram',
+              ok: true,
+              width: 2,
+              height: 2,
+              byte_length: 6,
+              png_base64: MCOIMG_PNG,
+            },
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    const picture = screen.getByTestId('mcoimg-picture');
+    expect(picture.tagName).toBe('IMG');
+    expect(picture).toHaveAttribute('src', `data:image/png;base64,${MCOIMG_PNG}`);
+    expect(picture).toHaveAttribute('width', '160');
+    expect(picture).toHaveAttribute('height', '160');
+    expect(picture).toHaveStyle({ imageRendering: 'pixelated' });
+    expect(picture).toHaveAttribute('title', 'MCOimg v3, 2×2 px, 6 bytes');
+    expect(screen.queryByText(/MCOimg v3 sha=/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('group-data-placeholder')).not.toBeInTheDocument();
+    expect(screen.getByText('Zoë')).toBeInTheDocument();
+  });
+
+  it('draws im3: channel text as a picture instead of the Base91 string', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            text: 'Bob: im3:g/N"qC8]D',
+            mcoimg: {
+              format: 'mcoimg_v3',
+              source: 'text',
+              ok: true,
+              width: 2,
+              height: 2,
+              byte_length: 6,
+              png_base64: MCOIMG_PNG,
+            },
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    expect(screen.getByTestId('mcoimg-picture')).toBeInTheDocument();
+    expect(screen.queryByText(/im3:/)).not.toBeInTheDocument();
+  });
+
+  it('shows "could not decode" for an MCOimg payload that failed, and keeps the rest of the list', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            id: 1,
+            text: 'Bob: [image] MCOimg v3 sha=deadbeef',
+            txt_type: TXT_TYPE_GROUP_DATA,
+            sender_timestamp: null,
+            mcoimg: { format: 'mcoimg_v3', source: 'datagram', ok: false, byte_length: 30 },
+          }),
+          createMessage({ id: 2, text: 'Carol: still here', received_at: 1700000010 }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    const placeholder = screen.getByTestId('mcoimg-undecodable');
+    expect(placeholder).toHaveTextContent('Image (could not decode)');
+    expect(placeholder).toHaveAttribute('title', expect.stringContaining('30 bytes'));
+    expect(screen.queryByTestId('mcoimg-picture')).not.toBeInTheDocument();
+    expect(screen.queryByText(/sha=deadbeef/)).not.toBeInTheDocument();
+    expect(screen.getByText('still here')).toBeInTheDocument();
+  });
+
+  it('treats an ok picture without PNG data as undecodable rather than crashing', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            text: 'Bob: im3:zz',
+            mcoimg: { format: 'mcoimg_v3', source: 'text', ok: true, byte_length: 1 },
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    expect(screen.getByTestId('mcoimg-undecodable')).toBeInTheDocument();
+  });
+
   it('renders a region badge for region-scoped channel messages', () => {
     render(
       <MessageList

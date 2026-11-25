@@ -63,6 +63,7 @@ export type SidebarToolKey =
   | 'trace'
   | 'search'
   | 'mentions'
+  | 'bookmarks'
   | 'channel-registry'
   | 'cracker'
   | 'knowledge-base'
@@ -87,6 +88,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'trace',
   'search',
   'mentions',
+  'bookmarks',
   'channel-registry',
   'cracker',
   'knowledge-base',

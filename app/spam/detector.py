@@ -381,6 +381,7 @@ class SpamDetector:
         # Names that never count as known or trusted, whatever else says so.
         self.deny_senders: set[str] = set(config.deny_senders)
         self.trust_contacts: bool = config.trust_contacts
+        self.trust_allow_senders: bool = config.trust_allow_senders
         self.allow_texts: set[str] = set(config.allow_texts)
 
     def exceptions(self) -> dict[str, list[str]]:
@@ -409,11 +410,14 @@ class SpamDetector:
     # ── known people ─────────────────────────────────────────────────────
 
     def trusts(self, name: str) -> bool:
-        """A trusted name: on the user's list, or (``trust_contacts``) a stored
-        contact heard by advert. A never-trusted name is neither."""
+        """A trusted name: on the user's list (``trust_allow_senders``), or
+        (``trust_contacts``) a stored contact heard by advert. A never-trusted
+        name is neither."""
         if name in self.deny_senders:
             return False
-        return name in self.allow_senders or (self.trust_contacts and name in self.contact_senders)
+        return (self.trust_allow_senders and name in self.allow_senders) or (
+            self.trust_contacts and name in self.contact_senders
+        )
 
     def set_contact_senders(self, names: Iterable[str]) -> bool:
         """Take the names of the stored contacts heard by advert. True on a change."""
@@ -505,11 +509,11 @@ class SpamDetector:
 
     def contact_list(self, q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
         """Stored contacts heard by advert whose name counts as trusted, by name.
-        Without the names on the user's own two lists."""
+        Without the names on the user's own two lists (the trusted one only
+        while it is in use: off, a contact on it is trusted as a contact)."""
         needle = q.strip().casefold()
-        names = sorted(
-            self.contact_senders - self.allow_senders - self.deny_senders, key=str.casefold
-        )
+        mine = self.allow_senders if self.trust_allow_senders else set()
+        names = sorted(self.contact_senders - mine - self.deny_senders, key=str.casefold)
         if needle:
             names = [name for name in names if needle in name.casefold()]
         return {"total": len(names), "names": names[offset : offset + limit]}
@@ -520,7 +524,7 @@ class SpamDetector:
 
     def known_names(self) -> list[str]:
         """Names that pass the gated blocks, for the known-people rule."""
-        trusted = set(self.allow_senders)
+        trusted = set(self.allow_senders) if self.trust_allow_senders else set()
         if self.trust_contacts:
             trusted |= self.contact_senders
         return sorted(({n for n in self.known if self.is_known(n)} | trusted) - self.deny_senders)
@@ -1385,7 +1389,9 @@ class SpamDetector:
 
         # A trusted person heard on a blocked route: let their repeater through.
         for event in window:
-            if event.sender not in self.allow_senders or not event.path:
+            if not (self.trust_allow_senders and event.sender in self.allow_senders):
+                continue
+            if not event.path:
                 continue
             block = self.blocks.get(f"suffix:{'>'.join(event.path[1:])}")
             if block is not None and event.first_hop not in block.user_allowed:
