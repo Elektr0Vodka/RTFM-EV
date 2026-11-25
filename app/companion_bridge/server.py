@@ -6,11 +6,15 @@ identity, the contacts and channels RTFM-EV knows, receives the messages
 RTFM-EV receives, and can send direct and channel messages, which go out
 through RTFM-EV's normal send path (so the radio has one owner).
 
+All other companion commands (issue #388) are carried out by RTFM-EV itself,
+see ``commands.py``. The radio's pushes (adverts, path updates, login results,
+status, telemetry and binary responses, trace data, RX log, ...) are copied to
+every connected app as the radio wrote them (``on_radio_frame``).
+
 Started from the lifespan only when ``MESHCORE_COMPANION_BRIDGE_ENABLED`` is set.
 Unauthenticated, like the firmware's TCP interface: trusted networks only.
-Every command that is not listed in ``_handle`` is answered with
-ERR_CODE_UNSUPPORTED_CMD: an app cannot change radio settings, export keys,
-reboot or reset the radio, or run CLI commands through the bridge.
+With ``allow_send`` off, every command that changes or transmits anything is
+answered with ERR_CODE_UNSUPPORTED_CMD.
 """
 
 import asyncio
@@ -24,19 +28,61 @@ from dataclasses import dataclass, field
 
 from fastapi import HTTPException
 
-from app.companion_bridge import frames
+from app.companion_bridge import commands, frames
 
 logger = logging.getLogger(__name__)
 
 PUBLIC_CHANNEL_KEY = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
-# Firmware protocol version the bridge reports (companion v1.18 = 14). Message
-# frames switch to the V3 layout when the app says it understands version 3+.
+# Protocol version reported while the radio's own is not known (companion
+# v1.18 = 14). Otherwise DEVICE_INFO carries the radio's real version code.
+# Message frames switch to the V3 layout when the app understands version 3+.
 BRIDGE_FIRMWARE_VER_CODE = 14
 MAX_BRIDGE_CHANNELS = 40
 # Messages kept for an app until it fetches them, like the radio's own queue.
 SESSION_QUEUE_SIZE = 256
 # How long an ACK token is matched to a sent DM.
 ACK_TOKEN_TTL_S = 3600.0
+# How long the radio gets to answer one command.
+REPLY_TIMEOUT_S = 10.0
+# The firmware keeps one pending request (``clearPendingReqs``): after an app's
+# login, status, telemetry, binary or path request the radio lock is kept until
+# the answer push arrives, so RTFM-EV's own requests cannot wipe it.
+PUSH_WAIT_MIN_S = 5.0
+PUSH_WAIT_MAX_S = 60.0
+# Radio pushes copied to every app. Not copied: SEND_CONFIRMED and MSG_WAITING
+# (the bridge makes its own for its message queue), and CONTACT_DELETED /
+# CONTACTS_FULL, which describe the radio's contact cache, not RTFM-EV's
+# contact list the apps see (CONTACT_DELETED is sent when RTFM-EV deletes one).
+FORWARDED_PUSHES = frozenset(
+    {
+        frames.PUSH_CODE_ADVERT,
+        frames.PUSH_CODE_PATH_UPDATED,
+        frames.PUSH_CODE_RAW_DATA,
+        frames.PUSH_CODE_LOGIN_SUCCESS,
+        frames.PUSH_CODE_LOGIN_FAIL,
+        frames.PUSH_CODE_STATUS_RESPONSE,
+        frames.PUSH_CODE_LOG_RX_DATA,
+        frames.PUSH_CODE_TRACE_DATA,
+        frames.PUSH_CODE_NEW_ADVERT,
+        frames.PUSH_CODE_TELEMETRY_RESPONSE,
+        frames.PUSH_CODE_BINARY_RESPONSE,
+        frames.PUSH_CODE_PATH_DISCOVERY_RESPONSE,
+        frames.PUSH_CODE_CONTROL_DATA,
+    }
+)
+HOOK_ATTR = "_rtfm_companion_bridge_hooked"
+
+
+class _Waiter:
+    """The first radio frame whose code is in ``codes``."""
+
+    def __init__(self, codes: set[int]) -> None:
+        self.codes = codes
+        self.future: asyncio.Future = asyncio.get_running_loop().create_future()
+
+    def offer(self, data: bytes) -> None:
+        if data[0] in self.codes and not self.future.done():
+            self.future.set_result(data)
 
 
 @dataclass(eq=False)
@@ -52,6 +98,10 @@ class _Session:
     channel_by_slot: dict[int, object] = field(default_factory=dict)
     sending_contacts: bool = False
     write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # CMD_SET_FLOOD_SCOPE_KEY frame for this app's own requests (None = RTFM-EV's)
+    scope_frame: bytes | None = None
+    # data collected by CMD_SIGN_DATA until CMD_SIGN_FINISH
+    sign_buf: bytearray | None = None
 
 
 class CompanionBridge:
@@ -66,6 +116,17 @@ class CompanionBridge:
         # message id -> (session, ack token, sent at)
         self._acks: dict[int, tuple[_Session, bytes, float]] = {}
         self._tasks: set[asyncio.Task] = set()
+        # The reply an app's command waits for, and the push a request waits for.
+        self._capture: _Waiter | None = None
+        self._push_waiter: _Waiter | None = None
+
+    @property
+    def allow_send(self) -> bool:
+        return self._allow_send
+
+    @property
+    def max_channels(self) -> int:
+        return MAX_BRIDGE_CHANNELS
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
@@ -124,6 +185,44 @@ class CompanionBridge:
                     self._spawn(self._write(session, frames.msg_waiting()))
         elif event_type == "message_acked":
             self._on_acked(data)
+        elif event_type == "contact_deleted":
+            key = str(data.get("public_key") or "")
+            if len(key) == 64:
+                for session in list(self._sessions):
+                    self._spawn(self._write(session, frames.contact_deleted(key)))
+
+    # ── frames from the radio ────────────────────────────────────────────
+
+    def attach_radio(self, mc) -> None:
+        """Let the bridge see every frame the radio sends to RTFM-EV (once per connection)."""
+        reader = getattr(mc, "_reader", None)
+        if reader is None or getattr(reader, HOOK_ATTR, False):
+            return
+        original = reader.handle_rx
+
+        async def hooked(data):
+            try:
+                self.on_radio_frame(bytes(data))
+            except Exception:  # noqa: BLE001 - the bridge must never break the reader
+                logger.debug("Companion bridge: radio frame not handled", exc_info=True)
+            return await original(data)
+
+        reader.handle_rx = hooked
+        setattr(reader, HOOK_ATTR, True)
+
+    def on_radio_frame(self, data: bytes) -> None:
+        """A frame from the radio: an app command's reply, a push to copy, or neither."""
+        if not data or self._server is None:
+            return
+        if self._capture is not None:
+            self._capture.offer(data)
+        if data[0] < 0x80:
+            return
+        if self._push_waiter is not None:
+            self._push_waiter.offer(data)
+        if data[0] in FORWARDED_PUSHES:
+            for session in list(self._sessions):
+                self._spawn(self._write(session, data))
 
     def _on_acked(self, data: dict) -> None:
         message_id = data.get("message_id")
@@ -223,6 +322,13 @@ class CompanionBridge:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
+    async def write(self, session: _Session, payload: bytes) -> None:
+        await self._write(session, payload)
+
+    def queue_message(self, session: _Session, payload: bytes) -> None:
+        session.queue.append(payload)
+        self._spawn(self._write(session, frames.msg_waiting()))
+
     async def _write(self, session: _Session, payload: bytes) -> None:
         if session not in self._sessions:
             return
@@ -257,7 +363,10 @@ class CompanionBridge:
             await self._send_contacts(session, since)
         elif cmd == frames.CMD_GET_CHANNEL and len(frame) >= 2:
             channel = session.channel_by_slot.get(frame[1])
-            if channel is None:
+            if channel is None and frame[1] < MAX_BRIDGE_CHANNELS:
+                # A free slot, like the firmware: blank name and secret.
+                await self._write(session, frames.channel_info(frame[1], "", b""))
+            elif channel is None:
                 await self._write(session, frames.err(frames.ERR_CODE_NOT_FOUND))
             else:
                 name = getattr(channel, "name", "")
@@ -267,18 +376,29 @@ class CompanionBridge:
             payload = session.queue.popleft() if session.queue else frames.no_more_messages()
             await self._write(session, payload)
         elif cmd == frames.CMD_GET_DEVICE_TIME:
-            await self._write(session, frames.curr_time(int(time.time())))
+            if self._radio_connected():
+                await self.radio_call(session, "get_time", frame[:1], {frames.RESP_CODE_CURR_TIME})
+            else:
+                await self._write(session, frames.curr_time(int(time.time())))
         elif cmd == frames.CMD_SET_DEVICE_TIME:
             # RTFM-EV keeps the radio clock itself; accepted and ignored.
             await self._write(session, frames.ok())
         elif cmd == frames.CMD_GET_BATT_AND_STORAGE:
-            await self._write(session, frames.batt_and_storage(self._battery_mv()))
+            if self._radio_connected():
+                await self.radio_call(
+                    session, "battery", frame[:1], {frames.RESP_CODE_BATT_AND_STORAGE}
+                )
+            else:
+                await self._write(session, frames.batt_and_storage(self._battery_mv()))
         elif cmd == frames.CMD_SEND_TXT_MSG and len(frame) >= 14:
             await self._send_direct(session, frame)
         elif cmd == frames.CMD_SEND_CHANNEL_TXT_MSG and len(frame) >= 7:
             await self._send_channel(session, frame)
-        else:
+        elif not await commands.handle(self, session, frame):
             await self._write(session, frames.err(frames.ERR_CODE_UNSUPPORTED_CMD))
+
+    def self_info(self) -> dict | None:
+        return self._self_info()
 
     def _self_info(self) -> dict | None:
         from app.services.radio_runtime import radio_runtime as radio_manager
@@ -290,10 +410,11 @@ class CompanionBridge:
     def _device_info(self, session: _Session) -> bytes:
         from app.services.radio_runtime import radio_runtime as radio_manager
 
+        ver_code = getattr(radio_manager, "firmware_ver_code", None)
         return frames.device_info(
-            firmware_ver_code=BRIDGE_FIRMWARE_VER_CODE,
+            firmware_ver_code=ver_code if isinstance(ver_code, int) else BRIDGE_FIRMWARE_VER_CODE,
             max_contacts=self._max_contacts,
-            max_channels=max(1, len(session.channel_by_slot)),
+            max_channels=MAX_BRIDGE_CHANNELS,
             build=str(getattr(radio_manager, "firmware_build", None) or ""),
             model=f"RTFM-EV bridge ({getattr(radio_manager, 'device_model', None) or 'radio'})",
             version=str(getattr(radio_manager, "firmware_version", None) or ""),
@@ -345,25 +466,158 @@ class CompanionBridge:
                 if since and lastmod <= since:
                     continue
                 newest = max(newest, lastmod)
-                await self._write(
-                    session,
-                    frames.contact(
-                        public_key=c.public_key,
-                        name=c.name or "",
-                        contact_type=int(c.type or 0),
-                        flags=int(c.flags or 0),
-                        path_hex=c.direct_path,
-                        path_hops=c.direct_path_len,
-                        path_hash_mode=c.direct_path_hash_mode,
-                        last_advert=int(c.last_advert or 0),
-                        lat=c.lat,
-                        lon=c.lon,
-                        lastmod=lastmod,
-                    ),
-                )
+                await self._write(session, self.contact_frame(c))
             await self._write(session, frames.end_of_contacts(newest))
         finally:
             session.sending_contacts = False
+
+    @staticmethod
+    def contact_frame(c) -> bytes:
+        return frames.contact(
+            public_key=c.public_key,
+            name=c.name or "",
+            contact_type=int(c.type or 0),
+            flags=int(c.flags or 0),
+            path_hex=c.direct_path,
+            path_hops=c.direct_path_len,
+            path_hash_mode=c.direct_path_hash_mode,
+            last_advert=int(c.last_advert or 0),
+            lat=c.lat,
+            lon=c.lon,
+            lastmod=int(c.last_seen or c.last_advert or 0),
+        )
+
+    def set_slot(self, session: _Session, slot: int, channel) -> None:
+        self.clear_slot(session, slot)
+        key = str(getattr(channel, "key", "")).upper()
+        old_slot = session.slot_by_key.pop(key, None)
+        if old_slot is not None:
+            session.channel_by_slot.pop(old_slot, None)
+        session.slot_by_key[key] = slot
+        session.channel_by_slot[slot] = channel
+
+    def clear_slot(self, session: _Session, slot: int) -> None:
+        channel = session.channel_by_slot.pop(slot, None)
+        if channel is not None:
+            session.slot_by_key.pop(str(getattr(channel, "key", "")).upper(), None)
+
+    # ── carrying out commands on the radio ───────────────────────────────
+
+    @staticmethod
+    def _radio_connected() -> bool:
+        from app.services.radio_runtime import radio_runtime as radio_manager
+
+        return bool(radio_manager.is_connected)
+
+    @contextlib.asynccontextmanager
+    async def radio_session(self, name: str, *, pause_polling: bool = False):
+        """RTFM-EV's radio lock, held for one app command."""
+        from app.services.radio_runtime import radio_runtime as radio_manager
+
+        async with radio_manager.radio_operation(
+            f"companion_bridge_{name}",
+            pause_polling=pause_polling,
+            suspend_auto_fetch=True,
+        ) as mc:
+            self.attach_radio(mc)
+            yield mc
+
+    async def exchange(self, mc, frame: bytes, expect: set[int]) -> bytes | None:
+        """Send one command frame to the radio and return its reply frame (None on timeout).
+
+        Call with the radio lock held. ERR and DISABLED replies are returned too.
+        """
+        waiter = _Waiter(set(expect) | {frames.RESP_CODE_ERR, frames.RESP_CODE_DISABLED})
+        self._capture = waiter
+        try:
+            await mc.commands.send(frame)
+            return await asyncio.wait_for(waiter.future, REPLY_TIMEOUT_S)
+        except TimeoutError:
+            logger.warning("Companion bridge: no reply from the radio to 0x%02X", frame[0])
+            return None
+        finally:
+            if self._capture is waiter:
+                self._capture = None
+
+    @staticmethod
+    def push_wait_seconds(sent_reply: bytes) -> float:
+        """How long to wait for the answer to a request, from RESP_CODE_SENT's timeout."""
+        est_ms = struct.unpack_from("<I", sent_reply, 6)[0] if len(sent_reply) >= 10 else 0
+        return max(PUSH_WAIT_MIN_S, min(PUSH_WAIT_MAX_S, est_ms / 1000.0 + 3.0))
+
+    async def apply_session_scope(self, mc, session: _Session) -> bool:
+        """Put the app's own flood scope on the radio; True when it must be put back."""
+        if session.scope_frame is None:
+            return False
+        await self.exchange(mc, session.scope_frame, {frames.RESP_CODE_OK})
+        return True
+
+    async def restore_scope(self, mc) -> None:
+        """Put RTFM-EV's standing flood scope back (as radio_lifecycle applies it)."""
+        from app.region_scope import normalize_region_scope
+        from app.repository import AppSettingsRepository
+        from app.services.flood_scope import set_radio_flood_scope
+        from app.services.radio_runtime import radio_runtime as radio_manager
+        from app.services.temp_radio import temp_radio
+
+        try:
+            app_settings = await AppSettingsRepository.get()
+            scope = temp_radio.effective_flood_scope(
+                normalize_region_scope(app_settings.flood_scope)
+            )
+            await set_radio_flood_scope(
+                mc, scope, fw_ver=getattr(radio_manager, "firmware_ver_code", None)
+            )
+        except Exception:
+            logger.warning("Companion bridge: could not restore the flood scope", exc_info=True)
+
+    async def radio_call(
+        self,
+        session: _Session,
+        name: str,
+        frame: bytes,
+        expect: set[int],
+        *,
+        hold: set[int] | None = None,
+        scoped: bool = False,
+        contact=None,
+        write: bool = True,
+    ) -> bytes | None:
+        """Carry out one command on the radio for an app and hand it the radio's reply.
+
+        ``contact`` is loaded onto the radio first (RTFM-EV keeps its contacts in
+        its database and loads them on demand). ``hold``: push codes that answer
+        the request; the lock is kept until one arrives. ``scoped``: the app's own
+        flood scope applies to this command.
+        """
+        from app.routers.contacts import _ensure_on_radio
+
+        if not self._radio_connected():
+            if write:
+                await self._write(session, frames.err(frames.ERR_CODE_BAD_STATE))
+            return None
+        async with self.radio_session(name, pause_polling=hold is not None) as mc:
+            if contact is not None:
+                await _ensure_on_radio(mc, contact)
+            restore = await self.apply_session_scope(mc, session) if scoped else False
+            waiter = _Waiter(hold) if hold else None
+            self._push_waiter = waiter
+            try:
+                try:
+                    reply = await self.exchange(mc, frame, expect)
+                finally:
+                    # The scope only shapes the packet just sent: put RTFM-EV's back now.
+                    if restore:
+                        await self.restore_scope(mc)
+                if write:
+                    await self._write(session, reply or frames.err(frames.ERR_CODE_BAD_STATE))
+                if waiter is not None and reply is not None and reply[0] == frames.RESP_CODE_SENT:
+                    with contextlib.suppress(TimeoutError):
+                        await asyncio.wait_for(waiter.future, self.push_wait_seconds(reply))
+                return reply
+            finally:
+                if self._push_waiter is waiter:
+                    self._push_waiter = None
 
     async def _send_direct(self, session: _Session, frame: bytes) -> None:
         if not self._allow_send:
@@ -372,8 +626,13 @@ class CompanionBridge:
         txt_type = frame[1]
         prefix = frame[7:13].hex()
         text = frame[13:].decode("utf-8", "replace").rstrip("\0")
+        if txt_type == frames.TXT_TYPE_CLI_DATA:
+            try:
+                await commands.remote_cli(self, session, frame)
+            except HTTPException as exc:
+                await self._write(session, frames.err(commands.error_code(exc)))
+            return
         if txt_type != frames.TXT_TYPE_PLAIN:
-            # CLI commands to other nodes are not passed on.
             await self._write(session, frames.err(frames.ERR_CODE_UNSUPPORTED_CMD))
             return
         from app.event_handlers import track_pending_ack

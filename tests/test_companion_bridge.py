@@ -13,7 +13,7 @@ import pytest
 from meshcore import EventType, MeshCore
 
 from app.companion_bridge import frames
-from app.companion_bridge.server import PUBLIC_CHANNEL_KEY, CompanionBridge
+from app.companion_bridge.server import MAX_BRIDGE_CHANNELS, PUBLIC_CHANNEL_KEY, CompanionBridge
 from app.repository import ChannelRepository, ContactRepository
 
 RADIO_KEY = "11" * 32
@@ -130,8 +130,8 @@ async def test_app_start_reports_the_radio_identity(bridge):
         assert mc.self_info["radio_sf"] == 8
         info = await mc.commands.send_device_query()
         assert info.type == EventType.DEVICE_INFO
-        # One slot per stored channel (the test database may hold seeded ones).
-        assert info.payload["max_channels"] == len(await ChannelRepository.get_all())
+        # A fixed number of slots, so an app can add a channel in a free one (#388).
+        assert info.payload["max_channels"] == MAX_BRIDGE_CHANNELS
         assert "RTFM-EV bridge" in info.payload["model"]
         assert bridge.status()["clients"][0]["app_name"] != ""
     finally:
@@ -154,7 +154,10 @@ async def test_contacts_and_channels_come_from_the_database(bridge):
         assert public.payload["channel_name"] == "Public"
         ops = await mc.commands.get_channel(1)
         assert ops.payload["channel_secret"].hex().upper() == OPS_KEY
-        missing = await mc.commands.get_channel(5)
+        free = await mc.commands.get_channel(5)
+        assert free.type == EventType.CHANNEL_INFO
+        assert free.payload["channel_name"] == ""
+        missing = await mc.commands.get_channel(MAX_BRIDGE_CHANNELS)
         assert missing.type == EventType.ERROR
     finally:
         await mc.disconnect()
@@ -244,14 +247,11 @@ async def test_sending_goes_through_rtfm_ev_and_the_ack_is_passed_on(bridge):
 async def test_everything_else_is_refused(bridge):
     mc = await _client(bridge)
     try:
-        reboot = await mc.commands.send(b"\x13reboot", [EventType.OK, EventType.ERROR])
-        assert reboot.type == EventType.ERROR
-        export_key = await mc.commands.send(b"\x17", [EventType.PRIVATE_KEY, EventType.ERROR])
-        assert export_key.type == EventType.ERROR
-        set_channel = await mc.commands.send(
-            b"\x20\x00" + b"x" * 32 + b"\x00" * 16, [EventType.OK, EventType.ERROR]
-        )
-        assert set_channel.type == EventType.ERROR
+        # The BLE pin is not part of #388; 0x7F is no command at all.
+        pin = await mc.commands.send(b"\x25\x00\x00\x00\x00", [EventType.OK, EventType.ERROR])
+        assert pin.type == EventType.ERROR
+        unknown = await mc.commands.send(b"\x7f", [EventType.OK, EventType.ERROR])
+        assert unknown.type == EventType.ERROR
     finally:
         await mc.disconnect()
 

@@ -11,6 +11,41 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (companion bridge: every companion command, #388; feat/companion-bridge-full)
+
+For EV-Mesh (Elektr0Vodka/EV-Sentinel#102) and other companion apps sharing
+RTFM-EV's radio. No migration, no new dependency. On-air behaviour not checked
+on hardware yet.
+
+### Companion bridge (`app/companion_bridge/commands.py`, `server.py`, `frames.py`)
+- **Every companion command is carried out by RTFM-EV** instead of answered
+  "unsupported": adverts, login and logout, status, telemetry, binary and
+  anonymous requests, remote and own CLI, trace, path discovery, contact and
+  channel changes, radio settings, tuning, custom vars, flood scopes, stats,
+  battery, device time, contact export/import/share, signing, channel/control/
+  raw data, raw packets, key export and import, reboot and factory reset.
+  RTFM-EV stays the only program on the radio: state changes go through the
+  same code as the web UI (so contacts, channels and radio settings stay in
+  step), radio-only commands run under RTFM-EV's radio lock and the radio's
+  answer is handed back unchanged.
+- **Radio pushes reach the apps** as the radio sends them (adverts, path
+  updates, login results, status/telemetry/binary/path responses, trace, RX
+  log, control and raw data). Contact deleted is sent when RTFM-EV deletes a
+  contact; the radio's own contact-cache pushes are not passed on.
+- **`DEVICE_INFO` reports the radio's real protocol version** (14 only while
+  it is unknown) and 40 channel slots; a free slot reads as a blank channel,
+  like the firmware, so an app can add a channel.
+- Requests answered by a push keep the radio lock until the answer arrives,
+  because the firmware keeps one pending request at a time.
+- `MESHCORE_COMPANION_BRIDGE_ALLOW_SEND=false` refuses everything that changes
+  or transmits, plus signing and key export. Key export also needs
+  `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT`.
+
+### Docs
+- README_ADVANCED: what the bridge carries out, with the warning next to key
+  export/import, reboot and factory reset (no password: trusted network or
+  VPN only). Settings help text and manual (EN/NL/DE) updated.
+
 ## Update 2026-11-24 (chat on a phone in portrait, #390; fix/mobile-message-layout)
 
 Reported by Recte in #390. No migration, no new dependency, no new strings.

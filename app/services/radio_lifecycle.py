@@ -271,6 +271,12 @@ async def run_post_connect_setup(radio_manager) -> None:
                     except Exception as exc:
                         logger.warning("Full capture setup failed: %s", exc)
 
+                # Companion bridge (issue #388): it sees the radio's replies and
+                # pushes for its apps. Only reads frames; does nothing when off.
+                from app.companion_bridge.server import companion_bridge
+
+                companion_bridge.attach_radio(mc)
+
                 # Apply flood scope from settings (best-effort; older firmware may
                 # not support the mode-1 unscoped command). Done after the device
                 # query so radio_manager.firmware_ver_code is known and the unscoped
