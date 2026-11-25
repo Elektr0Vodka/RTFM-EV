@@ -134,7 +134,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - English, Dutch and German; date/time format, distance units and coordinate format (decimal, DMS or MGRS) are configurable.
 - Installable as a PWA; app name and icon can be rebranded server-side. The installed app shows the unread count on its icon (Windows, macOS, iOS), has a Reload app button under Settings > About, and offers a reload when the server was updated while it stayed open.
 - Command palette (Ctrl+K / Cmd+K) and bookmarkable views.
-- Touch screens: tap a badge, icon or shortened value to read the explanation a mouse gets on hover.
+- Touch screens: tap a badge, icon or shortened value to read the explanation a mouse gets on hover. On a phone in portrait the message actions sit under the message (Reply stays beside it), so the text keeps the width.
 - Chat window: a separate, lighter window with only messaging, laid out like a classic IRC client (conversation list, chat, recent senders). Classic lines or the regular bubbles, a mIRC, dark mIRC or app-theme skin, and a detached window per conversation. Each list section can be sorted (newest, oldest, A-Z, Z-A, most unread, distance) and folded, with favorites-only, unread-only and hide-muted toggles. It does not load the map or packet views and skips the raw packet stream.
 - In-app update indicator that checks GitHub for a newer fork build (can be disabled).
 

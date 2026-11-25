@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 
+import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 
 // Same quick set other MeshCore clients lead with; one tap sends the reaction.
@@ -42,6 +43,9 @@ export function MessageRowActions({
   onNotABot,
   onShare,
   onDelete,
+  touch = false,
+  alignEnd = false,
+  className,
 }: {
   onReact?: (emoji: string) => void;
   onReply?: () => void;
@@ -66,6 +70,14 @@ export function MessageRowActions({
   /** Share an image of how the message travelled (only for messages with paths). */
   onShare?: () => void;
   onDelete?: () => void;
+  /**
+   * Phone in portrait (see useIsNarrowTouch): always shown, bigger tap
+   * targets, and the icons wrap onto a second line instead of widening the row.
+   */
+  touch?: boolean;
+  /** Open the quick-reaction picker from the right edge (sent messages). */
+  alignEnd?: boolean;
+  className?: string;
 }) {
   const t = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -89,10 +101,20 @@ export function MessageRowActions({
     return null;
 
   const buttonClass =
-    'rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
+    (touch ? 'rounded-md p-2' : 'rounded p-1') +
+    ' text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
+
+  const iconClass = touch ? 'h-4 w-4' : 'h-3.5 w-3.5';
 
   return (
-    <div className="relative flex items-center gap-0.5 self-center px-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+    <div
+      className={cn(
+        touch
+          ? 'relative flex flex-wrap items-center gap-1'
+          : 'relative flex items-center gap-0.5 self-center px-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100',
+        className
+      )}
+    >
       {onReact && (
         <button
           type="button"
@@ -102,7 +124,7 @@ export function MessageRowActions({
           aria-expanded={pickerOpen}
           onClick={() => setPickerOpen((open) => !open)}
         >
-          <SmilePlus className="h-3.5 w-3.5" aria-hidden="true" />
+          <SmilePlus className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onRetry && (
@@ -121,7 +143,7 @@ export function MessageRowActions({
             }
           }}
         >
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          <RotateCcw className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onReply && (
@@ -132,7 +154,7 @@ export function MessageRowActions({
           title={t('chat_reply_action')}
           onClick={onReply}
         >
-          <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+          <Reply className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onMarkUnread && (
@@ -143,7 +165,7 @@ export function MessageRowActions({
           title={t('chat_mark_unread_action')}
           onClick={onMarkUnread}
         >
-          <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+          <Mail className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onToggleBookmark && (
@@ -155,9 +177,9 @@ export function MessageRowActions({
           onClick={onToggleBookmark}
         >
           {bookmarked ? (
-            <BookmarkMinus className="h-3.5 w-3.5" aria-hidden="true" />
+            <BookmarkMinus className={iconClass} aria-hidden="true" />
           ) : (
-            <Bookmark className="h-3.5 w-3.5" aria-hidden="true" />
+            <Bookmark className={iconClass} aria-hidden="true" />
           )}
         </button>
       )}
@@ -173,7 +195,7 @@ export function MessageRowActions({
             setNoteOpen((open) => !open);
           }}
         >
-          <NotebookPen className="h-3.5 w-3.5" aria-hidden="true" />
+          <NotebookPen className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onMarkSpam && (
@@ -184,7 +206,7 @@ export function MessageRowActions({
           title={t('chat_mark_spam_action')}
           onClick={onMarkSpam}
         >
-          <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+          <ShieldAlert className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onNotSpam && (
@@ -195,7 +217,7 @@ export function MessageRowActions({
           title={t('chat_not_spam_action')}
           onClick={onNotSpam}
         >
-          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          <ShieldCheck className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onAddToBotList && (
@@ -206,7 +228,7 @@ export function MessageRowActions({
           title={t('chat_add_to_bot_list_action')}
           onClick={onAddToBotList}
         >
-          <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+          <Bot className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onNotABot && (
@@ -217,7 +239,7 @@ export function MessageRowActions({
           title={t('chat_not_a_bot_action')}
           onClick={onNotABot}
         >
-          <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          <UserCheck className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onShare && (
@@ -228,7 +250,7 @@ export function MessageRowActions({
           title={t('share_message_title')}
           onClick={onShare}
         >
-          <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+          <Share2 className={iconClass} aria-hidden="true" />
         </button>
       )}
       {onDelete && (
@@ -239,12 +261,16 @@ export function MessageRowActions({
           title={t('chat_delete_message_action')}
           onClick={onDelete}
         >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          <Trash2 className={iconClass} aria-hidden="true" />
         </button>
       )}
       {noteOpen && bookmarked && onSaveBookmarkNote && (
         <form
-          className="absolute bottom-full right-0 z-20 mb-1 flex w-64 flex-col gap-1.5 rounded-md border border-border bg-popover p-2 shadow-md"
+          className={cn(
+            'absolute bottom-full z-20 mb-1 flex w-64 flex-col gap-1.5 rounded-md border border-border bg-popover p-2 shadow-md',
+            // Under a received message on a phone the strip starts at the left edge.
+            touch && !alignEnd ? 'left-0' : 'right-0'
+          )}
           onSubmit={(event) => {
             event.preventDefault();
             setNoteOpen(false);
@@ -281,7 +307,12 @@ export function MessageRowActions({
         </form>
       )}
       {pickerOpen && onReact && (
-        <div className="absolute bottom-full z-20 mb-1 flex gap-0.5 rounded-full border border-border bg-card px-1.5 py-1 shadow-md">
+        <div
+          className={cn(
+            'absolute bottom-full z-20 mb-1 flex gap-0.5 rounded-full border border-border bg-card px-1.5 py-1 shadow-md',
+            alignEnd && 'right-0'
+          )}
+        >
           {QUICK_REACTIONS.map((emoji) => (
             <button
               key={emoji}

@@ -60,6 +60,29 @@ describe('MessageRowActions', () => {
     expect(screen.queryByRole('button', { name: 'Mark unread from here' })).toBeNull();
   });
 
+  it('touch: always visible, wraps, and has bigger tap targets', () => {
+    render(<MessageRowActions touch onReply={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'Reply' });
+    expect(button).toHaveClass('p-2');
+    expect(button.parentElement).toHaveClass('flex-wrap');
+    expect(button.parentElement).not.toHaveClass('opacity-0');
+  });
+
+  it('default: hidden until hover, compact buttons', () => {
+    render(<MessageRowActions onReply={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'Reply' });
+    expect(button).toHaveClass('p-1');
+    expect(button.parentElement).toHaveClass('opacity-0');
+  });
+
+  it('opens the reaction picker from the right edge when aligned to the end', () => {
+    render(<MessageRowActions touch alignEnd onReact={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'React' }));
+    expect(screen.getByRole('button', { name: 'React with 👍' }).parentElement).toHaveClass(
+      'right-0'
+    );
+  });
+
   it('offers the bot list actions it has handlers for', () => {
     const onAddToBotList = vi.fn();
     const onNotABot = vi.fn();
