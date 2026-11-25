@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-24 (Bot lists tab on the Spam Guard page; feat/bot-lists-spam-guard-tab)
+
+Request from Richard. No migration, no new dependency, frontend only.
+
+### Spam Guard page (`SpamGuardView.tsx`, `SettingsLocalSection.tsx`, `AppShell.tsx`)
+- Everything about bot lists (Hide bots in chat, the lists with Block
+  forwards, import, subscribe, export, Never a bot) moved from Settings >
+  Local Configuration to a new **Bot lists** tab on the Spam Guard page.
+- Bot lists still work without Spam Guard. While Spam Guard is switched off
+  the page shows only the Bot lists tab. Settings keeps a short Bot lists line
+  with **Open bot lists**, which opens that tab (`utils/spamGuardNavigation.ts`).
+- Texts that pointed to Settings for bot lists now point to the tab.
+
 ## Update 2026-11-24 (companion bridge: every companion command, #388; feat/companion-bridge-full)
 
 For EV-Mesh (Elektr0Vodka/EV-Sentinel#102) and other companion apps sharing

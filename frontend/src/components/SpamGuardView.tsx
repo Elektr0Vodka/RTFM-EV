@@ -1,17 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useSpamGuard } from '../hooks/useSpamGuard';
 import { useT } from '../i18n';
 import { cn } from '../lib/utils';
-import type { Channel, Contact, HealthStatus } from '../types';
+import type { AppSettingsUpdate, Channel, Contact, HealthStatus } from '../types';
+import { SPAM_GUARD_TAB_EVENT, takeSpamGuardTab } from '../utils/spamGuardNavigation';
 import { OpenHopPolicyPane } from './settings/openhop/OpenHopPolicyPane';
+import { SettingsBotListsSection } from './settings/SettingsBotListsSection';
 import { SpamMessagesTab } from './spamGuard/SpamMessagesTab';
 import { SpamOverviewTab } from './spamGuard/SpamOverviewTab';
 import { SpamProtectionTab } from './spamGuard/SpamProtectionTab';
 import { SpamSettingsTab } from './spamGuard/SpamSettingsTab';
 import { SpamSourcesTab } from './spamGuard/SpamSourcesTab';
 
-const TABS = ['overview', 'protection', 'messages', 'sources', 'settings', 'policy'] as const;
+const TABS = [
+  'overview',
+  'protection',
+  'messages',
+  'sources',
+  'bot-lists',
+  'settings',
+  'policy',
+] as const;
 type SpamTab = (typeof TABS)[number];
 
 const TAB_KEYS: Record<SpamTab, string> = {
@@ -19,6 +29,7 @@ const TAB_KEYS: Record<SpamTab, string> = {
   protection: 'spam_tab_protection',
   messages: 'spam_tab_messages',
   sources: 'spam_tab_sources',
+  'bot-lists': 'spam_tab_bot_lists',
   settings: 'spam_tab_settings',
   policy: 'spam_tab_policy',
 };
@@ -32,24 +43,51 @@ const TAB_KEYS: Record<SpamTab, string> = {
  *
  * On an OpenHop node the page also holds the node's own policy editor (the
  * Policy tab), which Settings > OpenHop then leaves out.
+ *
+ * The Bot lists tab works without Spam Guard: marking and hiding bots in chat
+ * does not need it. Settings links here, so the page can be opened while
+ * Spam Guard is off; it then shows only that tab.
  */
 export function SpamGuardView({
   contacts,
   channels,
   health = null,
+  hideBots = false,
+  onSaveAppSettings,
 }: {
   contacts: Contact[];
   channels: Channel[];
   health?: HealthStatus | null;
+  hideBots?: boolean;
+  onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }) {
   const t = useT();
   const guard = useSpamGuard();
   const [tab, setTab] = useState<SpamTab>('overview');
   const { state, loadError } = guard;
   const isOpenHop = health?.radio_device_info?.is_openhop ?? false;
-  const tabs = TABS.filter((name) => name !== 'policy' || isOpenHop);
+  const spamOff = state !== null && !state.enabled;
+
+  // A tab asked for from elsewhere (Settings links to Bot lists): taken on
+  // arrival, and again when asked while the page is already open.
+  useEffect(() => {
+    const openRequested = () => {
+      const requested = takeSpamGuardTab();
+      if (requested && (TABS as readonly string[]).includes(requested)) {
+        setTab(requested as SpamTab);
+      }
+    };
+    openRequested();
+    window.addEventListener(SPAM_GUARD_TAB_EVENT, openRequested);
+    return () => window.removeEventListener(SPAM_GUARD_TAB_EVENT, openRequested);
+  }, []);
+
+  const tabs = spamOff
+    ? (['bot-lists'] as SpamTab[])
+    : TABS.filter((name) => name !== 'policy' || isOpenHop);
   // The radio is no longer an OpenHop node: its tab is gone, fall back.
-  const shown: SpamTab = tab === 'policy' && !isOpenHop ? 'overview' : tab;
+  // With Spam Guard off only Bot lists is left.
+  const shown: SpamTab = spamOff ? 'bot-lists' : tab === 'policy' && !isOpenHop ? 'overview' : tab;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -88,13 +126,19 @@ export function SpamGuardView({
               {t('spam_load_failed', { error: loadError })}
             </p>
           )}
-          {!state && !loadError && (
+          {!state && !loadError && shown !== 'bot-lists' && (
             <p className="text-sm text-muted-foreground">{t('common_loading_spam_guard')}</p>
           )}
-          {state && !state.enabled && (
+          {spamOff && (
             <p className="rounded border border-border p-3 text-sm text-muted-foreground">
               {t('spam_disabled_notice')}
             </p>
+          )}
+          {shown === 'bot-lists' && (
+            <SettingsBotListsSection
+              appSettings={{ hide_bots: hideBots }}
+              onSaveAppSettings={onSaveAppSettings}
+            />
           )}
           {state && shown === 'overview' && <SpamOverviewTab state={state} guard={guard} />}
           {state && shown === 'protection' && <SpamProtectionTab state={state} guard={guard} />}

@@ -435,10 +435,10 @@ For senders who change their name with every message (`Adriaan257`, `Adriaan502`
 
 ### Bot lists
 
-A bot list names known bots: an exact sender name, with an optional public key and note. Lists live under Settings > Local Configuration > Bot lists.
+A bot list names known bots: an exact sender name, with an optional public key and note. Lists live on the **Bot lists** tab of the Spam Guard page. They work without Spam Guard: with it switched off the page shows only that tab, reached through Settings > Local Configuration > Bot lists > Open bot lists.
 
 - **Enable a list** and its senders get a Bot marker in chat. Names are matched exactly and case-sensitively, so a person who uses the same name is marked too. "Never a bot" excepts a name on every list.
-- **Hide bots** (chat filter menu or Settings) hides listed senders in chat and keeps them out of unread counts, mentions and notifications. Search still shows them.
+- **Hide bots** (chat filter menu or the Bot lists tab) hides listed senders in chat and keeps them out of unread counts, mentions and notifications. Search still shows them.
 - **Block forwards** (per list, off by default) stops this repeater relaying channel messages from the list's names. It works through Spam Guard in Protect mode, on its protected channels that have **Block listed bots here** ticked (on by default; untick it on a channel that needs no bot rule, which keeps the rule count down; untick **Detect spam here** on a channel where you want only the bot rule and no spam detection); the line under the switch says whether it is active or what it is waiting for. Names a subscription's refresh adds are held for your review first. Other repeaters still relay those messages, and they still arrive here.
 - **Share a list** with Export, which writes a JSON file. Import file stores such a file as a new list of your own, switched off, so you can read it before you enable it.
 - **Subscribe to a list** by its https address. RTFM-EV shows the list before storing it, keeps it read-only and switched off until you enable it, and refreshes it once a day. The host of the list sees your internet address on each refresh.

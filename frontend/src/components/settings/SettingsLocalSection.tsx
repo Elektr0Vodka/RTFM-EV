@@ -34,7 +34,6 @@ import { CrtEffects } from './CrtEffects';
 import { BuddySettings } from './BuddySettings';
 import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
-import { SettingsBotListsSection } from './SettingsBotListsSection';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
 import { getAuthRedirectUrl, setAuthRedirectUrl } from '../../utils/authRedirect';
 import {
@@ -272,6 +271,7 @@ export function SettingsLocalSection({
   newNodeNotificationTypes,
   onSetNewNodeNotificationsEnabled,
   onSetNewNodeNotificationType,
+  onOpenBotLists,
 }: {
   onLocalLabelChange?: (label: LocalLabel) => void;
   contacts?: Contact[];
@@ -285,6 +285,8 @@ export function SettingsLocalSection({
   newNodeNotificationTypes?: number[];
   onSetNewNodeNotificationsEnabled?: (enabled: boolean) => Promise<void>;
   onSetNewNodeNotificationType?: (type: number, checked: boolean) => void;
+  /** Opens the Bot lists tab of the Spam Guard page. */
+  onOpenBotLists?: () => void;
 }) {
   const t = useT();
   const { distanceUnit, setDistanceUnit } = useDistanceUnit();
@@ -998,10 +1000,19 @@ export function SettingsLocalSection({
             </div>
           </div>
 
-          <SettingsBotListsSection
-            appSettings={appSettings}
-            onSaveAppSettings={onSaveAppSettings}
-          />
+          {onOpenBotLists && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-border/60 p-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="text-sm font-semibold">{t('settings_bot_lists_heading')}</div>
+                <p className="text-[0.8125rem] text-muted-foreground">
+                  {t('settings_bot_lists_moved')}
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={onOpenBotLists}>
+                {t('settings_bot_lists_open')}
+              </Button>
+            </div>
+          )}
 
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
             <Checkbox
