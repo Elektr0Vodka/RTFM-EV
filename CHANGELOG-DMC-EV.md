@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-11-26 (Wardrive HUD warmer / colder trend; feat/wardrive-hud-signal-trend)
+
+No migration, no new dependency, frontend only. Nothing new goes over the air.
+
+### Wardrive page (`wardrive/trend.ts`, `wardrive/screen/Hud.tsx`, `wardrive/WardriveApp.tsx`)
+- The HUD shows whether the shown sender's signal is getting stronger or weaker:
+  an up arrow with the dB gained, a down arrow with the dB lost, or a flat arrow
+  for steady, next to the dBm.
+- Median of the sender's last 3 readings against the median of the 3 before;
+  less than 3 dB is steady; needs 6 readings; a silence of more than 10 minutes
+  between two readings starts the count again.
+
 ## Update 2026-11-24 (Bot lists tab on the Spam Guard page; feat/bot-lists-spam-guard-tab)
 
 Request from Richard. No migration, no new dependency, frontend only.
