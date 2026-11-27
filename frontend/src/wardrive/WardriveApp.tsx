@@ -87,6 +87,7 @@ import { WardriveScreen } from './screen/WardriveScreen';
 import { SpeedTracker } from './speed';
 import { TARGET_KINDS, senderRows } from './targets';
 import { Trail } from './trail';
+import { signalTrend } from './trend';
 import { useDrive } from './useDrive';
 import { ExaggerationSetting } from './components/ExaggerationSetting';
 import { AttenuatorSetting } from './components/AttenuatorSetting';
@@ -609,6 +610,8 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
       nowMs
     );
   }, [shown, view.shown, nodes.directory, fix, heading, nowMs]);
+  // The same receptions the arrow reads: the shown view of this sender.
+  const trend = useMemo(() => signalTrend(shown, view.shown), [shown, view.shown]);
   const sender = shown
     ? senderLine(shown.sender, shown.attr, nodes.directory, shown.packetType, t)
     : { prefix: '', name: '', note: '' };
@@ -910,6 +913,7 @@ export function WardriveApp({ deps = defaultDeps }: { deps?: WardriveDeps }) {
             canIgnore={canIgnore}
             rssiOffset={rssiOffset}
             noiseFloor={radioStats.noiseFloor}
+            trend={trend}
             canFloat={!!floatMode}
             floatOpen={floatOpen}
             onFloat={toggleFloat}

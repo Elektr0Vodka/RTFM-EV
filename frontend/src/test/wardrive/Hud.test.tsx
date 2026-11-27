@@ -134,6 +134,44 @@ describe('wardrive HUD', () => {
     );
   });
 
+  it('shows a warmer trend with the dB gained', () => {
+    renderHud({ shown: entry(), trend: { dir: 'warmer', deltaDb: 8 } });
+    const trend = screen.getByTestId('wardrive-hud-trend');
+    expect(trend.dataset.dir).toBe('warmer');
+    expect(trend.textContent).toBe('+8');
+    expect(trend.getAttribute('aria-label')).toBe(
+      'Warmer: 8 dB stronger than the three readings before'
+    );
+    expect(trend.getAttribute('title')).toBe(trend.getAttribute('aria-label'));
+  });
+
+  it('shows a colder trend with the dB lost', () => {
+    renderHud({ shown: entry(), trend: { dir: 'colder', deltaDb: -4 } });
+    const trend = screen.getByTestId('wardrive-hud-trend');
+    expect(trend.dataset.dir).toBe('colder');
+    expect(trend.textContent).toBe('-4');
+    expect(trend.getAttribute('aria-label')).toBe(
+      'Colder: 4 dB weaker than the three readings before'
+    );
+  });
+
+  it('shows a steady trend without a number', () => {
+    renderHud({ shown: entry(), trend: { dir: 'steady', deltaDb: -2 } });
+    const trend = screen.getByTestId('wardrive-hud-trend');
+    expect(trend.dataset.dir).toBe('steady');
+    expect(trend.textContent).toBe('');
+    expect(trend.getAttribute('aria-label')).toBe(
+      'Steady: less than 3 dB off the three readings before'
+    );
+  });
+
+  it('shows no trend without one', () => {
+    renderHud({ shown: entry() });
+    expect(screen.queryByTestId('wardrive-hud-trend')).toBeNull();
+    renderHud({ shown: entry(), trend: null });
+    expect(screen.queryByTestId('wardrive-hud-trend')).toBeNull();
+  });
+
   it('shows the noise floor', () => {
     renderHud({ noiseFloor: -112 });
     expect(screen.getByTestId('wardrive-hud-noise').textContent).toContain('-112');

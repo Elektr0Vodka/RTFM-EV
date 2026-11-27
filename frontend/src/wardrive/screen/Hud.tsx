@@ -2,7 +2,16 @@
 // arrow, the shown reception's signal (big, with its tier colour) and sender,
 // SNR and age, the speed, the upload backlog, the target tools, Start/Stop and
 // the drive counters. Readable at a glance from a phone in a holder.
-import { Crosshair, EyeOff, Layers, PictureInPicture2, Plus } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Crosshair,
+  EyeOff,
+  Layers,
+  PictureInPicture2,
+  Plus,
+} from 'lucide-react';
 
 import { useCvdMode } from '../../hooks/useCvdColors';
 import { useT, type TFn } from '../../i18n';
@@ -13,6 +22,7 @@ import type { Stand } from '../filters';
 import type { LiveEntry } from '../liveLog';
 import { rssiTier, tierColor } from '../signal';
 import { formatSpeed } from '../speed';
+import { TREND_STEADY_DB, type SignalTrend } from '../trend';
 
 /** A backlog this large is worth showing; from ALARM it is a warning. */
 const BACKLOG_SHOW = 25;
@@ -48,6 +58,8 @@ export interface HudProps {
   rssiOffset?: number;
   /** The radio's noise floor (dBm), null when not read. */
   noiseFloor?: number | null;
+  /** Warmer / colder for the shown sender (trend.ts); null draws none. */
+  trend?: SignalTrend | null;
   /** This browser can float the reading (float/floatModel.ts floatSupport). */
   canFloat?: boolean;
   floatOpen?: boolean;
@@ -76,6 +88,31 @@ function Arrow({ arrow }: { arrow: NonNullable<HudProps['arrow']> }) {
     >
       <path d="M12 2 L20 21 L12 16 L4 21 Z" />
     </svg>
+  );
+}
+
+function Trend({ trend }: { trend: SignalTrend }) {
+  const t = useT();
+  const delta = Math.abs(trend.deltaDb);
+  const label =
+    trend.dir === 'warmer'
+      ? t('wardrive_page_hud_trend_warmer', { delta })
+      : trend.dir === 'colder'
+        ? t('wardrive_page_hud_trend_colder', { delta })
+        : t('wardrive_page_hud_trend_steady', { band: TREND_STEADY_DB });
+  const Icon = trend.dir === 'warmer' ? ArrowUp : trend.dir === 'colder' ? ArrowDown : ArrowRight;
+  return (
+    <span
+      className="flex items-center self-end text-sm font-semibold tabular-nums"
+      data-testid="wardrive-hud-trend"
+      data-dir={trend.dir}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {trend.dir === 'steady' ? null : trend.deltaDb > 0 ? `+${trend.deltaDb}` : trend.deltaDb}
+    </span>
   );
 }
 
@@ -120,6 +157,7 @@ export function Hud({
   canIgnore,
   rssiOffset = 0,
   noiseFloor = null,
+  trend = null,
   canFloat = false,
   floatOpen = false,
   onFloat,
@@ -157,6 +195,7 @@ export function Hud({
           <span className="self-end text-xs text-muted-foreground">
             {t('wardrive_page_hud_dbm')}
           </span>
+          {trend && <Trend trend={trend} />}
           {rssiOffset !== 0 && (
             <span
               className="self-start rounded bg-muted px-1 text-xs tabular-nums"

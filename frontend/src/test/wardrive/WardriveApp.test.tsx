@@ -846,6 +846,20 @@ describe('wardrive page reading what it hears', () => {
     );
   });
 
+  it('shows the warmer trend of the shown sender in the HUD', async () => {
+    const { radio } = await connected();
+    // Flooded via relay a1b2: three at -90 dBm, then three at -80 dBm.
+    const rssis = [0xa6, 0xa6, 0xa6, 0xb0, 0xb0, 0xb0];
+    for (const [i, rssi] of rssis.entries()) {
+      act(() => radio.hearRaw(groupTextFrame(TEST_SECRET, 'Mike', `hi ${i}`, 'a1b2', 2), rssi));
+      await screen.findByText(`${i + 1} rx`, undefined, { timeout: 5000 });
+      if (i < 5) expect(screen.queryByTestId('wardrive-hud-trend')).toBeNull();
+    }
+    const trend = screen.getByTestId('wardrive-hud-trend');
+    expect(trend.dataset.dir).toBe('warmer');
+    expect(trend.textContent).toBe('+10');
+  });
+
   it('asks the radio only local questions and sends nothing of its own', async () => {
     const { radio } = await connected();
     await waitFor(() => expect(radio.sent).toContain(0x04));
